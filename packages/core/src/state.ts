@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
-import type { Message, ToolCallRecord, AgentStatus } from './types.js';
+import type { ModelMessage, ToolCallRecord, AgentStatus } from './types.js';
 import { IterationBudget } from './budget.js';
 
 export class AgentState {
   readonly sessionId: string;
-  conversation: Message[] = [];
+  conversation: ModelMessage[] = [];
   currentTurn = 0;
   budget: IterationBudget;
   toolCalls: ToolCallRecord[] = [];
@@ -17,7 +17,7 @@ export class AgentState {
     this.maxTurns = this.budget.getStatus().turnsRemaining + this.budget.turnCount;
   }
 
-  addMessage(msg: Message): void {
+  addMessage(msg: ModelMessage): void {
     this.conversation.push(msg);
   }
 

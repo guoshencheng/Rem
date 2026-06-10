@@ -10,7 +10,7 @@ describe('EventBus', () => {
     bus.on('turn:before', () => { order.push(1); }, 100);
     bus.on('turn:before', () => { order.push(3); }, 10);
 
-    await bus.emit('turn:before', { harness: {} as any, state: {} as any });
+    await bus.emit('turn:before', { agent: {} as any, state: {} as any });
     expect(order).toEqual([1, 2, 3]);
   });
 
@@ -21,7 +21,7 @@ describe('EventBus', () => {
     const off = bus.on('turn:before', handler);
     off();
 
-    await bus.emit('turn:before', { harness: {} as any, state: {} as any });
+    await bus.emit('turn:before', { agent: {} as any, state: {} as any });
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -30,7 +30,7 @@ describe('EventBus', () => {
     const handler = vi.fn();
 
     bus.on('turn:after', handler);
-    const ctx = { harness: {} as any, state: { currentTurn: 5 } as any };
+    const ctx = { agent: {} as any, state: { currentTurn: 5 } as any };
 
     await bus.emit('turn:after', ctx);
     expect(handler).toHaveBeenCalledWith(ctx);
@@ -45,7 +45,7 @@ describe('EventBus', () => {
       resolved = true;
     });
 
-    await bus.emit('turn:before', { harness: {} as any, state: {} as any });
+    await bus.emit('turn:before', { agent: {} as any, state: {} as any });
     expect(resolved).toBe(true);
   });
 });

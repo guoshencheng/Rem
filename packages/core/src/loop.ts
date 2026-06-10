@@ -1,14 +1,15 @@
-import type { Message, UserInput, AgentOutput, ToolDefinition, ToolCallRecord } from './types.js';
+import type { ModelMessage, ToolSet, LanguageModelUsage, LanguageModel } from 'ai';
+import { generateText } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { ModelClient } from './model-client.js';
+import type { AgentOutput, ToolCallRecord } from './types.js';
 
 export interface TurnContext {
-  input: UserInput;
+  input: { content: string };
   turnNumber: number;
-  conversation: Message[];
+  conversation: ModelMessage[];
   systemPrompt: string;
-  availableTools: ToolDefinition[];
+  availableTools: ToolSet;
 }
 
 export interface TurnResult {
@@ -16,16 +17,17 @@ export interface TurnResult {
   toolCalls: ToolCallRecord[];
   completed: boolean;
   shouldContinue: boolean;
+  usage: LanguageModelUsage;
 }
 
 export class AgentLoop {
   constructor(
-    private modelClient: ModelClient,
+    private model: LanguageModel,
     private events: EventBus,
   ) {}
 
   async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
-    await this.events.emit('turn:before', { harness: this as any, state });
+    await this.events.emit('turn:before', { agent: this as any, state });
 
     if (!state.budget.checkTurn()) {
       return {
@@ -33,58 +35,54 @@ export class AgentLoop {
         toolCalls: [],
         completed: true,
         shouldContinue: false,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 0, reasoningTokens: 0 } } as LanguageModelUsage,
       };
     }
 
     state.currentTurn = ctx.turnNumber;
 
-    const messages: Message[] = [
-      { role: 'system', content: ctx.systemPrompt, timestamp: new Date() },
+    const messages: ModelMessage[] = [
       ...ctx.conversation,
-      { role: 'user', content: ctx.input.content, timestamp: new Date() },
+      { role: 'user', content: ctx.input.content },
     ];
 
-    await this.events.emit('phase:reason:before', { harness: this as any, state });
-    const response = await this.modelClient.chat(messages, {
-      tools: ctx.availableTools,
+    await this.events.emit('phase:reason:before', { agent: this as any, state });
+    const response = await generateText({
+      model: this.model,
+      system: ctx.systemPrompt,
+      messages,
+      tools: Object.keys(ctx.availableTools).length > 0 ? ctx.availableTools : undefined,
     });
-    await this.events.emit('phase:reason:after', { harness: this as any, state });
+    await this.events.emit('phase:reason:after', { agent: this as any, state });
 
-    if (!response.toolCalls || response.toolCalls.length === 0) {
-      state.addMessage({ role: 'assistant', content: response.content, timestamp: new Date() });
-      await this.events.emit('turn:after', { harness: this as any, state });
-      return {
-        output: { content: response.content, toolCalls: [], completed: true },
-        toolCalls: [],
-        completed: true,
-        shouldContinue: false,
-      };
-    }
+    state.addMessage({ role: 'assistant', content: response.text });
 
-    state.addMessage({
-      role: 'assistant',
-      content: response.content,
-      toolCalls: response.toolCalls,
-      timestamp: new Date(),
-    });
-
-    const toolCallRecords: ToolCallRecord[] = response.toolCalls.map(tc => ({
-      ...tc,
+    const toolCalls: ToolCallRecord[] = response.toolCalls.map(tc => ({
+      id: tc.toolCallId,
+      name: tc.toolName,
+      arguments: 'input' in tc ? tc.input as Record<string, unknown> : {},
       durationMs: 0,
       timestamp: new Date(),
     }));
 
-    await this.events.emit('turn:after', { harness: this as any, state });
+    for (const tc of toolCalls) {
+      state.addToolCall(tc);
+    }
+
+    await this.events.emit('turn:after', { agent: this as any, state });
+
+    const completed = response.toolCalls.length === 0;
 
     return {
       output: {
-        content: response.content,
-        toolCalls: toolCallRecords,
-        completed: false,
+        content: response.text,
+        toolCalls,
+        completed,
       },
-      toolCalls: toolCallRecords,
-      completed: false,
-      shouldContinue: true,
+      toolCalls,
+      completed,
+      shouldContinue: !completed,
+      usage: response.usage,
     };
   }
 }

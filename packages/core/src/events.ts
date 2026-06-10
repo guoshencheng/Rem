@@ -1,7 +1,7 @@
 import type { AgentState } from './state.js';
 
 export type AgentEvent =
-  | 'harness:init' | 'harness:start' | 'harness:error'
+  | 'core-agent:init' | 'core-agent:start' | 'core-agent:error'
   | 'turn:before' | 'turn:after'
   | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after'
   | 'phase:execute:before' | 'phase:execute:after'
@@ -10,7 +10,7 @@ export type AgentEvent =
   | 'compress:before' | 'compress:after';
 
 export interface EventContext {
-  harness: unknown;
+  agent: unknown;
   state: AgentState;
   turn?: unknown;
   turnResult?: unknown;

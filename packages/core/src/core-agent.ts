@@ -1,57 +1,42 @@
-import type { UserInput, AgentOutput, Message, AgentStatus, ModelConfig } from './types.js';
+import type { UserInput, AgentOutput, ModelMessage } from './types.js';
+import type { LanguageModel } from 'ai';
 import { AgentState } from './state.js';
 import { AgentLoop } from './loop.js';
 import { EventBus } from './events.js';
 import { IterationBudget } from './budget.js';
-import type { ModelClient } from './model-client.js';
 import type { AgentEvent, EventHandler } from './events.js';
 
-export interface AgentHarnessConfig {
+export interface CoreAgentConfig {
   name: string;
-  modelConfig: ModelConfig;
-  modelClient?: ModelClient;
+  model: LanguageModel;
   budget?: IterationBudget;
 }
 
-export class AgentHarness {
-  private config: AgentHarnessConfig;
+export class CoreAgent {
+  private config: CoreAgentConfig;
   private loop: AgentLoop | null = null;
   private events: EventBus;
   private state: AgentState;
-  private modelClient: ModelClient | null = null;
   private interrupted = false;
 
-  get status(): AgentStatus {
+  get status() {
     return this.state.status;
   }
 
-  constructor(config: AgentHarnessConfig) {
+  constructor(config: CoreAgentConfig) {
     this.config = config;
     this.events = new EventBus();
     this.state = new AgentState(config.budget);
   }
 
-  private _getModelClient(): ModelClient {
-    if (!this.modelClient) {
-      this.modelClient = this.config.modelClient ?? this._createDefaultModelClient(this.config.modelConfig);
-    }
-    return this.modelClient;
-  }
-
   private _getLoop(): AgentLoop {
     if (!this.loop) {
-      this.loop = new AgentLoop(this._getModelClient(), this.events);
+      this.loop = new AgentLoop(this.config.model, this.events);
     }
     return this.loop;
   }
 
-  private _createDefaultModelClient(_config: ModelConfig): ModelClient {
-    throw new Error(
-      'No ModelClient provided. Use OpenAICompatibleClient from "src/plugins/model-providers/openai-compatible.ts" or provide a custom implementation.'
-    );
-  }
-
-  async initialize(options?: { sessionId?: string; messages?: Message[] }): Promise<void> {
+  async initialize(options?: { sessionId?: string; messages?: ModelMessage[] }): Promise<void> {
     if (options?.sessionId) {
       this.state = new AgentState(this.config.budget);
       (this.state as any).sessionId = options.sessionId;
@@ -60,13 +45,13 @@ export class AgentHarness {
       this.state.conversation = options.messages;
     }
     this.state.status = 'idle';
-    await this.events.emit('harness:init', { harness: this, state: this.state });
+    await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 
   async run(input: UserInput): Promise<AgentOutput> {
     this.state.status = 'running';
     this.interrupted = false;
-    await this.events.emit('harness:start', { harness: this, state: this.state });
+    await this.events.emit('core-agent:start', { agent: this, state: this.state });
 
     try {
       let turnNumber = this.state.currentTurn + 1;
@@ -104,7 +89,7 @@ export class AgentHarness {
       };
     } catch (error) {
       this.state.status = 'error';
-      await this.events.emit('harness:error', { harness: this, state: this.state });
+      await this.events.emit('core-agent:error', { agent: this, state: this.state });
       throw error;
     }
   }
@@ -115,7 +100,7 @@ export class AgentHarness {
 
   async reset(): Promise<void> {
     this.state.reset();
-    await this.events.emit('harness:init', { harness: this, state: this.state });
+    await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 
   on(event: AgentEvent, handler: EventHandler): () => void {

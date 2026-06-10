@@ -1,30 +1,6 @@
-export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  toolCalls?: ToolCall[];
-  toolCallId?: string;
-  timestamp: Date;
-}
+import type { ModelMessage, LanguageModelUsage } from 'ai';
 
-export interface ToolCall {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolResult {
-  success: boolean;
-  output: string;
-  error?: string;
-  durationMs: number;
-}
-
-export interface ToolCallRecord extends ToolCall {
-  result?: ToolResult;
-  error?: string;
-  durationMs: number;
-  timestamp: Date;
-}
+export { type ModelMessage, type LanguageModelUsage } from 'ai';
 
 export interface UserInput {
   content: string;
@@ -37,33 +13,19 @@ export interface AgentOutput {
   completed: boolean;
 }
 
-export interface LLMResponse {
-  content: string;
-  toolCalls?: ToolCall[];
-  usage?: TokenUsage;
-}
-
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-}
-
-export interface ToolDefinition {
+export interface ToolCallRecord {
+  id: string;
   name: string;
-  description: string;
-  parameters: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
+  arguments: Record<string, unknown>;
+  result?: {
+    success: boolean;
+    output: string;
+    error?: string;
+    durationMs: number;
   };
+  error?: string;
+  durationMs: number;
+  timestamp: Date;
 }
 
 export type AgentStatus = 'idle' | 'running' | 'error';
-
-export interface ModelConfig {
-  provider: string;
-  model: string;
-  apiKey: string;
-  baseUrl?: string;
-}

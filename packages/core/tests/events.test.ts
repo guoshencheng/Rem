@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus } from '../../src/core/events.js';
+import { EventBus } from '../src/events.js';
 
 describe('EventBus', () => {
   it('should call handlers in priority order', async () => {

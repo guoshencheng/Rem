@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { AgentState } from '../../src/core/state.js';
-import { IterationBudget } from '../../src/core/budget.js';
+import { AgentState } from '../src/state.js';
+import { IterationBudget } from '../src/budget.js';
 
 describe('AgentState', () => {
   it('should initialize with idle status', () => {

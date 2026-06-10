@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AgentHarness } from '../../src/core/harness.js';
-import { IterationBudget } from '../../src/core/budget.js';
+import { AgentHarness } from '../src/harness.js';
+import { IterationBudget } from '../src/budget.js';
 import { createMockModelClient } from './mock-model-client.js';
 
 describe('AgentHarness', () => {

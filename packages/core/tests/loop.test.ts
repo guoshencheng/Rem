@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AgentLoop } from '../../src/core/loop.js';
-import { AgentState } from '../../src/core/state.js';
-import { EventBus } from '../../src/core/events.js';
-import { IterationBudget } from '../../src/core/budget.js';
+import { AgentLoop } from '../src/loop.js';
+import { AgentState } from '../src/state.js';
+import { EventBus } from '../src/events.js';
+import { IterationBudget } from '../src/budget.js';
 import { createMockModelClient } from './mock-model-client.js';
 
 describe('AgentLoop', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { IterationBudget } from '../../src/core/budget.js';
+import { IterationBudget } from '../src/budget.js';
 
 describe('IterationBudget', () => {
   it('should allow turns within budget', () => {

@@ -1,4 +1,4 @@
-import type { Message, LLMResponse, ChatOptions, ModelClient } from '../../src/core/model-client.js';
+import type { Message, LLMResponse, ChatOptions, ModelClient } from '../src/model-client.js';
 
 export function createMockModelClient(
   response: LLMResponse = { content: 'Mock response' }

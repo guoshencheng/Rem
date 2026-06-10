@@ -1,8 +1,6 @@
 ---
 name: reference-agent-frameworks
 description: Reference Hermes Agent and OpenClaw source code for architectural decisions. Only access when explicitly needed for design/implementation reference.
-metadata:
-  type: reference
 ---
 
 # Reference: Agent Framework Source Code

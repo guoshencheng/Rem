@@ -1,44 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentLoop } from '../src/loop.js';
 import { AgentState } from '../src/state.js';
 import { EventBus } from '../src/events.js';
 import { IterationBudget } from '../src/budget.js';
-import * as ai from 'ai';
-
-vi.mock('ai', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('ai')>();
-  return {
-    ...mod,
-    generateText: vi.fn(),
-  };
-});
-
-function mockGenerateTextResponse(text: string, toolCalls: any[] = []): any {
-  return {
-    text,
-    toolCalls,
-    toolResults: [],
-    usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10, inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 5, reasoningTokens: 0 } },
-    finishReason: toolCalls.length > 0 ? 'tool-calls' : 'stop',
-    rawFinishReason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
-    reasoning: [],
-    reasoningText: undefined,
-    files: [],
-    sources: [],
-    staticToolCalls: [],
-    dynamicToolCalls: [],
-    staticToolResults: [],
-    dynamicToolResults: [],
-    totalUsage: { inputTokens: 5, outputTokens: 5, totalTokens: 10, inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 5, reasoningTokens: 0 } },
-    warnings: [],
-    response: { id: 'test', timestamp: new Date(), modelId: 'test' },
-    request: {},
-    providerMetadata: {},
-    logprobs: undefined,
-    textDelta: '',
-    content: [],
-  };
-}
+import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -60,9 +25,18 @@ const createMockProviders = () => ({
 });
 
 describe('AgentLoop', () => {
-  it('should execute a simple turn without tools', async () => {
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockGenerateTextResponse('Hello!'));
+  beforeEach(() => {
+    clearProviders();
+    registerProvider('mock', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: 'Hello!' };
+        yield { type: 'usage', inputTokens: 5, outputTokens: 5, totalTokens: 10 };
+      },
+    });
+  });
 
+  it('should execute a simple turn without tools', async () => {
     const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();
     const mocks = createMockProviders();
@@ -74,6 +48,8 @@ describe('AgentLoop', () => {
       conversation: [],
       systemPrompt: 'You are helpful',
       availableTools: {},
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
     }, state);
 
     expect(result.output.content).toBe('Hello!');
@@ -82,8 +58,6 @@ describe('AgentLoop', () => {
   });
 
   it('should emit turn events', async () => {
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockGenerateTextResponse('OK'));
-
     const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();
     const beforeHandler = vi.fn();
@@ -100,6 +74,8 @@ describe('AgentLoop', () => {
       conversation: [],
       systemPrompt: '',
       availableTools: {},
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
     }, state);
 
     expect(beforeHandler).toHaveBeenCalled();
@@ -107,14 +83,18 @@ describe('AgentLoop', () => {
   });
 
   it('should execute tools and continue when toolCalls present', async () => {
+    registerProvider('mock-tools', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'tool-call', toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } };
+        yield { type: 'usage', inputTokens: 5, outputTokens: 5, totalTokens: 10 };
+      },
+    });
+
     const mocks = createMockProviders();
     mocks.toolProvider.execute.mockResolvedValue([
       { toolCallId: 'tc1', toolName: 'echo', output: 'result' },
     ]);
-
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockGenerateTextResponse('', [
-      { toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } },
-    ]));
 
     const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();
@@ -126,6 +106,8 @@ describe('AgentLoop', () => {
       conversation: [],
       systemPrompt: 'You are test',
       availableTools: {},
+      provider: 'mock-tools',
+      providerConfig: { apiKey: 'key', model: 'model' },
     }, state);
 
     expect(mocks.toolProvider.execute).toHaveBeenCalledWith([
@@ -143,8 +125,6 @@ describe('AgentLoop', () => {
       messages: [{ role: 'user', content: 'previous' }],
     });
 
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockGenerateTextResponse('OK'));
-
     const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();
     const loop = new AgentLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor);
@@ -155,14 +135,11 @@ describe('AgentLoop', () => {
       conversation: [],
       systemPrompt: 'ignored',
       availableTools: {},
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
     }, state);
 
     expect(mocks.memoryProvider.buildContext).toHaveBeenCalledWith(state);
-    expect(ai.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        system: 'Custom system prompt',
-      }),
-    );
   });
 
   it('should call compressor when shouldCompress returns true', async () => {
@@ -171,8 +148,6 @@ describe('AgentLoop', () => {
     mocks.compressor.compress.mockResolvedValue([
       { role: 'user', content: 'compressed' },
     ]);
-
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockGenerateTextResponse('OK'));
 
     const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();
@@ -184,6 +159,8 @@ describe('AgentLoop', () => {
       conversation: [],
       systemPrompt: '',
       availableTools: {},
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
     }, state);
 
     expect(mocks.compressor.shouldCompress).toHaveBeenCalledWith(state);

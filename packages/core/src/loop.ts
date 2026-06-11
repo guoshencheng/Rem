@@ -1,11 +1,11 @@
-import type { ModelMessage, ToolSet, LanguageModelUsage, LanguageModel, TextPart, ToolCallPart } from 'ai';
-import { generateText } from 'ai';
+import type { ModelMessage, ToolSet, LanguageModelUsage, LanguageModel } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
 import type { AgentOutput } from './types.js';
 import type { ToolProvider, ToolCall } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
+import { InferenceEngine } from './llm/engine.js';
 
 export interface TurnContext {
   input: { content: string };
@@ -13,6 +13,12 @@ export interface TurnContext {
   conversation: ModelMessage[];
   systemPrompt: string;
   availableTools: ToolSet;
+  provider: string;
+  providerConfig: {
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
 }
 
 export interface TurnResult {
@@ -24,6 +30,8 @@ export interface TurnResult {
 }
 
 export class AgentLoop {
+  private inferenceEngine = new InferenceEngine();
+
   constructor(
     private model: LanguageModel,
     private events: EventBus,
@@ -51,28 +59,32 @@ export class AgentLoop {
       messages = await this.compressor.compress(messages);
     }
 
-    // === 2. REASON: 调用 LLM ===
+    // === 2. REASON: 调用 InferenceEngine ===
     await this.events.emit('phase:reason:before', { agent: this as any, state });
+
     const tools = this.toolProvider.getToolSet();
-    const response = await generateText({
-      model: this.model,
+    const { text, toolCalls, usage } = await this.inferenceEngine.infer({
+      provider: ctx.provider,
+      providerConfig: ctx.providerConfig,
       system: systemPrompt,
       messages,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
+      onChunk: async (chunk) => {
+        await this.events.emit('stream:chunk', { agent: this as any, state, chunk });
+      },
     });
+
     await this.events.emit('phase:reason:after', { agent: this as any, state });
 
     // === 3. EXECUTE: 工具执行 ===
-    let toolCallRecords: { toolCallId: string; toolName: string; input: unknown }[] = [];
+    const toolCallRecords: ToolCall[] = toolCalls.map(tc => ({
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      input: tc.input,
+    }));
 
-    if (response.toolCalls.length > 0) {
+    if (toolCallRecords.length > 0) {
       await this.events.emit('phase:execute:before', { agent: this as any, state });
-
-      toolCallRecords = response.toolCalls.map(tc => ({
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        input: tc.input,
-      }));
 
       const results = await this.toolProvider.execute(toolCallRecords);
 
@@ -89,39 +101,26 @@ export class AgentLoop {
     }
 
     // === 4. OBSERVE: 更新状态 ===
-    const parts: Array<TextPart | ToolCallPart> = [];
-    if (response.text) {
-      parts.push({ type: 'text', text: response.text });
-    }
-    for (const tc of response.toolCalls) {
-      parts.push({
-        type: 'tool-call',
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        input: tc.input,
-      });
-    }
-
     state.addMessage({
       role: 'assistant',
-      content: parts.length === 1 && parts[0].type === 'text'
-        ? parts[0].text
-        : parts,
+      content: toolCallRecords.length > 0
+        ? toolCallRecords.map(tc => ({ type: 'tool-call' as const, ...tc }))
+        : text,
     });
 
     await this.events.emit('turn:after', { agent: this as any, state });
 
-    const completed = response.toolCalls.length === 0;
+    const completed = toolCallRecords.length === 0;
 
     return {
       output: {
-        content: response.text,
+        content: text,
         completed,
       },
       toolCalls: toolCallRecords,
       completed,
       shouldContinue: !completed,
-      usage: response.usage,
+      usage,
     };
   }
 }

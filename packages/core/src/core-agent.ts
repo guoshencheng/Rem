@@ -15,6 +15,7 @@ import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
+import { registerBuiltInProviders } from './llm/providers/index.js';
 
 export interface CoreAgentConfig {
   name: string;
@@ -25,6 +26,12 @@ export interface CoreAgentConfig {
   errorHandler?: ErrorHandler;
   budgetPolicy?: BudgetPolicy;
   compressor?: ContextCompressor;
+  provider?: string;
+  providerConfig?: {
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
 }
 
 export class CoreAgent {
@@ -42,6 +49,7 @@ export class CoreAgent {
     this.config = config;
     this.events = new EventBus();
     this.state = new AgentState(config.budget);
+    registerBuiltInProviders();
   }
 
   private _getLoop(): AgentLoop {
@@ -102,6 +110,11 @@ export class CoreAgent {
             conversation: this.state.conversation,
             systemPrompt: `You are ${this.config.name}.`,
             availableTools: {},
+            provider: this.config.provider ?? 'openai',
+            providerConfig: this.config.providerConfig ?? {
+              apiKey: '',
+              model: 'gpt-4o',
+            },
           }, this.state);
 
           if (result.completed || this.interrupted) {

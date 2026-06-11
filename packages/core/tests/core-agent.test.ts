@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
 import { IterationBudget } from '../src/budget.js';
+import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 import * as ai from 'ai';
 
 vi.mock('ai', async (importOriginal) => {
@@ -9,6 +10,17 @@ vi.mock('ai', async (importOriginal) => {
     ...mod,
     generateText: vi.fn(),
   };
+});
+
+beforeEach(() => {
+  clearProviders();
+  registerProvider('mock-agent', {
+    generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+    stream: async function* () {
+      yield { type: 'text', text: 'Done!' };
+      yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+    },
+  });
 });
 
 function mockResponse(text: string, toolCalls: any[] = []): any {
@@ -174,5 +186,22 @@ describe('CoreAgent', () => {
 
     await agent.initialize();
     await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Fatal');
+  });
+
+  it('should use configured provider', async () => {
+    vi.mocked(ai.generateText).mockClear();
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      budget: new IterationBudget({ maxTurns: 5 }),
+      provider: 'mock-agent',
+      providerConfig: { apiKey: 'key', model: 'model' },
+    });
+
+    await agent.initialize();
+    const result = await agent.run({ content: 'Hello' });
+
+    expect(result.content).toBe('Done!');
   });
 });

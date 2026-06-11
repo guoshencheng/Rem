@@ -146,6 +146,48 @@ export type StreamChunk =
   | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
   | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
   | { type: 'finish'; reason: string };
+
+/** 流式聚合器：消费 StreamChunk 流，聚合为完整结果 */
+export class StreamCollector {
+  private text = '';
+  private toolCalls: GenerateResult['toolCalls'] = [];
+  private usage: GenerateResult['usage'] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+  feed(chunk: StreamChunk): void {
+    if (chunk.type === 'text') {
+      this.text += chunk.text;
+    } else if (chunk.type === 'tool-call') {
+      this.toolCalls.push({
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName,
+        input: chunk.input,
+      });
+    } else if (chunk.type === 'usage') {
+      this.usage = {
+        inputTokens: chunk.inputTokens,
+        outputTokens: chunk.outputTokens,
+        totalTokens: chunk.totalTokens,
+      };
+    }
+  }
+
+  result(): GenerateResult {
+    return {
+      text: this.text,
+      toolCalls: this.toolCalls,
+      usage: this.usage,
+    };
+  }
+}
+
+/** 便捷函数：直接收集流为结果 */
+export async function collectStream(stream: AsyncIterable<StreamChunk>): Promise<GenerateResult> {
+  const collector = new StreamCollector();
+  for await (const chunk of stream) {
+    collector.feed(chunk);
+  }
+  return collector.result();
+}
 ```
 
 **类型复用决策**：`ModelMessage` 和 `ToolSet` 复用 `ai` SDK 的类型。Provider 内部负责转换为原生格式。这样 loop 层不依赖具体 Provider 的消息格式。
@@ -291,7 +333,17 @@ export const openaiProvider: LLMProvider = {
 
 ---
 
-## 6. Anthropic Provider 实现（P0 简化版）
+## 6. Anthropic Provider 实现
+
+Anthropic Messages API 与 OpenAI 的关键差异：
+
+| 维度 | OpenAI | Anthropic |
+|------|--------|-----------|
+| 系统提示 | `messages[0].role === 'system'` | 顶层 `system` 参数 |
+| 消息 role | `user/assistant/tool/system` | `user/assistant` |
+| 工具调用 | `message.tool_calls` | `content` 块 `type: "tool_use"` |
+| 工具结果 | `role: 'tool'` 消息 | `user` 消息的 `type: "tool_result"` 块 |
+| 工具 schema | `parameters` | `input_schema` |
 
 ```typescript
 // src/llm/providers/anthropic.ts
@@ -299,21 +351,141 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { LLMProvider } from '../api-registry.js';
 import type { GenerateOptions, GenerateResult, StreamChunk } from '../types.js';
 
-// 转换逻辑类似 OpenAI，但适配 Anthropic Messages API 格式
-// 具体实现参考 Anthropic SDK 文档
+function convertToAnthropicMessages(messages: GenerateOptions['messages']): Anthropic.MessageParam[] {
+  const result: Anthropic.MessageParam[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      result.push({ role: 'user', content: msg.content as string });
+    } else if (msg.role === 'assistant') {
+      // assistant 消息可能包含文本或 tool_use
+      const content = msg.content;
+      if (typeof content === 'string') {
+        result.push({ role: 'assistant', content });
+      } else if (Array.isArray(content)) {
+        const blocks: Anthropic.ContentBlock[] = [];
+        for (const part of content) {
+          if (part.type === 'text') {
+            blocks.push({ type: 'text', text: part.text });
+          } else if (part.type === 'tool-call') {
+            blocks.push({
+              type: 'tool_use',
+              id: part.toolCallId,
+              name: part.toolName,
+              input: part.input,
+            });
+          }
+        }
+        result.push({ role: 'assistant', content: blocks });
+      }
+    } else if (msg.role === 'tool') {
+      // tool 结果作为 user 消息的 tool_result 块
+      const toolMsg = msg as any;
+      result.push({
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: toolMsg.toolCallId,
+          content: msg.content as string,
+        }],
+      });
+    }
+  }
+
+  return result;
+}
+
+function convertToAnthropicTools(tools: GenerateOptions['tools']): Anthropic.Tool[] {
+  if (!tools) return [];
+  return Object.entries(tools).map(([name, tool]) => ({
+    name,
+    description: (tool as any).description ?? '',
+    input_schema: (tool as any).parameters ?? { type: 'object' },
+  }));
+}
+
+function parseAnthropicResponse(response: Anthropic.Message): GenerateResult {
+  const textBlocks = response.content
+    .filter((c): c is Anthropic.TextBlock => c.type === 'text')
+    .map(c => c.text)
+    .join('');
+
+  const toolCalls = response.content
+    .filter((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use')
+    .map(tc => ({
+      toolCallId: tc.id,
+      toolName: tc.name,
+      input: tc.input,
+    }));
+
+  return {
+    text: textBlocks,
+    toolCalls,
+    usage: {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+    },
+  };
+}
+
+function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageStreamEvent): Generator<StreamChunk> {
+  if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+    yield { type: 'text', text: event.delta.text };
+  } else if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
+    yield {
+      type: 'tool-call',
+      toolCallId: event.content_block.id,
+      toolName: event.content_block.name,
+      input: event.content_block.input,
+    };
+  } else if (event.type === 'message_delta' && event.usage) {
+    yield {
+      type: 'usage',
+      inputTokens: 0,
+      outputTokens: event.usage.output_tokens,
+      totalTokens: event.usage.output_tokens,
+    };
+  }
+}
 
 export const anthropicProvider: LLMProvider = {
   async generate(options: GenerateOptions): Promise<GenerateResult> {
-    // ... 实现 ...
+    const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
+
+    const response = await client.messages.create({
+      model: options.model,
+      max_tokens: options.maxTokens ?? 4096,
+      system: options.system,
+      messages: convertToAnthropicMessages(options.messages),
+      tools: options.tools ? convertToAnthropicTools(options.tools) : undefined,
+      temperature: options.temperature,
+    }, { signal: options.signal });
+
+    return parseAnthropicResponse(response);
   },
 
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    // ... 实现 ...
+    const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
+
+    const stream = await client.messages.create({
+      model: options.model,
+      max_tokens: options.maxTokens ?? 4096,
+      system: options.system,
+      messages: convertToAnthropicMessages(options.messages),
+      tools: options.tools ? convertToAnthropicTools(options.tools) : undefined,
+      temperature: options.temperature,
+      stream: true,
+    }, { signal: options.signal });
+
+    for await (const event of stream) {
+      yield* parseAnthropicStreamEvent(event);
+    }
+
+    yield { type: 'finish', reason: 'stop' };
   },
 };
 ```
-
-**注**：Anthropic 的 Messages API 格式和 OpenAI 不同（系统提示是 `system` 参数而非 `messages[0]`，工具格式也不同），需要单独的转换逻辑。具体实现略，参考 Anthropic SDK 文档。
 
 ---
 
@@ -361,10 +533,7 @@ async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
   const provider = resolveProvider(ctx.provider);
   const tools = this.toolProvider.getToolSet();
 
-  let text = '';
-  const toolCalls: Array<{toolCallId: string; toolName: string; input: unknown}> = [];
-  let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-
+  const collector = new StreamCollector();
   for await (const chunk of provider.stream({
     model: ctx.providerConfig.model,
     apiKey: ctx.providerConfig.apiKey,
@@ -373,14 +542,11 @@ async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
     messages,
     tools: Object.keys(tools).length > 0 ? tools : undefined,
   })) {
-    if (chunk.type === 'text') {
-      text += chunk.text;
-    } else if (chunk.type === 'tool-call') {
-      toolCalls.push({ toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input });
-    } else if (chunk.type === 'usage') {
-      usage = { inputTokens: chunk.inputTokens, outputTokens: chunk.outputTokens, totalTokens: chunk.totalTokens };
-    }
+    collector.feed(chunk);
+    // 可选：emit 流式事件给外部观察者
+    await this.events.emit('stream:chunk', { agent: this, state, chunk });
   }
+  const { text, toolCalls, usage } = collector.result();
 
   await this.events.emit('phase:reason:after', { agent: this, state });
 

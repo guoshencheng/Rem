@@ -2,19 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
 import { IterationBudget } from '../src/budget.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
-import * as ai from 'ai';
 
-vi.mock('ai', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('ai')>();
-  return {
-    ...mod,
-    generateText: vi.fn(),
-  };
-});
+const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
 beforeEach(() => {
   clearProviders();
-  registerProvider('mock-agent', {
+  registerProvider('openai', {
     generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
     stream: async function* () {
       yield { type: 'text', text: 'Done!' };
@@ -23,39 +16,7 @@ beforeEach(() => {
   });
 });
 
-function mockResponse(text: string, toolCalls: any[] = []): any {
-  return {
-    text,
-    toolCalls,
-    toolResults: [],
-    usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10, inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 5, reasoningTokens: 0 } },
-    finishReason: toolCalls.length > 0 ? 'tool-calls' : 'stop',
-    rawFinishReason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
-    reasoning: [],
-    reasoningText: undefined,
-    files: [],
-    sources: [],
-    staticToolCalls: [],
-    dynamicToolCalls: [],
-    staticToolResults: [],
-    dynamicToolResults: [],
-    totalUsage: { inputTokens: 5, outputTokens: 5, totalTokens: 10, inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 5, reasoningTokens: 0 } },
-    warnings: [],
-    response: { id: 'test', timestamp: new Date(), modelId: 'test' },
-    request: {},
-    providerMetadata: {},
-    logprobs: undefined,
-    textDelta: '',
-    content: [],
-  };
-}
-
-const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
-
 describe('CoreAgent', () => {
-  beforeEach(() => {
-    vi.mocked(ai.generateText).mockClear();
-  });
   it('should initialize with idle status', () => {
     const agent = new CoreAgent({
       name: 'test-agent',
@@ -65,8 +26,6 @@ describe('CoreAgent', () => {
   });
 
   it('should run a single turn and complete', async () => {
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockResponse('Done!'));
-
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
@@ -81,8 +40,6 @@ describe('CoreAgent', () => {
   });
 
   it('should reset session state', async () => {
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockResponse('OK'));
-
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
@@ -112,14 +69,19 @@ describe('CoreAgent', () => {
   });
 
   it('should handle interrupt', async () => {
-    vi.mocked(ai.generateText).mockImplementation(async () => {
-      await new Promise(r => setTimeout(r, 50));
-      return mockResponse('Late response');
+    registerProvider('slow', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        await new Promise(r => setTimeout(r, 50));
+        yield { type: 'text', text: 'Late response' };
+      },
     });
 
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
+      provider: 'slow',
+      providerConfig: { apiKey: 'key', model: 'model' },
     });
 
     await agent.initialize();
@@ -130,9 +92,7 @@ describe('CoreAgent', () => {
     expect(result.content).toContain('interrupted');
   });
 
-  it('should inject default providers when not specified', async () => {
-    vi.mocked(ai.generateText).mockResolvedValueOnce(mockResponse('Hello!'));
-
+  it('should use default openai provider', async () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
@@ -141,24 +101,35 @@ describe('CoreAgent', () => {
     await agent.initialize();
     const result = await agent.run({ content: 'Hi' });
 
-    expect(result.content).toBe('Hello!');
+    expect(result.content).toBe('Done!');
   });
 
   it('should retry on retryable API errors', async () => {
+    let callCount = 0;
+    registerProvider('retryable', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error('rate limit');
+        }
+        yield { type: 'text', text: 'Recovered!' };
+        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+      },
+    });
+
     const errorHandler = {
       classify: vi.fn().mockReturnValue('api_error'),
       isRetryable: vi.fn().mockReturnValue(true),
       getRetryInstruction: vi.fn().mockReturnValue('Please try again.'),
     };
 
-    vi.mocked(ai.generateText)
-      .mockRejectedValueOnce(new ai.APICallError({ message: 'rate limit', url: 'http://test' }))
-      .mockResolvedValueOnce(mockResponse('Recovered!'));
-
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
       budget: new IterationBudget({ maxTurns: 5 }),
+      provider: 'retryable',
+      providerConfig: { apiKey: 'key', model: 'model' },
       errorHandler: errorHandler as any,
     });
 
@@ -166,21 +137,28 @@ describe('CoreAgent', () => {
     const result = await agent.run({ content: 'Hi' });
 
     expect(result.content).toBe('Recovered!');
-    expect(ai.generateText).toHaveBeenCalledTimes(2);
+    expect(callCount).toBe(2);
   });
 
   it('should stop on non-retryable errors', async () => {
+    registerProvider('fatal', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        throw new Error('Fatal');
+      },
+    });
+
     const errorHandler = {
       classify: vi.fn().mockReturnValue('unknown'),
       isRetryable: vi.fn().mockReturnValue(false),
       getRetryInstruction: vi.fn(),
     };
 
-    vi.mocked(ai.generateText).mockRejectedValueOnce(new Error('Fatal'));
-
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
+      provider: 'fatal',
+      providerConfig: { apiKey: 'key', model: 'model' },
       errorHandler: errorHandler as any,
     });
 
@@ -189,7 +167,13 @@ describe('CoreAgent', () => {
   });
 
   it('should use configured provider', async () => {
-    vi.mocked(ai.generateText).mockClear();
+    registerProvider('mock-agent', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: 'Custom!' };
+        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+      },
+    });
 
     const agent = new CoreAgent({
       name: 'test',
@@ -202,6 +186,6 @@ describe('CoreAgent', () => {
     await agent.initialize();
     const result = await agent.run({ content: 'Hello' });
 
-    expect(result.content).toBe('Done!');
+    expect(result.content).toBe('Custom!');
   });
 });

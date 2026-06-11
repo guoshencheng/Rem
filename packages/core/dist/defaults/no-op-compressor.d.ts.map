@@ -1,1 +1,0 @@
-{"version":3,"file":"no-op-compressor.d.ts","sourceRoot":"","sources":["../../src/defaults/no-op-compressor.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,iBAAiB,EAAE,MAAM,sBAAsB,CAAC;AAC9D,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,aAAa,CAAC;AAGhD,qBAAa,cAAe,YAAW,iBAAiB;IACtD,cAAc,IAAI,OAAO;IAInB,QAAQ,CAAC,QAAQ,EAAE,YAAY,EAAE,GAAG,OAAO,CAAC,YAAY,EAAE,CAAC;CAGlE"}

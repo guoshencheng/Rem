@@ -1,1 +1,0 @@
-{"version":3,"file":"no-op-compressor.js","sourceRoot":"","sources":["../../src/defaults/no-op-compressor.ts"],"names":[],"mappings":"AAIA,MAAM,OAAO,cAAc;IACzB,cAAc;QACZ,OAAO,KAAK,CAAC;IACf,CAAC;IAED,KAAK,CAAC,QAAQ,CAAC,QAAwB;QACrC,OAAO,QAAQ,CAAC;IAClB,CAAC;CACF"}

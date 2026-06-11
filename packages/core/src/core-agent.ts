@@ -62,7 +62,7 @@ export class CoreAgent {
           turnNumber,
           conversation: this.state.conversation,
           systemPrompt: `You are ${this.config.name}.`,
-          availableTools: [],
+          availableTools: {} as import('ai').ToolSet,
         }, this.state);
 
         if (result.completed || this.interrupted) {

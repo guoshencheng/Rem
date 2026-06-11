@@ -4,3 +4,5 @@ export * from './state.js';
 export * from './events.js';
 export * from './loop.js';
 export * from './core-agent.js';
+export * from './sdk/index.js';
+export * from './defaults/index.js';

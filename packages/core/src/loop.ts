@@ -3,6 +3,9 @@ import { generateText } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
 import type { AgentOutput } from './types.js';
+import type { ToolProvider, ToolCall } from './sdk/tool-provider.js';
+import type { MemoryProvider } from './sdk/memory-provider.js';
+import type { ContextCompressor } from './sdk/compressor.js';
 
 export interface TurnContext {
   input: { content: string };
@@ -24,37 +27,68 @@ export class AgentLoop {
   constructor(
     private model: LanguageModel,
     private events: EventBus,
+    private toolProvider: ToolProvider,
+    private memoryProvider: MemoryProvider,
+    private compressor: ContextCompressor,
   ) {}
 
   async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
     await this.events.emit('turn:before', { agent: this as any, state });
 
-    if (!state.budget.checkTurn()) {
-      return {
-        output: { content: 'Budget exceeded.', completed: true },
-        toolCalls: [],
-        completed: true,
-        shouldContinue: false,
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 0, reasoningTokens: 0 } } as LanguageModelUsage,
-      };
-    }
-
     state.currentTurn = ctx.turnNumber;
 
-    const messages: ModelMessage[] = [
-      ...ctx.conversation,
+    // === 1. PREPARE: 消息组装 ===
+    await this.events.emit('phase:prepare', { agent: this as any, state });
+
+    const { systemPrompt, messages: contextMessages } = await this.memoryProvider.buildContext(state);
+
+    let messages: ModelMessage[] = [
+      ...contextMessages,
       { role: 'user', content: ctx.input.content },
     ];
 
+    if (this.compressor.shouldCompress(state)) {
+      messages = await this.compressor.compress(messages);
+    }
+
+    // === 2. REASON: 调用 LLM ===
     await this.events.emit('phase:reason:before', { agent: this as any, state });
+    const tools = this.toolProvider.getToolSet();
     const response = await generateText({
       model: this.model,
-      system: ctx.systemPrompt,
+      system: systemPrompt,
       messages,
-      tools: Object.keys(ctx.availableTools).length > 0 ? ctx.availableTools : undefined,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
     });
     await this.events.emit('phase:reason:after', { agent: this as any, state });
 
+    // === 3. EXECUTE: 工具执行 ===
+    let toolCallRecords: { toolCallId: string; toolName: string; input: unknown }[] = [];
+
+    if (response.toolCalls.length > 0) {
+      await this.events.emit('phase:execute:before', { agent: this as any, state });
+
+      toolCallRecords = response.toolCalls.map(tc => ({
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        input: tc.input,
+      }));
+
+      const results = await this.toolProvider.execute(toolCallRecords);
+
+      for (const result of results) {
+        state.addMessage({
+          role: 'tool',
+          toolCallId: result.toolCallId,
+          toolName: result.toolName,
+          content: result.error ?? result.output,
+        } as ModelMessage);
+      }
+
+      await this.events.emit('phase:execute:after', { agent: this as any, state });
+    }
+
+    // === 4. OBSERVE: 更新状态 ===
     const parts: Array<TextPart | ToolCallPart> = [];
     if (response.text) {
       parts.push({ type: 'text', text: response.text });
@@ -84,11 +118,7 @@ export class AgentLoop {
         content: response.text,
         completed,
       },
-      toolCalls: response.toolCalls.map(tc => ({
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        input: tc.input,
-      })),
+      toolCalls: toolCallRecords,
       completed,
       shouldContinue: !completed,
       usage: response.usage,

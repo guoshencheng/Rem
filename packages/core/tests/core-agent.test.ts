@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
 import { IterationBudget } from '../src/budget.js';
 import * as ai from 'ai';
@@ -11,14 +11,14 @@ vi.mock('ai', async (importOriginal) => {
   };
 });
 
-function mockResponse(text: string): any {
+function mockResponse(text: string, toolCalls: any[] = []): any {
   return {
     text,
-    toolCalls: [],
+    toolCalls,
     toolResults: [],
     usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10, inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 }, outputTokenDetails: { textTokens: 5, reasoningTokens: 0 } },
-    finishReason: 'stop',
-    rawFinishReason: 'stop',
+    finishReason: toolCalls.length > 0 ? 'tool-calls' : 'stop',
+    rawFinishReason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
     reasoning: [],
     reasoningText: undefined,
     files: [],
@@ -41,6 +41,9 @@ function mockResponse(text: string): any {
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
 describe('CoreAgent', () => {
+  beforeEach(() => {
+    vi.mocked(ai.generateText).mockClear();
+  });
   it('should initialize with idle status', () => {
     const agent = new CoreAgent({
       name: 'test-agent',
@@ -113,5 +116,63 @@ describe('CoreAgent', () => {
 
     const result = await runPromise;
     expect(result.content).toContain('interrupted');
+  });
+
+  it('should inject default providers when not specified', async () => {
+    vi.mocked(ai.generateText).mockResolvedValueOnce(mockResponse('Hello!'));
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+    });
+
+    await agent.initialize();
+    const result = await agent.run({ content: 'Hi' });
+
+    expect(result.content).toBe('Hello!');
+  });
+
+  it('should retry on retryable API errors', async () => {
+    const errorHandler = {
+      classify: vi.fn().mockReturnValue('api_error'),
+      isRetryable: vi.fn().mockReturnValue(true),
+      getRetryInstruction: vi.fn().mockReturnValue('Please try again.'),
+    };
+
+    vi.mocked(ai.generateText)
+      .mockRejectedValueOnce(new ai.APICallError({ message: 'rate limit', url: 'http://test' }))
+      .mockResolvedValueOnce(mockResponse('Recovered!'));
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      budget: new IterationBudget({ maxTurns: 5 }),
+      errorHandler: errorHandler as any,
+    });
+
+    await agent.initialize();
+    const result = await agent.run({ content: 'Hi' });
+
+    expect(result.content).toBe('Recovered!');
+    expect(ai.generateText).toHaveBeenCalledTimes(2);
+  });
+
+  it('should stop on non-retryable errors', async () => {
+    const errorHandler = {
+      classify: vi.fn().mockReturnValue('unknown'),
+      isRetryable: vi.fn().mockReturnValue(false),
+      getRetryInstruction: vi.fn(),
+    };
+
+    vi.mocked(ai.generateText).mockRejectedValueOnce(new Error('Fatal'));
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      errorHandler: errorHandler as any,
+    });
+
+    await agent.initialize();
+    await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Fatal');
   });
 });

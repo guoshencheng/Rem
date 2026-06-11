@@ -5,11 +5,26 @@ import { AgentLoop } from './loop.js';
 import { EventBus } from './events.js';
 import { IterationBudget } from './budget.js';
 import type { AgentEvent, EventHandler } from './events.js';
+import type { ToolProvider } from './sdk/tool-provider.js';
+import type { MemoryProvider } from './sdk/memory-provider.js';
+import type { ErrorHandler } from './sdk/error-handler.js';
+import type { BudgetPolicy } from './sdk/budget-policy.js';
+import type { ContextCompressor } from './sdk/compressor.js';
+import { InMemoryToolProvider } from './defaults/in-memory-tool-provider.js';
+import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
+import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
+import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
+import { NoOpCompressor } from './defaults/no-op-compressor.js';
 
 export interface CoreAgentConfig {
   name: string;
   model: LanguageModel;
   budget?: IterationBudget;
+  toolProvider?: ToolProvider;
+  memoryProvider?: MemoryProvider;
+  errorHandler?: ErrorHandler;
+  budgetPolicy?: BudgetPolicy;
+  compressor?: ContextCompressor;
 }
 
 export class CoreAgent {
@@ -31,9 +46,25 @@ export class CoreAgent {
 
   private _getLoop(): AgentLoop {
     if (!this.loop) {
-      this.loop = new AgentLoop(this.config.model, this.events);
+      this.loop = new AgentLoop(
+        this.config.model,
+        this.events,
+        this.config.toolProvider ?? new InMemoryToolProvider(),
+        this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
+        this.config.compressor ?? new NoOpCompressor(),
+      );
     }
     return this.loop;
+  }
+
+  private _getBudgetPolicy(): BudgetPolicy {
+    return this.config.budgetPolicy ?? new FixedBudgetPolicy({
+      maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
+    });
+  }
+
+  private _getErrorHandler(): ErrorHandler {
+    return this.config.errorHandler ?? new SimpleErrorHandler();
   }
 
   async initialize(options?: { sessionId?: string; messages?: ModelMessage[] }): Promise<void> {
@@ -53,29 +84,52 @@ export class CoreAgent {
     this.interrupted = false;
     await this.events.emit('core-agent:start', { agent: this, state: this.state });
 
+    const budgetPolicy = this._getBudgetPolicy();
+    const errorHandler = this._getErrorHandler();
+    const startTime = Date.now();
+    let turnNumber = this.state.currentTurn + 1;
+
     try {
-      let turnNumber = this.state.currentTurn + 1;
-
       while (this.state.canContinue() && !this.interrupted) {
-        const result = await this._getLoop().executeTurn({
-          input,
-          turnNumber,
-          conversation: this.state.conversation,
-          systemPrompt: `You are ${this.config.name}.`,
-          availableTools: {} as import('ai').ToolSet,
-        }, this.state);
-
-        if (result.completed || this.interrupted) {
-          this.state.status = 'idle';
-          return {
-            content: this.interrupted
-              ? 'Response interrupted.'
-              : result.output.content,
-            completed: true,
-          };
+        if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
+          break;
         }
 
-        turnNumber++;
+        try {
+          const result = await this._getLoop().executeTurn({
+            input,
+            turnNumber,
+            conversation: this.state.conversation,
+            systemPrompt: `You are ${this.config.name}.`,
+            availableTools: {},
+          }, this.state);
+
+          if (result.completed || this.interrupted) {
+            this.state.status = 'idle';
+            return {
+              content: this.interrupted
+                ? 'Response interrupted.'
+                : result.output.content,
+              completed: true,
+            };
+          }
+
+          turnNumber++;
+        } catch (error) {
+          const category = errorHandler.classify(error);
+          if (!errorHandler.isRetryable(category)) {
+            this.state.status = 'error';
+            await this.events.emit('core-agent:error', { agent: this, state: this.state });
+            throw error;
+          }
+
+          const instruction = errorHandler.getRetryInstruction(category);
+          if (instruction) {
+            input = { content: `${input.content}\n\n[System: ${instruction}]` };
+          }
+
+          turnNumber++;
+        }
       }
 
       this.state.status = 'idle';
@@ -98,6 +152,7 @@ export class CoreAgent {
 
   async reset(): Promise<void> {
     this.state.reset();
+    this.loop = null;
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 

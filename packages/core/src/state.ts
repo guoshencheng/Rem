@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { ModelMessage, ToolCallRecord, AgentStatus } from './types.js';
+import type { ModelMessage, AgentStatus } from './types.js';
 import { IterationBudget } from './budget.js';
 
 export class AgentState {
@@ -7,7 +7,6 @@ export class AgentState {
   conversation: ModelMessage[] = [];
   currentTurn = 0;
   budget: IterationBudget;
-  toolCalls: ToolCallRecord[] = [];
   status: AgentStatus = 'idle';
   private maxTurns: number;
 
@@ -21,10 +20,6 @@ export class AgentState {
     this.conversation.push(msg);
   }
 
-  addToolCall(record: ToolCallRecord): void {
-    this.toolCalls.push(record);
-  }
-
   canContinue(): boolean {
     return this.status === 'running' && this.budget.hasBudget();
   }
@@ -32,7 +27,6 @@ export class AgentState {
   reset(): void {
     this.conversation = [];
     this.currentTurn = 0;
-    this.toolCalls = [];
     this.status = 'idle';
     this.budget = new IterationBudget({ maxTurns: this.maxTurns });
   }

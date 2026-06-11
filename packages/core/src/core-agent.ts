@@ -71,7 +71,6 @@ export class CoreAgent {
             content: this.interrupted
               ? 'Response interrupted.'
               : result.output.content,
-            toolCalls: result.toolCalls,
             completed: true,
           };
         }
@@ -84,7 +83,6 @@ export class CoreAgent {
         content: this.interrupted
           ? 'Response interrupted.'
           : 'Budget exceeded.',
-        toolCalls: [],
         completed: true,
       };
     } catch (error) {

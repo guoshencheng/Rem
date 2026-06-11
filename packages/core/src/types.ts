@@ -9,23 +9,7 @@ export interface UserInput {
 
 export interface AgentOutput {
   content: string;
-  toolCalls: ToolCallRecord[];
   completed: boolean;
-}
-
-export interface ToolCallRecord {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-  result?: {
-    success: boolean;
-    output: string;
-    error?: string;
-    durationMs: number;
-  };
-  error?: string;
-  durationMs: number;
-  timestamp: Date;
 }
 
 export type AgentStatus = 'idle' | 'running' | 'error';

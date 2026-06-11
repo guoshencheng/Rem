@@ -17,15 +17,6 @@ describe('AgentState', () => {
     expect(state.conversation[0].role).toBe('user');
   });
 
-  it('should track tool calls', () => {
-    const state = new AgentState();
-    state.addToolCall({
-      id: '1', name: 'test', arguments: {},
-      durationMs: 100, timestamp: new Date(),
-    });
-    expect(state.toolCalls).toHaveLength(1);
-  });
-
   it('should report canContinue when budget allows', () => {
     const state = new AgentState();
     state.status = 'running';

@@ -1,8 +1,8 @@
-import type { ModelMessage, ToolSet, LanguageModelUsage, LanguageModel } from 'ai';
+import type { ModelMessage, ToolSet, LanguageModelUsage, LanguageModel, TextPart, ToolCallPart } from 'ai';
 import { generateText } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord } from './types.js';
+import type { AgentOutput } from './types.js';
 
 export interface TurnContext {
   input: { content: string };
@@ -14,7 +14,7 @@ export interface TurnContext {
 
 export interface TurnResult {
   output: AgentOutput;
-  toolCalls: ToolCallRecord[];
+  toolCalls: { toolCallId: string; toolName: string; input: unknown }[];
   completed: boolean;
   shouldContinue: boolean;
   usage: LanguageModelUsage;
@@ -31,7 +31,7 @@ export class AgentLoop {
 
     if (!state.budget.checkTurn()) {
       return {
-        output: { content: 'Budget exceeded.', toolCalls: [], completed: true },
+        output: { content: 'Budget exceeded.', completed: true },
         toolCalls: [],
         completed: true,
         shouldContinue: false,
@@ -55,19 +55,25 @@ export class AgentLoop {
     });
     await this.events.emit('phase:reason:after', { agent: this as any, state });
 
-    state.addMessage({ role: 'assistant', content: response.text });
-
-    const toolCalls: ToolCallRecord[] = response.toolCalls.map(tc => ({
-      id: tc.toolCallId,
-      name: tc.toolName,
-      arguments: 'input' in tc ? tc.input as Record<string, unknown> : {},
-      durationMs: 0,
-      timestamp: new Date(),
-    }));
-
-    for (const tc of toolCalls) {
-      state.addToolCall(tc);
+    const parts: Array<TextPart | ToolCallPart> = [];
+    if (response.text) {
+      parts.push({ type: 'text', text: response.text });
     }
+    for (const tc of response.toolCalls) {
+      parts.push({
+        type: 'tool-call',
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        input: tc.input,
+      });
+    }
+
+    state.addMessage({
+      role: 'assistant',
+      content: parts.length === 1 && parts[0].type === 'text'
+        ? parts[0].text
+        : parts,
+    });
 
     await this.events.emit('turn:after', { agent: this as any, state });
 
@@ -76,10 +82,13 @@ export class AgentLoop {
     return {
       output: {
         content: response.text,
-        toolCalls,
         completed,
       },
-      toolCalls,
+      toolCalls: response.toolCalls.map(tc => ({
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        input: tc.input,
+      })),
       completed,
       shouldContinue: !completed,
       usage: response.usage,

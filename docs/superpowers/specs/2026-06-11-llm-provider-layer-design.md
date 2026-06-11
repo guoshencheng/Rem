@@ -489,9 +489,73 @@ export const anthropicProvider: LLMProvider = {
 
 ---
 
-## 7. loop.ts 集成
+## 7. InferenceEngine — LLM 调用封装
 
-### 7.1 TurnContext 扩展
+所有 Provider 获取、stream 调用、结果聚合封装在 `InferenceEngine` 中，loop 只调用它。
+
+```typescript
+// src/llm/engine.ts
+import type { ModelMessage, ToolSet } from 'ai';
+import type { StreamChunk } from './types.js';
+
+export interface InferenceOptions {
+  provider: string;
+  providerConfig: {
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
+  system?: string;
+  messages: ModelMessage[];
+  tools?: ToolSet;
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+  /** 可选：每收到一个 chunk 的回调 */
+  onChunk?: (chunk: StreamChunk) => void | Promise<void>;
+}
+
+export interface InferenceResult {
+  text: string;
+  toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+}
+
+export class InferenceEngine {
+  async infer(options: InferenceOptions): Promise<InferenceResult> {
+    const { resolveProvider } = await import('./api-registry.js');
+    const { StreamCollector } = await import('./types.js');
+
+    const provider = resolveProvider(options.provider);
+    const collector = new StreamCollector();
+
+    for await (const chunk of provider.stream({
+      model: options.providerConfig.model,
+      apiKey: options.providerConfig.apiKey,
+      baseURL: options.providerConfig.baseURL,
+      system: options.system,
+      messages: options.messages,
+      tools: options.tools,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      signal: options.signal,
+    })) {
+      collector.feed(chunk);
+      if (options.onChunk) {
+        await options.onChunk(chunk);
+      }
+    }
+
+    return collector.result();
+  }
+}
+```
+
+---
+
+## 8. loop.ts 集成
+
+### 8.1 TurnContext 扩展
 
 ```typescript
 export interface TurnContext {
@@ -510,79 +574,77 @@ export interface TurnContext {
 }
 ```
 
-### 7.2 executeTurn 改造
+### 8.2 executeTurn 改造
 
 ```typescript
-import { resolveProvider } from './llm/api-registry.js';
+import { InferenceEngine } from './llm/engine.js';
 
-async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
-  await this.events.emit('turn:before', { agent: this, state });
-  state.currentTurn = ctx.turnNumber;
+export class AgentLoop {
+  private inferenceEngine = new InferenceEngine();
 
-  // === 1. PREPARE ===
-  await this.events.emit('phase:prepare', { agent: this, state });
-  const { systemPrompt, messages: contextMessages } = await this.memoryProvider.buildContext(state);
-  let messages: ModelMessage[] = [...contextMessages, { role: 'user', content: ctx.input.content }];
-  if (this.compressor.shouldCompress(state)) {
-    messages = await this.compressor.compress(messages);
-  }
+  async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult> {
+    await this.events.emit('turn:before', { agent: this, state });
+    state.currentTurn = ctx.turnNumber;
 
-  // === 2. REASON: 流式调用 ===
-  await this.events.emit('phase:reason:before', { agent: this, state });
-
-  const provider = resolveProvider(ctx.provider);
-  const tools = this.toolProvider.getToolSet();
-
-  const collector = new StreamCollector();
-  for await (const chunk of provider.stream({
-    model: ctx.providerConfig.model,
-    apiKey: ctx.providerConfig.apiKey,
-    baseURL: ctx.providerConfig.baseURL,
-    system: systemPrompt,
-    messages,
-    tools: Object.keys(tools).length > 0 ? tools : undefined,
-  })) {
-    collector.feed(chunk);
-    // 可选：emit 流式事件给外部观察者
-    await this.events.emit('stream:chunk', { agent: this, state, chunk });
-  }
-  const { text, toolCalls, usage } = collector.result();
-
-  await this.events.emit('phase:reason:after', { agent: this, state });
-
-  // === 3. EXECUTE ===
-  if (toolCalls.length > 0) {
-    await this.events.emit('phase:execute:before', { agent: this, state });
-    const results = await this.toolProvider.execute(toolCalls);
-    for (const result of results) {
-      state.addMessage({
-        role: 'tool',
-        toolCallId: result.toolCallId,
-        toolName: result.toolName,
-        content: result.error ?? result.output,
-      } as ModelMessage);
+    // === 1. PREPARE ===
+    await this.events.emit('phase:prepare', { agent: this, state });
+    const { systemPrompt, messages: contextMessages } = await this.memoryProvider.buildContext(state);
+    let messages: ModelMessage[] = [...contextMessages, { role: 'user', content: ctx.input.content }];
+    if (this.compressor.shouldCompress(state)) {
+      messages = await this.compressor.compress(messages);
     }
-    await this.events.emit('phase:execute:after', { agent: this, state });
+
+    // === 2. REASON: 调用 InferenceEngine ===
+    await this.events.emit('phase:reason:before', { agent: this, state });
+
+    const tools = this.toolProvider.getToolSet();
+    const { text, toolCalls, usage } = await this.inferenceEngine.infer({
+      provider: ctx.provider,
+      providerConfig: ctx.providerConfig,
+      system: systemPrompt,
+      messages,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
+      onChunk: async (chunk) => {
+        await this.events.emit('stream:chunk', { agent: this, state, chunk });
+      },
+    });
+
+    await this.events.emit('phase:reason:after', { agent: this, state });
+
+    // === 3. EXECUTE ===
+    if (toolCalls.length > 0) {
+      await this.events.emit('phase:execute:before', { agent: this, state });
+      const results = await this.toolProvider.execute(toolCalls);
+      for (const result of results) {
+        state.addMessage({
+          role: 'tool',
+          toolCallId: result.toolCallId,
+          toolName: result.toolName,
+          content: result.error ?? result.output,
+        } as ModelMessage);
+      }
+      await this.events.emit('phase:execute:after', { agent: this, state });
+    }
+
+    // === 4. OBSERVE ===
+    state.addMessage({
+      role: 'assistant',
+      content: toolCalls.length > 0
+        ? toolCalls.map(tc => ({ type: 'tool-call' as const, ...tc }))
+        : text,
+    });
+
+    await this.events.emit('turn:after', { agent: this, state });
+
+    const completed = toolCalls.length === 0;
+    return {
+      output: { content: text, completed },
+      toolCalls,
+      completed,
+      shouldContinue: !completed,
+      usage,
+    };
   }
-
-  // === 4. OBSERVE ===
-  state.addMessage({
-    role: 'assistant',
-    content: toolCalls.length > 0
-      ? toolCalls.map(tc => ({ type: 'tool-call' as const, ...tc }))
-      : text,
-  });
-
-  await this.events.emit('turn:after', { agent: this, state });
-
-  const completed = toolCalls.length === 0;
-  return {
-    output: { content: text, completed },
-    toolCalls,
-    completed,
-    shouldContinue: !completed,
-    usage,
-  };
 }
 ```
 

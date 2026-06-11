@@ -1,0 +1,1 @@
+{"version":3,"file":"simple-memory-provider.js","sourceRoot":"","sources":["../../src/defaults/simple-memory-provider.ts"],"names":[],"mappings":"AAGA,MAAM,OAAO,oBAAoB;IACX;IAApB,YAAoB,SAAiB;QAAjB,cAAS,GAAT,SAAS,CAAQ;IAAG,CAAC;IAEzC,KAAK,CAAC,YAAY,CAAC,KAAiB;QAClC,OAAO;YACL,YAAY,EAAE,WAAW,IAAI,CAAC,SAAS,GAAG;YAC1C,QAAQ,EAAE,KAAK,CAAC,YAAY;SAC7B,CAAC;IACJ,CAAC;CACF"}

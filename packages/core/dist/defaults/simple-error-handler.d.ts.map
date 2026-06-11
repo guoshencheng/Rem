@@ -1,0 +1,1 @@
+{"version":3,"file":"simple-error-handler.d.ts","sourceRoot":"","sources":["../../src/defaults/simple-error-handler.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,YAAY,EAAE,aAAa,EAAE,MAAM,yBAAyB,CAAC;AAE3E,qBAAa,kBAAmB,YAAW,YAAY;IACrD,QAAQ,CAAC,KAAK,EAAE,OAAO,GAAG,aAAa;IAKvC,WAAW,CAAC,QAAQ,EAAE,aAAa,GAAG,OAAO;IAI7C,mBAAmB,IAAI,MAAM,GAAG,SAAS;CAG1C"}

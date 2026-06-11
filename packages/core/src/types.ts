@@ -13,3 +13,18 @@ export interface AgentOutput {
 }
 
 export type AgentStatus = 'idle' | 'running' | 'error';
+
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  result?: {
+    success: boolean;
+    output: string;
+    error?: string;
+    durationMs: number;
+  };
+  error?: string;
+  durationMs: number;
+  timestamp: Date;
+}

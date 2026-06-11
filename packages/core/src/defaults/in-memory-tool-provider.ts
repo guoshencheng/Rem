@@ -11,10 +11,10 @@ export class InMemoryToolProvider implements ToolProvider {
   getToolSet(): ToolSet {
     const result: ToolSet = {};
     for (const [name, { def }] of this.tools) {
-      result[name] = tool({
+      (result as any)[name] = tool({
         description: def.description,
         parameters: def.parameters as any,
-      });
+      } as any);
     }
     return result;
   }

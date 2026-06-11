@@ -1,0 +1,81 @@
+import { describe, it, expect, vi } from 'vitest';
+import { anthropicProvider } from '../../../src/llm/providers/anthropic.js';
+import Anthropic from '@anthropic-ai/sdk';
+
+vi.mock('@anthropic-ai/sdk');
+
+describe('anthropicProvider', () => {
+  it('should generate text', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'Hello!' }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    });
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    const result = await anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(result.text).toBe('Hello!');
+    expect(result.usage.totalTokens).toBe(15);
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-sonnet-4-7', stream: false }),
+      expect.anything(),
+    );
+  });
+
+  it('should parse tool_use blocks', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{
+        type: 'tool_use',
+        id: 'tc1',
+        name: 'echo',
+        input: { msg: 'hi' },
+      }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    });
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    const result = await anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].toolName).toBe('echo');
+  });
+
+  it('should stream text chunks', async () => {
+    async function* mockStream() {
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } };
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: ' world' } };
+      yield { type: 'message_delta', usage: { output_tokens: 2 } };
+    }
+
+    const mockCreate = vi.fn().mockResolvedValue(mockStream());
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    const chunks: any[] = [];
+    for await (const chunk of anthropicProvider.stream({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    const text = chunks.filter(c => c.type === 'text').map(c => c.text).join('');
+    expect(text).toBe('Hello world');
+  });
+});

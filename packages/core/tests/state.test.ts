@@ -39,10 +39,16 @@ describe('AgentState', () => {
     expect(state.status).toBe('idle');
   });
 
-  it('should check continuation based on budget', () => {
-    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 1 }));
-    state.status = 'running';
-    state.budget.checkTurn();
+  it('should restore original maxTurns on reset', () => {
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.budget.checkTurn(); // consume one turn
+    state.reset();
+    expect(state.budget.getStatus().turnsRemaining).toBe(5);
+  });
+
+  it('should not continue when status is not running', () => {
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.status = 'idle';
     expect(state.canContinue()).toBe(false);
   });
 });

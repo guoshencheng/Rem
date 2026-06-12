@@ -98,8 +98,8 @@ export class ReactLoop implements LoopStrategy {
     const hasTools = Object.keys(tools).length > 0;
 
     const inferResult = await this.inferWithRetry({
-      provider: ctx.provider,
-      providerConfig: ctx.providerConfig,
+      provider: ctx.provider ?? 'mock',
+      providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
       system: systemPrompt,
       messages,
       tools: hasTools ? tools : undefined,
@@ -192,7 +192,13 @@ export class ReactLoop implements LoopStrategy {
       },
       newMessages,
       toolCalls,
-      usage: inferResult.usage,
+      usage: {
+        inputTokens: inferResult.usage.inputTokens,
+        outputTokens: inferResult.usage.outputTokens,
+        totalTokens: inferResult.usage.totalTokens,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      },
       iterations: 1,
     };
   }

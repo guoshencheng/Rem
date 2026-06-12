@@ -12,15 +12,15 @@ function convertToOpenAIMessages(
   }
   for (const msg of messages) {
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content as string });
+      result.push({ role: 'user', content: msg.content as unknown as string });
     } else if (msg.role === 'assistant') {
-      result.push({ role: 'assistant', content: msg.content as string });
+      result.push({ role: 'assistant', content: msg.content as unknown as string });
     } else if (msg.role === 'tool') {
       const toolMsg = msg as any;
       result.push({
         role: 'tool',
         tool_call_id: toolMsg.toolCallId,
-        content: msg.content as string,
+        content: msg.content as unknown as string,
       });
     }
   }
@@ -44,8 +44,8 @@ function parseOpenAIResponse(response: OpenAI.Chat.ChatCompletion): GenerateResu
   const text = message.content ?? '';
   const toolCalls = (message.tool_calls ?? []).map(tc => ({
     toolCallId: tc.id,
-    toolName: tc.function.name,
-    input: safeJsonParse(tc.function.arguments),
+    toolName: (tc as any).function.name,
+    input: safeJsonParse((tc as any).function.arguments),
   }));
 
   return {

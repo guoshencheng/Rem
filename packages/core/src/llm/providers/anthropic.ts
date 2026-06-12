@@ -35,7 +35,7 @@ function convertToAnthropicMessages(messages: GenerateOptions['messages']): Anth
         content: [{
           type: 'tool_result',
           tool_use_id: toolMsg.toolCallId,
-          content: msg.content as string,
+          content: msg.content as unknown as string,
         }],
       });
     }

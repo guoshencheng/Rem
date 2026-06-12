@@ -1,20 +1,25 @@
 import type { UserInput, AgentOutput, ModelMessage } from './types.js';
 import type { LanguageModel } from 'ai';
 import { AgentState } from './state.js';
-import { AgentLoop } from './loop.js';
 import { EventBus } from './events.js';
 import { IterationBudget } from './budget.js';
 import type { AgentEvent, EventHandler } from './events.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
-import type { ErrorHandler } from './sdk/error-handler.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import { InMemoryToolProvider } from './defaults/in-memory-tool-provider.js';
 import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
-import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
+import type { SessionProvider } from './session.js';
+import { InMemorySessionProvider } from './session.js';
+import type { TurnRunner, TurnHooks } from './turn.js';
+import { ReactTurnRunner } from './turn.js';
+import type { LoopStrategy } from './loop-strategy.js';
+import { ReactLoop } from './loop-strategy.js';
+import type { ErrorHandler } from './sdk/error-handler.js';
+import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 
 export interface CoreAgentConfig {
   name: string;
@@ -25,13 +30,23 @@ export interface CoreAgentConfig {
   errorHandler?: ErrorHandler;
   budgetPolicy?: BudgetPolicy;
   compressor?: ContextCompressor;
+  sessionProvider?: SessionProvider;
+  turnRunner?: TurnRunner;
+  loopStrategy?: LoopStrategy;
+  provider?: string;
+  providerConfig?: {
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
 }
 
 export class CoreAgent {
   private config: CoreAgentConfig;
-  private loop: AgentLoop | null = null;
   private events: EventBus;
   private state: AgentState;
+  private sessionProvider: SessionProvider;
+  private turnRunner: TurnRunner;
   private interrupted = false;
 
   get status() {
@@ -41,39 +56,34 @@ export class CoreAgent {
   constructor(config: CoreAgentConfig) {
     this.config = config;
     this.events = new EventBus();
-    this.state = new AgentState(config.budget);
+    this.sessionProvider = config.sessionProvider ?? new InMemorySessionProvider();
+    this.turnRunner = config.turnRunner ?? this.createDefaultTurnRunner();
+    this.state = new AgentState(undefined, config.budget);
   }
 
-  private _getLoop(): AgentLoop {
-    if (!this.loop) {
-      this.loop = new AgentLoop(
-        this.config.model,
-        this.events,
-        this.config.toolProvider ?? new InMemoryToolProvider(),
-        this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
-        this.config.compressor ?? new NoOpCompressor(),
-      );
-    }
-    return this.loop;
+  private createDefaultTurnRunner(): TurnRunner {
+    const loopStrategy = this.config.loopStrategy ?? new ReactLoop(
+      this.config.model,
+      this.events,
+      this.config.toolProvider ?? new InMemoryToolProvider(),
+      this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
+      this.config.compressor ?? new NoOpCompressor(),
+      this.config.errorHandler ?? new SimpleErrorHandler(),
+    );
+    return new ReactTurnRunner(loopStrategy);
   }
 
-  private _getBudgetPolicy(): BudgetPolicy {
-    return this.config.budgetPolicy ?? new FixedBudgetPolicy({
-      maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
-    });
-  }
-
-  private _getErrorHandler(): ErrorHandler {
-    return this.config.errorHandler ?? new SimpleErrorHandler();
-  }
-
-  async initialize(options?: { sessionId?: string; messages?: ModelMessage[] }): Promise<void> {
+  async initialize(options?: { sessionId?: string }): Promise<void> {
     if (options?.sessionId) {
-      this.state = new AgentState(this.config.budget);
-      (this.state as any).sessionId = options.sessionId;
-    }
-    if (options?.messages) {
-      this.state.conversation = options.messages;
+      const session = await this.sessionProvider.load(options.sessionId);
+      this.state = new AgentState(session ?? undefined, this.config.budget);
+      if (!session) {
+        (this.state.session as any).sessionId = options.sessionId;
+        await this.sessionProvider.save(this.state.session);
+      }
+    } else {
+      this.state = new AgentState(undefined, this.config.budget);
+      await this.sessionProvider.save(this.state.session);
     }
     this.state.status = 'idle';
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
@@ -85,58 +95,43 @@ export class CoreAgent {
     await this.events.emit('core-agent:start', { agent: this, state: this.state });
 
     const budgetPolicy = this._getBudgetPolicy();
-    const errorHandler = this._getErrorHandler();
     const startTime = Date.now();
-    let turnNumber = this.state.currentTurn + 1;
+
+    if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
+      this.state.status = 'idle';
+      return { content: 'Budget exceeded.', completed: true };
+    }
+
+    // Add user message to Session
+    const userMessage: ModelMessage = { role: 'user', content: input.content } as ModelMessage;
+    this.state.addMessage(userMessage);
+    await this.sessionProvider.save(this.state.session);
+
+    const abortController = new AbortController();
 
     try {
-      while (this.state.canContinue() && !this.interrupted) {
-        if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
-          break;
-        }
+      const result = await this.turnRunner.run({
+        input,
+        conversation: [...this.state.conversation],
+        systemPrompt: `You are ${this.config.name}.`,
+        model: this.config.model,
+        budget: this.state.budget,
+        signal: abortController.signal,
+        provider: this.config.provider ?? 'openai',
+        providerConfig: this.config.providerConfig ?? { apiKey: '', model: 'gpt-4o' },
+      }, this.createTurnHooks());
 
-        try {
-          const result = await this._getLoop().executeTurn({
-            input,
-            turnNumber,
-            conversation: this.state.conversation,
-            systemPrompt: `You are ${this.config.name}.`,
-            availableTools: {},
-          }, this.state);
-
-          if (result.completed || this.interrupted) {
-            this.state.status = 'idle';
-            return {
-              content: this.interrupted
-                ? 'Response interrupted.'
-                : result.output.content,
-              completed: true,
-            };
-          }
-
-          turnNumber++;
-        } catch (error) {
-          const category = errorHandler.classify(error);
-          if (!errorHandler.isRetryable(category)) {
-            this.state.status = 'error';
-            await this.events.emit('core-agent:error', { agent: this, state: this.state });
-            throw error;
-          }
-
-          const instruction = errorHandler.getRetryInstruction(category);
-          if (instruction) {
-            input = { content: `${input.content}\n\n[System: ${instruction}]` };
-          }
-
-          turnNumber++;
-        }
+      for (const msg of result.newMessages) {
+        this.state.addMessage(msg);
       }
 
+      this.state.currentTurn++;
       this.state.status = 'idle';
+      await this.sessionProvider.save(this.state.session);
+      await this.events.emit('core-agent:stop', { agent: this, state: this.state });
+
       return {
-        content: this.interrupted
-          ? 'Response interrupted.'
-          : 'Budget exceeded.',
+        content: this.interrupted ? 'Response interrupted.' : result.output.content,
         completed: true,
       };
     } catch (error) {
@@ -146,13 +141,26 @@ export class CoreAgent {
     }
   }
 
+  private createTurnHooks(): TurnHooks {
+    return {
+      onMessageAdded: (msg) => {
+        if (this.interrupted) {
+          return;
+        }
+      },
+      onToolCallRecorded: (record) => {
+        this.state.session.metadata.lastToolCall = record;
+      },
+    };
+  }
+
   interrupt(): void {
     this.interrupted = true;
   }
 
   async reset(): Promise<void> {
     this.state.reset();
-    this.loop = null;
+    this.turnRunner = this.config.turnRunner ?? this.createDefaultTurnRunner();
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 
@@ -162,5 +170,11 @@ export class CoreAgent {
 
   once(event: AgentEvent, handler: EventHandler): void {
     this.events.once(event, handler);
+  }
+
+  private _getBudgetPolicy(): BudgetPolicy {
+    return this.config.budgetPolicy ?? new FixedBudgetPolicy({
+      maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
+    });
   }
 }

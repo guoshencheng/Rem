@@ -80,6 +80,39 @@ describe('anthropicProvider', () => {
     expect(result.toolCalls[0].toolName).toBe('echo');
   });
 
+  it('should convert tool result messages in generate()', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'Done' }],
+      usage: { input_tokens: 5, output_tokens: 1 },
+    });
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    await anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [
+        { role: 'tool', toolCallId: 'tc1', content: '42' } as any,
+      ],
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [{
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: 'tc1',
+            content: '42',
+          }],
+        }],
+      }),
+      expect.anything(),
+    );
+  });
+
   it('should stream text chunks', async () => {
     async function* mockStream() {
       yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } };

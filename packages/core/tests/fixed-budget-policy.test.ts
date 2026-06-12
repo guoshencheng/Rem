@@ -6,7 +6,7 @@ import { IterationBudget } from '../src/budget.js';
 describe('FixedBudgetPolicy', () => {
   it('should allow turn when under max turns', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.currentTurn = 3;
 
     expect(policy.checkTurn(state)).toBe(true);
@@ -14,7 +14,7 @@ describe('FixedBudgetPolicy', () => {
 
   it('should deny turn when max turns reached', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.currentTurn = 5;
 
     expect(policy.checkTurn(state)).toBe(false);
@@ -22,7 +22,7 @@ describe('FixedBudgetPolicy', () => {
 
   it('should report atRisk when turns low', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.currentTurn = 3;
 
     const status = policy.getStatus(state);

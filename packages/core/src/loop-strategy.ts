@@ -131,6 +131,7 @@ export class ReactLoop implements LoopStrategy {
 
         ctx.state.addMessage(toolMsg);
         newMessages.push(toolMsg);
+        hooks.onMessageAdded(toolMsg);
 
         const record: ToolCallRecord = {
           id: tc.toolCallId,

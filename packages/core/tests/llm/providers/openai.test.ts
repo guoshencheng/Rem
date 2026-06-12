@@ -90,4 +90,32 @@ describe('openaiProvider', () => {
     const text = chunks.filter(c => c.type === 'text').map(c => c.text).join('');
     expect(text).toBe('Hello world');
   });
+
+  it('should pass system message as first message in generate()', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'OK', tool_calls: [] } }],
+      usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+    });
+
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    await openaiProvider.generate({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      system: 'You are a tester',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: 'system', content: 'You are a tester' },
+          { role: 'user', content: 'Hi' },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
 });

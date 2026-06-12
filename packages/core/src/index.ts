@@ -6,3 +6,7 @@ export * from './loop.js';
 export * from './core-agent.js';
 export * from './sdk/index.js';
 export * from './defaults/index.js';
+export * from './llm/types.js';
+export * from './llm/api-registry.js';
+export * from './llm/engine.js';
+export * from './llm/providers/index.js';

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { InMemorySessionProvider } from '../src/session.js';
+import type { ModelMessage } from '../src/types.js';
 
 describe('InMemorySessionProvider', () => {
   it('should create a new session', async () => {
@@ -16,7 +17,7 @@ describe('InMemorySessionProvider', () => {
   it('should load an existing session', async () => {
     const provider = new InMemorySessionProvider();
     const created = await provider.create();
-    created.conversation.push({ role: 'user', content: 'hello' } as any);
+    created.conversation.push({ role: 'user', content: 'hello' } as ModelMessage);
     await provider.save(created);
 
     const loaded = await provider.load(created.sessionId);

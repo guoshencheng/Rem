@@ -1,4 +1,5 @@
 import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
+import type { Session } from './session.js';
 import type { UserInput, AgentOutput } from './types.js';
 import { AgentState } from './state.js';
 import { IterationBudget } from './budget.js';
@@ -35,7 +36,7 @@ export class ReactTurnRunner implements TurnRunner {
 
   async run(ctx: TurnContext, hooks: TurnHooks): Promise<TurnResult> {
     // Create internal Session/AgentState so we don't mutate caller's session
-    const session: import('./session.js').Session = {
+    const session: Session = {
       sessionId: 'turn-internal',
       conversation: [...ctx.conversation],
       currentTurn: 0,

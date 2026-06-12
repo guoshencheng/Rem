@@ -160,4 +160,40 @@ describe('openaiProvider', () => {
       messages: [{ role: 'user', content: 'Hi' }],
     })).rejects.toThrow('rate limited');
   });
+
+  it('should stream tool-call chunks', async () => {
+    async function* mockStream() {
+      yield {
+        choices: [{
+          delta: {
+            tool_calls: [{
+              id: 'tc1',
+              function: { name: 'echo', arguments: '{"msg":"hi"}' },
+            }],
+          },
+        }],
+      };
+      yield { usage: { prompt_tokens: 2, completion_tokens: 2, total_tokens: 4 } };
+    }
+
+    const mockCreate = vi.fn().mockResolvedValue(mockStream());
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    const chunks: any[] = [];
+    for await (const chunk of openaiProvider.stream({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    const toolCalls = chunks.filter(c => c.type === 'tool-call');
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].toolCallId).toBe('tc1');
+    expect(toolCalls[0].toolName).toBe('echo');
+    expect(toolCalls[0].input).toEqual({ msg: 'hi' });
+  });
 });

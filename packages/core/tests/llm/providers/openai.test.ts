@@ -146,4 +146,18 @@ describe('openaiProvider', () => {
       expect.anything(),
     );
   });
+
+  it('should propagate errors from generate()', async () => {
+    const mockCreate = vi.fn().mockRejectedValue(new Error('rate limited'));
+
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    await expect(openaiProvider.generate({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })).rejects.toThrow('rate limited');
+  });
 });

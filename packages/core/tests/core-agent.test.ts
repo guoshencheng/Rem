@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
 import { IterationBudget } from '../src/budget.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
+import type { SessionProvider } from '../src/session.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -58,7 +59,7 @@ describe('CoreAgent', () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
-      sessionProvider: mockSessionProvider as any,
+      sessionProvider: mockSessionProvider as SessionProvider,
     });
 
     await agent.initialize();
@@ -88,11 +89,13 @@ describe('CoreAgent', () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
-      sessionProvider: mockSessionProvider as any,
+      sessionProvider: mockSessionProvider as SessionProvider,
     });
 
     await agent.initialize({ sessionId: 'existing-id' });
     expect(mockSessionProvider.load).toHaveBeenCalledWith('existing-id');
+    expect(agent['state'].conversation).toHaveLength(1);
+    expect(agent['state'].conversation[0].content).toBe('previous');
   });
 
   it('should reset session state', async () => {
@@ -140,6 +143,9 @@ describe('CoreAgent', () => {
       providerConfig: { apiKey: 'key', model: 'model' },
     });
 
+    const errorHandler = vi.fn();
+    agent.on('core-agent:error', errorHandler);
+
     await agent.initialize();
     const runPromise = agent.run({ content: 'Slow' });
     agent.interrupt();
@@ -169,5 +175,37 @@ describe('CoreAgent', () => {
     const result = await agent.run({ content: 'Hello' });
 
     expect(result.content).toBe('Custom!');
+  });
+
+  it('should enter error state when turn fails', async () => {
+    const turnRunner = {
+      run: vi.fn().mockRejectedValue(new Error('Turn failed')),
+    };
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      turnRunner: turnRunner as any,
+    });
+    const errorHandler = vi.fn();
+    agent.on('core-agent:error', errorHandler);
+
+    await agent.initialize();
+    await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Turn failed');
+    expect(agent.status).toBe('error');
+    expect(errorHandler).toHaveBeenCalled();
+  });
+
+  it('should return budget exceeded when budget is depleted', async () => {
+    const budget = new IterationBudget({ maxTurns: 0 });
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      budget,
+    });
+
+    await agent.initialize();
+    const result = await agent.run({ content: 'Hi' });
+
+    expect(result.content).toBe('Budget exceeded.');
   });
 });

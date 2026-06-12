@@ -48,6 +48,8 @@ export class CoreAgent {
   private sessionProvider: SessionProvider;
   private turnRunner: TurnRunner;
   private interrupted = false;
+  private abortController?: AbortController;
+  private budgetPolicy?: BudgetPolicy;
 
   get status() {
     return this.state.status;
@@ -78,7 +80,7 @@ export class CoreAgent {
       const session = await this.sessionProvider.load(options.sessionId);
       this.state = new AgentState(session ?? undefined, this.config.budget);
       if (!session) {
-        (this.state.session as any).sessionId = options.sessionId;
+        this.state.session.sessionId = options.sessionId;
         await this.sessionProvider.save(this.state.session);
       }
     } else {
@@ -94,7 +96,7 @@ export class CoreAgent {
     this.interrupted = false;
     await this.events.emit('core-agent:start', { agent: this, state: this.state });
 
-    const budgetPolicy = this._getBudgetPolicy();
+    const budgetPolicy = this.getBudgetPolicy();
     const startTime = Date.now();
 
     if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
@@ -108,6 +110,7 @@ export class CoreAgent {
     await this.sessionProvider.save(this.state.session);
 
     const abortController = new AbortController();
+    this.abortController = abortController;
 
     try {
       const result = await this.turnRunner.run({
@@ -127,6 +130,7 @@ export class CoreAgent {
 
       this.state.currentTurn++;
       this.state.status = 'idle';
+      this.abortController = undefined;
       await this.sessionProvider.save(this.state.session);
       await this.events.emit('core-agent:stop', { agent: this, state: this.state });
 
@@ -136,6 +140,7 @@ export class CoreAgent {
       };
     } catch (error) {
       this.state.status = 'error';
+      this.abortController = undefined;
       await this.events.emit('core-agent:error', { agent: this, state: this.state });
       throw error;
     }
@@ -143,6 +148,9 @@ export class CoreAgent {
 
   private createTurnHooks(): TurnHooks {
     return {
+      // Intentionally a no-op/observation hook: ReactLoop already adds messages
+      // to internal state; CoreAgent updates session from result.newMessages after
+      // the turn completes.
       onMessageAdded: (msg) => {
         if (this.interrupted) {
           return;
@@ -156,6 +164,7 @@ export class CoreAgent {
 
   interrupt(): void {
     this.interrupted = true;
+    this.abortController?.abort();
   }
 
   async reset(): Promise<void> {
@@ -172,8 +181,8 @@ export class CoreAgent {
     this.events.once(event, handler);
   }
 
-  private _getBudgetPolicy(): BudgetPolicy {
-    return this.config.budgetPolicy ?? new FixedBudgetPolicy({
+  private getBudgetPolicy(): BudgetPolicy {
+    return this.budgetPolicy ??= this.config.budgetPolicy ?? new FixedBudgetPolicy({
       maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
     });
   }

@@ -118,4 +118,32 @@ describe('openaiProvider', () => {
       expect.anything(),
     );
   });
+
+  it('should convert tool result messages in generate()', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Done', tool_calls: [] } }],
+      usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+    });
+
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    await openaiProvider.generate({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      messages: [
+        { role: 'tool', toolCallId: 'tc1', content: '42' } as any,
+      ],
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: 'tool', tool_call_id: 'tc1', content: '42' },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
 });

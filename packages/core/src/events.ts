@@ -1,7 +1,7 @@
 import type { AgentState } from './state.js';
 
 export type AgentEvent =
-  | 'core-agent:init' | 'core-agent:start' | 'core-agent:error'
+  | 'core-agent:init' | 'core-agent:start' | 'core-agent:stop' | 'core-agent:error'
   | 'turn:before' | 'turn:after'
   | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after'
   | 'phase:execute:before' | 'phase:execute:after'

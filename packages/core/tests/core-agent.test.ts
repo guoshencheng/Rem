@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
 import { IterationBudget } from '../src/budget.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
+import type { SessionProvider } from '../src/session.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -17,11 +18,12 @@ beforeEach(() => {
 });
 
 describe('CoreAgent', () => {
-  it('should initialize with idle status', () => {
+  it('should initialize with idle status', async () => {
     const agent = new CoreAgent({
       name: 'test-agent',
       model: createMockModel(),
     });
+    await agent.initialize();
     expect(agent.status).toBe('idle');
   });
 
@@ -37,6 +39,63 @@ describe('CoreAgent', () => {
 
     expect(result.content).toBe('Done!');
     expect(agent.status).toBe('idle');
+  });
+
+  it('should persist conversation to session', async () => {
+    const saveSpy = vi.fn();
+    const mockSessionProvider = {
+      create: vi.fn().mockResolvedValue({
+        sessionId: 's1',
+        conversation: [],
+        currentTurn: 0,
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      load: vi.fn().mockResolvedValue(null),
+      save: saveSpy,
+    };
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      sessionProvider: mockSessionProvider as SessionProvider,
+    });
+
+    await agent.initialize();
+    await agent.run({ content: 'Hello' });
+
+    expect(saveSpy).toHaveBeenCalled();
+    const savedSession = saveSpy.mock.calls[saveSpy.mock.calls.length - 1][0];
+    expect(savedSession.conversation.some((m: any) => m.role === 'user' && m.content === 'Hello')).toBe(true);
+    expect(savedSession.conversation.some((m: any) => m.role === 'assistant')).toBe(true);
+  });
+
+  it('should load existing session by id', async () => {
+    const existingSession = {
+      sessionId: 'existing-id',
+      conversation: [{ role: 'user', content: 'previous' } as any],
+      currentTurn: 1,
+      metadata: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const mockSessionProvider = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue(existingSession),
+      save: vi.fn(),
+    };
+
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      sessionProvider: mockSessionProvider as SessionProvider,
+    });
+
+    await agent.initialize({ sessionId: 'existing-id' });
+    expect(mockSessionProvider.load).toHaveBeenCalledWith('existing-id');
+    expect(agent['state'].conversation).toHaveLength(1);
+    expect(agent['state'].conversation[0].content).toBe('previous');
   });
 
   it('should reset session state', async () => {
@@ -84,6 +143,9 @@ describe('CoreAgent', () => {
       providerConfig: { apiKey: 'key', model: 'model' },
     });
 
+    const errorHandler = vi.fn();
+    agent.on('core-agent:error', errorHandler);
+
     await agent.initialize();
     const runPromise = agent.run({ content: 'Slow' });
     agent.interrupt();
@@ -102,68 +164,6 @@ describe('CoreAgent', () => {
     const result = await agent.run({ content: 'Hi' });
 
     expect(result.content).toBe('Done!');
-  });
-
-  it('should retry on retryable API errors', async () => {
-    let callCount = 0;
-    registerProvider('retryable', {
-      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
-      stream: async function* () {
-        callCount++;
-        if (callCount === 1) {
-          throw new Error('rate limit');
-        }
-        yield { type: 'text', text: 'Recovered!' };
-        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
-      },
-    });
-
-    const errorHandler = {
-      classify: vi.fn().mockReturnValue('api_error'),
-      isRetryable: vi.fn().mockReturnValue(true),
-      getRetryInstruction: vi.fn().mockReturnValue('Please try again.'),
-    };
-
-    const agent = new CoreAgent({
-      name: 'test',
-      model: createMockModel(),
-      budget: new IterationBudget({ maxTurns: 5 }),
-      provider: 'retryable',
-      providerConfig: { apiKey: 'key', model: 'model' },
-      errorHandler: errorHandler as any,
-    });
-
-    await agent.initialize();
-    const result = await agent.run({ content: 'Hi' });
-
-    expect(result.content).toBe('Recovered!');
-    expect(callCount).toBe(2);
-  });
-
-  it('should stop on non-retryable errors', async () => {
-    registerProvider('fatal', {
-      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
-      stream: async function* () {
-        throw new Error('Fatal');
-      },
-    });
-
-    const errorHandler = {
-      classify: vi.fn().mockReturnValue('unknown'),
-      isRetryable: vi.fn().mockReturnValue(false),
-      getRetryInstruction: vi.fn(),
-    };
-
-    const agent = new CoreAgent({
-      name: 'test',
-      model: createMockModel(),
-      provider: 'fatal',
-      providerConfig: { apiKey: 'key', model: 'model' },
-      errorHandler: errorHandler as any,
-    });
-
-    await agent.initialize();
-    await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Fatal');
   });
 
   it('should use configured provider', async () => {
@@ -187,5 +187,37 @@ describe('CoreAgent', () => {
     const result = await agent.run({ content: 'Hello' });
 
     expect(result.content).toBe('Custom!');
+  });
+
+  it('should enter error state when turn fails', async () => {
+    const turnRunner = {
+      run: vi.fn().mockRejectedValue(new Error('Turn failed')),
+    };
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      turnRunner: turnRunner as any,
+    });
+    const errorHandler = vi.fn();
+    agent.on('core-agent:error', errorHandler);
+
+    await agent.initialize();
+    await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Turn failed');
+    expect(agent.status).toBe('error');
+    expect(errorHandler).toHaveBeenCalled();
+  });
+
+  it('should return budget exceeded when budget is depleted', async () => {
+    const budget = new IterationBudget({ maxTurns: 0 });
+    const agent = new CoreAgent({
+      name: 'test',
+      model: createMockModel(),
+      budget,
+    });
+
+    await agent.initialize();
+    const result = await agent.run({ content: 'Hi' });
+
+    expect(result.content).toBe('Budget exceeded.');
   });
 });

@@ -137,4 +137,18 @@ describe('anthropicProvider', () => {
     const text = chunks.filter(c => c.type === 'text').map(c => c.text).join('');
     expect(text).toBe('Hello world');
   });
+
+  it('should propagate errors from generate()', async () => {
+    const mockCreate = vi.fn().mockRejectedValue(new Error('overloaded'));
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    await expect(anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })).rejects.toThrow('overloaded');
+  });
 });

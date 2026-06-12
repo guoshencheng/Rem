@@ -57,11 +57,6 @@ export class ReactTurnRunner implements TurnRunner {
 
     const loopResult: LoopResult = await this.loopStrategy.iterate(loopCtx, hooks);
 
-    // Call hooks for each new message produced by the loop
-    for (const msg of loopResult.newMessages) {
-      hooks.onMessageAdded(msg);
-    }
-
     return {
       output: loopResult.finalOutput,
       newMessages: loopResult.newMessages,

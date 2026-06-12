@@ -4,13 +4,19 @@ import { IterationBudget } from '../src/budget.js';
 import type { LoopStrategy, LoopContext, LoopResult, TurnHooks } from '../src/loop-strategy.js';
 
 const createMockLoop = (result: Partial<LoopResult>): LoopStrategy => ({
-  iterate: vi.fn().mockResolvedValue({
-    finalOutput: { content: 'done', completed: true },
-    newMessages: [{ role: 'assistant', content: 'done' } as any],
-    toolCalls: [],
-    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-    iterations: 1,
-    ...result,
+  iterate: vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks) => {
+    const resolved = {
+      finalOutput: { content: 'done', completed: true },
+      newMessages: [{ role: 'assistant', content: 'done' } as any],
+      toolCalls: [],
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      iterations: 1,
+      ...result,
+    };
+    for (const msg of resolved.newMessages) {
+      hooks.onMessageAdded(msg);
+    }
+    return resolved;
   }),
 });
 
@@ -61,14 +67,18 @@ describe('ReactTurnRunner', () => {
 
   it('should abort when signal is triggered', async () => {
     const loop: LoopStrategy = {
-      iterate: vi.fn().mockImplementation(async (_ctx: LoopContext, _hooks: TurnHooks) => {
-        return {
+      iterate: vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks) => {
+        const resolved = {
           finalOutput: { content: 'aborted', completed: true },
           newMessages: [{ role: 'assistant', content: 'aborted' } as any],
           toolCalls: [],
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
           iterations: 1,
         };
+        for (const msg of resolved.newMessages) {
+          hooks.onMessageAdded(msg);
+        }
+        return resolved;
       }),
     };
     const runner = new ReactTurnRunner(loop);

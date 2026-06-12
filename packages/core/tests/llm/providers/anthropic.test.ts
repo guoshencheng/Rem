@@ -29,6 +29,32 @@ describe('anthropicProvider', () => {
     );
   });
 
+  it('should pass system as top-level parameter in generate()', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'OK' }],
+      usage: { input_tokens: 3, output_tokens: 1 },
+    });
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    await anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      system: 'You are a tester',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are a tester',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+      expect.anything(),
+    );
+  });
+
   it('should parse tool_use blocks', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       content: [{

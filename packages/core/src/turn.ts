@@ -66,3 +66,5 @@ export class ReactTurnRunner implements TurnRunner {
     };
   }
 }
+
+export type { TurnHooks } from './loop-strategy.js';

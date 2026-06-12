@@ -1,4 +1,4 @@
-import type { UserInput, AgentOutput, ModelMessage } from './types.js';
+import type { UserInput, AgentOutput, ModelMessage, ToolCallRecord } from './types.js';
 import type { LanguageModel } from 'ai';
 import { AgentState } from './state.js';
 import { EventBus } from './events.js';
@@ -151,12 +151,12 @@ export class CoreAgent {
       // Intentionally a no-op/observation hook: ReactLoop already adds messages
       // to internal state; CoreAgent updates session from result.newMessages after
       // the turn completes.
-      onMessageAdded: (msg) => {
+      onMessageAdded: (msg: ModelMessage) => {
         if (this.interrupted) {
           return;
         }
       },
-      onToolCallRecorded: (record) => {
+      onToolCallRecorded: (record: ToolCallRecord) => {
         this.state.session.metadata.lastToolCall = record;
       },
     };

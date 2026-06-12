@@ -127,7 +127,7 @@ export class ReactLoop implements LoopStrategy {
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
           content: tr?.error ?? tr?.output ?? '',
-        } as ModelMessage;
+        } as unknown as ModelMessage;
 
         ctx.state.addMessage(toolMsg);
         newMessages.push(toolMsg);

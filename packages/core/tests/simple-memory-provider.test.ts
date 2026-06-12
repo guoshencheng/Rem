@@ -6,7 +6,7 @@ import { IterationBudget } from '../src/budget.js';
 describe('SimpleMemoryProvider', () => {
   it('should build context with system prompt and conversation', async () => {
     const provider = new SimpleMemoryProvider('TestAgent');
-    const state = new AgentState(new IterationBudget({ maxTurns: 5 }));
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'user', content: 'Hello' });
 
     const ctx = await provider.buildContext(state);

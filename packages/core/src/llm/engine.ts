@@ -44,9 +44,11 @@ export class InferenceEngine {
     let text = '';
     const toolCalls: ToolCall[] = [];
     let usage: LanguageModelUsage = {
-      promptTokens: 0,
-      completionTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
       totalTokens: 0,
+      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
     };
 
     for await (const chunk of stream) {
@@ -64,9 +66,11 @@ export class InferenceEngine {
         });
       } else if (chunk.type === 'usage') {
         usage = {
-          promptTokens: chunk.inputTokens,
-          completionTokens: chunk.outputTokens,
+          inputTokens: chunk.inputTokens,
+          outputTokens: chunk.outputTokens,
           totalTokens: chunk.totalTokens,
+          inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+          outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
         };
       }
     }

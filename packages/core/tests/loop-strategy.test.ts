@@ -5,6 +5,7 @@ import { EventBus } from '../src/events.js';
 import { IterationBudget } from '../src/budget.js';
 import { SimpleErrorHandler } from '../src/defaults/simple-error-handler.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
+import type { ErrorHandler } from '../src/sdk/error-handler.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -60,6 +61,7 @@ describe('ReactLoop', () => {
     expect(result.finalOutput.content).toBe('Hello!');
     expect(result.newMessages.some(m => m.role === 'assistant')).toBe(true);
     expect(hooks.onMessageAdded).toHaveBeenCalled();
+    expect(state.conversation.some(m => m.role === 'assistant')).toBe(true);
   });
 
   it('should emit turn events', async () => {
@@ -109,7 +111,9 @@ describe('ReactLoop', () => {
     expect(mocks.toolProvider.execute).toHaveBeenCalledWith([
       { toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } },
     ]);
-    expect(result.toolCallRecords).toHaveLength(1);
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.newMessages.filter(m => m.role === 'tool')).toHaveLength(1);
+    expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(1);
     expect(hooks.onToolCallRecorded).toHaveBeenCalledWith(expect.objectContaining({
       id: 'tc1',
       name: 'echo',
@@ -131,12 +135,12 @@ describe('ReactLoop', () => {
     });
 
     const mocks = createMockProviders();
-    const errorHandler = {
+    const errorHandler: ErrorHandler = {
       classify: vi.fn().mockReturnValue('api_error'),
       isRetryable: vi.fn().mockReturnValue(true),
       getRetryInstruction: vi.fn(),
     };
-    mocks.errorHandler = errorHandler as any;
+    mocks.errorHandler = errorHandler;
 
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     const events = new EventBus();

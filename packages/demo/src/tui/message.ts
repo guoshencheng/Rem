@@ -1,4 +1,5 @@
-import { Container, Markdown, Spacer } from "@earendil-works/pi-tui";
+import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { dim } from "../colors.js";
 import { markdownTheme, userMessageStyle, assistantMessageStyle, thinkingMessageStyle } from "../theme.js";
 import type { AgentStreamChunk } from "@agent-harness/core";
 
@@ -36,6 +37,7 @@ type UIPart = {
   type: "text" | "reasoning";
   text: string;
   component: Markdown;
+  wrapper?: Container;
 };
 
 export class StreamAssistantMessage extends Container {
@@ -68,8 +70,17 @@ export class StreamAssistantMessage extends Container {
 
     const style = type === "text" ? assistantMessageStyle : thinkingMessageStyle;
     const component = new Markdown(text, 0, 0, markdownTheme, style);
-    this.parts.set(partIndex, { type, text, component });
-    this.addChild(component);
+
+    if (type === "reasoning") {
+      const wrapper = new Container();
+      wrapper.addChild(new Text("think", 0, 0, dim));
+      wrapper.addChild(component);
+      this.parts.set(partIndex, { type, text, component, wrapper });
+      this.addChild(wrapper);
+    } else {
+      this.parts.set(partIndex, { type, text, component });
+      this.addChild(component);
+    }
   }
 
   setText(text: string): void {

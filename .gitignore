@@ -2,6 +2,7 @@ node_modules
 dist
 refer
 .worktrees
+.claude/worktrees
 *.tsbuildinfo
 packages/**/*.js
 vitest.config.js

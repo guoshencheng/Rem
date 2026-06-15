@@ -1,0 +1,95 @@
+import { describe, it, expect } from 'vitest';
+import { AgentStreamController } from '../src/stream/agent-stream.js';
+
+describe('AgentStreamController', () => {
+  it('emits text-start before first text-delta and text-finish after switch', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'text-delta', step: 1, text: 'hello ' });
+    controller.append({ type: 'text-delta', step: 1, text: 'world' });
+    controller.append({ type: 'reasoning-delta', step: 1, text: 'think' });
+    controller.finish({ content: 'done', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    const types = chunks.map(c => c.type);
+    expect(types).toEqual([
+      'text-start',
+      'text-delta',
+      'text-delta',
+      'text-finish',
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-finish',
+      'finish',
+    ]);
+
+    const textStart = chunks.find(c => c.type === 'text-start');
+    const reasoningStart = chunks.find(c => c.type === 'reasoning-start');
+    expect(textStart!.partId).toBeDefined();
+    expect(reasoningStart!.partId).toBeDefined();
+    expect(textStart!.partId).not.toBe(reasoningStart!.partId);
+  });
+
+  it('emits tool-call as triple start/payload/finish', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'tool-call', step: 1, toolCallId: 'tc1', toolName: 'search', input: { q: 'x' } });
+    controller.finish({ content: 'done', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.map(c => c.type)).toEqual([
+      'tool-call-start',
+      'tool-call',
+      'tool-call-finish',
+      'finish',
+    ]);
+    expect(chunks[0].partId).toBe('tc1');
+    expect(chunks[1].partId).toBe('tc1');
+    expect(chunks[2].partId).toBe('tc1');
+  });
+
+  it('uses toolCallId as partId for tool-result', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'tool-result', step: 1, toolCallId: 'tc1', output: 'ok' });
+    controller.finish({ content: 'done', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks[0].type).toBe('tool-result-start');
+    expect(chunks[0].partId).toBe('tc1');
+    expect(chunks[1].type).toBe('tool-result');
+    expect(chunks[2].type).toBe('tool-result-finish');
+  });
+
+  it('aggregates text correctly', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'text-delta', step: 1, text: 'hello ' });
+    controller.append({ type: 'text-delta', step: 1, text: 'world' });
+    controller.finish({ content: 'hello world', completed: true });
+
+    expect(await controller.stream.text).toBe('hello world');
+  });
+
+  it('closes open parts on finish', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'text-delta', step: 1, text: 'hi' });
+    controller.finish({ content: 'hi', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks[chunks.length - 2].type).toBe('text-finish');
+    expect(chunks[chunks.length - 1].type).toBe('finish');
+  });
+});

@@ -10,13 +10,13 @@ export type ThinkingTagDelta =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string };
 
-const THINKING_TAG_RE = /<\s*(\/?)\s*(?:think(?:ing)?|thought)\b[^<>]*>/gi;
+const THINKING_TAG_RE = /<\s*(\/?)\s*(?:[\w-]+:)?\s*(?:think(?:ing)?|thought)\b[^<>]*>/gi;
 
 function isReasoningTagPrefix(text: string): boolean {
   if (!text.startsWith("<") || text.includes(">")) {
     return false;
   }
-  const afterBracket = text
+  let afterBracket = text
     .slice(1)
     .replace(/^\s*\/?\s*/, "")
     .toLowerCase()
@@ -24,6 +24,8 @@ function isReasoningTagPrefix(text: string): boolean {
   if (afterBracket.length === 0) {
     return true;
   }
+  // Strip optional namespace prefix (e.g. "mm:" in "mm:think")
+  afterBracket = afterBracket.replace(/^[\w-]+:/, "");
   const names = ["think", "thinking", "thought"];
   return names.some((name) => name.startsWith(afterBracket));
 }

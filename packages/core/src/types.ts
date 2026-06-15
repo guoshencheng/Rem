@@ -14,11 +14,19 @@ export interface AgentOutput {
 
 export type AgentStreamChunk =
   | { type: 'step-start'; step: number }
-  | { type: 'text-delta'; step: number; partIndex: number; text: string }
-  | { type: 'reasoning-delta'; step: number; partIndex: number; text: string }
-  | { type: 'tool-call'; step: number; partIndex: number; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'tool-result'; step: number; partIndex: number; toolCallId: string; output: string; error?: string }
   | { type: 'step-finish'; step: number }
+  | { type: 'text-start'; step: number; partId: string }
+  | { type: 'text-delta'; step: number; partId: string; text: string }
+  | { type: 'text-finish'; step: number; partId: string }
+  | { type: 'reasoning-start'; step: number; partId: string }
+  | { type: 'reasoning-delta'; step: number; partId: string; text: string }
+  | { type: 'reasoning-finish'; step: number; partId: string }
+  | { type: 'tool-call-start'; step: number; partId: string; toolCallId: string; toolName: string }
+  | { type: 'tool-call'; step: number; partId: string; toolCallId: string; toolName: string; input: unknown }
+  | { type: 'tool-call-finish'; step: number; partId: string; toolCallId: string; toolName: string }
+  | { type: 'tool-result-start'; step: number; partId: string; toolCallId: string; toolName?: string }
+  | { type: 'tool-result'; step: number; partId: string; toolCallId: string; output: string; error?: string }
+  | { type: 'tool-result-finish'; step: number; partId: string; toolCallId: string }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: Error };
 
@@ -57,4 +65,12 @@ export interface ToolCallRecord {
   error?: string;
   durationMs: number;
   timestamp: Date;
+}
+
+export interface TurnResult {
+  output: AgentOutput;
+  newMessages: ModelMessage[];
+  toolCalls: { toolCallId: string; toolName: string; input: unknown }[];
+  usage: LanguageModelUsage;
+  steps: number;
 }

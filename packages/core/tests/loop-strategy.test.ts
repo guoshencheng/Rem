@@ -48,6 +48,7 @@ describe('ReactLoop', () => {
   it('should iterate a simple turn without tools', async () => {
     const mocks = createMockProviders();
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
     const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const hooks = createMockHooks();
@@ -60,14 +61,15 @@ describe('ReactLoop', () => {
     }, hooks, new AgentStreamController(), 1);
 
     expect(result.finalOutput.content).toBe('Hello!');
-    expect(result.newMessages.some(m => m.role === 'assistant')).toBe(true);
-    expect(hooks.onMessageAdded).toHaveBeenCalled();
+    expect(result.newMessages.some(m => m.role === 'assistant')).toBe(false);
+    expect(hooks.onMessageAdded).not.toHaveBeenCalled();
     expect(state.conversation.some(m => m.role === 'assistant')).toBe(true);
   });
 
   it('should emit turn events', async () => {
     const mocks = createMockProviders();
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
     const beforeHandler = vi.fn();
     const afterHandler = vi.fn();
@@ -96,6 +98,7 @@ describe('ReactLoop', () => {
     ]);
 
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
     const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const hooks = createMockHooks();
@@ -114,7 +117,7 @@ describe('ReactLoop', () => {
     ]);
     expect(result.toolCalls).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'tool')).toHaveLength(1);
-    expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(1);
+    expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(0);
     expect(hooks.onToolCallRecorded).toHaveBeenCalledWith(expect.objectContaining({
       id: 'tc1',
       name: 'echo',
@@ -144,6 +147,7 @@ describe('ReactLoop', () => {
     mocks.errorHandler = errorHandler;
 
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
     const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
 
@@ -158,5 +162,64 @@ describe('ReactLoop', () => {
 
     expect(result.finalOutput.content).toBe('Recovered!');
     expect(callCount).toBe(2);
+  });
+
+  it('emits raw text chunks without partId', async () => {
+    const mocks = createMockProviders();
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
+    const events = new EventBus();
+    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const controller = new AgentStreamController();
+
+    await loop.iterate({ state, systemPrompt: '', model: createMockModel(), budget: state.budget }, createMockHooks(), controller, 1);
+    controller.finish({ content: 'Hello!', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+    expect(chunks.some(c => c.type === 'text-start' && c.partId)).toBe(true);
+    expect(chunks.some(c => c.type === 'text-delta' && c.text === 'Hello!')).toBe(true);
+    expect(chunks.some(c => c.type === 'text-finish')).toBe(true);
+  });
+
+  it('emits tool-result boundaries through controller', async () => {
+    registerProvider('mock-tools', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'tool-call', toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } };
+        yield { type: 'usage', inputTokens: 5, outputTokens: 5, totalTokens: 10 };
+      },
+    });
+
+    const mocks = createMockProviders();
+    mocks.toolProvider.execute.mockResolvedValue([
+      { toolCallId: 'tc1', toolName: 'echo', output: 'result' },
+    ]);
+
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
+    const events = new EventBus();
+    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const controller = new AgentStreamController();
+
+    await loop.iterate({
+      state,
+      systemPrompt: 'You are test',
+      model: createMockModel(),
+      budget: state.budget,
+      provider: 'mock-tools',
+      providerConfig: { apiKey: 'key', model: 'model' },
+    }, createMockHooks(), controller, 1);
+    controller.finish({ content: '', completed: false });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+    expect(chunks.some(c => c.type === 'tool-result-start' && c.partId === 'tc1')).toBe(true);
+    expect(chunks.some(c => c.type === 'tool-result' && c.output === 'result')).toBe(true);
+    expect(chunks.some(c => c.type === 'tool-result-finish')).toBe(true);
   });
 });

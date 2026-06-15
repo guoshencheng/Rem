@@ -60,6 +60,18 @@ export class AgentStreamController {
     this.pending = [];
   }
 
+  stepStart(step: number): void {
+    if (this.finished) return;
+    this.lastStep = step;
+    this.enqueue({ type: 'step-start', step });
+  }
+
+  stepFinish(step: number): void {
+    if (this.finished) return;
+    this.lastStep = step;
+    this.enqueue({ type: 'step-finish', step });
+  }
+
   get stream(): AgentStream {
     return {
       fullStream: this.createIterator(),

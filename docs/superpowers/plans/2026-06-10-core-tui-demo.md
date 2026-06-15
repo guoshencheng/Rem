@@ -6,7 +6,7 @@
 
 **Architecture:** A new `packages/demo/` package with TUI components (chat-log, event-log, status-bar, input), a model provider factory, config resolver, and a main entry that wires CoreAgent events to the TUI. Layout is vertical-stack: chat messages, event log, status bar, input box — with TUI auto-scrolling to keep the bottom visible.
 
-**Tech Stack:** TypeScript, `@earendil-works/pi-tui`, `@agent-harness/core`, `@ai-sdk/openai`, `ai`
+**Tech Stack:** TypeScript, `@earendil-works/pi-tui`, `@agent-harness/core`, `@ai-sdk/openai`, `ai`, `vitest`
 
 ---
 
@@ -24,7 +24,7 @@ packages/demo/
     ├── theme.ts             # MarkdownTheme + DefaultTextStyle for pi-tui
     ├── agent.ts             # CoreAgent factory with event→TUI bridge
     ├── model/
-    │   └── provider.ts      # OpenAI/Anthropic LanguageModel factory
+    │   └── provider.ts      # OpenAI LanguageModel factory
     └── tui/
         ├── app.ts           # Root TUI component: layout + state + event wiring
         ├── chat-log.ts      # Scrollback container for messages
@@ -51,17 +51,19 @@ packages/demo/
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@agent-harness/core": "workspace:*",
     "@ai-sdk/openai": "^1.3.0",
-    "@earendil-works/pi-tui": "^0.79.1",
+    "@earendil-works/pi-tui": "^0.79.3",
     "ai": "6.0.199"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   }
 }
 ```
@@ -93,14 +95,14 @@ packages/demo/
 
 - [ ] **Step 3: Install dependencies**
 
-Run: `cd packages/demo && pnpm install`
+Run: `pnpm install`
 
-Expected: Dependencies installed successfully.
+Expected: `node_modules` updated, `@earendil-works/pi-tui` and `@ai-sdk/openai` installed.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/demo/package.json packages/demo/tsconfig.json
+git add packages/demo/package.json packages/demo/tsconfig.json pnpm-lock.yaml
 git commit -m "chore(demo): bootstrap demo package"
 ```
 
@@ -240,8 +242,44 @@ git commit -m "feat(demo): add markdown theme and message styles"
 
 **Files:**
 - Create: `packages/demo/src/model/provider.ts`
+- Create: `packages/demo/src/model/provider.test.ts`
 
-- [ ] **Step 1: Write provider.ts**
+- [ ] **Step 1: Write provider.test.ts**
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { createLanguageModel, type ProviderConfig } from "./provider.js";
+
+describe("createLanguageModel", () => {
+  it("returns an OpenAI language model for provider 'openai'", () => {
+    const config: ProviderConfig = {
+      provider: "openai",
+      apiKey: "test-key",
+      model: "gpt-4.1",
+    };
+    const model = createLanguageModel(config);
+    expect(model).toBeDefined();
+    expect(model.provider).toBe("openai");
+  });
+
+  it("throws for unsupported providers", () => {
+    const config = {
+      provider: "unsupported",
+      apiKey: "test-key",
+      model: "model",
+    } as unknown as ProviderConfig;
+    expect(() => createLanguageModel(config)).toThrow("Unsupported provider: unsupported");
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm vitest run packages/demo/src/model/provider.test.ts`
+
+Expected: FAIL with "Cannot find module" or "createLanguageModel is not defined".
+
+- [ ] **Step 3: Write provider.ts**
 
 ```typescript
 import { createOpenAI } from "@ai-sdk/openai";
@@ -262,11 +300,17 @@ export function createLanguageModel(config: ProviderConfig): LanguageModel {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pnpm vitest run packages/demo/src/model/provider.test.ts`
+
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add packages/demo/src/model/provider.ts
-git commit -m "feat(demo): add OpenAI model provider factory"
+git add packages/demo/src/model/provider.ts packages/demo/src/model/provider.test.ts
+git commit -m "feat(demo): add OpenAI model provider factory with tests"
 ```
 
 ---
@@ -275,8 +319,69 @@ git commit -m "feat(demo): add OpenAI model provider factory"
 
 **Files:**
 - Create: `packages/demo/src/config.ts`
+- Create: `packages/demo/src/config.test.ts`
 
-- [ ] **Step 1: Write config.ts**
+- [ ] **Step 1: Write config.test.ts**
+
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { resolveConfig } from "./config.js";
+
+describe("resolveConfig", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("uses environment variables and defaults", () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.DEMO_MODEL = "gpt-4o";
+    process.env.DEMO_AGENT_NAME = "Test Agent";
+    process.env.DEMO_MAX_TURNS = "10";
+
+    const config = resolveConfig();
+
+    expect(config.agentName).toBe("Test Agent");
+    expect(config.maxTurns).toBe(10);
+  });
+
+  it("uses defaults when optional variables are missing", () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+
+    const config = resolveConfig();
+
+    expect(config.agentName).toBe("Core Demo Agent");
+    expect(config.maxTurns).toBe(60);
+  });
+
+  it("exits when OPENAI_API_KEY is missing", () => {
+    delete process.env.OPENAI_API_KEY;
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => resolveConfig()).toThrow("process.exit called");
+    expect(errorSpy).toHaveBeenCalledWith("Error: OPENAI_API_KEY environment variable is required.");
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm vitest run packages/demo/src/config.test.ts`
+
+Expected: FAIL with "Cannot find module" or "resolveConfig is not defined".
+
+- [ ] **Step 3: Write config.ts**
 
 ```typescript
 import { createLanguageModel, type ProviderConfig } from "./model/provider.js";
@@ -318,11 +423,17 @@ export function resolveConfig(): DemoConfig {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pnpm vitest run packages/demo/src/config.test.ts`
+
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add packages/demo/src/config.ts
-git commit -m "feat(demo): add configuration resolver"
+git add packages/demo/src/config.ts packages/demo/src/config.test.ts
+git commit -m "feat(demo): add configuration resolver with tests"
 ```
 
 ---
@@ -336,7 +447,7 @@ git commit -m "feat(demo): add configuration resolver"
 
 ```typescript
 import { CoreAgent, IterationBudget } from "@agent-harness/core";
-import type { AgentEvent, EventContext } from "@agent-harness/core";
+import type { EventContext } from "@agent-harness/core";
 import type { LanguageModel } from "ai";
 
 export interface AgentCallbacks {
@@ -369,18 +480,18 @@ export function createDemoAgent(
   });
 
   agent.on("turn:before", (ctx: EventContext) => {
-    const turnNumber = (ctx.state as { currentTurn: number }).currentTurn;
+    const turnNumber = ctx.state.currentTurn;
     callbacks.onTurnBefore?.(turnNumber);
   });
 
   agent.on("phase:reason:before", (ctx: EventContext) => {
-    const turnNumber = (ctx.state as { currentTurn: number }).currentTurn;
+    const turnNumber = ctx.state.currentTurn;
     reasonStartTimes.set(turnNumber, Date.now());
     callbacks.onReasonBefore?.();
   });
 
   agent.on("phase:reason:after", (ctx: EventContext) => {
-    const turnNumber = (ctx.state as { currentTurn: number }).currentTurn;
+    const turnNumber = ctx.state.currentTurn;
     const start = reasonStartTimes.get(turnNumber);
     const duration = start ? Date.now() - start : 0;
     callbacks.onReasonAfter?.(duration);
@@ -388,11 +499,11 @@ export function createDemoAgent(
   });
 
   agent.on("turn:after", (ctx: EventContext) => {
-    const turnNumber = (ctx.state as { currentTurn: number }).currentTurn;
+    const turnNumber = ctx.state.currentTurn;
     callbacks.onTurnAfter?.(turnNumber);
   });
 
-  agent.on("core-agent:error", (ctx: EventContext) => {
+  agent.on("core-agent:error", () => {
     callbacks.onError?.(new Error("Agent error"));
     callbacks.onStatusChange?.("error");
   });
@@ -401,7 +512,13 @@ export function createDemoAgent(
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/agent.ts
@@ -452,7 +569,13 @@ export class AssistantMessage extends Container {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/tui/message.ts
@@ -502,7 +625,13 @@ export class ChatLog extends Container {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/tui/chat-log.ts
@@ -578,7 +707,13 @@ export class EventLog extends Container {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/tui/event-log.ts
@@ -596,7 +731,7 @@ git commit -m "feat(demo): add event log component"
 
 ```typescript
 import { Text } from "@earendil-works/pi-tui";
-import { bold, dim } from "../colors.js";
+import { bold, dim, red } from "../colors.js";
 
 export class StatusBar extends Text {
   constructor() {
@@ -605,14 +740,20 @@ export class StatusBar extends Text {
   }
 
   update(currentTurn: number, maxTurns: number, status: string): void {
-    const statusColor = status === "running" ? bold : status === "error" ? (t: string) => `\x1b[31m${t}\x1b[0m` : dim;
+    const statusColor = status === "running" ? bold : status === "error" ? red : dim;
     const text = `Core Demo  |  turn: ${currentTurn}/${maxTurns}  |  status: ${statusColor(status)}`;
     this.setText(text);
   }
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/tui/status-bar.ts
@@ -720,7 +861,13 @@ export class App {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/tui/app.ts
@@ -743,24 +890,6 @@ import { resolveConfig } from "./config.js";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
-
-  const app = new App(config.maxTurns, {
-    onSubmit: async (text) => {
-      app.addUserMessage(text);
-      app.clearInput();
-
-      try {
-        const output = await agent.run({ content: text });
-        app.addAssistantMessage(output.content);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        app.addAssistantMessage(`Error: ${message}`);
-      }
-    },
-    onInterrupt: () => {
-      agent.interrupt();
-    },
-  });
 
   const agent = createDemoAgent(config.model, config.agentName, config.maxTurns, {
     onStart: () => {
@@ -792,6 +921,24 @@ async function main(): Promise<void> {
 
   await agent.initialize();
 
+  const app = new App(config.maxTurns, {
+    onSubmit: async (text) => {
+      app.addUserMessage(text);
+      app.clearInput();
+
+      try {
+        const output = await agent.run({ content: text });
+        app.addAssistantMessage(output.content);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        app.addAssistantMessage(`Error: ${message}`);
+      }
+    },
+    onInterrupt: () => {
+      agent.interrupt();
+    },
+  });
+
   app.start();
 
   // Graceful shutdown on SIGINT
@@ -807,7 +954,13 @@ main().catch((error) => {
 });
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Run typecheck**
+
+Run: `cd packages/demo && pnpm typecheck`
+
+Expected: No type errors.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/demo/src/main.ts
@@ -879,17 +1032,23 @@ Run: `cd packages/demo && pnpm build`
 
 Expected: Compilation succeeds, `dist/` directory created with `.js` and `.d.ts` files.
 
-- [ ] **Step 3: Verify imports work**
+- [ ] **Step 3: Run tests**
+
+Run: `pnpm test`
+
+Expected: All tests pass, including `provider.test.ts` and `config.test.ts`.
+
+- [ ] **Step 4: Verify imports work**
 
 Run: `cd packages/demo && node -e "import('./dist/main.js').then(() => console.log('OK')).catch(e => console.error(e.message))"`
 
 Expected: Should fail with "OPENAI_API_KEY environment variable is required" (because we didn't set it), confirming the module loads correctly.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add packages/demo/
-git commit -m "chore(demo): verify build"
+git commit -m "chore(demo): verify build and tests"
 ```
 
 ---
@@ -912,7 +1071,9 @@ git commit -m "chore(demo): verify build"
 | Real LLM (OpenAI) | Tasks 4-5 |
 | Budget control (maxTurns) | Tasks 5-6 |
 | Pure conversation (no tools) | Task 6 (no tools registered) |
-| Phase 1 scope | All tasks |
+| main.ts agent/app ordering fix | Task 12 (agent created before app) |
+| agent.ts currentTurn simplification | Task 6 (uses `ctx.state.currentTurn`) |
+| OpenAI-only Phase 1 | Tasks 4-5 |
 
 ### Placeholder Scan
 
@@ -926,5 +1087,6 @@ git commit -m "chore(demo): verify build"
 - `AppCallbacks` interface in Task 11 matches usage in Task 12.
 - `EventContext` from `@agent-harness/core` is used consistently.
 - `LanguageModel` type from `ai` is used in Tasks 4, 5, 6.
+- `DemoConfig` in Task 5 matches usage in Task 12.
 
 **No issues found.**

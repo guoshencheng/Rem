@@ -46,23 +46,33 @@ async function main(): Promise<void> {
       const message = app.startAssistantMessage();
 
       (async () => {
-        for await (const chunk of result.stream.fullStream) {
-          message.appendChunk(chunk);
-          app.requestRender();
+        try {
+          for await (const chunk of result.stream.fullStream) {
+            message.appendChunk(chunk);
+            app.requestRender();
+          }
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          app.addAssistantMessage(`Stream error: ${errorMessage}`);
         }
       })();
 
-      result.stream.text.then((text) => {
-        app.finalizeAssistantMessage(text);
-      });
+      result.stream.text
+        .then((text) => {
+          app.finalizeAssistantMessage(text);
+        })
+        .catch((error) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          app.addAssistantMessage(`Stream text error: ${errorMessage}`);
+        });
 
       result.output
         .then(() => {
           app.updateConversation(agent.conversation);
         })
         .catch((error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          app.addAssistantMessage(`Error: ${message}`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          app.addAssistantMessage(`Error: ${errorMessage}`);
         });
     },
     onInterrupt: () => {

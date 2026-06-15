@@ -26,6 +26,10 @@ export const assistantMessageStyle: DefaultTextStyle = {
   color: (text) => text,
 };
 
+export const thinkingMessageStyle: DefaultTextStyle = {
+  color: dim,
+};
+
 export const eventLogStyle: DefaultTextStyle = {
   color: dim,
 };

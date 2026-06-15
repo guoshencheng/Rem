@@ -1,5 +1,5 @@
 import { Container, Markdown, Spacer } from "@earendil-works/pi-tui";
-import { markdownTheme, userMessageStyle, assistantMessageStyle } from "../theme.js";
+import { markdownTheme, userMessageStyle, assistantMessageStyle, thinkingMessageStyle } from "../theme.js";
 import type { AgentStreamChunk } from "@agent-harness/core";
 
 export class UserMessage extends Container {
@@ -32,32 +32,52 @@ export class AssistantMessage extends Container {
   }
 }
 
+type UIPart = {
+  type: "text" | "reasoning";
+  text: string;
+  component: Markdown;
+};
+
 export class StreamAssistantMessage extends Container {
-  private textParts: string[] = [];
-  private reasoningParts: string[] = [];
-  private body: Markdown;
-  private reasoning: Markdown;
+  private parts: Map<number, UIPart> = new Map();
 
   constructor() {
     super();
-    this.body = new Markdown("", 0, 0, markdownTheme, assistantMessageStyle);
-    this.reasoning = new Markdown("", 0, 0, markdownTheme, assistantMessageStyle);
     this.addChild(new Spacer(1));
-    this.addChild(this.body);
-    this.addChild(this.reasoning);
   }
 
   appendChunk(chunk: AgentStreamChunk): void {
     if (chunk.type === "text-delta") {
-      this.textParts.push(chunk.text);
-      this.body.setText(this.textParts.join(""));
+      this.appendDelta(chunk.partIndex, "text", chunk.text);
     } else if (chunk.type === "reasoning-delta") {
-      this.reasoningParts.push(chunk.text);
-      this.reasoning.setText(this.reasoningParts.join(""));
+      this.appendDelta(chunk.partIndex, "reasoning", chunk.text);
     }
   }
 
+  private appendDelta(
+    partIndex: number,
+    type: "text" | "reasoning",
+    text: string,
+  ): void {
+    const existing = this.parts.get(partIndex);
+    if (existing) {
+      existing.text += text;
+      existing.component.setText(existing.text);
+      return;
+    }
+
+    const style = type === "text" ? assistantMessageStyle : thinkingMessageStyle;
+    const component = new Markdown(text, 0, 0, markdownTheme, style);
+    this.parts.set(partIndex, { type, text, component });
+    this.addChild(component);
+  }
+
   setText(text: string): void {
-    this.body.setText(text);
+    this.parts = new Map();
+    this.clear();
+    this.addChild(new Spacer(1));
+    const component = new Markdown(text, 0, 0, markdownTheme, assistantMessageStyle);
+    this.parts.set(0, { type: "text", text, component });
+    this.addChild(component);
   }
 }

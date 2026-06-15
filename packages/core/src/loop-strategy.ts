@@ -105,6 +105,10 @@ export class ReactLoop implements LoopStrategy {
     const tools = this.toolProvider.getToolSet();
     const hasTools = Object.keys(tools).length > 0;
 
+    const assistantMsg = this.getCurrentAssistantMessage(ctx.state);
+    const parts = (Array.isArray(assistantMsg.content)
+      ? assistantMsg.content
+      : []) as AssistantPart[];
     const stepChunks: AgentStreamChunk[] = [];
 
     const inferResult = await this.inferWithRetry({
@@ -117,8 +121,10 @@ export class ReactLoop implements LoopStrategy {
       onChunk: (chunk) => {
         const agentChunk = this.mapToAgentStreamChunk(chunk, step);
         if (agentChunk) {
-          controller.append(agentChunk);
-          stepChunks.push(agentChunk);
+          const partIndex = this.appendChunkToParts(parts, agentChunk);
+          const indexedChunk = { ...agentChunk, partIndex };
+          controller.append(indexedChunk);
+          stepChunks.push(indexedChunk);
         }
       },
     });
@@ -153,12 +159,15 @@ export class ReactLoop implements LoopStrategy {
         const toolResultChunk: AgentStreamChunk = {
           type: 'tool-result',
           step,
+          partIndex: 0,
           toolCallId: tc.toolCallId,
           output: tr?.output ?? '',
           error: tr?.error,
         };
-        controller.append(toolResultChunk);
-        stepChunks.push(toolResultChunk);
+        const partIndex = this.appendChunkToParts(parts, toolResultChunk);
+        const indexedToolResultChunk = { ...toolResultChunk, partIndex };
+        controller.append(indexedToolResultChunk);
+        stepChunks.push(indexedToolResultChunk);
 
         const record: ToolCallRecord = {
           id: tc.toolCallId,
@@ -185,9 +194,8 @@ export class ReactLoop implements LoopStrategy {
       await this.events.emit('phase:execute:after', { agent: this, state: ctx.state });
     }
 
-    // 7. Append current step parts to the run's assistant message
-    const assistantMsg = this.getCurrentAssistantMessage(ctx.state);
-    this.appendStepParts(assistantMsg, stepChunks);
+    // 7. Assistant message parts were appended incrementally during streaming.
+    // Ensure the assistant message is included in the turn result.
     if (!newMessages.includes(assistantMsg)) {
       newMessages.push(assistantMsg);
     }
@@ -219,15 +227,55 @@ export class ReactLoop implements LoopStrategy {
 
   private mapToAgentStreamChunk(chunk: StreamChunk, step: number): AgentStreamChunk | null {
     if (chunk.type === 'text') {
-      return { type: 'text-delta', step, text: chunk.text };
+      return { type: 'text-delta', step, partIndex: 0, text: chunk.text };
     }
     if (chunk.type === 'reasoning') {
-      return { type: 'reasoning-delta', step, text: chunk.text };
+      return { type: 'reasoning-delta', step, partIndex: 0, text: chunk.text };
     }
     if (chunk.type === 'tool-call') {
-      return { type: 'tool-call', step, toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input };
+      return { type: 'tool-call', step, partIndex: 0, toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input };
     }
     return null;
+  }
+
+  private appendChunkToParts(parts: AssistantPart[], chunk: AgentStreamChunk): number {
+    if (chunk.type === 'text-delta') {
+      const last = parts[parts.length - 1];
+      if (last && last.type === 'text') {
+        last.text += chunk.text;
+        return parts.length - 1;
+      }
+      parts.push({ type: 'text', text: chunk.text });
+      return parts.length - 1;
+    }
+    if (chunk.type === 'reasoning-delta') {
+      const last = parts[parts.length - 1];
+      if (last && last.type === 'reasoning') {
+        last.text += chunk.text;
+        return parts.length - 1;
+      }
+      parts.push({ type: 'reasoning', text: chunk.text });
+      return parts.length - 1;
+    }
+    if (chunk.type === 'tool-call') {
+      parts.push({
+        type: 'tool-call',
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName,
+        input: chunk.input,
+      });
+      return parts.length - 1;
+    }
+    if (chunk.type === 'tool-result') {
+      parts.push({
+        type: 'tool-result',
+        toolCallId: chunk.toolCallId,
+        output: chunk.output,
+        error: chunk.error,
+      });
+      return parts.length - 1;
+    }
+    return -1;
   }
 
   private getCurrentAssistantMessage(state: AgentState): ModelMessage {
@@ -236,43 +284,5 @@ export class ReactLoop implements LoopStrategy {
     const msg: ModelMessage = { role: 'assistant', content: [] } as unknown as ModelMessage;
     state.addMessage(msg);
     return msg;
-  }
-
-  private appendStepParts(assistantMsg: ModelMessage, stepChunks: AgentStreamChunk[]): void {
-    const parts = (Array.isArray(assistantMsg.content)
-      ? assistantMsg.content
-      : []) as AssistantPart[];
-    for (const chunk of stepChunks) {
-      if (chunk.type === 'text-delta') {
-        const last = parts[parts.length - 1];
-        if (last && last.type === 'text') {
-          last.text += chunk.text;
-        } else {
-          parts.push({ type: 'text', text: chunk.text });
-        }
-      } else if (chunk.type === 'reasoning-delta') {
-        const last = parts[parts.length - 1];
-        if (last && last.type === 'reasoning') {
-          last.text += chunk.text;
-        } else {
-          parts.push({ type: 'reasoning', text: chunk.text });
-        }
-      } else if (chunk.type === 'tool-call') {
-        parts.push({
-          type: 'tool-call',
-          toolCallId: chunk.toolCallId,
-          toolName: chunk.toolName,
-          input: chunk.input,
-        });
-      } else if (chunk.type === 'tool-result') {
-        parts.push({
-          type: 'tool-result',
-          toolCallId: chunk.toolCallId,
-          output: chunk.output,
-          error: chunk.error,
-        });
-      }
-    }
-    assistantMsg.content = parts as unknown as ModelMessage['content'];
   }
 }

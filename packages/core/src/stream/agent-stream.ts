@@ -68,7 +68,7 @@ export class AgentStreamController {
   private aggregateText(): Promise<string> {
     return this.aggregateRun((chunks) =>
       chunks
-        .filter((c): c is { type: 'text-delta'; step: number; text: string } => c.type === 'text-delta')
+        .filter((c): c is { type: 'text-delta'; step: number; partIndex: number; text: string } => c.type === 'text-delta')
         .map((c) => c.text)
         .join(''),
     );

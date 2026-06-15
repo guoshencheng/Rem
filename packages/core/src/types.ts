@@ -14,10 +14,10 @@ export interface AgentOutput {
 
 export type AgentStreamChunk =
   | { type: 'step-start'; step: number }
-  | { type: 'text-delta'; step: number; text: string }
-  | { type: 'reasoning-delta'; step: number; text: string }
-  | { type: 'tool-call'; step: number; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'tool-result'; step: number; toolCallId: string; output: string; error?: string }
+  | { type: 'text-delta'; step: number; partIndex: number; text: string }
+  | { type: 'reasoning-delta'; step: number; partIndex: number; text: string }
+  | { type: 'tool-call'; step: number; partIndex: number; toolCallId: string; toolName: string; input: unknown }
+  | { type: 'tool-result'; step: number; partIndex: number; toolCallId: string; output: string; error?: string }
   | { type: 'step-finish'; step: number }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: Error };

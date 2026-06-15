@@ -1,4 +1,4 @@
-import type { UserInput, AgentOutput, ModelMessage, ToolCallRecord } from './types.js';
+import type { UserInput, AgentOutput, ModelMessage, ToolCallRecord, AgentStream } from './types.js';
 import type { LanguageModel } from 'ai';
 import { AgentState } from './state.js';
 import { EventBus } from './events.js';
@@ -13,6 +13,7 @@ import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
+import { resolveProviderConfig } from './llm/api-registry.js';
 import type { SessionProvider } from './session.js';
 import { InMemorySessionProvider } from './session.js';
 import type { TurnRunner, TurnHooks } from './turn.js';
@@ -21,10 +22,11 @@ import type { LoopStrategy } from './loop-strategy.js';
 import { ReactLoop } from './loop-strategy.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
+import { AgentStreamController } from './stream/agent-stream.js';
 
 export interface CoreAgentConfig {
   name: string;
-  model: LanguageModel;
+  model?: LanguageModel;
   budget?: IterationBudget;
   toolProvider?: ToolProvider;
   memoryProvider?: MemoryProvider;
@@ -40,6 +42,11 @@ export interface CoreAgentConfig {
     baseURL?: string;
     model: string;
   };
+}
+
+export interface AgentStreamResult {
+  stream: AgentStream;
+  output: Promise<AgentOutput>;
 }
 
 export class CoreAgent {
@@ -93,59 +100,75 @@ export class CoreAgent {
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 
-  async run(input: UserInput): Promise<AgentOutput> {
-    this.state.status = 'running';
-    this.interrupted = false;
-    await this.events.emit('core-agent:start', { agent: this, state: this.state });
+  get conversation(): ModelMessage[] {
+    return [...this.state.conversation];
+  }
 
-    const budgetPolicy = this.getBudgetPolicy();
-    const startTime = Date.now();
+  run(input: UserInput): AgentStreamResult {
+    const controller = new AgentStreamController();
+    const stream = controller.stream;
 
-    if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
-      this.state.status = 'idle';
-      return { content: 'Budget exceeded.', completed: true };
-    }
+    const outputPromise = (async () => {
+      this.state.status = 'running';
+      this.interrupted = false;
+      await this.events.emit('core-agent:start', { agent: this, state: this.state });
 
-    // Add user message to Session
-    const userMessage: ModelMessage = { role: 'user', content: input.content } as ModelMessage;
-    this.state.addMessage(userMessage);
-    await this.sessionProvider.save(this.state.session);
+      const budgetPolicy = this.getBudgetPolicy();
+      const startTime = Date.now();
 
-    const abortController = new AbortController();
-    this.abortController = abortController;
-
-    try {
-      const result = await this.turnRunner.run({
-        input,
-        conversation: [...this.state.conversation],
-        systemPrompt: `You are ${this.config.name}.`,
-        model: this.config.model,
-        budget: this.state.budget,
-        signal: abortController.signal,
-        provider: this.config.provider ?? 'openai',
-        providerConfig: this.config.providerConfig ?? { apiKey: '', model: 'gpt-4o' },
-      }, this.createTurnHooks());
-
-      for (const msg of result.newMessages) {
-        this.state.addMessage(msg);
+      if (!budgetPolicy.checkTurn(this.state) || !budgetPolicy.checkTimeout(startTime)) {
+        this.state.status = 'idle';
+        const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
+        controller.finish(output);
+        return output;
       }
 
-      this.state.currentTurn++;
-      this.state.status = 'idle';
-      this.abortController = undefined;
+      // Add user message to Session
+      const userMessage: ModelMessage = { role: 'user', content: input.content } as ModelMessage;
+      this.state.addMessage(userMessage);
       await this.sessionProvider.save(this.state.session);
-      await this.events.emit('core-agent:stop', { agent: this, state: this.state });
 
-      return {
-        content: this.interrupted ? 'Response interrupted.' : result.output.content,
-        completed: true,
-      };
-    } catch (error) {
-      this.state.status = 'error';
-      this.abortController = undefined;
-      await this.events.emit('core-agent:error', { agent: this, state: this.state });
-      throw error;
-    }
+      const abortController = new AbortController();
+      this.abortController = abortController;
+
+      try {
+        const result = await this.turnRunner.run({
+          input,
+          conversation: [...this.state.conversation],
+          systemPrompt: `You are ${this.config.name}.`,
+          model: this.config.model,
+          budget: this.state.budget,
+          signal: abortController.signal,
+          provider: this.config.provider ?? 'openai',
+          providerConfig: this.config.providerConfig ?? resolveProviderConfig(this.config.provider ?? 'openai'),
+        }, this.createTurnHooks(), controller);
+
+        for (const msg of result.newMessages) {
+          this.state.addMessage(msg);
+        }
+
+        this.state.currentTurn++;
+        this.state.status = 'idle';
+        this.abortController = undefined;
+        await this.sessionProvider.save(this.state.session);
+        await this.events.emit('core-agent:stop', { agent: this, state: this.state });
+
+        const output: AgentOutput = {
+          content: this.interrupted ? 'Response interrupted.' : result.output.content,
+          completed: true,
+        };
+        controller.finish(output);
+        return output;
+      } catch (error) {
+        this.state.status = 'error';
+        this.abortController = undefined;
+        await this.events.emit('core-agent:error', { agent: this, state: this.state });
+        controller.fail(error instanceof Error ? error : new Error(String(error)));
+        throw error;
+      }
+    })();
+
+    return { stream, output: outputPromise };
   }
 
   private createTurnHooks(): TurnHooks {
@@ -188,4 +211,19 @@ export class CoreAgent {
       maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
     });
   }
+}
+
+export function createAgentFromEnv(options: {
+  name: string;
+  provider?: string;
+  maxTurns?: number;
+}): CoreAgent {
+  registerBuiltInProviders();
+  const provider = options.provider ?? 'openai';
+  return new CoreAgent({
+    name: options.name,
+    budget: new IterationBudget({ maxTurns: options.maxTurns ?? 60 }),
+    provider,
+    providerConfig: resolveProviderConfig(provider),
+  });
 }

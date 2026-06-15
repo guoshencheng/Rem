@@ -3,9 +3,10 @@ import type { ModelMessage, LanguageModel } from 'ai';
 import { ReactTurnRunner } from '../src/turn.js';
 import { IterationBudget } from '../src/budget.js';
 import type { LoopStrategy, LoopContext, LoopResult, TurnHooks } from '../src/loop-strategy.js';
+import { AgentStreamController } from '../src/stream/agent-stream.js';
 
 const createMockLoop = (result: Partial<LoopResult>): LoopStrategy => {
-  const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks) => {
+  const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
     const resolved = {
       finalOutput: { content: 'done', completed: true },
       newMessages: [{ role: 'assistant', content: 'done' } as ModelMessage],
@@ -34,10 +35,7 @@ describe('ReactTurnRunner', () => {
       systemPrompt: 'You are helpful',
       model: {} as LanguageModel,
       budget: new IterationBudget({ maxTurns: 5 }),
-    }, {
-      onMessageAdded: vi.fn(),
-      onToolCallRecorded: vi.fn(),
-    });
+    }, { onMessageAdded: vi.fn(), onToolCallRecorded: vi.fn() }, new AgentStreamController());
 
     expect(result.output.content).toBe('done');
     expect(result.newMessages).toHaveLength(1);
@@ -62,13 +60,13 @@ describe('ReactTurnRunner', () => {
       systemPrompt: '',
       model: {} as LanguageModel,
       budget: new IterationBudget({ maxTurns: 5 }),
-    }, { onMessageAdded, onToolCallRecorded });
+    }, { onMessageAdded, onToolCallRecorded }, new AgentStreamController());
 
     expect(onMessageAdded).toHaveBeenCalledTimes(2);
   });
 
   it('should pass abort signal to loop strategy', async () => {
-    const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks) => {
+    const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
       const resolved = {
         finalOutput: { content: 'aborted', completed: true },
         newMessages: [{ role: 'assistant', content: 'aborted' } as ModelMessage],
@@ -96,7 +94,7 @@ describe('ReactTurnRunner', () => {
     }, {
       onMessageAdded: vi.fn(),
       onToolCallRecorded: vi.fn(),
-    });
+    }, new AgentStreamController());
 
     expect(result.output.content).toBe('aborted');
     const callCtx = iterateMock.mock.calls[0][0];
@@ -122,7 +120,7 @@ describe('ReactTurnRunner', () => {
     }, {
       onMessageAdded: vi.fn(),
       onToolCallRecorded: vi.fn(),
-    });
+    }, new AgentStreamController());
 
     expect(result.toolCalls).toEqual(toolCalls);
     expect(result.usage).toEqual(usage);

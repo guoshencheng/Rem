@@ -1,8 +1,9 @@
-import type { GenerateOptions, GenerateResult, StreamChunk } from './types.js';
+import type { GenerateOptions, GenerateResult, ProviderConfig, StreamChunk } from './types.js';
 
 export interface LLMProvider {
   generate(options: GenerateOptions): Promise<GenerateResult>;
   stream(options: GenerateOptions): AsyncIterable<StreamChunk>;
+  resolveConfig?(env?: NodeJS.ProcessEnv): ProviderConfig;
 }
 
 const registry = new Map<string, LLMProvider>();
@@ -24,6 +25,14 @@ export function resolveProvider(id: string): LLMProvider {
   return provider;
 }
 
+export function resolveProviderConfig(id: string, env: NodeJS.ProcessEnv = process.env): ProviderConfig {
+  const provider = resolveProvider(id);
+  if (!provider.resolveConfig) {
+    throw new Error(`Provider "${id}" does not support config resolution`);
+  }
+  return provider.resolveConfig(env);
+}
+
 export function listProviders(): string[] {
   return [...registry.keys()];
 }
@@ -31,3 +40,5 @@ export function listProviders(): string[] {
 export function clearProviders(): void {
   registry.clear();
 }
+
+export type { ProviderConfig } from './types.js';

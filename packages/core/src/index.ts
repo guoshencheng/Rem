@@ -6,6 +6,7 @@ export * from './events.js';
 export * from './turn.js';
 export * from './loop-strategy.js';
 export * from './core-agent.js';
+export * from './stream/agent-stream.js';
 export * from './sdk/index.js';
 export * from './defaults/index.js';
 export * from './llm/types.js';

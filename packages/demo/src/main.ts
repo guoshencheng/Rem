@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { App } from "./tui/app.js";
 import { createDemoAgent } from "./agent.js";
 import { resolveConfig } from "./config.js";
@@ -5,7 +7,7 @@ import { resolveConfig } from "./config.js";
 async function main(): Promise<void> {
   const config = resolveConfig();
 
-  const agent = createDemoAgent(config.model, config.agentName, config.maxTurns, {
+  const agent = createDemoAgent(config.agentName, config.maxTurns, {
     onStart: () => {
       app.addEvent("core-agent:start");
     },
@@ -36,20 +38,39 @@ async function main(): Promise<void> {
   await agent.initialize();
 
   const app = new App(config.maxTurns, {
-    onSubmit: async (text) => {
+    onSubmit: (text) => {
       app.addUserMessage(text);
       app.clearInput();
 
-      try {
-        const output = await agent.run({ content: text });
-        app.addAssistantMessage(output.content);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        app.addAssistantMessage(`Error: ${message}`);
-      }
+      const result = agent.run({ content: text });
+      const message = app.startAssistantMessage();
+
+      (async () => {
+        for await (const chunk of result.stream.fullStream) {
+          message.appendChunk(chunk);
+          app.requestRender();
+        }
+      })();
+
+      result.stream.text.then((text) => {
+        app.finalizeAssistantMessage(text);
+      });
+
+      result.output
+        .then(() => {
+          app.updateConversation(agent.conversation);
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          app.addAssistantMessage(`Error: ${message}`);
+        });
     },
     onInterrupt: () => {
       agent.interrupt();
+    },
+    onQuit: () => {
+      app.stop();
+      process.exit(0);
     },
   });
 

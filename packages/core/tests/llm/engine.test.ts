@@ -56,4 +56,77 @@ describe('InferenceEngine', () => {
       messages: [],
     })).rejects.toThrow('Unknown provider');
   });
+
+  it('should strip thinking tags from collected text', async () => {
+    registerProvider('mock', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: 'Hello <think>internal reasoning</think>world' };
+        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+      },
+    });
+
+    const engine = new InferenceEngine();
+    const result = await engine.infer({
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(result.text).toBe('Hello world');
+  });
+
+  it('should partition thinking tags into reasoning chunks during streaming', async () => {
+    registerProvider('mock', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: 'Hello <think>internal' };
+        yield { type: 'text', text: ' reasoning</think>world' };
+        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+      },
+    });
+
+    const chunks: Array<{ type: string; text?: string }> = [];
+    const engine = new InferenceEngine();
+    await engine.infer({
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
+      messages: [{ role: 'user', content: 'Hi' }],
+      onChunk: (chunk) => {
+        chunks.push(chunk);
+      },
+    });
+
+    expect(chunks).toEqual([
+      { type: 'text', text: 'Hello ' },
+      { type: 'reasoning', text: 'internal reasoning' },
+      { type: 'text', text: 'world' },
+      { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    ]);
+  });
+
+  it('should not emit raw thinking tags in text chunks', async () => {
+    registerProvider('mock', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: '<think>reasoning</think>visible' };
+      },
+    });
+
+    const textChunks: string[] = [];
+    const engine = new InferenceEngine();
+    await engine.infer({
+      provider: 'mock',
+      providerConfig: { apiKey: 'key', model: 'model' },
+      messages: [],
+      onChunk: (chunk) => {
+        if (chunk.type === 'text') {
+          textChunks.push(chunk.text);
+        }
+      },
+    });
+
+    expect(textChunks.join('')).not.toContain('<think>');
+    expect(textChunks.join('')).not.toContain('</think>');
+  });
 });

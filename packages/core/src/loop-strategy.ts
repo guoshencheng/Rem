@@ -1,13 +1,21 @@
 import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord } from './types.js';
+import type { AgentOutput, ToolCallRecord, AgentStreamChunk } from './types.js';
 import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler, ErrorCategory } from './sdk/error-handler.js';
 import { IterationBudget } from './budget.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
+import type { StreamChunk } from './llm/types.js';
+import { AgentStreamController } from './stream/agent-stream.js';
+
+type AssistantPart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
+  | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
+  | { type: 'tool-result'; toolCallId: string; output: string; error?: string };
 
 export interface TurnHooks {
   onMessageAdded(msg: ModelMessage): void;
@@ -17,7 +25,7 @@ export interface TurnHooks {
 export interface LoopContext {
   state: AgentState;
   systemPrompt: string;
-  model: LanguageModel;
+  model?: LanguageModel;
   budget: IterationBudget;
   signal?: AbortSignal;
   provider?: string;
@@ -37,14 +45,14 @@ export interface LoopResult {
 }
 
 export interface LoopStrategy {
-  iterate(ctx: LoopContext, hooks: TurnHooks): Promise<LoopResult>;
+  iterate(ctx: LoopContext, hooks: TurnHooks, controller: AgentStreamController, step: number): Promise<LoopResult>;
 }
 
 export class ReactLoop implements LoopStrategy {
   private inferenceEngine = new InferenceEngine();
 
   constructor(
-    private model: LanguageModel,
+    private model: LanguageModel | undefined,
     private events: EventBus,
     private toolProvider: ToolProvider,
     private memoryProvider: MemoryProvider,
@@ -74,7 +82,7 @@ export class ReactLoop implements LoopStrategy {
     throw lastError;
   }
 
-  async iterate(ctx: LoopContext, hooks: TurnHooks): Promise<LoopResult> {
+  async iterate(ctx: LoopContext, hooks: TurnHooks, controller: AgentStreamController, step: number): Promise<LoopResult> {
     // 1. Emit 'turn:before' event
     await this.events.emit('turn:before', { agent: this, state: ctx.state });
 
@@ -97,6 +105,8 @@ export class ReactLoop implements LoopStrategy {
     const tools = this.toolProvider.getToolSet();
     const hasTools = Object.keys(tools).length > 0;
 
+    const stepChunks: AgentStreamChunk[] = [];
+
     const inferResult = await this.inferWithRetry({
       provider: ctx.provider ?? 'mock',
       providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
@@ -104,6 +114,13 @@ export class ReactLoop implements LoopStrategy {
       messages,
       tools: hasTools ? tools : undefined,
       signal: ctx.signal,
+      onChunk: (chunk) => {
+        const agentChunk = this.mapToAgentStreamChunk(chunk, step);
+        if (agentChunk) {
+          controller.append(agentChunk);
+          stepChunks.push(agentChunk);
+        }
+      },
     });
 
     await this.events.emit('phase:reason:after', { agent: this, state: ctx.state });
@@ -133,6 +150,16 @@ export class ReactLoop implements LoopStrategy {
         newMessages.push(toolMsg);
         hooks.onMessageAdded(toolMsg);
 
+        const toolResultChunk: AgentStreamChunk = {
+          type: 'tool-result',
+          step,
+          toolCallId: tc.toolCallId,
+          output: tr?.output ?? '',
+          error: tr?.error,
+        };
+        controller.append(toolResultChunk);
+        stepChunks.push(toolResultChunk);
+
         const record: ToolCallRecord = {
           id: tc.toolCallId,
           name: tc.toolName,
@@ -158,23 +185,12 @@ export class ReactLoop implements LoopStrategy {
       await this.events.emit('phase:execute:after', { agent: this, state: ctx.state });
     }
 
-    // 7. Add assistant message to state, newMessages, call hooks.onMessageAdded
-    const assistantContent = inferResult.toolCalls.length > 0
-      ? inferResult.toolCalls.map(tc => ({
-          type: 'tool-call' as const,
-          toolCallId: tc.toolCallId,
-          toolName: tc.toolName,
-          input: tc.input,
-        }))
-      : inferResult.text;
-
-    const assistantMsg: ModelMessage = {
-      role: 'assistant',
-      content: assistantContent,
-    } as ModelMessage;
-
-    ctx.state.addMessage(assistantMsg);
-    newMessages.push(assistantMsg);
+    // 7. Append current step parts to the run's assistant message
+    const assistantMsg = this.getCurrentAssistantMessage(ctx.state);
+    this.appendStepParts(assistantMsg, stepChunks);
+    if (!newMessages.includes(assistantMsg)) {
+      newMessages.push(assistantMsg);
+    }
     hooks.onMessageAdded(assistantMsg);
 
     // 8. Emit 'turn:after' event
@@ -183,8 +199,6 @@ export class ReactLoop implements LoopStrategy {
     const completed = inferResult.toolCalls.length === 0;
 
     // 9. Return LoopResult
-    // ReactLoop.iterate() currently performs one LLM+tools pass;
-    // future multi-step ReAct will increment this.
     return {
       finalOutput: {
         content: inferResult.text,
@@ -201,5 +215,64 @@ export class ReactLoop implements LoopStrategy {
       },
       iterations: 1,
     };
+  }
+
+  private mapToAgentStreamChunk(chunk: StreamChunk, step: number): AgentStreamChunk | null {
+    if (chunk.type === 'text') {
+      return { type: 'text-delta', step, text: chunk.text };
+    }
+    if (chunk.type === 'reasoning') {
+      return { type: 'reasoning-delta', step, text: chunk.text };
+    }
+    if (chunk.type === 'tool-call') {
+      return { type: 'tool-call', step, toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input };
+    }
+    return null;
+  }
+
+  private getCurrentAssistantMessage(state: AgentState): ModelMessage {
+    const last = state.conversation[state.conversation.length - 1];
+    if (last?.role === 'assistant') return last as ModelMessage;
+    const msg: ModelMessage = { role: 'assistant', content: [] } as unknown as ModelMessage;
+    state.addMessage(msg);
+    return msg;
+  }
+
+  private appendStepParts(assistantMsg: ModelMessage, stepChunks: AgentStreamChunk[]): void {
+    const parts = (Array.isArray(assistantMsg.content)
+      ? assistantMsg.content
+      : []) as AssistantPart[];
+    for (const chunk of stepChunks) {
+      if (chunk.type === 'text-delta') {
+        const last = parts[parts.length - 1];
+        if (last && last.type === 'text') {
+          last.text += chunk.text;
+        } else {
+          parts.push({ type: 'text', text: chunk.text });
+        }
+      } else if (chunk.type === 'reasoning-delta') {
+        const last = parts[parts.length - 1];
+        if (last && last.type === 'reasoning') {
+          last.text += chunk.text;
+        } else {
+          parts.push({ type: 'reasoning', text: chunk.text });
+        }
+      } else if (chunk.type === 'tool-call') {
+        parts.push({
+          type: 'tool-call',
+          toolCallId: chunk.toolCallId,
+          toolName: chunk.toolName,
+          input: chunk.input,
+        });
+      } else if (chunk.type === 'tool-result') {
+        parts.push({
+          type: 'tool-result',
+          toolCallId: chunk.toolCallId,
+          output: chunk.output,
+          error: chunk.error,
+        });
+      }
+    }
+    assistantMsg.content = parts as unknown as ModelMessage['content'];
   }
 }

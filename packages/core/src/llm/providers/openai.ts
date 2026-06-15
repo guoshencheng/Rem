@@ -1,6 +1,39 @@
 import OpenAI from 'openai';
 import type { LLMProvider } from '../api-registry.js';
-import type { GenerateOptions, GenerateResult, StreamChunk } from '../types.js';
+import type { GenerateOptions, GenerateResult, ProviderConfig, StreamChunk } from '../types.js';
+
+function convertAssistantContent(content: unknown): OpenAI.Chat.ChatCompletionAssistantMessageParam {
+  if (typeof content === 'string') {
+    return { role: 'assistant', content };
+  }
+
+  if (!Array.isArray(content)) {
+    return { role: 'assistant', content: String(content) };
+  }
+
+  const text = content
+    .filter((part: any) => part.type === 'text')
+    .map((part: any) => part.text)
+    .join('');
+
+  const toolCalls = content
+    .filter((part: any) => part.type === 'tool-call')
+    .map((part: any) => ({
+      id: part.toolCallId,
+      type: 'function' as const,
+      function: {
+        name: part.toolName,
+        arguments: JSON.stringify(part.input),
+      },
+    }));
+
+  // reasoning parts: OpenAI input does not support them, drop.
+  return {
+    role: 'assistant',
+    content: text,
+    tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+  };
+}
 
 function convertToOpenAIMessages(
   messages: GenerateOptions['messages'],
@@ -14,7 +47,7 @@ function convertToOpenAIMessages(
     if (msg.role === 'user') {
       result.push({ role: 'user', content: msg.content as unknown as string });
     } else if (msg.role === 'assistant') {
-      result.push({ role: 'assistant', content: msg.content as unknown as string });
+      result.push(convertAssistantContent(msg.content));
     } else if (msg.role === 'tool') {
       const toolMsg = msg as any;
       result.push({
@@ -99,6 +132,18 @@ function safeJsonParse(value: string): unknown {
 }
 
 export const openaiProvider: LLMProvider = {
+  resolveConfig(env: NodeJS.ProcessEnv = process.env): ProviderConfig {
+    const apiKey = env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is required.');
+    }
+    return {
+      apiKey,
+      baseURL: env.OPENAI_BASE_URL,
+      model: env.OPENAI_MODEL ?? 'gpt-4o',
+    };
+  },
+
   async generate(options: GenerateOptions): Promise<GenerateResult> {
     const client = new OpenAI({
       apiKey: options.apiKey,

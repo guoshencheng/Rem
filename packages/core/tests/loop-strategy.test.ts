@@ -6,6 +6,7 @@ import { IterationBudget } from '../src/budget.js';
 import { SimpleErrorHandler } from '../src/defaults/simple-error-handler.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 import type { ErrorHandler } from '../src/sdk/error-handler.js';
+import { AgentStreamController } from '../src/stream/agent-stream.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -56,7 +57,7 @@ describe('ReactLoop', () => {
       systemPrompt: 'You are helpful',
       model: createMockModel(),
       budget: state.budget,
-    }, hooks);
+    }, hooks, new AgentStreamController(), 1);
 
     expect(result.finalOutput.content).toBe('Hello!');
     expect(result.newMessages.some(m => m.role === 'assistant')).toBe(true);
@@ -74,7 +75,7 @@ describe('ReactLoop', () => {
     events.on('turn:after', afterHandler);
 
     const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
-    await loop.iterate({ state, systemPrompt: '', model: createMockModel(), budget: state.budget }, createMockHooks());
+    await loop.iterate({ state, systemPrompt: '', model: createMockModel(), budget: state.budget }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(beforeHandler).toHaveBeenCalled();
     expect(afterHandler).toHaveBeenCalled();
@@ -106,7 +107,7 @@ describe('ReactLoop', () => {
       budget: state.budget,
       provider: 'mock-tools',
       providerConfig: { apiKey: 'key', model: 'model' },
-    }, hooks);
+    }, hooks, new AgentStreamController(), 1);
 
     expect(mocks.toolProvider.execute).toHaveBeenCalledWith([
       { toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } },
@@ -153,7 +154,7 @@ describe('ReactLoop', () => {
       budget: state.budget,
       provider: 'retryable',
       providerConfig: { apiKey: 'key', model: 'model' },
-    }, createMockHooks());
+    }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(result.finalOutput.content).toBe('Recovered!');
     expect(callCount).toBe(2);

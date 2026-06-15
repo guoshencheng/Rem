@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoreAgent } from '../src/core-agent.js';
+import type { AgentStreamChunk } from '../src/types.js';
 import { IterationBudget } from '../src/budget.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 import type { SessionProvider } from '../src/session.js';
@@ -14,6 +15,7 @@ beforeEach(() => {
       yield { type: 'text', text: 'Done!' };
       yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
     },
+    resolveConfig: () => ({ apiKey: 'test-key', model: 'gpt-4o' }),
   });
 });
 
@@ -35,9 +37,9 @@ describe('CoreAgent', () => {
     });
 
     await agent.initialize();
-    const result = await agent.run({ content: 'Hello' });
+    const result = agent.run({ content: 'Hello' });
 
-    expect(result.content).toBe('Done!');
+    expect((await result.output).content).toBe('Done!');
     expect(agent.status).toBe('idle');
   });
 
@@ -63,7 +65,7 @@ describe('CoreAgent', () => {
     });
 
     await agent.initialize();
-    await agent.run({ content: 'Hello' });
+    await agent.run({ content: 'Hello' }).output;
 
     expect(saveSpy).toHaveBeenCalled();
     const savedSession = saveSpy.mock.calls[saveSpy.mock.calls.length - 1][0];
@@ -106,7 +108,7 @@ describe('CoreAgent', () => {
     });
 
     await agent.initialize();
-    await agent.run({ content: 'Hello' });
+    await agent.run({ content: 'Hello' }).output;
     expect(agent['state'].conversation.length).toBeGreaterThan(0);
 
     await agent.reset();
@@ -147,11 +149,11 @@ describe('CoreAgent', () => {
     agent.on('core-agent:error', errorHandler);
 
     await agent.initialize();
-    const runPromise = agent.run({ content: 'Slow' });
+    const result = agent.run({ content: 'Slow' });
     agent.interrupt();
 
-    const result = await runPromise;
-    expect(result.content).toContain('interrupted');
+    const output = await result.output;
+    expect(output.content).toContain('interrupted');
   });
 
   it('should use default openai provider', async () => {
@@ -161,9 +163,9 @@ describe('CoreAgent', () => {
     });
 
     await agent.initialize();
-    const result = await agent.run({ content: 'Hi' });
+    const result = agent.run({ content: 'Hi' });
 
-    expect(result.content).toBe('Done!');
+    expect((await result.output).content).toBe('Done!');
   });
 
   it('should use configured provider', async () => {
@@ -184,9 +186,9 @@ describe('CoreAgent', () => {
     });
 
     await agent.initialize();
-    const result = await agent.run({ content: 'Hello' });
+    const result = agent.run({ content: 'Hello' });
 
-    expect(result.content).toBe('Custom!');
+    expect((await result.output).content).toBe('Custom!');
   });
 
   it('should enter error state when turn fails', async () => {
@@ -202,22 +204,29 @@ describe('CoreAgent', () => {
     agent.on('core-agent:error', errorHandler);
 
     await agent.initialize();
-    await expect(agent.run({ content: 'Hi' })).rejects.toThrow('Turn failed');
+    await expect(agent.run({ content: 'Hi' }).output).rejects.toThrow('Turn failed');
     expect(agent.status).toBe('error');
     expect(errorHandler).toHaveBeenCalled();
   });
 
-  it('should return budget exceeded when budget is depleted', async () => {
-    const budget = new IterationBudget({ maxTurns: 0 });
+  it('should expose stream via AgentStreamResult', async () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
-      budget,
+      budget: new IterationBudget({ maxTurns: 5 }),
     });
-
     await agent.initialize();
-    const result = await agent.run({ content: 'Hi' });
+    const result = agent.run({ content: 'Hello' });
 
-    expect(result.content).toBe('Budget exceeded.');
+    const chunks: AgentStreamChunk[] = [];
+    for await (const chunk of result.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.some((c) => c.type === 'text-delta')).toBe(true);
+    expect(chunks.some((c) => c.type === 'finish')).toBe(true);
+
+    const output = await result.output;
+    expect(output.content).toBe('Done!');
   });
 });

@@ -4,15 +4,19 @@ import {
   ProcessTerminal,
   Spacer,
   TUI,
+  matchesKey,
 } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
 import { ChatLog } from "./chat-log.js";
 import { EventLog } from "./event-log.js";
 import { StatusBar } from "./status-bar.js";
+import { StreamAssistantMessage } from "./message.js";
+import type { ModelMessage } from "@agent-harness/core";
 
 export interface AppCallbacks {
   onSubmit: (text: string) => void;
   onInterrupt: () => void;
+  onQuit: () => void;
 }
 
 export class App {
@@ -50,6 +54,13 @@ export class App {
     this.root.addChild(this.input);
 
     this.tui = new TUI(new ProcessTerminal(), true);
+    this.tui.addInputListener((data) => {
+      if (matchesKey(data, "ctrl+c")) {
+        callbacks.onQuit();
+        return { consume: true };
+      }
+      return undefined;
+    });
     this.tui.addChild(this.root);
   }
 
@@ -69,6 +80,22 @@ export class App {
 
   addAssistantMessage(text: string): void {
     this.chatLog.addAssistant(text);
+    this.tui.requestRender(true);
+  }
+
+  startAssistantMessage(): StreamAssistantMessage {
+    return this.chatLog.startAssistant();
+  }
+
+  finalizeAssistantMessage(_text: string): void {
+    this.tui.requestRender(true);
+  }
+
+  updateConversation(_messages: ModelMessage[]): void {
+    this.tui.requestRender(true);
+  }
+
+  requestRender(): void {
     this.tui.requestRender(true);
   }
 

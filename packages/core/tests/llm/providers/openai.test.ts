@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { openaiProvider } from '../../../src/llm/providers/openai.js';
 import OpenAI from 'openai';
 
@@ -195,5 +195,48 @@ describe('openaiProvider', () => {
     expect(toolCalls[0].toolCallId).toBe('tc1');
     expect(toolCalls[0].toolName).toBe('echo');
     expect(toolCalls[0].input).toEqual({ msg: 'hi' });
+  });
+
+  describe('resolveConfig', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it('should resolve config from env vars', () => {
+      process.env.OPENAI_API_KEY = 'sk-test';
+      process.env.OPENAI_MODEL = 'gpt-4.1';
+      process.env.OPENAI_BASE_URL = 'https://custom.openai.com';
+
+      const config = openaiProvider.resolveConfig?.();
+
+      expect(config).toEqual({
+        apiKey: 'sk-test',
+        model: 'gpt-4.1',
+        baseURL: 'https://custom.openai.com',
+      });
+    });
+
+    it('should use default model when OPENAI_MODEL is missing', () => {
+      process.env.OPENAI_API_KEY = 'sk-test';
+      delete process.env.OPENAI_MODEL;
+
+      const config = openaiProvider.resolveConfig?.();
+
+      expect(config).toEqual({
+        apiKey: 'sk-test',
+        model: 'gpt-4o',
+      });
+    });
+
+    it('should throw when OPENAI_API_KEY is missing', () => {
+      delete process.env.OPENAI_API_KEY;
+      expect(() => openaiProvider.resolveConfig?.()).toThrow('OPENAI_API_KEY environment variable is required');
+    });
   });
 });

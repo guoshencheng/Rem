@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   registerProvider,
   resolveProvider,
+  resolveProviderConfig,
   listProviders,
   clearProviders,
   type LLMProvider,
@@ -35,5 +36,22 @@ describe('ApiRegistry', () => {
   it('should throw on duplicate registration', () => {
     registerProvider('mock', mockProvider);
     expect(() => registerProvider('mock', mockProvider)).toThrow('already registered');
+  });
+
+  it('should resolve provider config', () => {
+    registerProvider('mock', {
+      ...mockProvider,
+      resolveConfig: () => ({ apiKey: 'key', model: 'model' }),
+    });
+    expect(resolveProviderConfig('mock')).toEqual({ apiKey: 'key', model: 'model' });
+  });
+
+  it('should throw when provider does not support config resolution', () => {
+    registerProvider('mock', mockProvider);
+    expect(() => resolveProviderConfig('mock')).toThrow('does not support config resolution');
+  });
+
+  it('should throw on unknown provider config resolution', () => {
+    expect(() => resolveProviderConfig('unknown')).toThrow('Unknown provider');
   });
 });

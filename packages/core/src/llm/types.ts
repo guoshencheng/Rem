@@ -1,9 +1,12 @@
 import type { ModelMessage, ToolSet } from 'ai';
 
-export interface GenerateOptions {
+export interface ProviderConfig {
   model: string;
   apiKey: string;
   baseURL?: string;
+}
+
+export interface GenerateOptions extends ProviderConfig {
   system?: string;
   messages: ModelMessage[];
   tools?: ToolSet;
@@ -28,18 +31,22 @@ export interface GenerateResult {
 
 export type StreamChunk =
   | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
   | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
   | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
   | { type: 'finish'; reason: string };
 
 export class StreamCollector {
   private text = '';
+  private reasoningText = '';
   private toolCalls: GenerateResult['toolCalls'] = [];
   private usage: GenerateResult['usage'] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
   feed(chunk: StreamChunk): void {
     if (chunk.type === 'text') {
       this.text += chunk.text;
+    } else if (chunk.type === 'reasoning') {
+      this.reasoningText += chunk.text;
     } else if (chunk.type === 'tool-call') {
       this.toolCalls.push({
         toolCallId: chunk.toolCallId,

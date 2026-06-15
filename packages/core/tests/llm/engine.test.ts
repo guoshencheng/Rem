@@ -99,7 +99,8 @@ describe('InferenceEngine', () => {
 
     expect(chunks).toEqual([
       { type: 'text', text: 'Hello ' },
-      { type: 'reasoning', text: 'internal reasoning' },
+      { type: 'reasoning', text: 'internal' },
+      { type: 'reasoning', text: ' reasoning' },
       { type: 'text', text: 'world' },
       { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     ]);

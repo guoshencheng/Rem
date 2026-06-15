@@ -39,6 +39,8 @@ type UIPart = {
   text: string;
   component: Markdown;
   wrapper?: Container;
+  label?: Text;
+  startTime?: number;
 };
 
 export class StreamAssistantMessage extends Container {
@@ -58,6 +60,8 @@ export class StreamAssistantMessage extends Container {
       this.ensurePart(chunk.partId, "reasoning");
     } else if (chunk.type === "reasoning-delta") {
       this.appendDelta(chunk.partId, "reasoning", chunk.text);
+    } else if (chunk.type === "reasoning-finish") {
+      this.finishReasoning(chunk.partId);
     } else if (chunk.type === "tool-call") {
       this.updateToolCall(chunk.partId, chunk.toolName, chunk.input);
     } else if (chunk.type === "tool-result") {
@@ -72,9 +76,10 @@ export class StreamAssistantMessage extends Container {
 
     if (type === "reasoning") {
       const wrapper = new Container();
-      wrapper.addChild(new Text("think", 0, 0, dim));
+      const label = new Text("thinking", 0, 0, dim);
+      wrapper.addChild(label);
       wrapper.addChild(component);
-      this.parts.set(partId, { type, partId, text: "", component, wrapper });
+      this.parts.set(partId, { type, partId, text: "", component, wrapper, label, startTime: Date.now() });
       this.addChild(wrapper);
     } else {
       this.parts.set(partId, { type, partId, text: "", component });
@@ -90,6 +95,14 @@ export class StreamAssistantMessage extends Container {
     const part = this.parts.get(partId)!;
     part.text += text;
     part.component.setText(part.text);
+  }
+
+  private finishReasoning(partId: string): void {
+    const part = this.parts.get(partId);
+    if (!part || part.type !== "reasoning" || !part.label || !part.startTime) return;
+    const durationMs = Date.now() - part.startTime;
+    const durationS = (durationMs / 1000).toFixed(1);
+    part.label.setText(`think for ${durationS}s`);
   }
 
   private updateToolCall(partId: string, toolName: string, input: unknown): void {

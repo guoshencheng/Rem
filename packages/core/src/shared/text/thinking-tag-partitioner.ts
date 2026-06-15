@@ -101,10 +101,18 @@ export function createThinkingTagPartitioner(): ThinkingTagPartitioner {
       if (!tag) {
         if (thinkingDepth > 0) {
           if (final) {
-            if (!emittedVisibleText) {
-              emit("text", buffer.slice(cursor));
-            }
+            emit("thinking", buffer.slice(cursor));
             reset();
+          } else {
+            const tail = buffer.slice(cursor);
+            const keepFrom = findIncompleteTagPrefix(tail);
+            if (keepFrom > 0) {
+              emit("thinking", tail.slice(0, keepFrom));
+              advanceCursor(cursor + keepFrom);
+            } else if (keepFrom === -1) {
+              emit("thinking", tail);
+              advanceCursor(buffer.length);
+            }
           }
         } else {
           if (final) {

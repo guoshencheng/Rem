@@ -29,11 +29,14 @@ describe('createThinkingTagPartitioner', () => {
     ]);
   });
 
-  it('splits content across opening tag boundary', () => {
+  it('streams thinking content incrementally across chunks', () => {
     const partitioner = createThinkingTagPartitioner();
-    expect(partitioner.push('Before <think>reaso')).toEqual([{ type: 'text', text: 'Before ' }]);
-    expect(partitioner.push('ning</think> after')).toEqual([
-      { type: 'thinking', text: 'reasoning' },
+    expect(partitioner.push('Before <think>rea')).toEqual([
+      { type: 'text', text: 'Before ' },
+      { type: 'thinking', text: 'rea' },
+    ]);
+    expect(partitioner.push('soning</think> after')).toEqual([
+      { type: 'thinking', text: 'soning' },
       { type: 'text', text: ' after' },
     ]);
   });
@@ -42,9 +45,9 @@ describe('createThinkingTagPartitioner', () => {
     const partitioner = createThinkingTagPartitioner();
     expect(partitioner.push('Before <think>reasoning</th')).toEqual([
       { type: 'text', text: 'Before ' },
+      { type: 'thinking', text: 'reasoning' },
     ]);
     expect(partitioner.push('ink> after')).toEqual([
-      { type: 'thinking', text: 'reasoning' },
       { type: 'text', text: ' after' },
     ]);
   });
@@ -73,16 +76,21 @@ describe('createThinkingTagPartitioner', () => {
     ]);
   });
 
-  it('drops unclosed opening tag content on flush', () => {
+  it('streams unclosed thinking content incrementally', () => {
     const partitioner = createThinkingTagPartitioner();
-    expect(partitioner.push('Before <think>hidden')).toEqual([{ type: 'text', text: 'Before ' }]);
+    expect(partitioner.push('Before <think>hidden')).toEqual([
+      { type: 'text', text: 'Before ' },
+      { type: 'thinking', text: 'hidden' },
+    ]);
     expect(partitioner.flush()).toEqual([]);
   });
 
-  it('emits unclosed reasoning content as text when no visible text preceded', () => {
+  it('emits unclosed reasoning content as thinking when no visible text preceded', () => {
     const partitioner = createThinkingTagPartitioner();
-    expect(partitioner.push('<think>only reasoning')).toEqual([]);
-    expect(partitioner.flush()).toEqual([{ type: 'text', text: 'only reasoning' }]);
+    expect(partitioner.push('<think>only reasoning')).toEqual([
+      { type: 'thinking', text: 'only reasoning' },
+    ]);
+    expect(partitioner.flush()).toEqual([]);
   });
 
   it('matches thinking and thought tags case-insensitively', () => {

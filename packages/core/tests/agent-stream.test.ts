@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { AgentStreamChunk } from '../src/types.js';
 import { AgentStreamController } from '../src/stream/agent-stream.js';
 
 describe('AgentStreamController', () => {
@@ -26,8 +27,8 @@ describe('AgentStreamController', () => {
       'finish',
     ]);
 
-    const textStart = chunks.find(c => c.type === 'text-start');
-    const reasoningStart = chunks.find(c => c.type === 'reasoning-start');
+    const textStart = chunks.find(c => c.type === 'text-start') as Extract<AgentStreamChunk, { type: 'text-start' }> | undefined;
+    const reasoningStart = chunks.find(c => c.type === 'reasoning-start') as Extract<AgentStreamChunk, { type: 'reasoning-start' }> | undefined;
     expect(textStart!.partId).toBeDefined();
     expect(reasoningStart!.partId).toBeDefined();
     expect(textStart!.partId).not.toBe(reasoningStart!.partId);
@@ -49,9 +50,9 @@ describe('AgentStreamController', () => {
       'tool-call-finish',
       'finish',
     ]);
-    expect(chunks[0].partId).toBe('tc1');
-    expect(chunks[1].partId).toBe('tc1');
-    expect(chunks[2].partId).toBe('tc1');
+    expect((chunks[0] as Extract<AgentStreamChunk, { type: 'tool-call-start' }>).partId).toBe('tc1');
+    expect((chunks[1] as Extract<AgentStreamChunk, { type: 'tool-call' }>).partId).toBe('tc1');
+    expect((chunks[2] as Extract<AgentStreamChunk, { type: 'tool-call-finish' }>).partId).toBe('tc1');
   });
 
   it('uses toolCallId as partId for tool-result', async () => {
@@ -65,7 +66,7 @@ describe('AgentStreamController', () => {
     }
 
     expect(chunks[0].type).toBe('tool-result-start');
-    expect(chunks[0].partId).toBe('tc1');
+    expect((chunks[0] as Extract<AgentStreamChunk, { type: 'tool-result-start' }>).partId).toBe('tc1');
     expect(chunks[1].type).toBe('tool-result');
     expect(chunks[2].type).toBe('tool-result-finish');
   });

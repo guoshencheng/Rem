@@ -11,7 +11,7 @@ export class SimpleErrorHandler implements ErrorHandler {
     return category === 'api_error';
   }
 
-  getRetryInstruction(): string | undefined {
+  getRetryInstruction(_category: ErrorCategory): string | undefined {
     return undefined;
   }
 }

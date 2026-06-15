@@ -9,9 +9,15 @@ const createMockLoop = (result: Partial<LoopResult>): LoopStrategy => {
   const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
     const resolved = {
       finalOutput: { content: 'done', completed: true },
-      newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
+      newMessages: [{ role: 'tool', content: 'result' } as unknown as ModelMessage],
       toolCalls: [],
-      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      },
       ...result,
     };
     for (const msg of resolved.newMessages) {
@@ -46,7 +52,7 @@ describe('ReactTurnRunner', () => {
   it('should pass hooks to loop and track added messages', async () => {
     const loop = createMockLoop({
       newMessages: [
-        { role: 'tool', content: 'result' } as ModelMessage,
+        { role: 'tool', content: 'result' } as unknown as ModelMessage,
       ],
     });
     const runner = new ReactTurnRunner(loop);
@@ -70,7 +76,7 @@ describe('ReactTurnRunner', () => {
         finalOutput: { content: 'aborted', completed: true },
         newMessages: [],
         toolCalls: [],
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
       };
       for (const msg of resolved.newMessages) {
         hooks.onMessageAdded(msg);
@@ -107,7 +113,7 @@ describe('ReactTurnRunner', () => {
     const loop = createMockLoop({
       toolCalls,
       usage,
-      newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
+      newMessages: [{ role: 'tool', content: 'result' } as unknown as ModelMessage],
     });
     const runner = new ReactTurnRunner(loop);
 
@@ -136,7 +142,7 @@ describe('ReactTurnRunner', () => {
         finalOutput: { content: completed ? 'done' : '', completed },
         newMessages: completed ? [] : [toolMsg],
         toolCalls: [],
-        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
       };
       for (const msg of resolved.newMessages) {
         hooks.onMessageAdded(msg);
@@ -180,7 +186,7 @@ describe('ReactTurnRunner', () => {
       finalOutput: { content: '', completed: false },
       newMessages: [],
       toolCalls: [],
-      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
     }));
     const loop: LoopStrategy = { iterate: iterateMock };
     const runner = new ReactTurnRunner(loop);

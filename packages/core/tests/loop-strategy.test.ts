@@ -12,6 +12,7 @@ const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' })
 
 const createMockProviders = () => ({
   toolProvider: {
+    register: vi.fn(),
     getToolSet: vi.fn().mockReturnValue({}),
     execute: vi.fn().mockResolvedValue([]),
   },

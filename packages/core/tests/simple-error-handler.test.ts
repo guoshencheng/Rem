@@ -6,7 +6,7 @@ describe('SimpleErrorHandler', () => {
   const handler = new SimpleErrorHandler();
 
   it('should classify APICallError as api_error', () => {
-    const error = new APICallError({ message: 'rate limit', url: 'http://test' });
+    const error = new APICallError({ message: 'rate limit', url: 'http://test', requestBodyValues: {} });
     expect(handler.classify(error)).toBe('api_error');
   });
 

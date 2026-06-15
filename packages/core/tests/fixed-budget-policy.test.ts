@@ -42,6 +42,6 @@ describe('FixedBudgetPolicy', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
     const state = new AgentState();
 
-    expect(policy.shouldCircuitBreak(state)).toBe(false);
+    expect(policy.shouldCircuitBreak()).toBe(false);
   });
 });

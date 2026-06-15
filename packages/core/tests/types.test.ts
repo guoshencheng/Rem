@@ -34,7 +34,13 @@ describe('AgentStreamChunk types', () => {
       output: { content: '', completed: true },
       newMessages: [],
       toolCalls: [],
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      },
       steps: 1,
     };
     expect(result.steps).toBe(1);

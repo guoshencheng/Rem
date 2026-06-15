@@ -7,7 +7,7 @@ describe('NoOpCompressor', () => {
 
   it('should never compress', () => {
     const state = new AgentState();
-    expect(compressor.shouldCompress(state)).toBe(false);
+    expect(compressor.shouldCompress()).toBe(false);
   });
 
   it('should return messages unchanged', async () => {

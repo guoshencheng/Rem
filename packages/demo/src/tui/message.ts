@@ -34,14 +34,15 @@ export class AssistantMessage extends Container {
 }
 
 type UIPart = {
-  type: "text" | "reasoning";
+  type: "text" | "reasoning" | "tool-call" | "tool-result";
+  partId: string;
   text: string;
   component: Markdown;
   wrapper?: Container;
 };
 
 export class StreamAssistantMessage extends Container {
-  private parts: Map<number, UIPart> = new Map();
+  private parts: Map<string, UIPart> = new Map();
 
   constructor() {
     super();
@@ -49,38 +50,72 @@ export class StreamAssistantMessage extends Container {
   }
 
   appendChunk(chunk: AgentStreamChunk): void {
-    if (chunk.type === "text-delta") {
-      this.appendDelta(chunk.partIndex, "text", chunk.text);
+    if (chunk.type === "text-start") {
+      this.ensurePart(chunk.partId, "text");
+    } else if (chunk.type === "text-delta") {
+      this.appendDelta(chunk.partId, "text", chunk.text);
+    } else if (chunk.type === "reasoning-start") {
+      this.ensurePart(chunk.partId, "reasoning");
     } else if (chunk.type === "reasoning-delta") {
-      this.appendDelta(chunk.partIndex, "reasoning", chunk.text);
+      this.appendDelta(chunk.partId, "reasoning", chunk.text);
+    } else if (chunk.type === "tool-call") {
+      this.updateToolCall(chunk.partId, chunk.toolName, chunk.input);
+    } else if (chunk.type === "tool-result") {
+      this.updateToolResult(chunk.partId, chunk.output, chunk.error);
     }
   }
 
-  private appendDelta(
-    partIndex: number,
-    type: "text" | "reasoning",
-    text: string,
-  ): void {
-    const existing = this.parts.get(partIndex);
-    if (existing) {
-      existing.text += text;
-      existing.component.setText(existing.text);
-      return;
-    }
-
+  private ensurePart(partId: string, type: "text" | "reasoning"): void {
+    if (this.parts.has(partId)) return;
     const style = type === "text" ? assistantMessageStyle : thinkingMessageStyle;
-    const component = new Markdown(text, 0, 0, markdownTheme, style);
+    const component = new Markdown("", 0, 0, markdownTheme, style);
 
     if (type === "reasoning") {
       const wrapper = new Container();
       wrapper.addChild(new Text("think", 0, 0, dim));
       wrapper.addChild(component);
-      this.parts.set(partIndex, { type, text, component, wrapper });
+      this.parts.set(partId, { type, partId, text: "", component, wrapper });
       this.addChild(wrapper);
     } else {
-      this.parts.set(partIndex, { type, text, component });
+      this.parts.set(partId, { type, partId, text: "", component });
       this.addChild(component);
     }
+  }
+
+  private appendDelta(partId: string, type: "text" | "reasoning", text: string): void {
+    const existing = this.parts.get(partId);
+    if (!existing) {
+      this.ensurePart(partId, type);
+    }
+    const part = this.parts.get(partId)!;
+    part.text += text;
+    part.component.setText(part.text);
+  }
+
+  private updateToolCall(partId: string, toolName: string, input: unknown): void {
+    const existing = this.parts.get(partId);
+    const text = `${toolName}(${JSON.stringify(input)})`;
+    if (existing) {
+      existing.text = text;
+      existing.component.setText(existing.text);
+      return;
+    }
+    const component = new Markdown(text, 0, 0, markdownTheme, assistantMessageStyle);
+    this.parts.set(partId, { type: "tool-call", partId, text, component });
+    this.addChild(component);
+  }
+
+  private updateToolResult(partId: string, output: string, error?: string): void {
+    const existing = this.parts.get(partId);
+    const text = error ? `error: ${error}` : `result: ${output}`;
+    if (existing) {
+      existing.text = text;
+      existing.component.setText(text);
+      return;
+    }
+    const component = new Markdown(text, 0, 0, markdownTheme, assistantMessageStyle);
+    this.parts.set(partId, { type: "tool-result", partId, text, component });
+    this.addChild(component);
   }
 
   setText(text: string): void {
@@ -88,7 +123,7 @@ export class StreamAssistantMessage extends Container {
     this.clear();
     this.addChild(new Spacer(1));
     const component = new Markdown(text, 0, 0, markdownTheme, assistantMessageStyle);
-    this.parts.set(0, { type: "text", text, component });
+    this.parts.set("static", { type: "text", partId: "static", text, component });
     this.addChild(component);
   }
 }

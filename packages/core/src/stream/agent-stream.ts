@@ -2,7 +2,7 @@ import type { AgentOutput, AgentStream, AgentStreamChunk, AgentStreamStepResult 
 import type { LanguageModelUsage } from 'ai';
 import { generateId } from 'ai';
 
-type RawChunk =
+export type RawChunk =
   | { type: 'text-delta'; step: number; text: string }
   | { type: 'reasoning-delta'; step: number; text: string }
   | { type: 'tool-call'; step: number; toolCallId: string; toolName: string; input: unknown }

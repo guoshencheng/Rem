@@ -1,7 +1,7 @@
 import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord, AgentStreamChunk } from './types.js';
+import type { AgentOutput, ToolCallRecord } from './types.js';
 import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
@@ -9,7 +9,7 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import { IterationBudget } from './budget.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
 import type { StreamChunk } from './llm/types.js';
-import { AgentStreamController } from './stream/agent-stream.js';
+import { AgentStreamController, type RawChunk } from './stream/agent-stream.js';
 
 export interface TurnHooks {
   onMessageAdded(msg: ModelMessage): void;
@@ -189,7 +189,7 @@ export class ReactLoop implements LoopStrategy {
     };
   }
 
-  private mapToAgentStreamChunk(chunk: StreamChunk, step: number): AgentStreamChunk | null {
+  private mapToAgentStreamChunk(chunk: StreamChunk, step: number): RawChunk | null {
     if (chunk.type === 'text') {
       return { type: 'text-delta', step, text: chunk.text };
     }

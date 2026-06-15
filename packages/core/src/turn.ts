@@ -61,13 +61,9 @@ export class ReactTurnRunner implements TurnRunner {
     const allNewMessages: ModelMessage[] = [assistantMsg];
     const allToolCalls: { toolCallId: string; toolName: string; input: unknown }[] = [];
     let finalOutput: AgentOutput = { content: '', completed: false };
-    let totalUsage: LanguageModelUsage = {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-    };
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let totalTokens = 0;
 
     let step = 1;
     while (true) {
@@ -87,9 +83,9 @@ export class ReactTurnRunner implements TurnRunner {
       }
       allToolCalls.push(...result.toolCalls);
       finalOutput = result.finalOutput;
-      totalUsage.inputTokens += result.usage.inputTokens;
-      totalUsage.outputTokens += result.usage.outputTokens;
-      totalUsage.totalTokens += result.usage.totalTokens;
+      inputTokens += result.usage.inputTokens ?? 0;
+      outputTokens += result.usage.outputTokens ?? 0;
+      totalTokens += result.usage.totalTokens ?? 0;
 
       if (result.finalOutput.completed) {
         break;
@@ -107,7 +103,13 @@ export class ReactTurnRunner implements TurnRunner {
       output: finalOutput,
       newMessages: allNewMessages,
       toolCalls: allToolCalls,
-      usage: totalUsage,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      },
       steps: step,
     };
   }

@@ -15,15 +15,25 @@ A terminal-based interactive demo for `@agent-harness/core` that lets users expe
 - No complex configuration (API key via env var only)
 - No multi-session or slash commands
 
+## Adjustments from Original Spec (2026-06-15)
+
+After validating against the current Core implementation, the following adjustments apply:
+
+1. **OpenAI-only in Phase 1.** Anthropic support is deferred to reduce provider-factory and configuration surface area. The TUI itself is provider-agnostic.
+2. **`main.ts` variable ordering.** The agent must be created before the `App` so the `onSubmit` callback can reference it without a temporal dead zone error.
+3. **`agent.ts` state access.** `AgentState` exposes `currentTurn` directly; remove the `(ctx.state as { currentTurn: number }).currentTurn` type assertion and use `ctx.state.currentTurn`.
+4. **pi-tui version.** Use `^0.79.1` (verified compatible) or `^0.79.3` (latest patch). The component APIs used by the demo (`Container`, `Text`, `Markdown`, `Input`, `Spacer`, `TUI`, `ProcessTerminal`) are unchanged between these versions.
+5. **Event set confirmation.** The Core events subscribed by the demo are available in the current Core build: `core-agent:start`, `core-agent:error`, `turn:before`, `turn:after`, `phase:reason:before`, `phase:reason:after`.
+
 ## Architecture
 
 ```
 packages/demo/src/
 ├── main.ts              # Entry: parse config, init LLM, start TUI
 ├── agent.ts             # Create and configure CoreAgent
-├── config.ts            # Config resolution (CLI args + env vars)
+├── config.ts            # Config resolution (env vars)
 ├── model/
-│   └── provider.ts      # LLM provider factory
+│   └── provider.ts      # OpenAI LanguageModel factory
 └── tui/
     ├── app.ts           # TUI root component (layout + state)
     ├── chat-log.ts      # Message list (scrollback container)
@@ -35,10 +45,10 @@ packages/demo/src/
 
 ### Component Responsibilities
 
-- **`main.ts`**: Reads env vars (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), creates `LanguageModel`, launches TUI
+- **`main.ts`**: Reads env vars (`OPENAI_API_KEY`), creates `LanguageModel`, creates `CoreAgent`, creates `App`, wires callbacks, starts TUI
 - **`agent.ts`**: Wraps CoreAgent creation. Subscribes to Core events and forwards them to the TUI. No tools registered in Phase 1.
 - **`tui/app.ts`**: pi-tui root container. Maintains `messages`, `events`, `status` state. Re-renders on Core event updates.
-- **`model/provider.ts`**: Factory for Vercel AI SDK `LanguageModel` instances (OpenAI or Anthropic)
+- **`model/provider.ts`**: Factory for Vercel AI SDK `LanguageModel` instances (OpenAI only in Phase 1)
 
 ### Integration Boundary with Core
 
@@ -125,18 +135,21 @@ Design decisions:
 
 ## LLM Integration
 
-**Supported Providers:**
-- OpenAI via `createOpenAI` (default)
-- Anthropic via `createAnthropic` (optional, `--provider anthropic`)
+**Supported Providers (Phase 1):**
+- OpenAI via `@ai-sdk/openai` `createOpenAI`
 
 **Configuration Priority:**
-1. CLI args: `--provider openai --model gpt-4.1`
-2. Environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+1. Environment variables: `OPENAI_API_KEY`
+2. Optional environment variables: `DEMO_MODEL`, `DEMO_AGENT_NAME`, `DEMO_MAX_TURNS`
 3. Exit with helpful message if no API key is configured
 
 **Defaults:**
-- Model: `gpt-4.1` (OpenAI) or `claude-sonnet-4-6` (Anthropic)
+- Model: `gpt-4.1`
+- Agent name: `Core Demo Agent`
 - Budget: `maxTurns: 60`
+
+**Future Extension:**
+- Anthropic via `@ai-sdk/anthropic` can be added to `model/provider.ts` without changing the TUI
 
 ## Phase 1 Scope (Current)
 
@@ -150,6 +163,7 @@ Design decisions:
 - `tools/` directory with demo tools (calculator, weather)
 - `tool-card.ts` component for visualizing tool calls
 - `availableTools` registration in `agent.ts`
+- Anthropic provider support
 
 ## Dependencies
 
@@ -157,8 +171,9 @@ Design decisions:
 {
   "dependencies": {
     "@agent-harness/core": "workspace:*",
-    "@earendil-works/pi-tui": "^0.79.1",
-    "ai": "^6.0.0"
+    "@ai-sdk/openai": "^1.3.0",
+    "@earendil-works/pi-tui": "^0.79.3",
+    "ai": "6.0.199"
   }
 }
 ```

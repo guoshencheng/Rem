@@ -1,5 +1,5 @@
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
-import { dim } from "../colors.js";
+import { dim } from "./colors.js";
 
 interface EventEntry {
   time: string;

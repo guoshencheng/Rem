@@ -1,6 +1,8 @@
 import { Container } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
-import { UserMessage, AssistantMessage, StreamAssistantMessage } from "./message.js";
+import { UserMessage } from "./message/user-message.js";
+import { AssistantMessage } from "./message/assistant-message.js";
+import { StreamAssistantMessage } from "./message/stream-message.js";
 
 export class ChatLog extends Container {
   private maxMessages: number;

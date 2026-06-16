@@ -229,4 +229,19 @@ describe('CoreAgent', () => {
     const output = await result.output;
     expect(output.content).toBe('Done!');
   });
+
+  describe('maxTurns', () => {
+    it('exposes maxTurns from budget config', () => {
+      const agent = new CoreAgent({
+        name: 'test-agent',
+        budget: new IterationBudget({ maxTurns: 42 }),
+      });
+      expect(agent.maxTurns).toBe(42);
+    });
+
+    it('defaults maxTurns to 60 when no budget is provided', () => {
+      const agent = new CoreAgent({ name: 'test-agent' });
+      expect(agent.maxTurns).toBe(60);
+    });
+  });
 });

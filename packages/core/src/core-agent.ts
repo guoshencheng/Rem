@@ -63,6 +63,11 @@ export class CoreAgent {
     return this.state.status;
   }
 
+  get maxTurns(): number {
+    const status = this.state.budget.getStatus();
+    return status.turnsRemaining + this.state.budget.turnCount;
+  }
+
   constructor(config: CoreAgentConfig) {
     this.config = config;
     this.events = new EventBus();

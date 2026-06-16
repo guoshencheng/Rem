@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { LLMProvider } from '../api-registry.js';
 import type { GenerateOptions, GenerateResult, ProviderConfig, StreamChunk } from '../types.js';
+import { debugLog } from '../../shared/debug-log.js';
 
 function convertAssistantContent(content: unknown): OpenAI.Chat.ChatCompletionAssistantMessageParam {
   if (typeof content === 'string') {
@@ -96,7 +97,7 @@ function* parseOpenAIChunk(chunk: OpenAI.Chat.ChatCompletionChunk): Generator<St
   const choice = chunk.choices?.[0];
   const delta = choice?.delta;
   const finishReason = choice?.finish_reason;
-  console.error(`[openai] id=${chunk.id} model=${chunk.model} finish=${finishReason ?? '-'} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
+  debugLog('openai', `id=${chunk.id} model=${chunk.model} finish=${finishReason ?? '-'} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
   if (!delta) return;
 
   if (delta.content) {
@@ -185,12 +186,12 @@ export const openaiProvider: LLMProvider = {
       for await (const chunk of stream) {
         yield* parseOpenAIChunk(chunk);
       }
-      console.error('[openai] stream ended normally, yielding finish');
+      debugLog('openai', 'stream ended normally, yielding finish');
     } catch (err) {
-      console.error('[openai] stream error:', (err as Error).message);
+      debugLog('openai', `stream error: ${(err as Error).message}`);
       throw err;
     } finally {
-      console.error('[openai] stream finally block');
+      debugLog('openai', 'stream finally block');
     }
 
     yield { type: 'finish', reason: 'stop' };

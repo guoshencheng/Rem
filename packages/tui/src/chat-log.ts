@@ -6,10 +6,12 @@ import { StreamAssistantMessage } from "./message/stream-message.js";
 
 export class ChatLog extends Container {
   private maxMessages: number;
+  private thinkingCollapsed: boolean;
 
   constructor(maxMessages = 100) {
     super();
     this.maxMessages = maxMessages;
+    this.thinkingCollapsed = true;
   }
 
   addUser(text: string): void {
@@ -21,9 +23,18 @@ export class ChatLog extends Container {
   }
 
   startAssistant(): StreamAssistantMessage {
-    const message = new StreamAssistantMessage();
+    const message = new StreamAssistantMessage(this.thinkingCollapsed);
     this.append(message);
     return message;
+  }
+
+  toggleThinkingCollapsed(): void {
+    this.thinkingCollapsed = !this.thinkingCollapsed;
+    for (const child of this.children) {
+      if (child instanceof StreamAssistantMessage) {
+        child.setThinkingCollapsed(this.thinkingCollapsed);
+      }
+    }
   }
 
   private append(component: Component): void {

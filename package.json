@@ -6,7 +6,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "pnpm --filter @agent-harness/core typecheck && pnpm --filter @agent-harness/tui typecheck && pnpm --filter @agent-harness/demo typecheck"
+    "typecheck": "pnpm --filter @agent-harness/core typecheck && pnpm --filter @agent-harness/tui typecheck && pnpm --filter @agent-harness/demo typecheck",
+    "demo": "pnpm --filter @agent-harness/demo start",
+    "demo:debug": "AGENT_HARNESS_DEBUG=1 pnpm --filter @agent-harness/demo start"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -10,8 +10,7 @@
   },
   "dependencies": {
     "@agent-harness/core": "workspace:*",
-    "@earendil-works/pi-tui": "^0.79.3",
-    "ai": "6.0.199",
+    "@agent-harness/tui": "workspace:*",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {

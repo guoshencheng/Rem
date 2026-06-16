@@ -81,6 +81,10 @@ function parseAnthropicResponse(response: Anthropic.Message): GenerateResult {
 function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageStreamEvent): Generator<StreamChunk> {
   if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
     yield { type: 'text', text: event.delta.text };
+  } else if (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta') {
+    yield { type: 'reasoning', text: event.delta.thinking };
+  } else if (event.type === 'content_block_delta' && event.delta.type === 'signature_delta') {
+    // signature deltas are part of the thinking block — skip, not user-visible
   } else if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
     yield {
       type: 'tool-call',
@@ -88,6 +92,18 @@ function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageStreamEv
       toolName: event.content_block.name,
       input: event.content_block.input,
     };
+  } else if (event.type === 'content_block_stop') {
+    // content block ended — no additional action needed
+  } else if (event.type === 'message_start') {
+    const message = event.message as any;
+    if (message?.usage) {
+      yield {
+        type: 'usage',
+        inputTokens: message.usage.input_tokens ?? 0,
+        outputTokens: message.usage.output_tokens ?? 0,
+        totalTokens: (message.usage.input_tokens ?? 0) + (message.usage.output_tokens ?? 0),
+      };
+    }
   } else if (event.type === 'message_delta' && event.usage) {
     yield {
       type: 'usage',

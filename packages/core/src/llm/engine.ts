@@ -53,8 +53,13 @@ async function* partitionProviderStream(
 
   for await (const chunk of stream) {
     console.error(`[stream] provider chunk type=${chunk.type} text_len=${('text' in chunk ? chunk.text.length : 0)}`);
+    if ('text' in chunk && chunk.text) {
+      console.error(`[stream]   text="${chunk.text.slice(0, 100)}"`);
+    }
     if (chunk.type === 'text') {
-      yield* mapDeltas(partitioner.push(chunk.text));
+      const deltas = partitioner.push(chunk.text);
+      console.error(`[stream]   partitioned into ${deltas.length} deltas: ${deltas.map(d => d.type).join(', ')}`);
+      yield* mapDeltas(deltas);
     } else {
       yield* mapDeltas(partitioner.flush());
       yield chunk;

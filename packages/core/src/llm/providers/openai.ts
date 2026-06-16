@@ -93,8 +93,10 @@ function parseOpenAIResponse(response: OpenAI.Chat.ChatCompletion): GenerateResu
 }
 
 function* parseOpenAIChunk(chunk: OpenAI.Chat.ChatCompletionChunk): Generator<StreamChunk> {
-  const delta = chunk.choices?.[0]?.delta;
-  console.error(`[openai] id=${chunk.id} model=${chunk.model} obj=${chunk.object} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
+  const choice = chunk.choices?.[0];
+  const delta = choice?.delta;
+  const finishReason = choice?.finish_reason;
+  console.error(`[openai] id=${chunk.id} model=${chunk.model} finish=${finishReason ?? '-'} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
   if (!delta) return;
 
   if (delta.content) {
@@ -179,8 +181,16 @@ export const openaiProvider: LLMProvider = {
       stream_options: { include_usage: true },
     }, { signal: options.signal });
 
-    for await (const chunk of stream) {
-      yield* parseOpenAIChunk(chunk);
+    try {
+      for await (const chunk of stream) {
+        yield* parseOpenAIChunk(chunk);
+      }
+      console.error('[openai] stream ended normally, yielding finish');
+    } catch (err) {
+      console.error('[openai] stream error:', (err as Error).message);
+      throw err;
+    } finally {
+      console.error('[openai] stream finally block');
     }
 
     yield { type: 'finish', reason: 'stop' };

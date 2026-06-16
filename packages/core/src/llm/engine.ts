@@ -23,6 +23,20 @@ export interface InferenceOptions {
 
 export interface InferenceResult extends GenerateResult {}
 
+async function* logRawStream(stream: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
+  for await (const chunk of stream) {
+    const detail = 'text' in chunk
+      ? `text="${(chunk as any).text?.slice(0, 200)}"`
+      : 'reasoning' in chunk
+        ? `reasoning="${(chunk as any).reasoning?.slice(0, 200)}"`
+        : 'tool-call' in chunk
+          ? `toolCallId=${(chunk as any).toolCallId} toolName=${(chunk as any).toolName}`
+          : JSON.stringify(chunk).slice(0, 200);
+    console.error(`[raw] ${chunk.type} ${detail}`);
+    yield chunk;
+  }
+}
+
 async function* partitionProviderStream(
   stream: AsyncIterable<StreamChunk>,
 ): AsyncGenerator<StreamChunk> {
@@ -89,7 +103,9 @@ export class InferenceEngine {
       signal: options.signal,
     };
 
-    for await (const chunk of partitionProviderStream(provider.stream(generateOptions))) {
+    const rawStream = provider.stream(generateOptions);
+
+    for await (const chunk of partitionProviderStream(logRawStream(rawStream))) {
       collector.feed(chunk);
       if (options.onChunk) {
         await options.onChunk(chunk);

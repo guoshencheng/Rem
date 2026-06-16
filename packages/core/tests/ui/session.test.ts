@@ -12,4 +12,28 @@ describe('createUIAgentSession', () => {
     expect(typeof session.interrupt).toBe('function');
     expect(typeof session.reset).toBe('function');
   });
+
+  it('calls onStart and onStatusChange when agent starts', async () => {
+    const agent = new CoreAgent({ name: 'Test', budget: new IterationBudget({ maxTurns: 0 }) });
+    await agent.initialize();
+
+    const onStart = vi.fn();
+    const onStatusChange = vi.fn();
+    const session = createUIAgentSession(agent);
+    session.setCallbacks({ onStart, onStatusChange });
+
+    session.submit('hi');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(onStart).toHaveBeenCalled();
+    expect(onStatusChange).toHaveBeenCalledWith('running');
+  });
+
+  it('calls interrupt on the agent', () => {
+    const agent = new CoreAgent({ name: 'Test', budget: new IterationBudget({ maxTurns: 10 }) });
+    const interruptSpy = vi.spyOn(agent, 'interrupt');
+    const session = createUIAgentSession(agent);
+    session.interrupt();
+    expect(interruptSpy).toHaveBeenCalled();
+  });
 });

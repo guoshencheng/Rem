@@ -1,6 +1,7 @@
 import {
   Container,
   Input,
+  Key,
   ProcessTerminal,
   Spacer,
   TUI,
@@ -58,15 +59,22 @@ export class TUIApp implements UISessionCallbacks {
     this.root.addChild(this.input);
 
     this.tui = new TUI(new ProcessTerminal(), true);
-    this.tui.addInputListener((data) => {
-      if (matchesKey(data, "ctrl+c")) {
-        this.stop();
-        process.exit(0);
-        return { consume: true };
-      }
-      return undefined;
-    });
+    this.tui.addInputListener((data) => this.handleGlobalInput(data));
     this.tui.addChild(this.root);
+  }
+
+  private handleGlobalInput(data: string) {
+    if (matchesKey(data, "ctrl+c")) {
+      this.stop();
+      process.exit(0);
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.ctrl("o"))) {
+      this.chatLog.toggleThinkingCollapsed();
+      this.tui.requestRender(true);
+      return { consume: true };
+    }
+    return undefined;
   }
 
   start(): void {

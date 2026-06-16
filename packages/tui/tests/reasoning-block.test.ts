@@ -8,6 +8,7 @@ describe("ReasoningBlock", () => {
     expect(lines.length).toBe(1);
     expect(lines[0]).toContain("thinking");
     expect(lines[0]).toContain(">");
+    expect(lines[0]).toContain("ctrl+o");
   });
 
   it("renders full content when expanded", () => {
@@ -26,6 +27,7 @@ describe("ReasoningBlock", () => {
     const lines = block.render(80);
     expect(lines[0]).toMatch(/think for [\d.]+s/);
     expect(lines[0]).toContain(">");
+    expect(lines[0]).toContain("ctrl+o");
   });
 
   it("continues collecting text while collapsed", () => {
@@ -35,5 +37,14 @@ describe("ReasoningBlock", () => {
 
     block.setCollapsed(false);
     expect(block.render(80).some((line) => line.includes("hidden content"))).toBe(true);
+  });
+
+  it("shows no expand hint when expanded", () => {
+    const block = new ReasoningBlock();
+    block.setCollapsed(false);
+    const lines = block.render(80);
+    const labelLine = lines.find((line) => line.includes("thinking")) ?? "";
+    expect(labelLine).not.toContain(">");
+    expect(labelLine).not.toContain("ctrl+o");
   });
 });

@@ -15,12 +15,14 @@ export class ReasoningBlock extends Container {
     super();
     this.collapsed = collapsed;
     this.startTime = Date.now();
-    this.label = new Text("thinking >", 0, 0, dim);
+    this.label = new Text("", 0, 0, dim);
     this.body = new Markdown("", 0, 0, markdownTheme, thinkingMessageStyle);
 
     this.addChild(this.label);
     this.addChild(new Spacer(1));
     this.addChild(this.body);
+
+    this.updateLabel();
   }
 
   appendText(text: string): void {
@@ -52,10 +54,13 @@ export class ReasoningBlock extends Container {
   }
 
   private updateLabel(): void {
-    if (this.finished && this.durationS) {
-      this.label.setText(`think for ${this.durationS}s >`);
+    const base = this.finished && this.durationS
+      ? `think for ${this.durationS}s`
+      : "thinking";
+    if (this.collapsed) {
+      this.label.setText(`${base} > (按 ctrl+o 展开)`);
     } else {
-      this.label.setText("thinking >");
+      this.label.setText(base);
     }
   }
 }

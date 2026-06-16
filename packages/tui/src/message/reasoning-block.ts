@@ -7,11 +7,15 @@ export class ReasoningBlock extends Container {
   private body: Markdown;
   private text = "";
   private startTime: number;
+  private collapsed: boolean;
+  private finished = false;
+  private durationS?: string;
 
-  constructor() {
+  constructor(collapsed = true) {
     super();
+    this.collapsed = collapsed;
     this.startTime = Date.now();
-    this.label = new Text("thinking", 0, 0, dim);
+    this.label = new Text("thinking >", 0, 0, dim);
     this.body = new Markdown("", 0, 0, markdownTheme, thinkingMessageStyle);
 
     this.addChild(this.label);
@@ -25,8 +29,33 @@ export class ReasoningBlock extends Container {
   }
 
   finish(): void {
+    this.finished = true;
     const durationMs = Date.now() - this.startTime;
-    const durationS = (durationMs / 1000).toFixed(1);
-    this.label.setText(`think for ${durationS}s`);
+    this.durationS = (durationMs / 1000).toFixed(1);
+    this.updateLabel();
+  }
+
+  setCollapsed(collapsed: boolean): void {
+    this.collapsed = collapsed;
+    this.updateLabel();
+  }
+
+  isCollapsed(): boolean {
+    return this.collapsed;
+  }
+
+  render(width: number): string[] {
+    if (this.collapsed) {
+      return this.label.render(width);
+    }
+    return super.render(width);
+  }
+
+  private updateLabel(): void {
+    if (this.finished && this.durationS) {
+      this.label.setText(`think for ${this.durationS}s >`);
+    } else {
+      this.label.setText("thinking >");
+    }
   }
 }

@@ -13,9 +13,11 @@ type Part =
 
 export class StreamAssistantMessage extends Container {
   private parts = new Map<string, Part>();
+  private thinkingCollapsed: boolean;
 
-  constructor() {
+  constructor(thinkingCollapsed = true) {
     super();
+    this.thinkingCollapsed = thinkingCollapsed;
     this.addChild(new Spacer(1));
   }
 
@@ -46,6 +48,15 @@ export class StreamAssistantMessage extends Container {
     this.addChild(component);
   }
 
+  setThinkingCollapsed(collapsed: boolean): void {
+    this.thinkingCollapsed = collapsed;
+    for (const part of this.parts.values()) {
+      if (part.type === "reasoning") {
+        part.component.setCollapsed(collapsed);
+      }
+    }
+  }
+
   private ensureTextPart(partId: string): void {
     if (this.parts.has(partId)) return;
     const component = new AssistantMessage("");
@@ -62,7 +73,7 @@ export class StreamAssistantMessage extends Container {
 
   private ensureReasoningPart(partId: string): void {
     if (this.parts.has(partId)) return;
-    const component = new ReasoningBlock();
+    const component = new ReasoningBlock(this.thinkingCollapsed);
     this.parts.set(partId, { type: "reasoning", partId, component });
     this.addChild(component);
   }

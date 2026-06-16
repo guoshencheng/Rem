@@ -79,6 +79,7 @@ function parseAnthropicResponse(response: Anthropic.Message): GenerateResult {
 }
 
 function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageStreamEvent): Generator<StreamChunk> {
+  console.error(`[anthropic] type=${event.type} subtype=${(event as any).delta?.type ?? (event as any).content_block?.type ?? '-'}`);
   if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
     yield { type: 'text', text: event.delta.text };
   } else if (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta') {

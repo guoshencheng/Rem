@@ -23,25 +23,10 @@ export interface InferenceOptions {
 
 export interface InferenceResult extends GenerateResult {}
 
-async function* logRawStream(stream: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
-  for await (const chunk of stream) {
-    const detail = 'text' in chunk
-      ? `text="${(chunk as any).text?.slice(0, 200)}"`
-      : 'reasoning' in chunk
-        ? `reasoning="${(chunk as any).reasoning?.slice(0, 200)}"`
-        : 'tool-call' in chunk
-          ? `toolCallId=${(chunk as any).toolCallId} toolName=${(chunk as any).toolName}`
-          : JSON.stringify(chunk).slice(0, 200);
-    console.error(`[raw] ${chunk.type} ${detail}`);
-    yield chunk;
-  }
-}
-
 async function* partitionProviderStream(
   stream: AsyncIterable<StreamChunk>,
 ): AsyncGenerator<StreamChunk> {
   const partitioner = createThinkingTagPartitioner();
-  let thinking = false;
 
   function* mapDeltas(deltas: ReturnType<ReturnType<typeof createThinkingTagPartitioner>['push']>): Generator<StreamChunk> {
     for (const delta of deltas) {
@@ -49,41 +34,25 @@ async function* partitionProviderStream(
         continue;
       }
       if (delta.type === 'thinking') {
-        if (!thinking) {
-          console.error('[stream] thinking start');
-          thinking = true;
-        }
-        console.error(`[stream] thinking-delta: "${delta.text.slice(0, 80)}"`);
         yield { type: 'reasoning', text: delta.text };
       } else {
-        if (thinking) {
-          console.error('[stream] thinking end');
-          thinking = false;
-        }
         yield { type: 'text', text: delta.text };
       }
     }
   }
 
   for await (const chunk of stream) {
-    console.error(`[stream] provider chunk type=${chunk.type} text_len=${('text' in chunk ? chunk.text.length : 0)}`);
-    if ('text' in chunk && chunk.text) {
-      console.error(`[stream]   text="${chunk.text.slice(0, 100)}"`);
-    }
     if (chunk.type === 'text') {
-      const deltas = partitioner.push(chunk.text);
-      console.error(`[stream]   partitioned into ${deltas.length} deltas: ${deltas.map(d => d.type).join(', ')}`);
-      yield* mapDeltas(deltas);
+      yield* mapDeltas(partitioner.push(chunk.text));
     } else {
+      // Flush any pending text before yielding non-text chunks so reasoning
+      // tags are not split across chunk-type boundaries.
       yield* mapDeltas(partitioner.flush());
       yield chunk;
     }
   }
 
   yield* mapDeltas(partitioner.flush());
-  if (thinking) {
-    console.error('[stream] thinking end (stream end)');
-  }
 }
 
 export class InferenceEngine {
@@ -103,9 +72,7 @@ export class InferenceEngine {
       signal: options.signal,
     };
 
-    const rawStream = provider.stream(generateOptions);
-
-    for await (const chunk of partitionProviderStream(logRawStream(rawStream))) {
+    for await (const chunk of partitionProviderStream(provider.stream(generateOptions))) {
       collector.feed(chunk);
       if (options.onChunk) {
         await options.onChunk(chunk);

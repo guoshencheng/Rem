@@ -94,6 +94,7 @@ function parseOpenAIResponse(response: OpenAI.Chat.ChatCompletion): GenerateResu
 
 function* parseOpenAIChunk(chunk: OpenAI.Chat.ChatCompletionChunk): Generator<StreamChunk> {
   const delta = chunk.choices?.[0]?.delta;
+  console.error(`[openai] id=${chunk.id} model=${chunk.model} obj=${chunk.object} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
   if (!delta) return;
 
   if (delta.content) {

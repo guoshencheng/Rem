@@ -27,6 +27,7 @@ async function* partitionProviderStream(
   stream: AsyncIterable<StreamChunk>,
 ): AsyncGenerator<StreamChunk> {
   const partitioner = createThinkingTagPartitioner();
+  let thinking = false;
 
   function* mapDeltas(deltas: ReturnType<ReturnType<typeof createThinkingTagPartitioner>['push']>): Generator<StreamChunk> {
     for (const delta of deltas) {
@@ -34,25 +35,36 @@ async function* partitionProviderStream(
         continue;
       }
       if (delta.type === 'thinking') {
+        if (!thinking) {
+          console.error('[stream] thinking start');
+          thinking = true;
+        }
+        console.error(`[stream] thinking-delta: "${delta.text.slice(0, 80)}"`);
         yield { type: 'reasoning', text: delta.text };
       } else {
+        if (thinking) {
+          console.error('[stream] thinking end');
+          thinking = false;
+        }
         yield { type: 'text', text: delta.text };
       }
     }
   }
 
   for await (const chunk of stream) {
+    console.error(`[stream] provider chunk type=${chunk.type} text_len=${('text' in chunk ? chunk.text.length : 0)}`);
     if (chunk.type === 'text') {
       yield* mapDeltas(partitioner.push(chunk.text));
     } else {
-      // Flush any pending text before yielding non-text chunks so reasoning
-      // tags are not split across chunk-type boundaries.
       yield* mapDeltas(partitioner.flush());
       yield chunk;
     }
   }
 
   yield* mapDeltas(partitioner.flush());
+  if (thinking) {
+    console.error('[stream] thinking end (stream end)');
+  }
 }
 
 export class InferenceEngine {

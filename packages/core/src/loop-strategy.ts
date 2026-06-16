@@ -103,9 +103,12 @@ export class ReactLoop implements LoopStrategy {
       tools: hasTools ? tools : undefined,
       signal: ctx.signal,
       onChunk: (chunk) => {
+        console.error(`[loop] step=${step} chunk type=${chunk.type} text=${('text' in chunk ? `"${(chunk as any).text?.slice(0, 80)}"` : '-')}`);
         const agentChunk = this.mapToAgentStreamChunk(chunk, step);
         if (agentChunk) {
           controller.append(agentChunk);
+        } else {
+          console.error(`[loop]   dropped (no mapping for ${chunk.type})`);
         }
       },
     });

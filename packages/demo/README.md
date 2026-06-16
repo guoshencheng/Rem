@@ -24,4 +24,5 @@ pnpm start
 ## Controls
 
 - **Type** your message and press **Enter** to send
+- **Ctrl+O** to collapse/expand all thinking/reasoning blocks
 - **Ctrl+C** to interrupt the current turn and exit

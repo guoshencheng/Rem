@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "cd ../.. && vitest run packages/tui/tests"
   },
   "dependencies": {
     "@agent-harness/core": "workspace:*",

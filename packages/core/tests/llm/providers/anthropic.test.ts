@@ -94,7 +94,7 @@ describe('anthropicProvider', () => {
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
       messages: [
-        { role: 'tool', toolCallId: 'tc1', content: '42' } as any,
+        { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'tc1', output: '42' }] } as any,
       ],
     });
 

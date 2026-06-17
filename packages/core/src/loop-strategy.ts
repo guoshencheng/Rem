@@ -110,6 +110,8 @@ export class ReactLoop implements LoopStrategy {
       },
     });
 
+    this.appendToAssistantMessage(assistantMsg, inferResult);
+
     await this.events.emit('phase:reason:after', { agent: this, state: ctx.state });
 
     const newMessages: ModelMessage[] = [];
@@ -126,9 +128,12 @@ export class ReactLoop implements LoopStrategy {
         const tr = toolResults.find((r: ToolResult) => r.toolCallId === tc.toolCallId);
         const toolMsg: ModelMessage = {
           role: 'tool',
-          toolCallId: tc.toolCallId,
-          toolName: tc.toolName,
-          content: tr?.error ?? tr?.output ?? '',
+          content: [{
+            type: 'tool-result',
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName,
+            output: tr?.error ?? tr?.output ?? '',
+          }],
         } as unknown as ModelMessage;
 
         ctx.state.addMessage(toolMsg);
@@ -206,5 +211,26 @@ export class ReactLoop implements LoopStrategy {
     const last = state.conversation[state.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
     throw new Error('ReactLoop expects assistant message to be created by ReactTurnRunner');
+  }
+
+  private appendToAssistantMessage(assistantMsg: ModelMessage, inferResult: InferenceResult): void {
+    const content = assistantMsg.content as any[];
+
+    if (inferResult.reasoning) {
+      content.push({ type: 'reasoning', text: inferResult.reasoning });
+    }
+
+    if (inferResult.text) {
+      content.push({ type: 'text', text: inferResult.text });
+    }
+
+    for (const tc of inferResult.toolCalls) {
+      content.push({
+        type: 'tool-call',
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        input: tc.input,
+      });
+    }
   }
 }

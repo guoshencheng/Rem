@@ -30,13 +30,14 @@ function convertToAnthropicMessages(messages: GenerateOptions['messages']): Anth
         result.push({ role: 'assistant', content: blocks });
       }
     } else if (msg.role === 'tool') {
-      const toolMsg = msg as any;
+      const parts = msg.content as unknown as Array<{ type: string; toolCallId?: string; output?: string }>;
+      const part = parts.find((p: { type: string }) => p.type === 'tool-result');
       result.push({
         role: 'user',
         content: [{
           type: 'tool_result',
-          tool_use_id: toolMsg.toolCallId,
-          content: msg.content as unknown as string,
+          tool_use_id: part?.toolCallId ?? '',
+          content: part?.output ?? '',
         }],
       });
     }

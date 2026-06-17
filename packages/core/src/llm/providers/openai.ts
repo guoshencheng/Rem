@@ -50,11 +50,12 @@ function convertToOpenAIMessages(
     } else if (msg.role === 'assistant') {
       result.push(convertAssistantContent(msg.content));
     } else if (msg.role === 'tool') {
-      const toolMsg = msg as any;
+      const parts = msg.content as unknown as Array<{ type: string; toolCallId?: string; output?: string }>;
+      const part = parts.find((p: { type: string }) => p.type === 'tool-result');
       result.push({
         role: 'tool',
-        tool_call_id: toolMsg.toolCallId,
-        content: msg.content as unknown as string,
+        tool_call_id: part?.toolCallId ?? '',
+        content: part?.output ?? '',
       });
     }
   }

@@ -17,6 +17,7 @@ export interface GenerateOptions extends ProviderConfig {
 
 export interface GenerateResult {
   text: string;
+  reasoning?: string;
   toolCalls: Array<{
     toolCallId: string;
     toolName: string;
@@ -65,6 +66,7 @@ export class StreamCollector {
   result(): GenerateResult {
     return {
       text: this.text,
+      reasoning: this.reasoningText || undefined,
       toolCalls: this.toolCalls,
       usage: this.usage,
     };

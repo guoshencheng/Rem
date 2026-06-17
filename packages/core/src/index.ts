@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './config/paths.js';
 export * from './budget.js';
 export * from './session.js';
 export * from './state.js';

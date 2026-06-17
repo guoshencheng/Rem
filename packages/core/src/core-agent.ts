@@ -8,10 +8,12 @@ import type { ToolProvider } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
+import type { SkillProvider } from './sdk/skill-provider.js';
 import { InMemoryToolProvider } from './defaults/in-memory-tool-provider.js';
 import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
+import { FileSkillProvider } from './plugins/file-skill-provider.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { resolveProviderConfig } from './llm/api-registry.js';
 import type { SessionProvider, SessionSummary } from './session.js';
@@ -24,6 +26,7 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { InferenceEngine } from './llm/engine.js';
 import { AgentStreamController } from './stream/agent-stream.js';
+import { getDefaultSkillsDir } from './config/paths.js';
 
 export interface CoreAgentConfig {
   name: string;
@@ -37,6 +40,7 @@ export interface CoreAgentConfig {
   sessionProvider?: SessionProvider;
   turnRunner?: TurnRunner;
   loopStrategy?: LoopStrategy;
+  skillProvider?: SkillProvider;
   provider?: string;
   providerConfig?: {
     apiKey: string;
@@ -90,6 +94,7 @@ export class CoreAgent {
       this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
       this.config.compressor ?? new NoOpCompressor(),
       this.config.errorHandler ?? new SimpleErrorHandler(),
+      this.config.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
     );
     return new ReactTurnRunner(loopStrategy);
   }
@@ -270,6 +275,7 @@ export function createAgentFromEnv(options: {
   provider?: string;
   maxTurns?: number;
   sessionProvider?: SessionProvider;
+  skillProvider?: SkillProvider;
 }): CoreAgent {
   registerBuiltInProviders();
   const provider = options.provider ?? 'openai';
@@ -279,5 +285,6 @@ export function createAgentFromEnv(options: {
     provider,
     providerConfig: resolveProviderConfig(provider),
     sessionProvider: options.sessionProvider,
+    skillProvider: options.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
   });
 }

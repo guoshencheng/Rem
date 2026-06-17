@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { resolveConfig } from "./config.js";
 
 describe("resolveConfig", () => {
@@ -25,6 +25,7 @@ describe("resolveConfig", () => {
   });
 
   it("uses defaults when optional variables are missing", () => {
+    vi.stubEnv("HOME", "/mock-home");
     const config = resolveConfig();
 
     expect(config.agentName).toBe("Core Demo Agent");
@@ -32,6 +33,7 @@ describe("resolveConfig", () => {
   });
 
   it("resolves sessionDir with default path", () => {
+    vi.stubEnv("HOME", "/mock-home");
     const config = resolveConfig();
     expect(config.sessionDir).toContain(".rem-agent");
     expect(config.sessionDir).toContain("sessions");

@@ -1,4 +1,4 @@
-import { homedir } from 'os';
+import { getDefaultSessionsDir } from '@agent-harness/core';
 import { join } from 'path';
 
 export interface DemoConfig {
@@ -20,9 +20,9 @@ function parseArgs(): { sessionId?: string } {
 function resolveSessionDir(): string {
   const envDir = process.env.DEMO_SESSION_DIR;
   if (envDir) {
-    return envDir.replace(/^~/, homedir());
+    return envDir.replace(/^~/, process.env.HOME ?? '/');
   }
-  return join(homedir(), '.rem-agent', 'sessions');
+  return getDefaultSessionsDir();
 }
 
 export function resolveConfig(): DemoConfig {

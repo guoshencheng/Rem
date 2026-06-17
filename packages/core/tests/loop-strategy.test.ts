@@ -6,6 +6,7 @@ import { IterationBudget } from '../src/budget.js';
 import { SimpleErrorHandler } from '../src/defaults/simple-error-handler.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 import type { ErrorHandler } from '../src/sdk/error-handler.js';
+import type { SkillProvider, Skill } from '../src/sdk/skill-provider.js';
 import { AgentStreamController } from '../src/stream/agent-stream.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
@@ -222,5 +223,43 @@ describe('ReactLoop', () => {
     expect(chunks.some(c => c.type === 'tool-result-start' && c.partId === 'tc1')).toBe(true);
     expect(chunks.some(c => c.type === 'tool-result' && c.output === 'result')).toBe(true);
     expect(chunks.some(c => c.type === 'tool-result-finish')).toBe(true);
+  });
+
+  it('injects skill catalog into system prompt', async () => {
+    let capturedSystem = '';
+    registerProvider('skill-capture', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        yield { type: 'text', text: 'Done' };
+        yield { type: 'usage', inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+      },
+    });
+
+    const skillProvider: SkillProvider = {
+      loadSkills: vi.fn().mockResolvedValue([
+        { name: 'github', description: 'Use gh for GitHub.', location: '/skills/github/SKILL.md', content: 'Body' },
+      ]),
+      formatCatalog: vi.fn((skills: Skill[]) => {
+        return `<available_skills>\n${skills.map(s => `<skill>${s.name}</skill>`).join('\n')}\n</available_skills>`;
+      }),
+    };
+
+    const mocks = createMockProviders();
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
+    const events = new EventBus();
+    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler, skillProvider);
+
+    await loop.iterate({
+      state,
+      systemPrompt: 'You are helpful.',
+      model: createMockModel(),
+      budget: state.budget,
+      provider: 'skill-capture',
+      providerConfig: { apiKey: 'key', model: 'model' },
+    }, createMockHooks(), new AgentStreamController(), 1);
+
+    expect(skillProvider.loadSkills).toHaveBeenCalled();
+    expect(mocks.memoryProvider.buildContext).toHaveBeenCalled();
   });
 });

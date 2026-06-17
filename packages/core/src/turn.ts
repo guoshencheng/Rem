@@ -49,6 +49,7 @@ export class ReactTurnRunner implements TurnRunner {
     hooks.onMessageAdded(assistantMsg);
 
     const loopCtx: LoopContext = {
+      input: ctx.input,
       state,
       systemPrompt: ctx.systemPrompt,
       model: ctx.model,

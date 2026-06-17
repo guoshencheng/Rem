@@ -1,11 +1,12 @@
 import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord } from './types.js';
+import type { AgentOutput, ToolCallRecord, UserInput } from './types.js';
 import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
+import type { SkillProvider } from './sdk/skill-provider.js';
 import { IterationBudget } from './budget.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
 import type { StreamChunk } from './llm/types.js';
@@ -17,6 +18,7 @@ export interface TurnHooks {
 }
 
 export interface LoopContext {
+  input?: UserInput;
   state: AgentState;
   systemPrompt: string;
   model?: LanguageModel;
@@ -51,6 +53,7 @@ export class ReactLoop implements LoopStrategy {
     private memoryProvider: MemoryProvider,
     private compressor: ContextCompressor,
     private errorHandler: ErrorHandler,
+    private skillProvider?: SkillProvider,
   ) {}
 
   private async inferWithRetry(options: Parameters<InferenceEngine['infer']>[0]): Promise<InferenceResult> {
@@ -90,6 +93,8 @@ export class ReactLoop implements LoopStrategy {
 
     await this.events.emit('phase:reason:before', { agent: this, state: ctx.state });
 
+    const systemWithSkills = await this.enrichSystemPrompt(systemPrompt);
+
     const tools = this.toolProvider.getToolSet();
     const hasTools = Object.keys(tools).length > 0;
 
@@ -98,7 +103,7 @@ export class ReactLoop implements LoopStrategy {
     const inferResult = await this.inferWithRetry({
       provider: ctx.provider ?? 'mock',
       providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
-      system: systemPrompt,
+      system: systemWithSkills,
       messages,
       tools: hasTools ? tools : undefined,
       signal: ctx.signal,
@@ -211,6 +216,20 @@ export class ReactLoop implements LoopStrategy {
     const last = state.conversation[state.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
     throw new Error('ReactLoop expects assistant message to be created by ReactTurnRunner');
+  }
+
+  private async enrichSystemPrompt(basePrompt: string): Promise<string> {
+    if (!this.skillProvider) {
+      return basePrompt;
+    }
+
+    const skills = await this.skillProvider.loadSkills();
+    const catalog = this.skillProvider.formatCatalog(skills);
+    if (!catalog) {
+      return basePrompt;
+    }
+
+    return `${basePrompt}\n\n${catalog}`;
   }
 
   private appendToAssistantMessage(assistantMsg: ModelMessage, inferResult: InferenceResult): void {

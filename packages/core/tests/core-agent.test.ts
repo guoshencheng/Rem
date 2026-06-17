@@ -244,4 +244,63 @@ describe('CoreAgent', () => {
       expect(agent.maxTurns).toBe(60);
     });
   });
+
+  describe('listSessions', () => {
+    it('should return sessions from provider', async () => {
+      const provider = {
+        create: vi.fn(),
+        load: vi.fn().mockResolvedValue(null),
+        save: vi.fn(),
+        list: vi.fn().mockResolvedValue([{ sessionId: 's1', updatedAt: new Date(), messageCount: 3 }]),
+      };
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+        sessionProvider: provider,
+      });
+      await agent.initialize();
+
+      const sessions = await agent.listSessions();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].sessionId).toBe('s1');
+    });
+  });
+
+  describe('generateTitle', () => {
+    it('should return empty string if no user messages', async () => {
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+      });
+      await agent.initialize();
+      const title = await agent.generateTitle();
+      expect(title).toBe('');
+    });
+
+    it('should return existing title if already set', async () => {
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+      });
+      await agent.initialize();
+      await agent.run({ content: 'Hello' }).output;
+
+      await agent.generateTitle();
+
+      const title = await agent.generateTitle();
+      expect(title.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('sessionId', () => {
+    it('exposes session id', async () => {
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+      });
+      await agent.initialize();
+      expect(agent.sessionId).toBeDefined();
+      expect(typeof agent.sessionId).toBe('string');
+    });
+  });
 });

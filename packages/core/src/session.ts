@@ -10,10 +10,18 @@ export interface Session {
   updatedAt: Date;
 }
 
+export interface SessionSummary {
+  sessionId: string;
+  title?: string;
+  updatedAt: Date;
+  messageCount: number;
+}
+
 export interface SessionProvider {
   create(): Promise<Session>;
   load(sessionId: string): Promise<Session | null>;
   save(session: Session): Promise<void>;
+  list(): Promise<SessionSummary[]>;
 }
 
 export class InMemorySessionProvider implements SessionProvider {
@@ -45,5 +53,19 @@ export class InMemorySessionProvider implements SessionProvider {
       updatedAt: new Date(),
     };
     this.sessions.set(session.sessionId, structuredClone(updated));
+  }
+
+  async list(): Promise<SessionSummary[]> {
+    const result: SessionSummary[] = [];
+    for (const session of this.sessions.values()) {
+      result.push({
+        sessionId: session.sessionId,
+        title: session.metadata.title as string | undefined,
+        updatedAt: session.updatedAt,
+        messageCount: session.conversation.length,
+      });
+    }
+    result.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return result;
   }
 }

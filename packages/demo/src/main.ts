@@ -1,21 +1,30 @@
 import "dotenv/config";
 
-import { createAgentFromEnv, createUIAgentSession } from "@agent-harness/core";
+import { createAgentFromEnv, FileSessionProvider } from "@agent-harness/core";
 import { TUIApp } from "@agent-harness/tui";
 import { resolveConfig } from "./config.js";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
 
+  const sessionProvider = new FileSessionProvider(config.sessionDir);
+
+  if (config.sessionId) {
+    const existing = await sessionProvider.load(config.sessionId);
+    if (!existing) {
+      console.error(`Session not found: ${config.sessionId}`);
+      process.exit(1);
+    }
+  }
+
   const agent = createAgentFromEnv({
     name: config.agentName,
     maxTurns: config.maxTurns,
+    sessionProvider,
   });
 
-  await agent.initialize();
-
-  const session = createUIAgentSession(agent);
-  const app = new TUIApp({ session });
+  const app = new TUIApp({ agent, sessionId: config.sessionId });
+  await app.init();
 
   app.start();
 

@@ -1,22 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
-import type { UIAgentSession } from "@agent-harness/core";
+import type { CoreAgent } from "@agent-harness/core";
 import { TUIApp } from "../src/app.js";
 
-function createMockSession(): UIAgentSession {
+function createMockAgent(): CoreAgent {
   return {
-    setCallbacks: vi.fn(),
+    on: vi.fn(() => vi.fn()),
     status: "idle",
-    currentTurn: 0,
     maxTurns: 10,
-    submit: vi.fn(),
+    sessionId: "test-session",
+    conversation: [],
+    initialize: vi.fn().mockResolvedValue(undefined),
     interrupt: vi.fn(),
     reset: vi.fn().mockResolvedValue(undefined),
-  } as unknown as UIAgentSession;
+    run: vi.fn(),
+    listSessions: vi.fn().mockResolvedValue([]),
+    generateTitle: vi.fn().mockResolvedValue(""),
+  } as unknown as CoreAgent;
 }
 
 describe("TUIApp", () => {
   it("ctrl+o toggles thinking collapsed state and requests render", () => {
-    const app = new TUIApp({ session: createMockSession() });
+    const app = new TUIApp({ agent: createMockAgent() });
     const chatLog = (app as any).chatLog;
     const tui = (app as any).tui;
 

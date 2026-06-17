@@ -37,6 +37,14 @@ export class ReasoningBlock extends Container {
     this.updateLabel();
   }
 
+  loadText(text: string): void {
+    this.text = text;
+    this.body.setText(text);
+    this.finished = true;
+    this.durationS = "0.0";
+    this.updateLabel();
+  }
+
   setCollapsed(collapsed: boolean): void {
     this.collapsed = collapsed;
     this.updateLabel();

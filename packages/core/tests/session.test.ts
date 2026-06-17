@@ -41,4 +41,33 @@ describe('InMemorySessionProvider', () => {
     const loaded = await provider.load(session.sessionId);
     expect(loaded!.updatedAt.getTime()).toBeGreaterThan(before);
   });
+
+  it('should list sessions sorted by updatedAt desc', async () => {
+    const provider = new InMemorySessionProvider();
+    const a = await provider.create();
+    await new Promise(r => setTimeout(r, 10));
+    const b = await provider.create();
+    await new Promise(r => setTimeout(r, 10));
+    const c = await provider.create();
+
+    a.metadata.title = 'Alpha';
+    a.conversation.push({ role: 'user', content: 'hi' } as ModelMessage);
+    await provider.save(a);
+
+    b.conversation.push({ role: 'user', content: 'hello' } as ModelMessage);
+    b.conversation.push({ role: 'assistant', content: 'hi' } as ModelMessage);
+    await provider.save(b);
+
+    await new Promise(r => setTimeout(r, 10));
+    await provider.save(c);
+
+    const list = await provider.list();
+    expect(list).toHaveLength(3);
+    // verify sorted by updatedAt desc
+    for (let i = 0; i < list.length - 1; i++) {
+      expect(list[i].updatedAt.getTime()).toBeGreaterThanOrEqual(list[i + 1].updatedAt.getTime());
+    }
+    expect(list.some(s => s.title === 'Alpha')).toBe(true);
+    expect(list.some(s => s.messageCount === 2)).toBe(true);
+  });
 });

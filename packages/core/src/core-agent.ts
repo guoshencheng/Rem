@@ -14,7 +14,7 @@ import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { resolveProviderConfig } from './llm/api-registry.js';
-import type { SessionProvider } from './session.js';
+import type { SessionProvider, SessionSummary } from './session.js';
 import { InMemorySessionProvider } from './session.js';
 import type { TurnRunner, TurnHooks } from './turn.js';
 import { ReactTurnRunner } from './turn.js';
@@ -22,6 +22,7 @@ import type { LoopStrategy } from './loop-strategy.js';
 import { ReactLoop } from './loop-strategy.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
+import { InferenceEngine } from './llm/engine.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 
 export interface CoreAgentConfig {
@@ -66,6 +67,10 @@ export class CoreAgent {
   get maxTurns(): number {
     const status = this.state.budget.getStatus();
     return status.turnsRemaining + this.state.budget.turnCount;
+  }
+
+  get sessionId(): string {
+    return this.state.sessionId;
   }
 
   constructor(config: CoreAgentConfig) {
@@ -197,6 +202,48 @@ export class CoreAgent {
     this.abortController?.abort();
   }
 
+  async generateTitle(): Promise<string> {
+    if (this.state.session.metadata.title) {
+      return this.state.session.metadata.title as string;
+    }
+
+    const userMessages = this.state.conversation.filter(
+      (m) => m.role === 'user',
+    );
+    if (userMessages.length === 0) return '';
+
+    const provider = this.config.provider ?? 'openai';
+    const providerConfig = this.config.providerConfig ?? resolveProviderConfig(provider);
+    const engine = new InferenceEngine();
+
+    try {
+      const result = await engine.infer({
+        provider,
+        providerConfig,
+        system: 'Generate a concise title (10 words or fewer) summarizing the conversation topic from the user messages below. Respond with ONLY the title text, no quotes or markup.',
+        messages: [...userMessages].map((m) => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        }) as ModelMessage),
+        maxTokens: 50,
+        temperature: 0.3,
+      });
+
+      const title = result.text.trim().slice(0, 80);
+      if (title) {
+        this.state.session.metadata.title = title;
+        await this.sessionProvider.save(this.state.session);
+      }
+      return title;
+    } catch {
+      return '';
+    }
+  }
+
+  async listSessions(): Promise<SessionSummary[]> {
+    return this.sessionProvider.list();
+  }
+
   async reset(): Promise<void> {
     this.state.reset();
     this.turnRunner = this.config.turnRunner ?? this.createDefaultTurnRunner();
@@ -222,6 +269,7 @@ export function createAgentFromEnv(options: {
   name: string;
   provider?: string;
   maxTurns?: number;
+  sessionProvider?: SessionProvider;
 }): CoreAgent {
   registerBuiltInProviders();
   const provider = options.provider ?? 'openai';
@@ -230,5 +278,6 @@ export function createAgentFromEnv(options: {
     budget: new IterationBudget({ maxTurns: options.maxTurns ?? 60 }),
     provider,
     providerConfig: resolveProviderConfig(provider),
+    sessionProvider: options.sessionProvider,
   });
 }

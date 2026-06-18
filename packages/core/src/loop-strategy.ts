@@ -98,7 +98,7 @@ export class ReactLoop implements LoopStrategy {
     const tools = this.toolProvider.getToolSet();
     const hasTools = Object.keys(tools).length > 0;
 
-    const assistantMsg = this.getCurrentAssistantMessage(ctx.state);
+    const assistantMsg = this.getOrCreateAssistantMessage(ctx.state);
 
     const inferResult = await this.inferWithRetry({
       provider: ctx.provider ?? 'mock',
@@ -219,10 +219,12 @@ export class ReactLoop implements LoopStrategy {
     return null;
   }
 
-  private getCurrentAssistantMessage(state: AgentState): ModelMessage {
+  private getOrCreateAssistantMessage(state: AgentState): ModelMessage {
     const last = state.conversation[state.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
-    throw new Error('ReactLoop expects assistant message to be created by ReactTurnRunner');
+    const msg: ModelMessage = { role: 'assistant', content: [] };
+    state.addMessage(msg);
+    return msg;
   }
 
   private async enrichSystemPrompt(basePrompt: string): Promise<string> {

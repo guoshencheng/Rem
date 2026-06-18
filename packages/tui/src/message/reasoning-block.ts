@@ -66,9 +66,17 @@ export class ReasoningBlock extends Container {
       ? `think for ${this.durationS}s`
       : "thinking";
     if (this.collapsed) {
-      this.label.setText(`${base} > (按 ctrl+o 展开)`);
+      const preview = this.previewText();
+      const previewPart = preview ? `: ${preview}` : "";
+      this.label.setText(`${base}${previewPart} > (按 ctrl+o 展开)`);
     } else {
       this.label.setText(base);
     }
+  }
+
+  private previewText(): string {
+    const clean = this.text.replace(/\s+/g, " ").trim();
+    if (!clean) return "";
+    return clean.length > 50 ? `${clean.slice(0, 50)}…` : clean;
   }
 }

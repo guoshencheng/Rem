@@ -21,14 +21,14 @@ describe("StreamAssistantMessage", () => {
     expect(message.children.length).toBeGreaterThan(0);
   });
 
-  it("creates reasoning block collapsed by default", () => {
+  it("creates reasoning block collapsed by default with text preview in label", () => {
     const message = new StreamAssistantMessage();
     message.appendChunk({ type: "reasoning-start", step: 1, partId: "r1" } as AgentStreamChunk);
     message.appendChunk({ type: "reasoning-delta", step: 1, partId: "r1", text: "thinking content" } as AgentStreamChunk);
     message.appendChunk({ type: "reasoning-finish", step: 1, partId: "r1" } as AgentStreamChunk);
 
     const lines = message.render(80);
-    expect(lines.filter((line) => line.includes("thinking content")).length).toBe(0);
+    expect(lines.some((line) => line.includes("thinking content"))).toBe(true);
   });
 
   it("creates tool block collapsed by default", () => {

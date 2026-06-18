@@ -25,7 +25,7 @@ describe("ChatLog", () => {
 
     chatLog.toggleThinkingCollapsed(); // false -> true, collapse
     const collapsedLines = message.render(80);
-    expect(collapsedLines.filter((line) => line.includes("thinking content")).length).toBe(0);
+    expect(collapsedLines.some((line) => line.includes("thinking content"))).toBe(true);
   });
 
   it("new stream messages inherit current thinking collapsed state", () => {

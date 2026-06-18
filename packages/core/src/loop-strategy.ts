@@ -210,9 +210,14 @@ export class ReactLoop implements LoopStrategy {
 
     const completed = inferResult.toolCalls.length === 0;
 
+    let outputContent = inferResult.text;
+    if (inferResult.finishReason === 'length' && !outputContent.trim()) {
+      outputContent = '(Model hit output token limit. Consider increasing maxTokens.)';
+    }
+
     return {
       finalOutput: {
-        content: inferResult.text,
+        content: outputContent,
         completed,
       },
       newMessages,

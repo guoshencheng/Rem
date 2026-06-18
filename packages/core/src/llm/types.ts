@@ -35,6 +35,7 @@ export interface GenerateResult {
     outputTokens: number;
     totalTokens: number;
   };
+  finishReason?: string;
 }
 
 export type StreamChunk =
@@ -49,6 +50,7 @@ export class StreamCollector {
   private reasoningText = '';
   private toolCalls: GenerateResult['toolCalls'] = [];
   private usage: GenerateResult['usage'] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  private finishReason?: string;
 
   feed(chunk: StreamChunk): void {
     if (chunk.type === 'text') {
@@ -67,6 +69,8 @@ export class StreamCollector {
         outputTokens: chunk.outputTokens,
         totalTokens: chunk.totalTokens,
       };
+    } else if (chunk.type === 'finish') {
+      this.finishReason = chunk.reason;
     }
   }
 
@@ -76,6 +80,7 @@ export class StreamCollector {
       reasoning: this.reasoningText || undefined,
       toolCalls: this.toolCalls,
       usage: this.usage,
+      finishReason: this.finishReason,
     };
   }
 }

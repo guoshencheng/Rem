@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ModelMessage, LanguageModel } from 'ai';
+import type { ModelMessage } from '../src/types.js';
 import { ReactTurnRunner } from '../src/turn.js';
 import { IterationBudget } from '../src/budget.js';
 import type { LoopStrategy, LoopContext, LoopResult, TurnHooks } from '../src/loop-strategy.js';
@@ -9,7 +9,7 @@ const createMockLoop = (result: Partial<LoopResult>): LoopStrategy => {
   const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
     const resolved = {
       finalOutput: { content: 'done', completed: true },
-      newMessages: [{ role: 'tool', content: 'result' } as unknown as ModelMessage],
+      newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
       toolCalls: [],
       usage: {
         inputTokens: 1,
@@ -38,7 +38,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation,
       systemPrompt: 'You are helpful',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
     }, { onMessageAdded: vi.fn(), onToolCallRecorded: vi.fn() }, new AgentStreamController());
 
@@ -52,7 +52,7 @@ describe('ReactTurnRunner', () => {
   it('should pass hooks to loop and track added messages', async () => {
     const loop = createMockLoop({
       newMessages: [
-        { role: 'tool', content: 'result' } as unknown as ModelMessage,
+        { role: 'tool', content: 'result' } as ModelMessage,
       ],
     });
     const runner = new ReactTurnRunner(loop);
@@ -63,7 +63,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [{ role: 'user', content: 'hi' } as ModelMessage],
       systemPrompt: '',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
     }, { onMessageAdded, onToolCallRecorded }, new AgentStreamController());
 
@@ -92,7 +92,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [{ role: 'user', content: 'hi' } as ModelMessage],
       systemPrompt: '',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
       signal: controller.signal,
     }, {
@@ -113,7 +113,7 @@ describe('ReactTurnRunner', () => {
     const loop = createMockLoop({
       toolCalls,
       usage,
-      newMessages: [{ role: 'tool', content: 'result' } as unknown as ModelMessage],
+      newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
     });
     const runner = new ReactTurnRunner(loop);
 
@@ -121,7 +121,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [{ role: 'user', content: 'hi' } as ModelMessage],
       systemPrompt: '',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
     }, {
       onMessageAdded: vi.fn(),
@@ -137,7 +137,7 @@ describe('ReactTurnRunner', () => {
     const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, step: number) => {
       callIndex++;
       const completed = callIndex === 2;
-      const toolMsg: ModelMessage = { role: 'tool', toolCallId: `tc${step}`, toolName: 'calc', content: '2' } as unknown as ModelMessage;
+      const toolMsg: ModelMessage = { role: 'tool', toolCallId: `tc${step}`, toolName: 'calc', content: '2' } as ModelMessage;
       const resolved: LoopResult = {
         finalOutput: { content: completed ? 'done' : '', completed },
         newMessages: completed ? [] : [toolMsg],
@@ -158,7 +158,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [],
       systemPrompt: '',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
       maxSteps: 50,
     }, {
@@ -196,7 +196,7 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [],
       systemPrompt: '',
-      model: {} as LanguageModel,
+      
       budget: new IterationBudget({ maxTurns: 5 }),
       maxSteps: 1,
     }, {

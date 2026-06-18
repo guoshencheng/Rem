@@ -1,7 +1,7 @@
-import type { ModelMessage, ToolSet } from 'ai';
 import { resolveProvider } from './api-registry.js';
 import { StreamCollector } from './types.js';
-import type { GenerateOptions, GenerateResult, StreamChunk } from './types.js';
+import type { GenerateOptions, GenerateResult, StreamChunk, ToolSet } from './types.js';
+import type { ModelMessage } from '../types.js';
 import { createThinkingTagPartitioner } from '../shared/text/thinking-tag-partitioner.js';
 import { stripThinkingTags } from '../shared/text/strip-thinking-tags.js';
 

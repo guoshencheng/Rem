@@ -1,4 +1,4 @@
-import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
+import type { ModelMessage, LanguageModelUsage } from './types.js';
 import type { Session } from './session.js';
 import type { UserInput, AgentOutput, TurnResult } from './types.js';
 import { AgentState } from './state.js';
@@ -10,7 +10,6 @@ export interface TurnContext {
   input: UserInput;
   conversation: ModelMessage[];
   systemPrompt: string;
-  model?: LanguageModel;
   budget: IterationBudget;
   signal?: AbortSignal;
   provider?: string;
@@ -44,7 +43,7 @@ export class ReactTurnRunner implements TurnRunner {
     };
     const state = new AgentState(session, ctx.budget);
 
-    const assistantMsg: ModelMessage = { role: 'assistant', content: [] } as unknown as ModelMessage;
+    const assistantMsg: ModelMessage = { role: 'assistant', content: [] };
     state.addMessage(assistantMsg);
     hooks.onMessageAdded(assistantMsg);
 
@@ -52,7 +51,6 @@ export class ReactTurnRunner implements TurnRunner {
       input: ctx.input,
       state,
       systemPrompt: ctx.systemPrompt,
-      model: ctx.model,
       budget: ctx.budget,
       signal: ctx.signal,
       provider: ctx.provider,

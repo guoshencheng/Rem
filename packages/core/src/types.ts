@@ -1,6 +1,22 @@
-import type { ModelMessage, LanguageModelUsage } from 'ai';
+export interface ModelMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: unknown;
+}
 
-export { type ModelMessage, type LanguageModelUsage } from 'ai';
+export interface LanguageModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputTokenDetails?: {
+    noCacheTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+  outputTokenDetails?: {
+    textTokens?: number;
+    reasoningTokens?: number;
+  };
+}
 
 export interface UserInput {
   content: string;

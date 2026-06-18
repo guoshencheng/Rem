@@ -1,4 +1,11 @@
-import type { ModelMessage, ToolSet } from 'ai';
+import type { ModelMessage } from '../types.js';
+
+export interface ToolSchema {
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export type ToolSet = Record<string, ToolSchema>;
 
 export interface ProviderConfig {
   model: string;

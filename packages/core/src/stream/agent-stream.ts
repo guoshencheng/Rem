@@ -1,6 +1,5 @@
-import type { AgentOutput, AgentStream, AgentStreamChunk, AgentStreamStepResult } from '../types.js';
-import type { LanguageModelUsage } from 'ai';
-import { generateId } from 'ai';
+import type { AgentOutput, AgentStream, AgentStreamChunk, AgentStreamStepResult, LanguageModelUsage } from '../types.js';
+import { generateId } from '../shared/generate-id.js';
 
 export type RawChunk =
   | { type: 'text-delta'; step: number; text: string }

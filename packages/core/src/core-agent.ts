@@ -1,5 +1,4 @@
 import type { UserInput, AgentOutput, ModelMessage, ToolCallRecord, AgentStream } from './types.js';
-import type { LanguageModel } from 'ai';
 import { AgentState } from './state.js';
 import { EventBus } from './events.js';
 import { IterationBudget } from './budget.js';
@@ -30,7 +29,6 @@ import { getDefaultSkillsDir } from './config/paths.js';
 
 export interface CoreAgentConfig {
   name: string;
-  model?: LanguageModel;
   budget?: IterationBudget;
   toolProvider?: ToolProvider;
   memoryProvider?: MemoryProvider;
@@ -88,7 +86,6 @@ export class CoreAgent {
 
   private createDefaultTurnRunner(): TurnRunner {
     const loopStrategy = this.config.loopStrategy ?? new ReactLoop(
-      this.config.model,
       this.events,
       this.config.toolProvider ?? new InMemoryToolProvider(),
       this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
@@ -151,7 +148,6 @@ export class CoreAgent {
           input,
           conversation: [...this.state.conversation],
           systemPrompt: `You are ${this.config.name}.`,
-          model: this.config.model,
           budget: this.state.budget,
           signal: abortController.signal,
           provider: this.config.provider ?? 'openai',
@@ -229,7 +225,7 @@ export class CoreAgent {
         messages: [...userMessages].map((m) => ({
           role: m.role,
           content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-        }) as ModelMessage),
+        })),
         maxTokens: 50,
         temperature: 0.3,
       });

@@ -51,9 +51,9 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 
 创建、修改、重构 TypeScript 模块时，必须使用已安装的 `module-separation-convention` skill。保持文件精简、职责单一、模块独立维护。
 
-### 3. 不要引入 Vercel AI SDK 的 Loop 抽象
+### 3. 不依赖 Vercel AI SDK
 
-`packages/core` 使用 `ai` 包仅作底层模型调用（`generateText` / stream），不自建 loop 交给 Vercel AI SDK 管理。循环逻辑由 `AgentLoop` / `LoopStrategy` 自己实现。
+`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过自建 Provider 层（`InferenceEngine` + `LLMProvider` registry）直接调用 `openai` / `@anthropic-ai/sdk`。循环逻辑由 `ReactLoop` / `LoopStrategy` 自己实现，不交给 Vercel AI SDK 管理。
 
 ## 常用入口
 

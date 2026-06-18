@@ -1,5 +1,5 @@
-import { tool, type ToolSet } from 'ai';
 import type { ToolProvider, ToolDefinition, ToolCall, ToolResult } from '../sdk/tool-provider.js';
+import type { ToolSet, ToolSchema } from '../llm/types.js';
 
 export class InMemoryToolProvider implements ToolProvider {
   private tools = new Map<string, { def: ToolDefinition; executor: (input: unknown) => Promise<string> }>();
@@ -11,10 +11,11 @@ export class InMemoryToolProvider implements ToolProvider {
   getToolSet(): ToolSet {
     const result: ToolSet = {};
     for (const [name, { def }] of this.tools) {
-      (result as any)[name] = tool({
+      const schema: ToolSchema = {
         description: def.description,
-        parameters: def.parameters as any,
-      } as any);
+        parameters: def.parameters,
+      };
+      result[name] = schema;
     }
     return result;
   }

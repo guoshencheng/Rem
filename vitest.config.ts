@@ -1,9 +1,16 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
     include: ['packages/**/*.test.ts'],
+  },
+  resolve: {
+    alias: {
+      'rem-agent-core': resolve(__dirname, 'packages/core/src/index.ts'),
+      'rem-agent-tui': resolve(__dirname, 'packages/tui/src/index.ts'),
+    },
   },
 });

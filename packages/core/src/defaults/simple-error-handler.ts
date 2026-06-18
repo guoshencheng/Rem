@@ -1,9 +1,19 @@
-import { APICallError } from 'ai';
 import type { ErrorHandler, ErrorCategory } from '../sdk/error-handler.js';
+
+interface ApiLikeError extends Error {
+  name: 'APIError';
+  status?: number;
+}
+
+function isApiLikeError(error: unknown): error is ApiLikeError {
+  if (!(error instanceof Error)) return false;
+  const err = error as ApiLikeError;
+  return err.name === 'APIError' || typeof err.status === 'number';
+}
 
 export class SimpleErrorHandler implements ErrorHandler {
   classify(error: unknown): ErrorCategory {
-    if (error instanceof APICallError) return 'api_error';
+    if (isApiLikeError(error)) return 'api_error';
     return 'unknown';
   }
 

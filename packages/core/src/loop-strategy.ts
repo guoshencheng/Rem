@@ -1,7 +1,6 @@
-import type { ModelMessage, LanguageModelUsage, LanguageModel } from 'ai';
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord, UserInput } from './types.js';
+import type { AgentOutput, ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
 import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
@@ -21,7 +20,6 @@ export interface LoopContext {
   input?: UserInput;
   state: AgentState;
   systemPrompt: string;
-  model?: LanguageModel;
   budget: IterationBudget;
   signal?: AbortSignal;
   provider?: string;
@@ -47,7 +45,6 @@ export class ReactLoop implements LoopStrategy {
   private inferenceEngine = new InferenceEngine();
 
   constructor(
-    private model: LanguageModel | undefined,
     private events: EventBus,
     private toolProvider: ToolProvider,
     private memoryProvider: MemoryProvider,
@@ -131,18 +128,18 @@ export class ReactLoop implements LoopStrategy {
 
       for (const tc of inferResult.toolCalls) {
         const tr = toolResults.find((r: ToolResult) => r.toolCallId === tc.toolCallId);
-        const toolMsg: ModelMessage = {
-          role: 'tool',
-          content: [{
-            type: 'tool-result',
-            toolCallId: tc.toolCallId,
-            toolName: tc.toolName,
-            output: tr?.error ?? tr?.output ?? '',
-          }],
-        } as unknown as ModelMessage;
+    const toolMsg: ModelMessage = {
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        output: tr?.error ?? tr?.output ?? '',
+      }],
+    };
 
-        ctx.state.addMessage(toolMsg);
-        newMessages.push(toolMsg);
+    ctx.state.addMessage(toolMsg);
+    newMessages.push(toolMsg);
         hooks.onMessageAdded(toolMsg);
 
         controller.append({

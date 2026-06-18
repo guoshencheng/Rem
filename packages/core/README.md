@@ -1,6 +1,6 @@
 # rem-agent-core
 
-Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control.
+Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control. Built on a custom provider layer that directly calls the OpenAI and Anthropic SDKs.
 
 ---
 
@@ -17,16 +17,22 @@ The Core is organized around a lifecycle agent that orchestrates a turn-based ex
 │                           │                                         │
 │                           ▼                                         │
 │                    ┌──────────────┐                                 │
-│                    │  AgentLoop   │                                 │
-│                    │ executeTurn()│                                 │
-│                    └──────┬───────┘                                 │
-│                           │                                         │
-│              ┌────────────┼────────────┐                           │
-│              ▼            ▼            ▼                           │
-│      ┌──────────┐  ┌──────────┐  ┌──────────┐                     │
-│      │AgentState│  │EventBus  │  │ ai SDK   │                     │
-│      └──────────┘  └──────────┘  │generateText│                   │
-│                                  └──────────┘                     │
+│  ┌─────────────────┤  ReactLoop   │─────────────────┐              │
+│  │                 │  iterate()   │                 │              │
+│  │                 └──────┬───────┘                 │              │
+│  │                        │                         │              │
+│  │           ┌────────────┼────────────┐            │              │
+│  │           ▼            ▼            ▼            │              │
+│  │   ┌──────────┐  ┌──────────┐  ┌──────────┐      │              │
+│  │   │AgentState│  │ EventBus │  │ Inference│      │              │
+│  │   └──────────┘  └──────────┘  │  Engine  │      │              │
+│  │                               └────┬─────┘      │              │
+│  │                                    ▼             │              │
+│  │                         ┌──────────────────┐    │              │
+│  │                         │ LLMProvider      │    │              │
+│  │                         │ (openai/anthropic│    │              │
+│  └─────────────────────────┤  direct SDK)     │────┘              │
+│                            └──────────────────┘                   │
 │                                                                    │
 │  ┌─────────────────────────────────────────────────────────────┐  │
 │  │              IterationBudget (guard rails)                  │  │
@@ -40,9 +46,9 @@ A single `run()` invocation flows through these phases:
 
 1. **Initialize** — `CoreAgent.initialize()` resets state, assigns `sessionId`, and emits `core-agent:init`.
 2. **Start** — `CoreAgent.run(input)` sets status to `running`, emits `core-agent:start`, and enters the turn loop.
-3. **Turn Execution** — `AgentLoop.executeTurn()` runs one ReAct cycle:
+3. **Turn Execution** — `ReactTurnRunner.run()` enters the turn loop, calling `ReactLoop.iterate()` for each ReAct cycle:
    - **Prepare** — Builds message list from conversation history + user input.
-   - **Reason** — Calls `generateText({ model, system, messages, tools })` via the Vercel AI SDK.
+   - **Reason** — Calls `InferenceEngine.infer()` with the configured provider (`openai` / `anthropic`).
    - **Emit** — Fires `phase:reason:before` / `phase:reason:after` around the LLM call.
    - **Complete** — If the model returns text without tool calls, the turn completes.
 4. **Budget Check** — Before each turn, `IterationBudget.checkTurn()` verifies the agent has remaining budget (max turns, consecutive errors, same-tool failures).
@@ -52,11 +58,12 @@ A single `run()` invocation flows through these phases:
 
 | Module | Purpose |
 |--------|---------|
-| `types` | Re-exports `ModelMessage` and `LanguageModelUsage` from `ai`. Defines `UserInput`, `AgentOutput`, `ToolCallRecord`, and `AgentStatus` |
+| `types` | Defines `ModelMessage`, `LanguageModelUsage`, `UserInput`, `AgentOutput`, `ToolCallRecord`, and `AgentStatus` |
 | `budget` | `IterationBudget` — enforces guard rails on turns, errors, and tool failures |
 | `state` | `AgentState` — holds session identity, conversation history (`ModelMessage[]`), turn counter, and status |
 | `events` | `EventBus` — typed, priority-ordered event system for observability and extension |
-| `loop` | `AgentLoop` — executes a single ReAct turn via `generateText()` from the Vercel AI SDK |
+| `loop` | `ReactLoop` / `ReactTurnRunner` — executes ReAct turns via `InferenceEngine` |
+| `llm` | `InferenceEngine`, `LLMProvider` registry, and direct SDK providers for OpenAI and Anthropic |
 | `core-agent` | `CoreAgent` — lifecycle orchestrator: init, run, interrupt, reset, event subscription |
 
 ---
@@ -64,12 +71,12 @@ A single `run()` invocation flows through these phases:
 ## Quick Start
 
 ```typescript
-import { CoreAgent } from 'rem-agent-core';
-import { openai } from '@ai-sdk/openai';
+import { createAgentFromEnv } from 'rem-agent-core';
 
-const agent = new CoreAgent({
+const agent = createAgentFromEnv({
   name: 'MyAgent',
-  model: openai('gpt-4o'),
+  provider: 'openai',
+  maxTurns: 60,
 });
 
 await agent.initialize();
@@ -78,9 +85,11 @@ agent.on('turn:after', ({ state }) => {
   console.log(`Turn ${state.currentTurn} completed`);
 });
 
-const output = await agent.run({ content: 'Hello!' });
-console.log(output.content);
+const { output } = agent.run({ content: 'Hello!' });
+console.log((await output).content);
 ```
+
+Provider and model are resolved from environment variables (`OPENAI_API_KEY`, `OPENAI_MODEL`, etc.) by `createAgentFromEnv`. You can also construct `CoreAgent` directly with an explicit `provider` and `providerConfig`.
 
 ---
 
@@ -88,16 +97,31 @@ console.log(output.content);
 
 ### `types`
 
-Core re-exports from the Vercel AI SDK plus domain-specific types.
+Core domain types.
 
-**Re-exported from `ai`:**
+**Message and usage types:**
 
 ```typescript
-import type { ModelMessage, LanguageModelUsage } from 'ai';
-```
+interface ModelMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: unknown;
+}
 
-- **`ModelMessage`** — Unified message type for LLM prompts (`SystemModelMessage | UserModelMessage | AssistantModelMessage | ToolModelMessage`)
-- **`LanguageModelUsage`** — Token usage from a generation call (`inputTokens`, `outputTokens`, `totalTokens`)
+interface LanguageModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputTokenDetails?: {
+    noCacheTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+  outputTokenDetails?: {
+    textTokens?: number;
+    reasoningTokens?: number;
+  };
+}
+```
 
 **Domain types:**
 
@@ -241,54 +265,70 @@ interface EventContext {
 
 ---
 
+### `llm`
+
+#### `InferenceEngine`
+
+Coordinates LLM calls through the provider registry.
+
+```typescript
+class InferenceEngine {
+  async infer(options: InferenceOptions): Promise<InferenceResult>;
+}
+```
+
+**`InferenceOptions`** — input to a single inference:
+
+```typescript
+interface InferenceOptions {
+  provider: string;           // e.g. 'openai' or 'anthropic'
+  providerConfig: {
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
+  system?: string;
+  messages: ModelMessage[];
+  tools?: ToolSet;
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+  onChunk?: (chunk: StreamChunk) => void | Promise<void>;
+}
+```
+
+**`StreamChunk`** — incremental output from the provider:
+
+```typescript
+type StreamChunk =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
+  | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
+  | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
+  | { type: 'finish'; reason: string };
+```
+
+#### `LLMProvider` registry
+
+Providers are registered by id and resolved at runtime.
+
+```typescript
+registerProvider('openai', openaiProvider);
+const provider = resolveProvider('openai');
+```
+
+Built-in providers live in `packages/core/src/llm/providers/`:
+
+- `openai.ts` — directly uses the `openai` SDK
+- `anthropic.ts` — directly uses the `@anthropic-ai/sdk`
+
+---
+
 ### `loop`
 
-#### `AgentLoop`
+#### `ReactLoop` / `ReactTurnRunner`
 
-Executes a single ReAct turn by calling `generateText()` from the Vercel AI SDK.
-
-```typescript
-class AgentLoop {
-  constructor(model: LanguageModel, events: EventBus);
-
-  async executeTurn(ctx: TurnContext, state: AgentState): Promise<TurnResult>;
-}
-```
-
-**`TurnContext`** — input to a single turn:
-
-```typescript
-interface TurnContext {
-  input: { content: string };
-  turnNumber: number;
-  conversation: ModelMessage[];
-  systemPrompt: string;
-  availableTools: ToolSet;  // from Vercel AI SDK
-}
-```
-
-**`TurnResult`** — output of a single turn:
-
-```typescript
-interface TurnResult {
-  output: AgentOutput;
-  toolCalls: ToolCallRecord[];
-  completed: boolean;     // true if no more turns needed
-  shouldContinue: boolean; // true if the agent should schedule another turn
-  usage: LanguageModelUsage;
-}
-```
-
-**Turn lifecycle:**
-
-1. Emit `turn:before`.
-2. Check budget via `state.budget.checkTurn()` — return early if exhausted.
-3. Build message list: `[...conversation, user]`.
-4. Emit `phase:reason:before`.
-5. Call `generateText({ model, system, messages, tools })`.
-6. Emit `phase:reason:after`.
-7. If no `toolCalls`, add assistant message to state, emit `turn:after`, return `completed=true`.
-8. If `toolCalls` present, build `ToolCallRecord`s, emit `turn:after`, return `completed=false` (tool execution is expected to happen outside the loop).
+Executes a single ReAct turn by calling `InferenceEngine.infer()` with the configured provider.
 
 ---
 
@@ -304,10 +344,12 @@ class CoreAgent {
 
   constructor(config: CoreAgentConfig);
 
-  async initialize(options?: { sessionId?: string; messages?: ModelMessage[] }): Promise<void>;
-  async run(input: UserInput): Promise<AgentOutput>;
+  async initialize(options?: { sessionId?: string }): Promise<void>;
+  run(input: UserInput): AgentStreamResult;
   interrupt(): void;               // signal graceful stop at end of current turn
   async reset(): Promise<void>;    // clear state and re-emit core-agent:init
+  async generateTitle(): Promise<string>;
+  async listSessions(): Promise<SessionSummary[]>;
   on(event: AgentEvent, handler: EventHandler): () => void;
   once(event: AgentEvent, handler: EventHandler): void;
 }
@@ -318,7 +360,12 @@ class CoreAgent {
 ```typescript
 interface CoreAgentConfig {
   name: string;               // agent identity, used in system prompt
-  model: LanguageModel;       // a Vercel AI SDK LanguageModel, e.g. openai('gpt-4o')
+  provider?: string;          // provider id, e.g. 'openai' or 'anthropic'
+  providerConfig?: {          // explicit provider config; otherwise resolved from env
+    apiKey: string;
+    baseURL?: string;
+    model: string;
+  };
   budget?: IterationBudget;   // optional custom budget; defaults to 60-turn budget
 }
 ```
@@ -326,11 +373,11 @@ interface CoreAgentConfig {
 **`run()` behavior:**
 
 - Sets status to `running`, emits `core-agent:start`.
-- Enters a `while` loop calling `AgentLoop.executeTurn()` per iteration.
+- Enters a `while` loop calling `ReactTurnRunner.run()` per iteration.
 - Loop exits when:
-  - `turnResult.completed === true`
+  - the turn result indicates completion
   - `interrupt()` was called
-  - `state.canContinue()` is false (budget exhausted)
+  - budget is exhausted
 - On success, status returns to `idle`.
 - On error, status becomes `error`, `core-agent:error` is emitted, and the error is re-thrown.
 
@@ -343,8 +390,8 @@ interface CoreAgentConfig {
 | `core-agent:init` | After `initialize()` or `reset()` | `agent`, `state` |
 | `core-agent:start` | At the start of `run()` | `agent`, `state` |
 | `core-agent:error` | On uncaught error during `run()` | `agent`, `state` |
-| `turn:before` | Before each `executeTurn()` | `agent`, `state` |
-| `turn:after` | After each `executeTurn()` | `agent`, `state` |
+| `turn:before` | Before each `ReactLoop.iterate()` | `agent`, `state` |
+| `turn:after` | After each `ReactLoop.iterate()` | `agent`, `state` |
 | `phase:reason:before` | Before LLM call | `agent`, `state` |
 | `phase:reason:after` | After LLM call | `agent`, `state` |
 | `phase:prepare` | (reserved) | `agent`, `state` |

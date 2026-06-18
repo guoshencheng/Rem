@@ -52,13 +52,13 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const hooks = createMockHooks();
 
     const result = await loop.iterate({
       state,
       systemPrompt: 'You are helpful',
-      model: createMockModel(),
+      
       budget: state.budget,
     }, hooks, new AgentStreamController(), 1);
 
@@ -78,8 +78,8 @@ describe('ReactLoop', () => {
     events.on('turn:before', beforeHandler);
     events.on('turn:after', afterHandler);
 
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
-    await loop.iterate({ state, systemPrompt: '', model: createMockModel(), budget: state.budget }, createMockHooks(), new AgentStreamController(), 1);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    await loop.iterate({ state, systemPrompt: '',  budget: state.budget }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(beforeHandler).toHaveBeenCalled();
     expect(afterHandler).toHaveBeenCalled();
@@ -102,13 +102,13 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const hooks = createMockHooks();
 
     const result = await loop.iterate({
       state,
       systemPrompt: 'You are test',
-      model: createMockModel(),
+      
       budget: state.budget,
       provider: 'mock-tools',
       providerConfig: { apiKey: 'key', model: 'model' },
@@ -151,12 +151,12 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
 
     const result = await loop.iterate({
       state,
       systemPrompt: '',
-      model: createMockModel(),
+      
       budget: state.budget,
       provider: 'retryable',
       providerConfig: { apiKey: 'key', model: 'model' },
@@ -171,10 +171,10 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const controller = new AgentStreamController();
 
-    await loop.iterate({ state, systemPrompt: '', model: createMockModel(), budget: state.budget }, createMockHooks(), controller, 1);
+    await loop.iterate({ state, systemPrompt: '',  budget: state.budget }, createMockHooks(), controller, 1);
     controller.finish({ content: 'Hello!', completed: true });
 
     const chunks = [];
@@ -203,13 +203,13 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const controller = new AgentStreamController();
 
     await loop.iterate({
       state,
       systemPrompt: 'You are test',
-      model: createMockModel(),
+      
       budget: state.budget,
       provider: 'mock-tools',
       providerConfig: { apiKey: 'key', model: 'model' },
@@ -248,12 +248,12 @@ describe('ReactLoop', () => {
     const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
     state.addMessage({ role: 'assistant', content: [] });
     const events = new EventBus();
-    const loop = new ReactLoop(createMockModel(), events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler, skillProvider);
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler, skillProvider);
 
     await loop.iterate({
       state,
       systemPrompt: 'You are helpful.',
-      model: createMockModel(),
+      
       budget: state.budget,
       provider: 'skill-capture',
       providerConfig: { apiKey: 'key', model: 'model' },

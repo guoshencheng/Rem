@@ -1,5 +1,5 @@
-import type { ToolSet } from 'ai';
 import type { ModelMessage } from '../types.js';
+import type { ToolSet } from '../llm/types.js';
 
 export interface ToolDefinition {
   name: string;

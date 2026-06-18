@@ -1,15 +1,13 @@
 import { Container, Spacer } from "@earendil-works/pi-tui";
 import type { AgentStreamChunk } from "rem-agent-core";
 import { AssistantMessage } from "./assistant-message.js";
+import { FunctionToolBlock } from "./function-tool-block.js";
 import { ReasoningBlock } from "./reasoning-block.js";
-import { ToolCallBlock } from "./tool-call-block.js";
-import { ToolResultBlock } from "./tool-result-block.js";
 
 type Part =
   | { type: "text"; partId: string; component: AssistantMessage }
   | { type: "reasoning"; partId: string; component: ReasoningBlock }
-  | { type: "tool-call"; partId: string; component: ToolCallBlock }
-  | { type: "tool-result"; partId: string; component: ToolResultBlock };
+  | { type: "tool"; partId: string; component: FunctionToolBlock };
 
 export class StreamAssistantMessage extends Container {
   private parts = new Map<string, Part>();
@@ -32,8 +30,12 @@ export class StreamAssistantMessage extends Container {
       this.appendReasoningDelta(chunk.partId, chunk.text);
     } else if (chunk.type === "reasoning-finish") {
       this.finishReasoning(chunk.partId);
+    } else if (chunk.type === "tool-call-start") {
+      this.ensureToolPart(chunk.partId);
     } else if (chunk.type === "tool-call") {
       this.updateToolCall(chunk.partId, chunk.toolName, chunk.input);
+    } else if (chunk.type === "tool-result-start") {
+      this.setToolRunning(chunk.partId);
     } else if (chunk.type === "tool-result") {
       this.updateToolResult(chunk.partId, chunk.output, chunk.error);
     }
@@ -78,11 +80,11 @@ export class StreamAssistantMessage extends Container {
         this.addChild(component);
       } else if (type === "tool-call") {
         const id = part.toolCallId as string || `tool-${partIndex++}`;
-        const component = new ToolCallBlock(
+        const component = new FunctionToolBlock(
           String(part.toolName ?? ""),
           part.input,
         );
-        this.parts.set(id, { type: "tool-call", partId: id, component });
+        this.parts.set(id, { type: "tool", partId: id, component });
         this.addChild(component);
       }
     }
@@ -92,6 +94,14 @@ export class StreamAssistantMessage extends Container {
     this.thinkingCollapsed = collapsed;
     for (const part of this.parts.values()) {
       if (part.type === "reasoning") {
+        part.component.setCollapsed(collapsed);
+      }
+    }
+  }
+
+  setToolsCollapsed(collapsed: boolean): void {
+    for (const part of this.parts.values()) {
+      if (part.type === "tool") {
         part.component.setCollapsed(collapsed);
       }
     }
@@ -131,25 +141,40 @@ export class StreamAssistantMessage extends Container {
     part.component.finish();
   }
 
+  private ensureToolPart(partId: string): void {
+    if (this.parts.has(partId)) return;
+    const component = new FunctionToolBlock("", undefined);
+    this.parts.set(partId, { type: "tool", partId, component });
+    this.addChild(component);
+  }
+
   private updateToolCall(partId: string, toolName: string, input: unknown): void {
     const existing = this.parts.get(partId);
-    if (existing && existing.type === "tool-call") {
+    if (existing && existing.type === "tool") {
       existing.component.update(toolName, input);
       return;
     }
-    const component = new ToolCallBlock(toolName, input);
-    this.parts.set(partId, { type: "tool-call", partId, component });
+    const component = new FunctionToolBlock(toolName, input);
+    this.parts.set(partId, { type: "tool", partId, component });
     this.addChild(component);
+  }
+
+  private setToolRunning(partId: string): void {
+    const existing = this.parts.get(partId);
+    if (existing && existing.type === "tool") {
+      existing.component.setRunning();
+    }
   }
 
   private updateToolResult(partId: string, output: string, error?: string): void {
     const existing = this.parts.get(partId);
-    if (existing && existing.type === "tool-result") {
-      existing.component.update(output, error);
+    if (existing && existing.type === "tool") {
+      existing.component.setResult(output, error);
       return;
     }
-    const component = new ToolResultBlock(output, error);
-    this.parts.set(partId, { type: "tool-result", partId, component });
+    const component = new FunctionToolBlock("", undefined);
+    component.setResult(output, error);
+    this.parts.set(partId, { type: "tool", partId, component });
     this.addChild(component);
   }
 }

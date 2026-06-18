@@ -30,6 +30,10 @@ export const thinkingMessageStyle: DefaultTextStyle = {
   color: dim,
 };
 
+export const toolMessageStyle: DefaultTextStyle = {
+  color: dim,
+};
+
 export const eventLogStyle: DefaultTextStyle = {
   color: dim,
 };

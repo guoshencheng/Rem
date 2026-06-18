@@ -31,17 +31,27 @@ describe("StreamAssistantMessage", () => {
     expect(lines.filter((line) => line.includes("thinking content")).length).toBe(0);
   });
 
-  it("expands all reasoning blocks via setThinkingCollapsed(false)", () => {
+  it("creates tool block collapsed by default", () => {
     const message = new StreamAssistantMessage();
-    message.appendChunk({ type: "reasoning-start", step: 1, partId: "r1" } as AgentStreamChunk);
-    message.appendChunk({ type: "reasoning-delta", step: 1, partId: "r1", text: "first reasoning" } as AgentStreamChunk);
-    message.appendChunk({ type: "reasoning-finish", step: 1, partId: "r1" } as AgentStreamChunk);
-    message.appendChunk({ type: "reasoning-start", step: 1, partId: "r2" } as AgentStreamChunk);
-    message.appendChunk({ type: "reasoning-delta", step: 1, partId: "r2", text: "second reasoning" } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-call-start", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read" } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-call", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read", input: { path: "foo.txt" } } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-result-start", step: 1, partId: "tc1", toolCallId: "tc1" } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-result", step: 1, partId: "tc1", toolCallId: "tc1", output: "hello", error: undefined } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-result-finish", step: 1, partId: "tc1", toolCallId: "tc1" } as AgentStreamChunk);
 
-    message.setThinkingCollapsed(false);
     const lines = message.render(80);
-    expect(lines.some((line) => line.includes("first reasoning"))).toBe(true);
-    expect(lines.some((line) => line.includes("second reasoning"))).toBe(true);
+    expect(lines.some((line) => line.includes("read"))).toBe(true);
+    expect(lines.some((line) => line.includes("hello"))).toBe(false);
+  });
+
+  it("expands all tool blocks via setToolsCollapsed(false)", () => {
+    const message = new StreamAssistantMessage();
+    message.appendChunk({ type: "tool-call-start", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read" } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-call", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read", input: { path: "foo.txt" } } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-result", step: 1, partId: "tc1", toolCallId: "tc1", output: "hello" } as AgentStreamChunk);
+
+    message.setToolsCollapsed(false);
+    const lines = message.render(80);
+    expect(lines.some((line) => line.includes("hello"))).toBe(true);
   });
 });

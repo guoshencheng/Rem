@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { StreamCollector, type StreamChunk } from "../src/llm/types.js";
-import { createThinkingTagPartitioner } from "../src/shared/text/thinking-tag-partitioner.js";
+import { ThinkingTagPartitioner } from "../src/shared/text/thinking-tag/index.js";
 
 function safeJsonParse(value: string): unknown {
   try { return JSON.parse(value); } catch { return value; }
@@ -100,7 +100,7 @@ describe("MiniMax M3 trace", () => {
 
   it("partitions <think> tags into reasoning deltas", () => {
     // Simulate the full stream through the partitioner
-    const partitioner = createThinkingTagPartitioner();
+    const partitioner = new ThinkingTagPartitioner();
     const allDeltas: StreamChunk[] = [];
 
     function* mapDeltas(deltas: ReturnType<typeof partitioner.push>) {
@@ -138,7 +138,7 @@ describe("MiniMax M3 trace", () => {
 
   it("full pipeline: parse + partition + collect with MiniMax data", () => {
     const pending = new Map<number, PendingToolCall>();
-    const partitioner = createThinkingTagPartitioner();
+    const partitioner = new ThinkingTagPartitioner();
     const collector = new StreamCollector();
 
     function* mapDeltas(deltas: ReturnType<typeof partitioner.push>) {
@@ -198,7 +198,7 @@ describe("MiniMax M3 trace", () => {
   });
 
   it("pushes thinking content immediately during streaming (incremental emit)", () => {
-    const partitioner = createThinkingTagPartitioner();
+    const partitioner = new ThinkingTagPartitioner();
     function* map(deltas: ReturnType<typeof partitioner.push>) {
       for (const d of deltas) { if (!d.text) continue; yield d; }
     }

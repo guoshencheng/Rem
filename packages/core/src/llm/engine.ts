@@ -2,7 +2,7 @@ import { resolveProvider } from './api-registry.js';
 import { StreamCollector } from './types.js';
 import type { GenerateOptions, GenerateResult, StreamChunk, ToolSet } from './types.js';
 import type { ModelMessage } from '../types.js';
-import { createThinkingTagPartitioner } from '../shared/text/thinking-tag-partitioner.js';
+import { partitionProviderStream } from './partition-stream.js';
 import { stripThinkingTags } from '../shared/text/strip-thinking-tags.js';
 
 export interface InferenceOptions {
@@ -22,38 +22,6 @@ export interface InferenceOptions {
 }
 
 export interface InferenceResult extends GenerateResult {}
-
-async function* partitionProviderStream(
-  stream: AsyncIterable<StreamChunk>,
-): AsyncGenerator<StreamChunk> {
-  const partitioner = createThinkingTagPartitioner();
-
-  function* mapDeltas(deltas: ReturnType<ReturnType<typeof createThinkingTagPartitioner>['push']>): Generator<StreamChunk> {
-    for (const delta of deltas) {
-      if (!delta.text) {
-        continue;
-      }
-      if (delta.type === 'thinking') {
-        yield { type: 'reasoning', text: delta.text };
-      } else {
-        yield { type: 'text', text: delta.text };
-      }
-    }
-  }
-
-  for await (const chunk of stream) {
-    if (chunk.type === 'text') {
-      yield* mapDeltas(partitioner.push(chunk.text));
-    } else {
-      // Flush any pending text before yielding non-text chunks so reasoning
-      // tags are not split across chunk-type boundaries.
-      yield* mapDeltas(partitioner.flush());
-      yield chunk;
-    }
-  }
-
-  yield* mapDeltas(partitioner.flush());
-}
 
 export class InferenceEngine {
   async infer(options: InferenceOptions): Promise<InferenceResult> {

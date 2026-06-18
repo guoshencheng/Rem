@@ -58,8 +58,8 @@ describe('ReactLoop', () => {
     const result = await loop.iterate({
       state,
       systemPrompt: 'You are helpful',
-      
       budget: state.budget,
+      workspaceRoot: '/',
     }, hooks, new AgentStreamController(), 1);
 
     expect(result.finalOutput.content).toBe('Hello!');
@@ -79,7 +79,7 @@ describe('ReactLoop', () => {
     events.on('turn:after', afterHandler);
 
     const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
-    await loop.iterate({ state, systemPrompt: '',  budget: state.budget }, createMockHooks(), new AgentStreamController(), 1);
+    await loop.iterate({ state, systemPrompt: '', budget: state.budget, workspaceRoot: '/' }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(beforeHandler).toHaveBeenCalled();
     expect(afterHandler).toHaveBeenCalled();
@@ -108,15 +108,16 @@ describe('ReactLoop', () => {
     const result = await loop.iterate({
       state,
       systemPrompt: 'You are test',
-      
       budget: state.budget,
       provider: 'mock-tools',
       providerConfig: { apiKey: 'key', model: 'model' },
+      workspaceRoot: '/',
     }, hooks, new AgentStreamController(), 1);
 
-    expect(mocks.toolProvider.execute).toHaveBeenCalledWith([
-      { toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } },
-    ]);
+    expect(mocks.toolProvider.execute).toHaveBeenCalledWith(
+      [{ toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } }],
+      expect.objectContaining({ workspaceRoot: '/' }),
+    );
     expect(result.toolCalls).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'tool')).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(0);
@@ -156,10 +157,10 @@ describe('ReactLoop', () => {
     const result = await loop.iterate({
       state,
       systemPrompt: '',
-      
       budget: state.budget,
       provider: 'retryable',
       providerConfig: { apiKey: 'key', model: 'model' },
+      workspaceRoot: '/',
     }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(result.finalOutput.content).toBe('Recovered!');
@@ -174,7 +175,7 @@ describe('ReactLoop', () => {
     const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
     const controller = new AgentStreamController();
 
-    await loop.iterate({ state, systemPrompt: '',  budget: state.budget }, createMockHooks(), controller, 1);
+    await loop.iterate({ state, systemPrompt: '', budget: state.budget, workspaceRoot: '/' }, createMockHooks(), controller, 1);
     controller.finish({ content: 'Hello!', completed: true });
 
     const chunks = [];
@@ -209,10 +210,10 @@ describe('ReactLoop', () => {
     await loop.iterate({
       state,
       systemPrompt: 'You are test',
-      
       budget: state.budget,
       provider: 'mock-tools',
       providerConfig: { apiKey: 'key', model: 'model' },
+      workspaceRoot: '/',
     }, createMockHooks(), controller, 1);
     controller.finish({ content: '', completed: false });
 
@@ -253,10 +254,10 @@ describe('ReactLoop', () => {
     await loop.iterate({
       state,
       systemPrompt: 'You are helpful.',
-      
       budget: state.budget,
       provider: 'skill-capture',
       providerConfig: { apiKey: 'key', model: 'model' },
+      workspaceRoot: '/',
     }, createMockHooks(), new AgentStreamController(), 1);
 
     expect(skillProvider.loadSkills).toHaveBeenCalled();

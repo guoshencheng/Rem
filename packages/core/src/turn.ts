@@ -19,6 +19,9 @@ export interface TurnContext {
     model: string;
   };
   maxSteps?: number;
+  workspaceRoot: string;
+  readOnly?: boolean;
+  agentName?: string;
 }
 
 export interface TurnRunner {
@@ -55,6 +58,9 @@ export class ReactTurnRunner implements TurnRunner {
       signal: ctx.signal,
       provider: ctx.provider,
       providerConfig: ctx.providerConfig,
+      workspaceRoot: ctx.workspaceRoot,
+      readOnly: ctx.readOnly,
+      agentName: ctx.agentName,
     };
 
     const allNewMessages: ModelMessage[] = [assistantMsg];

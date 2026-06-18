@@ -1,11 +1,32 @@
-import type { ModelMessage } from '../types.js';
+import type { Static, TObject } from '@sinclair/typebox';
 import type { ToolSet } from '../llm/types.js';
 
-export interface ToolDefinition {
+export interface ToolContext {
+  cwd: string;
+  workspaceRoot: string;
+  signal?: AbortSignal;
+  agentName?: string;
+  readOnly?: boolean;
+}
+
+export interface ToolDefinition<T extends TObject = TObject> {
   name: string;
   description: string;
-  parameters: Record<string, unknown>;
+  parameters: T;
+  category?: 'filesystem' | 'shell' | 'search';
+  dangerous?: boolean;
+  readOnly?: boolean;
 }
+
+export interface ToolExecutorResult {
+  output: string;
+  details?: unknown;
+}
+
+export type ToolExecutor<T extends TObject = TObject> = (
+  input: Static<T>,
+  ctx: ToolContext,
+) => Promise<ToolExecutorResult>;
 
 export interface ToolCall {
   toolCallId: string;
@@ -18,10 +39,11 @@ export interface ToolResult {
   toolName: string;
   output: string;
   error?: string;
+  details?: unknown;
 }
 
 export interface ToolProvider {
-  register(tool: ToolDefinition, executor: (input: unknown) => Promise<string>): void;
+  register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void;
   getToolSet(): ToolSet;
-  execute(calls: ToolCall[]): Promise<ToolResult[]>;
+  execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]>;
 }

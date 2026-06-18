@@ -1,7 +1,7 @@
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
 import type { AgentOutput, ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
-import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
+import type { ToolProvider, ToolCall, ToolResult, ToolContext } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
@@ -28,6 +28,9 @@ export interface LoopContext {
     baseURL?: string;
     model: string;
   };
+  workspaceRoot: string;
+  readOnly?: boolean;
+  agentName?: string;
 }
 
 export interface LoopResult {
@@ -124,7 +127,14 @@ export class ReactLoop implements LoopStrategy {
       await this.events.emit('tool:before', { agent: this, state: ctx.state });
 
       const startTime = Date.now();
-      const toolResults = await this.toolProvider.execute(inferResult.toolCalls);
+      const toolCtx: ToolContext = {
+        cwd: ctx.workspaceRoot,
+        workspaceRoot: ctx.workspaceRoot,
+        signal: ctx.signal,
+        agentName: ctx.agentName,
+        readOnly: ctx.readOnly,
+      };
+      const toolResults = await this.toolProvider.execute(inferResult.toolCalls, toolCtx);
 
       for (const tc of inferResult.toolCalls) {
         const tr = toolResults.find((r: ToolResult) => r.toolCallId === tc.toolCallId);

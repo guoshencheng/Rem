@@ -8,7 +8,6 @@ import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
-import { InMemoryToolProvider } from './defaults/in-memory-tool-provider.js';
 import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
@@ -24,6 +23,8 @@ import { ReactLoop } from './loop-strategy.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { InferenceEngine } from './llm/engine.js';
+import { createFileSystemTools } from './plugins/tools/index.js';
+import type { ToolPolicyLike } from './sdk/tool-policy.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import { getDefaultSkillsDir } from './config/paths.js';
 
@@ -45,6 +46,9 @@ export interface CoreAgentConfig {
     baseURL?: string;
     model: string;
   };
+  workspaceRoot?: string;
+  readOnly?: boolean;
+  toolPolicy?: ToolPolicyLike;
 }
 
 export interface AgentStreamResult {
@@ -85,14 +89,24 @@ export class CoreAgent {
   }
 
   private createDefaultTurnRunner(): TurnRunner {
-    const loopStrategy = this.config.loopStrategy ?? new ReactLoop(
-      this.events,
-      this.config.toolProvider ?? new InMemoryToolProvider(),
-      this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
-      this.config.compressor ?? new NoOpCompressor(),
-      this.config.errorHandler ?? new SimpleErrorHandler(),
-      this.config.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
-    );
+    const workspaceRoot = this.config.workspaceRoot ?? process.cwd();
+    const toolProvider =
+      this.config.toolProvider ??
+      createFileSystemTools({
+        workspaceRoot,
+        readOnly: this.config.readOnly,
+        toolPolicy: this.config.toolPolicy,
+      });
+    const loopStrategy =
+      this.config.loopStrategy ??
+      new ReactLoop(
+        this.events,
+        toolProvider,
+        this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
+        this.config.compressor ?? new NoOpCompressor(),
+        this.config.errorHandler ?? new SimpleErrorHandler(),
+        this.config.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
+      );
     return new ReactTurnRunner(loopStrategy);
   }
 
@@ -152,6 +166,9 @@ export class CoreAgent {
           signal: abortController.signal,
           provider: this.config.provider ?? 'openai',
           providerConfig: this.config.providerConfig ?? resolveProviderConfig(this.config.provider ?? 'openai'),
+          workspaceRoot: this.config.workspaceRoot ?? process.cwd(),
+          readOnly: this.config.readOnly,
+          agentName: this.config.name,
         }, this.createTurnHooks(), controller);
 
         for (const msg of result.newMessages) {
@@ -272,6 +289,9 @@ export function createAgentFromEnv(options: {
   maxTurns?: number;
   sessionProvider?: SessionProvider;
   skillProvider?: SkillProvider;
+  workspaceRoot?: string;
+  readOnly?: boolean;
+  toolPolicy?: ToolPolicyLike;
 }): CoreAgent {
   registerBuiltInProviders();
   const provider = options.provider ?? 'openai';
@@ -282,5 +302,8 @@ export function createAgentFromEnv(options: {
     providerConfig: resolveProviderConfig(provider),
     sessionProvider: options.sessionProvider,
     skillProvider: options.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
+    workspaceRoot: options.workspaceRoot,
+    readOnly: options.readOnly,
+    toolPolicy: options.toolPolicy,
   });
 }

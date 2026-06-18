@@ -5,10 +5,10 @@ let debugFile: string | null | undefined;
 function resolveDebugFile(): string | null {
   if (debugFile !== undefined) return debugFile;
 
-  if (process.env.AGENT_HARNESS_DEBUG_FILE) {
-    debugFile = process.env.AGENT_HARNESS_DEBUG_FILE;
-  } else if (process.env.AGENT_HARNESS_DEBUG === '1') {
-    debugFile = '/tmp/agent-harness-debug.log';
+  if (process.env.REM_AGENT_DEBUG_FILE) {
+    debugFile = process.env.REM_AGENT_DEBUG_FILE;
+  } else if (process.env.REM_AGENT_DEBUG === '1') {
+    debugFile = '/tmp/rem-agent-debug.log';
   } else {
     debugFile = null;
   }

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-harness/demo",
+  "name": "rem-agent-demo",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
-    "@agent-harness/tui": "workspace:*",
+    "rem-agent-core": "workspace:*",
+    "rem-agent-tui": "workspace:*",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {

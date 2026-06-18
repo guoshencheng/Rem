@@ -43,9 +43,9 @@ demo → tui → core/ui-agent-protocol → core/agent
 
 ```text
 packages/
-  core/          # @agent-harness/core
-  tui/           # @agent-harness/tui
-  demo/          # @agent-harness/demo
+  core/          # rem-agent-core
+  tui/           # rem-agent-tui
+  demo/          # rem-agent-demo
 ```
 
 依赖方向：
@@ -175,7 +175,7 @@ export class CoreAgent {
 ```ts
 // packages/tui/src/app.ts
 
-import type { UIAgentSession, UISessionCallbacks } from '@agent-harness/core';
+import type { UIAgentSession, UISessionCallbacks } from 'rem-agent-core';
 
 export interface TUIAppOptions {
   session: UIAgentSession;
@@ -219,8 +219,8 @@ export class TUIApp implements UISessionCallbacks {
 
 ```ts
 import 'dotenv/config';
-import { createAgentFromEnv, createUIAgentSession } from '@agent-harness/core';
-import { TUIApp } from '@agent-harness/tui';
+import { createAgentFromEnv, createUIAgentSession } from 'rem-agent-core';
+import { TUIApp } from 'rem-agent-tui';
 import { resolveConfig } from './config.js';
 
 async function main(): Promise<void> {
@@ -304,7 +304,7 @@ main().catch((error) => {
 
 ```json
 {
-  "name": "@agent-harness/tui",
+  "name": "rem-agent-tui",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -320,7 +320,7 @@ main().catch((error) => {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
+    "rem-agent-core": "workspace:*",
     "@earendil-works/pi-tui": "^0.79.3"
   },
   "devDependencies": {
@@ -334,8 +334,8 @@ main().catch((error) => {
 ### 调整 `packages/demo/package.json`
 
 - 移除 `@earendil-works/pi-tui`。
-- 新增 `@agent-harness/tui`。
-- 保留 `@agent-harness/core` 和 `dotenv`。
+- 新增 `rem-agent-tui`。
+- 保留 `rem-agent-core` 和 `dotenv`。
 
 ### 根目录脚本
 

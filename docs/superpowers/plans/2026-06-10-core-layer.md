@@ -50,7 +50,7 @@ tests/
 
 ```json
 {
-  "name": "agent-harness",
+  "name": "rem-agent",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -1096,7 +1096,7 @@ export class AgentHarness {
     // Default implementation will be injected by the assembler.
     // This should never be called if the assembler properly provides a client.
     throw new Error(
-      'No ModelClient provided. Use OpenAICompatibleClient from "@agent-harness/openai-provider" or provide a custom implementation.'
+      'No ModelClient provided. Use OpenAICompatibleClient from "rem-agent-openai-provider" or provide a custom implementation.'
     );
   }
 

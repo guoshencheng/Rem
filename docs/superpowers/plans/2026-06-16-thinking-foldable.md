@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 `@agent-harness/tui` 增加 thinking/reasoning 块的全局折叠能力：默认折叠，按 `ctrl+o` 一键展开/收起所有 thinking 块。
+**Goal:** 为 `rem-agent-tui` 增加 thinking/reasoning 块的全局折叠能力：默认折叠，按 `ctrl+o` 一键展开/收起所有 thinking 块。
 
 **Architecture:** `ChatLog` 持有全局 `thinkingCollapsed` 状态并在创建新流式消息时向下传播；`StreamAssistantMessage` 将状态传给每个 `ReasoningBlock`；`ReasoningBlock` 覆盖 `render` 控制折叠/展开渲染；`TUIApp` 通过 `addInputListener` 捕获 `ctrl+o`。
 
@@ -85,7 +85,7 @@ describe("ReasoningBlock", () => {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/tui test -- reasoning-block.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- reasoning-block.test.ts`
 
 Expected: FAIL — `setCollapsed` 不存在或折叠未生效
 
@@ -159,7 +159,7 @@ export class ReasoningBlock extends Container {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `pnpm --filter @agent-harness/tui test -- reasoning-block.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- reasoning-block.test.ts`
 
 Expected: PASS
 
@@ -215,7 +215,7 @@ it("expands all reasoning blocks via setThinkingCollapsed(false)", () => {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/tui test -- stream-message.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- stream-message.test.ts`
 
 Expected: FAIL — `StreamAssistantMessage` 没有 `setThinkingCollapsed`
 
@@ -260,7 +260,7 @@ export class StreamAssistantMessage extends Container {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `pnpm --filter @agent-harness/tui test -- stream-message.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- stream-message.test.ts`
 
 Expected: PASS
 
@@ -289,7 +289,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 在 `packages/tui/tests/chat-log.test.ts` 中新增测试（保留原有 prune 测试）：
 
 ```ts
-import type { AgentStreamChunk } from "@agent-harness/core";
+import type { AgentStreamChunk } from "rem-agent-core";
 
 // ... existing tests ...
 
@@ -323,7 +323,7 @@ it("new stream messages inherit current thinking collapsed state", () => {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/tui test -- chat-log.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- chat-log.test.ts`
 
 Expected: FAIL — `ChatLog` 没有 `toggleThinkingCollapsed`
 
@@ -386,7 +386,7 @@ export class ChatLog extends Container {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `pnpm --filter @agent-harness/tui test -- chat-log.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- chat-log.test.ts`
 
 Expected: PASS
 
@@ -416,7 +416,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```ts
 import { describe, it, expect, vi } from "vitest";
-import type { UIAgentSession } from "@agent-harness/core";
+import type { UIAgentSession } from "rem-agent-core";
 import { TUIApp } from "../src/app.js";
 
 function createMockSession(): UIAgentSession {
@@ -451,7 +451,7 @@ describe("TUIApp", () => {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/tui test -- app.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- app.test.ts`
 
 Expected: FAIL — `handleGlobalInput` 不存在或未处理 `ctrl+o`
 
@@ -501,7 +501,7 @@ private handleGlobalInput(data: string) {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `pnpm --filter @agent-harness/tui test -- app.test.ts`
+Run: `pnpm --filter rem-agent-tui test -- app.test.ts`
 
 Expected: PASS
 
@@ -525,7 +525,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: 运行 tui 包全部测试**
 
-Run: `pnpm --filter @agent-harness/tui test`
+Run: `pnpm --filter rem-agent-tui test`
 
 Expected: PASS
 
@@ -537,7 +537,7 @@ Expected: PASS
 
 - [ ] **Step 3: 手动运行 demo 验证**
 
-Run: `pnpm --filter @agent-harness/demo start`
+Run: `pnpm --filter rem-agent-demo start`
 
 Expected: 启动后发送一条消息触发 reasoning，确认默认只显示 `thinking >`；按 `ctrl+o` 展开显示完整 reasoning；再按 `ctrl+o` 收起。
 

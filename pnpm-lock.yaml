@@ -45,15 +45,15 @@ importers:
 
   packages/demo:
     dependencies:
-      '@agent-harness/core':
-        specifier: workspace:*
-        version: link:../core
-      '@agent-harness/tui':
-        specifier: workspace:*
-        version: link:../tui
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
+      rem-agent-core:
+        specifier: workspace:*
+        version: link:../core
+      rem-agent-tui:
+        specifier: workspace:*
+        version: link:../tui
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -67,12 +67,12 @@ importers:
 
   packages/tui:
     dependencies:
-      '@agent-harness/core':
-        specifier: workspace:*
-        version: link:../core
       '@earendil-works/pi-tui':
         specifier: ^0.79.3
         version: 0.79.3
+      rem-agent-core:
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

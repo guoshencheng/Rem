@@ -2,7 +2,7 @@
 
 ## 背景
 
-当前 `@agent-harness/tui` 在渲染 Agent 的 reasoning/thinking 内容时，会把完整 thinking 文本直接展开显示在 [`ReasoningBlock`](packages/tui/src/message/reasoning-block.ts:5) 中。对于长 reasoning，这会占据大量终端空间，干扰用户阅读最终回复。
+当前 `rem-agent-tui` 在渲染 Agent 的 reasoning/thinking 内容时，会把完整 thinking 文本直接展开显示在 [`ReasoningBlock`](packages/tui/src/message/reasoning-block.ts:5) 中。对于长 reasoning，这会占据大量终端空间，干扰用户阅读最终回复。
 
 本设计为 TUI 增加 thinking 块折叠能力，使用户可以一键收起/展开所有 thinking 内容。
 
@@ -144,5 +144,5 @@ TUIApp.requestRender(true) 触发重绘
 ## 依赖与影响范围
 
 - 仅修改 `packages/tui` 包内的组件和 `TUIApp`。
-- 不修改 `@agent-harness/core` 的流协议或 UI 协议。
+- 不修改 `rem-agent-core` 的流协议或 UI 协议。
 - 不引入新依赖。

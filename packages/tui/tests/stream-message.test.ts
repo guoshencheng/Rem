@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { StreamAssistantMessage } from "../src/message/stream-message.js";
-import type { AgentStreamChunk } from "@agent-harness/core";
+import type { AgentStreamChunk } from "rem-agent-core";
 
 describe("StreamAssistantMessage", () => {
   it("appends text deltas", () => {

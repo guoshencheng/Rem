@@ -2,7 +2,7 @@
 
 ## Overview
 
-A terminal-based interactive demo for `@agent-harness/core` that lets users experience Core's runtime behavior in real-time. The demo uses `@earendil-works/pi-tui` for a split-pane terminal UI similar to OpenClaw.
+A terminal-based interactive demo for `rem-agent-core` that lets users experience Core's runtime behavior in real-time. The demo uses `@earendil-works/pi-tui` for a split-pane terminal UI similar to OpenClaw.
 
 **Goals:**
 - Let users interact with a CoreAgent through a chat-like TUI
@@ -52,7 +52,7 @@ packages/demo/src/
 
 ### Integration Boundary with Core
 
-- Demo depends only on `@agent-harness/core` public API
+- Demo depends only on `rem-agent-core` public API
 - Events flow via `agent.on('...', handler)` subscriptions
 - Core identifies tool calls but does not execute them (external execution pattern)
 
@@ -170,7 +170,7 @@ Design decisions:
 ```json
 {
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
+    "rem-agent-core": "workspace:*",
     "@ai-sdk/openai": "^1.3.0",
     "@earendil-works/pi-tui": "^0.79.3",
     "ai": "6.0.199"

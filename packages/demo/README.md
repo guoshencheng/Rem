@@ -1,6 +1,6 @@
-# @agent-harness/demo
+# rem-agent-demo
 
-Interactive terminal demo for `@agent-harness/core`.
+Interactive terminal demo for `rem-agent-core`.
 
 ## Quick Start
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { CoreAgent } from "@agent-harness/core";
+import type { CoreAgent } from "rem-agent-core";
 import { TUIApp } from "../src/app.js";
 
 function createMockAgent(): CoreAgent {

@@ -1,14 +1,14 @@
 {
-  "name": "agent-harness",
+  "name": "rem-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "pnpm --filter @agent-harness/core typecheck && pnpm --filter @agent-harness/tui typecheck && pnpm --filter @agent-harness/demo typecheck",
-    "demo": "pnpm --filter @agent-harness/demo start",
-    "demo:debug": "AGENT_HARNESS_DEBUG=1 pnpm --filter @agent-harness/demo start"
+    "typecheck": "pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-tui typecheck && pnpm --filter rem-agent-demo typecheck",
+    "demo": "pnpm --filter rem-agent-demo start",
+    "demo:debug": "REM_AGENT_DEBUG=1 pnpm --filter rem-agent-demo start"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

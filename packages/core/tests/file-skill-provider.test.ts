@@ -8,7 +8,7 @@ describe('FileSkillProvider', () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'agent-harness-skills-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'rem-agent-skills-'));
   });
 
   afterEach(() => {

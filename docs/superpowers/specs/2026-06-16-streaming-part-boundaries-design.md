@@ -6,7 +6,7 @@ Approved for implementation planning.
 
 ## Context
 
-当前 `@agent-harness/core` 的流式输出已经支持 `text-delta`、`reasoning-delta`、`tool-call`、`tool-result` 等 chunk 类型，并通过 `partIndex` 把同类型连续 delta 聚合为同一个 part。但存在两个问题：
+当前 `rem-agent-core` 的流式输出已经支持 `text-delta`、`reasoning-delta`、`tool-call`、`tool-result` 等 chunk 类型，并通过 `partIndex` 把同类型连续 delta 聚合为同一个 part。但存在两个问题：
 
 1. 缺少 part 边界：参考 Vercel/AI SDK，每个流式 part 应该有明确的 `*-start` 和 `*-finish` 事件，方便消费端渲染骨架、切换样式、做折叠动画。
 2. parts 的归属不对：当前 parts 在 step 内编号，但一个 turn 对应一个 assistant message，parts 应该是这个 message 的属性，因此需要提升到 turn 级别。

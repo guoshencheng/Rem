@@ -1,4 +1,4 @@
-# Agent Harness
+# Rem Agent
 
 一个 Agent-first 的 TypeScript 通用 Agent Harness 系统。
 
@@ -13,8 +13,9 @@
 
 ```text
 packages/
-  core/   — @agent-harness/core：Agent 生命周期、ReAct 循环、事件、预算、LLM 抽象层
-  demo/   — @agent-harness/demo：基于 core 的 TUI 演示程序
+  core/   — rem-agent-core：Agent 生命周期、ReAct 循环、事件、预算、LLM 抽象层
+  tui/    — rem-agent-tui：基于 core 的终端 UI 组件
+  demo/   — rem-agent-demo：基于 core 的 TUI 演示程序
 ```
 
 ## 快速开始
@@ -29,7 +30,7 @@ pnpm test
 
 # 运行 demo
 export OPENAI_API_KEY=sk-...
-pnpm --filter @agent-harness/demo start
+pnpm --filter rem-agent-demo start
 ```
 
 ## 文档
@@ -45,5 +46,5 @@ pnpm --filter @agent-harness/demo start
 |---|---|
 | `pnpm test` | 运行所有测试 |
 | `pnpm typecheck` | 全仓类型检查 |
-| `pnpm --filter @agent-harness/core typecheck` | 仅检查 core |
-| `pnpm --filter @agent-harness/demo start` | 运行 demo |
+| `pnpm --filter rem-agent-core typecheck` | 仅检查 core |
+| `pnpm --filter rem-agent-demo start` | 运行 demo |

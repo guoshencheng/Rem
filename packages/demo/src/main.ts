@@ -1,7 +1,7 @@
 import "dotenv/config";
 
-import { createAgentFromEnv, FileSessionProvider } from "@agent-harness/core";
-import { TUIApp } from "@agent-harness/tui";
+import { createAgentFromEnv, FileSessionProvider } from "rem-agent-core";
+import { TUIApp } from "rem-agent-tui";
 import { resolveConfig } from "./config.js";
 
 async function main(): Promise<void> {

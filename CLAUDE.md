@@ -1,9 +1,9 @@
 ---
-# CLAUDE.md — Agent Harness 项目规则手册
+# CLAUDE.md — Rem Agent 项目规则手册
 # 这是规则手册，不是变更日志。只放"下次 AI 写代码时必须看到"的信息。
 ---
 
-# Agent Harness
+# Rem Agent
 
 一个 Agent-first 的 TypeScript 通用 Agent Harness 系统，聚焦 Agent 推理循环、状态、事件、预算与工具。
 
@@ -11,8 +11,9 @@
 
 ```text
 packages/
-  core/   — @agent-harness/core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
-  demo/   — @agent-harness/demo：基于 core 的 TUI 演示程序
+  core/   — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
+  tui/    — rem-agent-tui：基于 core 的终端 UI 组件
+  demo/   — rem-agent-demo：基于 core 的 TUI 演示程序
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
@@ -24,19 +25,19 @@ packages/
 | `pnpm install` | 安装依赖 |
 | `pnpm test` | 运行所有测试（vitest） |
 | `pnpm typecheck` | 全仓类型检查 |
-| `pnpm --filter @agent-harness/core typecheck` | 仅检查 core |
-| `pnpm --filter @agent-harness/demo start` | 运行 demo |
+| `pnpm --filter rem-agent-core typecheck` | 仅检查 core |
+| `pnpm --filter rem-agent-demo start` | 运行 demo |
 
 ## 红线与边界
 
 ### 1. Provider 配置由 Core 拥有
 
-**Provider 的认证、默认模型、baseURL 等配置必须在 `@agent-harness/core` 内部解析。** Demo、CLI 或其他客户端**禁止**直接读取 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY` 等环境变量。
+**Provider 的认证、默认模型、baseURL 等配置必须在 `rem-agent-core` 内部解析。** Demo、CLI 或其他客户端**禁止**直接读取 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY` 等环境变量。
 
 客户端应调用 Core 提供的入口：
 
 ```typescript
-import { createAgentFromEnv } from '@agent-harness/core';
+import { createAgentFromEnv } from 'rem-agent-core';
 
 const agent = createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
 ```

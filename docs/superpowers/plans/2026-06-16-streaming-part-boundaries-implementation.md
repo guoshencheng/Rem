@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 `@agent-harness/core` 流式输出引入 part 级 `*-start` / `*-finish` 边界、用 `partId` 取代 `partIndex`、把 parts 提升到 turn 级别，并让单个 turn 支持最多 50 个 step。
+**Goal:** 为 `rem-agent-core` 流式输出引入 part 级 `*-start` / `*-finish` 边界、用 `partId` 取代 `partIndex`、把 parts 提升到 turn 级别，并让单个 turn 支持最多 50 个 step。
 
 **Architecture:** `AgentStreamController` 成为流协议唯一管理者，接收 loop strategy 的语义事件并自动合成边界与 `partId`；`ReactTurnRunner` 负责 turn 级多 step 循环；`ReactLoop` 只执行单步模型调用 + tool 执行。
 
@@ -85,7 +85,7 @@ describe('AgentStreamChunk types', () => {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/types.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/types.test.ts
 ```
 
 Expected: FAIL with `'text-start' is not assignable` or file-not-found/type errors.
@@ -178,7 +178,7 @@ export interface TurnResult {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/types.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/types.test.ts
 ```
 
 Expected: PASS.
@@ -305,7 +305,7 @@ describe('AgentStreamController', () => {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/agent-stream.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/agent-stream.test.ts
 ```
 
 Expected: FAIL because `AgentStreamController` still expects `partIndex` and doesn't synthesize boundaries.
@@ -509,7 +509,7 @@ export class AgentStreamController {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/agent-stream.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/agent-stream.test.ts
 ```
 
 Expected: PASS.
@@ -640,7 +640,7 @@ describe('ReactLoop single step', () => {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/loop-strategy.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/loop-strategy.test.ts
 ```
 
 Expected: FAIL because `iterate` still returns `iterations` and emits old chunk shapes.
@@ -867,7 +867,7 @@ export class ReactLoop implements LoopStrategy {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/loop-strategy.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/loop-strategy.test.ts
 ```
 
 Expected: PASS.
@@ -985,7 +985,7 @@ describe('ReactTurnRunner multi-step', () => {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/turn.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/turn.test.ts
 ```
 
 Expected: FAIL because `ReactTurnRunner.run` does not loop and `maxSteps` not supported.
@@ -1126,7 +1126,7 @@ export type { TurnHooks } from './loop-strategy.js';
 Run:
 
 ```bash
-pnpm --filter @agent-harness/core test packages/core/tests/turn.test.ts
+pnpm --filter rem-agent-core test packages/core/tests/turn.test.ts
 ```
 
 Expected: PASS.
@@ -1251,7 +1251,7 @@ export class StreamAssistantMessage extends Container {
 Run:
 
 ```bash
-pnpm --filter @agent-harness/demo typecheck
+pnpm --filter rem-agent-demo typecheck
 ```
 
 Expected: PASS.

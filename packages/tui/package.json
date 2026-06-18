@@ -1,5 +1,5 @@
 {
-  "name": "@agent-harness/tui",
+  "name": "rem-agent-tui",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +16,7 @@
     "test": "cd ../.. && vitest run packages/tui/tests"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
+    "rem-agent-core": "workspace:*",
     "@earendil-works/pi-tui": "^0.79.3"
   },
   "devDependencies": {

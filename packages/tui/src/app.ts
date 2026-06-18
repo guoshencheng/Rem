@@ -14,8 +14,8 @@ import type {
   SessionSummary,
   UIAgentSession,
   UISessionCallbacks,
-} from "@agent-harness/core";
-import { createUIAgentSession } from "@agent-harness/core";
+} from "rem-agent-core";
+import { createUIAgentSession } from "rem-agent-core";
 import { ChatLog } from "./chat-log.js";
 import { EventLog } from "./event-log.js";
 import { StatusBar } from "./status-bar.js";

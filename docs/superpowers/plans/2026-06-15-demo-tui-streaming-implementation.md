@@ -86,7 +86,7 @@ export interface AgentStreamResult {
 
 - [ ] **Step 3: 运行 core 类型检查**
 
-Run: `pnpm --filter @agent-harness/core typecheck`
+Run: `pnpm --filter rem-agent-core typecheck`
 Expected: PASS（只有类型声明，无实现）
 
 ---
@@ -246,7 +246,7 @@ export * from './stream/agent-stream.js';
 
 - [ ] **Step 3: 运行类型检查**
 
-Run: `pnpm --filter @agent-harness/core typecheck`
+Run: `pnpm --filter rem-agent-core typecheck`
 Expected: PASS（实现可能有类型问题，先记录）
 
 ---
@@ -438,7 +438,7 @@ private appendStepParts(
 
 - [ ] **Step 4: 运行 loop-strategy 测试**
 
-Run: `pnpm --filter @agent-harness/core test packages/core/tests/loop-strategy.test.ts`
+Run: `pnpm --filter rem-agent-core test packages/core/tests/loop-strategy.test.ts`
 Expected: PASS（可能需迭代）
 
 ---
@@ -507,7 +507,7 @@ export class ReactTurnRunner implements TurnRunner {
 
 - [ ] **Step 3: 运行 turn 测试**
 
-Run: `pnpm --filter @agent-harness/core test packages/core/tests/turn.test.ts`
+Run: `pnpm --filter rem-agent-core test packages/core/tests/turn.test.ts`
 Expected: PASS
 
 ---
@@ -635,7 +635,7 @@ it('should expose stream via AgentStreamResult', async () => {
 
 - [ ] **Step 3: 运行 core-agent 测试**
 
-Run: `pnpm --filter @agent-harness/core test packages/core/tests/core-agent.test.ts`
+Run: `pnpm --filter rem-agent-core test packages/core/tests/core-agent.test.ts`
 Expected: PASS
 
 ---
@@ -694,7 +694,7 @@ for (const msg of messages) {
 
 - [ ] **Step 3: 运行 engine / provider 测试**
 
-Run: `pnpm --filter @agent-harness/core test packages/core/tests/llm/`
+Run: `pnpm --filter rem-agent-core test packages/core/tests/llm/`
 Expected: PASS
 
 ---
@@ -814,7 +814,7 @@ app.onSubmit((text) => {
 
 - [ ] **Step 6: 运行 demo 类型检查和测试**
 
-Run: `pnpm --filter @agent-harness/demo typecheck && pnpm --filter @agent-harness/demo test`
+Run: `pnpm --filter rem-agent-demo typecheck && pnpm --filter rem-agent-demo test`
 Expected: PASS
 
 ---

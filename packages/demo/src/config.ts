@@ -1,4 +1,4 @@
-import { getDefaultSessionsDir } from '@agent-harness/core';
+import { getDefaultSessionsDir } from 'rem-agent-core';
 import { join } from 'path';
 
 export interface DemoConfig {

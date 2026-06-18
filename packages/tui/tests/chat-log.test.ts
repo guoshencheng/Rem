@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { AgentStreamChunk, ModelMessage } from "@agent-harness/core";
+import type { AgentStreamChunk, ModelMessage } from "rem-agent-core";
 import { ChatLog } from "../src/chat-log.js";
 
 describe("ChatLog", () => {

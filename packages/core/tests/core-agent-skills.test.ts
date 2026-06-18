@@ -13,7 +13,7 @@ describe('CoreAgent skill integration', () => {
 
   beforeEach(() => {
     clearProviders();
-    tempDir = mkdtempSync(join(tmpdir(), 'agent-harness-core-skills-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'rem-agent-core-skills-'));
     registerProvider('openai', {
       generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
       stream: async function* () {

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将 `packages/demo` 中的 TUI 沉淀为独立子包 `@agent-harness/tui`，并在 `@agent-harness/core` 内新增 UI 友好协议层 `core/src/ui/`，使 demo 只保留配置与启动胶水。
+**Goal:** 将 `packages/demo` 中的 TUI 沉淀为独立子包 `rem-agent-tui`，并在 `rem-agent-core` 内新增 UI 友好协议层 `core/src/ui/`，使 demo 只保留配置与启动胶水。
 
 **Architecture:** 协议层以回调风格封装 `CoreAgent` 事件，暴露 `UIAgentSession` 接口；`tui` 包实现回调驱动 pi-tui 渲染；`demo` 通过 `createAgentFromEnv` + `createUIAgentSession` + `TUIApp` 启动。
 
@@ -81,7 +81,7 @@ describe('CoreAgent maxTurns', () => {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/core test -- core-agent.test.ts`
+Run: `pnpm --filter rem-agent-core test -- core-agent.test.ts`
 
 Expected: FAIL — `maxTurns` 不存在
 
@@ -106,7 +106,7 @@ export class CoreAgent {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `pnpm --filter @agent-harness/core test -- core-agent.test.ts`
+Run: `pnpm --filter rem-agent-core test -- core-agent.test.ts`
 
 Expected: PASS
 
@@ -179,7 +179,7 @@ describe('createUIAgentSession', () => {
 
 - [ ] **Step 3: 运行测试确认失败**
 
-Run: `pnpm --filter @agent-harness/core test -- ui/session.test.ts`
+Run: `pnpm --filter rem-agent-core test -- ui/session.test.ts`
 
 Expected: FAIL — `session.ts` 不存在
 
@@ -355,7 +355,7 @@ it('calls onStart and onStatusChange when agent starts', async () => {
 
 - [ ] **Step 3: 运行测试**
 
-Run: `pnpm --filter @agent-harness/core test -- ui/session.test.ts`
+Run: `pnpm --filter rem-agent-core test -- ui/session.test.ts`
 
 Expected: PASS
 
@@ -391,7 +391,7 @@ export * from './ui/index.js';
 
 - [ ] **Step 3: 运行类型检查**
 
-Run: `pnpm --filter @agent-harness/core typecheck`
+Run: `pnpm --filter rem-agent-core typecheck`
 
 Expected: PASS
 
@@ -414,7 +414,7 @@ git commit -m "feat(core): export ui protocol layer from core index"
 
 ```json
 {
-  "name": "@agent-harness/tui",
+  "name": "rem-agent-tui",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -431,7 +431,7 @@ git commit -m "feat(core): export ui protocol layer from core index"
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
+    "rem-agent-core": "workspace:*",
     "@earendil-works/pi-tui": "^0.79.3"
   },
   "devDependencies": {
@@ -469,7 +469,7 @@ git commit -m "feat(core): export ui protocol layer from core index"
 
 Run: `pnpm install`
 
-Expected: 成功安装 `@agent-harness/tui` 的依赖
+Expected: 成功安装 `rem-agent-tui` 的依赖
 
 - [ ] **Step 4: 提交**
 
@@ -478,7 +478,7 @@ git add packages/tui/package.json packages/tui/tsconfig.json pnpm-lock.yaml
 if git -C /Users/guoshencheng/Documents/work/rem diff --cached --quiet; then
   echo "No changes to commit"
 else
-  git commit -m "chore(tui): create @agent-harness/tui package"
+  git commit -m "chore(tui): create rem-agent-tui package"
 fi
 ```
 
@@ -691,7 +691,7 @@ export class ToolResultBlock extends Container {
 
 ```ts
 import { Container, Spacer } from "@earendil-works/pi-tui";
-import type { AgentStreamChunk } from "@agent-harness/core";
+import type { AgentStreamChunk } from "rem-agent-core";
 import { AssistantMessage } from "./assistant-message.js";
 import { ReasoningBlock } from "./reasoning-block.js";
 import { ToolCallBlock } from "./tool-call-block.js";
@@ -856,7 +856,7 @@ rm packages/demo/src/tui/message.ts
 
 - [ ] **Step 8: 运行 tui 类型检查**
 
-Run: `pnpm --filter @agent-harness/tui typecheck`
+Run: `pnpm --filter rem-agent-tui typecheck`
 
 Expected: PASS
 
@@ -1044,7 +1044,7 @@ import type {
   AgentStreamChunk,
   UIAgentSession,
   UISessionCallbacks,
-} from "@agent-harness/core";
+} from "rem-agent-core";
 import { ChatLog } from "./chat-log.js";
 import { EventLog } from "./event-log.js";
 import { StatusBar } from "./status-bar.js";
@@ -1172,7 +1172,7 @@ rm packages/demo/src/tui/app.ts
 
 - [ ] **Step 3: 运行 tui 类型检查**
 
-Run: `pnpm --filter @agent-harness/tui typecheck`
+Run: `pnpm --filter rem-agent-tui typecheck`
 
 Expected: PASS
 
@@ -1248,7 +1248,7 @@ describe("ChatLog", () => {
 ```ts
 import { describe, it, expect } from "vitest";
 import { StreamAssistantMessage } from "../src/message/stream-message.js";
-import type { AgentStreamChunk } from "@agent-harness/core";
+import type { AgentStreamChunk } from "rem-agent-core";
 
 describe("StreamAssistantMessage", () => {
   it("appends text deltas", () => {
@@ -1273,7 +1273,7 @@ describe("StreamAssistantMessage", () => {
 
 - [ ] **Step 3: 运行 tui 测试**
 
-Run: `pnpm --filter @agent-harness/tui test`
+Run: `pnpm --filter rem-agent-tui test`
 
 Expected: PASS
 
@@ -1297,8 +1297,8 @@ git commit -m "test(tui): add ChatLog and StreamAssistantMessage tests"
 ```ts
 import "dotenv/config";
 
-import { createAgentFromEnv, createUIAgentSession } from "@agent-harness/core";
-import { TUIApp } from "@agent-harness/tui";
+import { createAgentFromEnv, createUIAgentSession } from "rem-agent-core";
+import { TUIApp } from "rem-agent-tui";
 import { resolveConfig } from "./config.js";
 
 async function main(): Promise<void> {
@@ -1352,7 +1352,7 @@ git commit -m "refactor(demo): simplify demo to config and startup glue"
 
 ```json
 {
-  "name": "@agent-harness/demo",
+  "name": "rem-agent-demo",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -1362,8 +1362,8 @@ git commit -m "refactor(demo): simplify demo to config and startup glue"
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
-    "@agent-harness/tui": "workspace:*",
+    "rem-agent-core": "workspace:*",
+    "rem-agent-tui": "workspace:*",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {
@@ -1384,7 +1384,7 @@ Expected: 成功
 
 ```bash
 git add packages/demo/package.json pnpm-lock.yaml
-git commit -m "chore(demo): replace pi-tui with @agent-harness/tui dependency"
+git commit -m "chore(demo): replace pi-tui with rem-agent-tui dependency"
 ```
 
 ---
@@ -1422,13 +1422,13 @@ git commit -m "chore: verify full workspace typecheck and tests pass" --allow-em
 - [ ] **Step 1: 设置环境变量并构建**
 
 ```bash
-pnpm --filter @agent-harness/demo build
+pnpm --filter rem-agent-demo build
 ```
 
 - [ ] **Step 2: 运行 demo**
 
 ```bash
-OPENAI_API_KEY=xxx DEMO_AGENT_NAME="Layered Demo" pnpm --filter @agent-harness/demo start
+OPENAI_API_KEY=xxx DEMO_AGENT_NAME="Layered Demo" pnpm --filter rem-agent-demo start
 ```
 
 Expected: TUI 正常启动，可输入并看到流式回复。
@@ -1445,7 +1445,7 @@ Expected: TUI 正常启动，可输入并看到流式回复。
 | `core/src/ui/types.ts` 定义协议接口 | Task 2 |
 | `createUIAgentSession` 适配器 | Task 3 |
 | 协议层从 `core` 导出 | Task 4 |
-| 创建 `@agent-harness/tui` 包 | Task 5 |
+| 创建 `rem-agent-tui` 包 | Task 5 |
 | 迁移 colors/theme | Task 6 |
 | 拆分 message 组件 | Task 7 |
 | 迁移 chat-log/event-log/status-bar | Task 8 |
@@ -1463,7 +1463,7 @@ Expected: TUI 正常启动，可输入并看到流式回复。
 ### 类型一致性检查
 
 - `UIAgentSession.setCallbacks` 在所有 task 中保持一致。
-- `AgentStreamChunk` 类型从 `@agent-harness/core` 导入，与当前 core 中定义一致。
+- `AgentStreamChunk` 类型从 `rem-agent-core` 导入，与当前 core 中定义一致。
 - `CoreAgent.maxTurns` 在 Task 1 中实现，Task 3 中使用。
 
 ### 风险点

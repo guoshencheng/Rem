@@ -1,6 +1,6 @@
-# @agent-harness/core
+# rem-agent-core
 
-Core layer of the Agent Harness framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control. Built on top of the [Vercel AI SDK](https://sdk.vercel.ai/) (`ai`).
+Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control.
 
 ---
 
@@ -64,7 +64,7 @@ A single `run()` invocation flows through these phases:
 ## Quick Start
 
 ```typescript
-import { CoreAgent } from '@agent-harness/core';
+import { CoreAgent } from 'rem-agent-core';
 import { openai } from '@ai-sdk/openai';
 
 const agent = new CoreAgent({

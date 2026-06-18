@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Create an interactive terminal demo for `@agent-harness/core` using `@earendil-works/pi-tui` that lets users chat with a CoreAgent while visualizing events and budget status.
+**Goal:** Create an interactive terminal demo for `rem-agent-core` using `@earendil-works/pi-tui` that lets users chat with a CoreAgent while visualizing events and budget status.
 
 **Architecture:** A new `packages/demo/` package with TUI components (chat-log, event-log, status-bar, input), a model provider factory, config resolver, and a main entry that wires CoreAgent events to the TUI. Layout is vertical-stack: chat messages, event log, status bar, input box — with TUI auto-scrolling to keep the bottom visible.
 
-**Tech Stack:** TypeScript, `@earendil-works/pi-tui`, `@agent-harness/core`, `@ai-sdk/openai`, `ai`, `vitest`
+**Tech Stack:** TypeScript, `@earendil-works/pi-tui`, `rem-agent-core`, `@ai-sdk/openai`, `ai`, `vitest`
 
 ---
 
@@ -45,7 +45,7 @@ packages/demo/
 
 ```json
 {
-  "name": "@agent-harness/demo",
+  "name": "rem-agent-demo",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -55,7 +55,7 @@ packages/demo/
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-harness/core": "workspace:*",
+    "rem-agent-core": "workspace:*",
     "@ai-sdk/openai": "^1.3.0",
     "@earendil-works/pi-tui": "^0.79.3",
     "ai": "6.0.199"
@@ -446,8 +446,8 @@ git commit -m "feat(demo): add configuration resolver with tests"
 - [ ] **Step 1: Write agent.ts**
 
 ```typescript
-import { CoreAgent, IterationBudget } from "@agent-harness/core";
-import type { EventContext } from "@agent-harness/core";
+import { CoreAgent, IterationBudget } from "rem-agent-core";
+import type { EventContext } from "rem-agent-core";
 import type { LanguageModel } from "ai";
 
 export interface AgentCallbacks {
@@ -977,9 +977,9 @@ git commit -m "feat(demo): add main entry point"
 - [ ] **Step 1: Write README.md**
 
 ```markdown
-# @agent-harness/demo
+# rem-agent-demo
 
-Interactive terminal demo for `@agent-harness/core`.
+Interactive terminal demo for `rem-agent-core`.
 
 ## Quick Start
 
@@ -1085,7 +1085,7 @@ git commit -m "chore(demo): verify build and tests"
 
 - `AgentCallbacks` interface in Task 6 matches usage in Task 12.
 - `AppCallbacks` interface in Task 11 matches usage in Task 12.
-- `EventContext` from `@agent-harness/core` is used consistently.
+- `EventContext` from `rem-agent-core` is used consistently.
 - `LanguageModel` type from `ai` is used in Tasks 4, 5, 6.
 - `DemoConfig` in Task 5 matches usage in Task 12.
 

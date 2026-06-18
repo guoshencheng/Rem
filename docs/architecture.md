@@ -164,7 +164,7 @@
 ## 5. 项目目录结构
 
 ```
-agent-harness/
+rem-agent/
 ├── src/
 │   ├── core/                 # 核心引擎
 │   │   ├── harness.ts

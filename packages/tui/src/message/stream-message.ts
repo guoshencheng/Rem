@@ -107,13 +107,6 @@ export class StreamAssistantMessage extends Container {
     }
   }
 
-  areToolsCollapsed(): boolean {
-    for (const part of this.parts.values()) {
-      if (part.type === "tool" && part.component.isCollapsed()) return true;
-    }
-    return false;
-  }
-
   private ensureTextPart(partId: string): void {
     if (this.parts.has(partId)) return;
     const component = new AssistantMessage("");

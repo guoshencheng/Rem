@@ -31,16 +31,16 @@ describe("StreamAssistantMessage", () => {
     expect(lines.some((line) => line.includes("thinking content"))).toBe(true);
   });
 
-  it("creates tool block collapsed by default", () => {
+  it("creates tool block collapsed by default with formatted label", () => {
     const message = new StreamAssistantMessage();
     message.appendChunk({ type: "tool-call-start", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read" } as AgentStreamChunk);
     message.appendChunk({ type: "tool-call", step: 1, partId: "tc1", toolCallId: "tc1", toolName: "read", input: { path: "foo.txt" } } as AgentStreamChunk);
     message.appendChunk({ type: "tool-result-start", step: 1, partId: "tc1", toolCallId: "tc1" } as AgentStreamChunk);
-    message.appendChunk({ type: "tool-result", step: 1, partId: "tc1", toolCallId: "tc1", output: "hello", error: undefined } as AgentStreamChunk);
+    message.appendChunk({ type: "tool-result", step: 1, partId: "tc1", toolCallId: "tc1", output: "hello\nworld\n", error: undefined } as AgentStreamChunk);
     message.appendChunk({ type: "tool-result-finish", step: 1, partId: "tc1", toolCallId: "tc1" } as AgentStreamChunk);
 
     const lines = message.render(80);
-    expect(lines.some((line) => line.includes("read"))).toBe(true);
+    expect(lines.some((line) => line.includes("Read(foo.txt)"))).toBe(true);
     expect(lines.some((line) => line.includes("hello"))).toBe(false);
   });
 

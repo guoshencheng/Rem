@@ -63,14 +63,7 @@ export class ChatLog extends Container {
     for (const child of this.children) {
       if (child instanceof StreamAssistantMessage) {
         child.setThinkingCollapsed(this.thinkingCollapsed);
-      }
-    }
-  }
-
-  toggleToolsCollapsed(): void {
-    for (const child of this.children) {
-      if (child instanceof StreamAssistantMessage) {
-        child.setToolsCollapsed(!child.areToolsCollapsed());
+        child.setToolsCollapsed(this.thinkingCollapsed);
       }
     }
   }

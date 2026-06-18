@@ -1,13 +1,13 @@
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { dim, green, red, yellow } from "../colors.js";
 import { markdownTheme, toolMessageStyle } from "../theme.js";
+import { getToolFormatter, type ToolFormatter } from "./tool-formatter.js";
 
 export type ToolStatus = "pending" | "running" | "success" | "failed";
 
 function statusIcon(status: ToolStatus): string {
   switch (status) {
     case "pending":
-      return "◐";
     case "running":
       return "◐";
     case "success":
@@ -29,15 +29,6 @@ function statusColor(status: ToolStatus) {
   }
 }
 
-function formatInput(input: unknown): string {
-  if (input === undefined) return "";
-  try {
-    return JSON.stringify(input, null, 2);
-  } catch {
-    return String(input);
-  }
-}
-
 function formatDuration(startTime: number, endTime: number): string {
   const ms = endTime - startTime;
   if (ms < 1000) return `${ms}ms`;
@@ -50,16 +41,18 @@ export class FunctionToolBlock extends Container {
   private collapsed: boolean;
   private status: ToolStatus = "pending";
   private toolName = "";
-  private input = "";
+  private rawInput: unknown;
   private output = "";
   private error?: string;
   private startTime: number;
   private endTime?: number;
+  private formatter: ToolFormatter;
 
   constructor(toolName: string, input: unknown, collapsed = true) {
     super();
     this.collapsed = collapsed;
     this.startTime = Date.now();
+    this.formatter = getToolFormatter(toolName);
     this.label = new Text("", 0, 0, dim);
     this.body = new Markdown("", 0, 0, markdownTheme, toolMessageStyle);
 
@@ -72,9 +65,9 @@ export class FunctionToolBlock extends Container {
 
   update(toolName: string, input: unknown): void {
     this.toolName = toolName;
-    this.input = formatInput(input);
+    this.rawInput = input;
+    this.formatter = getToolFormatter(toolName);
     this.updateLabel();
-    this.updateBody();
   }
 
   setRunning(): void {
@@ -109,36 +102,31 @@ export class FunctionToolBlock extends Container {
 
   private updateLabel(): void {
     const icon = statusColor(this.status)(statusIcon(this.status));
-    const duration = this.endTime
-      ? ` (${formatDuration(this.startTime, this.endTime)})`
-      : this.status === "running"
-        ? " ..."
-        : "";
-    const summary = this.formatSummary();
-    const expandHint = this.collapsed ? " (按 ctrl+t 展开)" : "";
-    this.label.setText(`${icon} ${this.toolName}(${summary})${duration}${expandHint}`);
-  }
+    const call = this.formatter.formatCall(this.toolName, this.rawInput);
 
-  private formatSummary(): string {
-    if (!this.input) return "";
-    const lines = this.input.split("\n");
-    if (lines.length <= 1) {
-      const compact = this.input.replace(/\s+/g, " ").trim();
-      return compact.length > 60 ? `${compact.slice(0, 60)}...` : compact;
+    if (this.status === "pending" || this.status === "running") {
+      const dots = " ...";
+      const hint = this.collapsed ? " (ctrl+o 展开)" : "";
+      this.label.setText(`${icon} ${call}${dots}${hint}`);
+      return;
     }
-    return "{...}";
+
+    const summary = this.formatter.formatResultSummary(
+      this.toolName, this.rawInput, this.output, this.error,
+    );
+    const duration = this.endTime ? ` (${formatDuration(this.startTime, this.endTime)})` : "";
+
+    if (this.collapsed) {
+      this.label.setText(`${icon} ${call}  ${summary}  (ctrl+o 展开)`);
+    } else {
+      this.label.setText(`${icon} ${call}${duration}`);
+    }
   }
 
   private updateBody(): void {
-    const parts: string[] = [];
-    if (this.input) {
-      parts.push(`**Input**\n\`\`\`json\n${this.input}\n\`\`\``);
-    }
-    if (this.error) {
-      parts.push(`**Error**\n\`\`\`\n${this.error}\n\`\`\``);
-    } else if (this.output) {
-      parts.push(`**Output**\n\`\`\`\n${this.output}\n\`\`\``);
-    }
-    this.body.setText(parts.join("\n\n"));
+    const content = this.formatter.formatResultBody(
+      this.toolName, this.rawInput, this.output, this.error,
+    );
+    this.body.setText(content);
   }
 }

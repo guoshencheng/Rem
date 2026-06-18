@@ -167,10 +167,26 @@ describe('openaiProvider', () => {
         choices: [{
           delta: {
             tool_calls: [{
+              index: 0,
               id: 'tc1',
-              function: { name: 'echo', arguments: '{"msg":"hi"}' },
+              function: { name: 'echo', arguments: '' },
             }],
           },
+        }],
+      };
+      yield {
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              function: { arguments: '{"msg":"hi"}' },
+            }],
+          },
+        }],
+      };
+      yield {
+        choices: [{
+          finish_reason: 'tool_calls',
         }],
       };
       yield { usage: { prompt_tokens: 2, completion_tokens: 2, total_tokens: 4 } };

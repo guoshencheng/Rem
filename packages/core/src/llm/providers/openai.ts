@@ -28,7 +28,6 @@ function convertAssistantContent(content: unknown): OpenAI.Chat.ChatCompletionAs
       },
     }));
 
-  // reasoning parts: OpenAI input does not support them, drop.
   return {
     role: 'assistant',
     content: text,
@@ -74,7 +73,7 @@ function convertToOpenAITools(tools: GenerateOptions['tools']): OpenAI.Chat.Chat
   }));
 }
 
-function parseOpenAIResponse(response: OpenAI.Chat.ChatCompletion): GenerateResult {
+function parseOpenAIResponse(response: OpenAI.Chat.Completions.ChatCompletion): GenerateResult {
   const message = response.choices[0]?.message ?? { content: '', tool_calls: [] };
   const text = message.content ?? '';
   const toolCalls = (message.tool_calls ?? []).map(tc => ({
@@ -94,28 +93,50 @@ function parseOpenAIResponse(response: OpenAI.Chat.ChatCompletion): GenerateResu
   };
 }
 
-function* parseOpenAIChunk(chunk: OpenAI.Chat.ChatCompletionChunk): Generator<StreamChunk> {
+interface PendingToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+function* parseOpenAIChunk(
+  chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
+  pending: Map<number, PendingToolCall>,
+): Generator<StreamChunk> {
   const choice = chunk.choices?.[0];
   const delta = choice?.delta;
   const finishReason = choice?.finish_reason;
   debugLog('openai', `id=${chunk.id} model=${chunk.model} finish=${finishReason ?? '-'} delta=${JSON.stringify(delta)?.slice(0, 300)}`);
-  if (!delta) return;
 
-  if (delta.content) {
+  if (delta?.content) {
     yield { type: 'text', text: delta.content };
   }
 
-  if (delta.tool_calls) {
+  if (delta?.tool_calls) {
     for (const tc of delta.tool_calls) {
-      if (tc.function?.name) {
-        yield {
-          type: 'tool-call',
-          toolCallId: tc.id ?? '',
-          toolName: tc.function.name,
-          input: safeJsonParse(tc.function.arguments ?? '{}'),
-        };
+      const index = tc.index ?? 0;
+      let current = pending.get(index);
+      if (!current) {
+        current = { id: tc.id ?? '', name: '', arguments: '' };
+        pending.set(index, current);
       }
+      if (tc.id) current.id = tc.id;
+      if (tc.function?.name) current.name += tc.function.name;
+      if (tc.function?.arguments) current.arguments += tc.function.arguments;
     }
+  }
+
+  if (finishReason === 'tool_calls' || finishReason === 'stop') {
+    for (const pendingCall of pending.values()) {
+      if (!pendingCall.name) continue;
+      yield {
+        type: 'tool-call',
+        toolCallId: pendingCall.id,
+        toolName: pendingCall.name,
+        input: safeJsonParse(pendingCall.arguments || '{}'),
+      };
+    }
+    pending.clear();
   }
 
   if (chunk.usage) {
@@ -183,9 +204,11 @@ export const openaiProvider: LLMProvider = {
       stream_options: { include_usage: true },
     }, { signal: options.signal });
 
+    const pending = new Map<number, PendingToolCall>();
+
     try {
       for await (const chunk of stream) {
-        yield* parseOpenAIChunk(chunk);
+        yield* parseOpenAIChunk(chunk, pending);
       }
       debugLog('openai', 'stream ended normally, yielding finish');
     } catch (err) {

@@ -67,6 +67,14 @@ export class ChatLog extends Container {
     }
   }
 
+  toggleToolsCollapsed(): void {
+    for (const child of this.children) {
+      if (child instanceof StreamAssistantMessage) {
+        child.setToolsCollapsed(!child.areToolsCollapsed());
+      }
+    }
+  }
+
   private append(component: Component): void {
     this.addChild(component);
     this.prune();

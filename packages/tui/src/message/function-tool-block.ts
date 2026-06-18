@@ -115,7 +115,7 @@ export class FunctionToolBlock extends Container {
         ? " ..."
         : "";
     const summary = this.formatSummary();
-    const expandHint = this.collapsed ? " ▶" : " ▼";
+    const expandHint = this.collapsed ? " (按 ctrl+t 展开)" : "";
     this.label.setText(`${icon} ${this.toolName}(${summary})${duration}${expandHint}`);
   }
 

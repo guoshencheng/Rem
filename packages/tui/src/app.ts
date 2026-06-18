@@ -176,6 +176,11 @@ export class TUIApp implements UISessionCallbacks {
       this.tui.requestRender(true);
       return { consume: true };
     }
+    if (matchesKey(data, Key.ctrl("t"))) {
+      this.chatLog.toggleToolsCollapsed();
+      this.tui.requestRender(true);
+      return { consume: true };
+    }
     return undefined;
   }
 

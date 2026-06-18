@@ -226,6 +226,34 @@ describe('ReactLoop', () => {
     expect(chunks.some(c => c.type === 'tool-result-finish')).toBe(true);
   });
 
+  it('should return error output when inference fails', async () => {
+    registerProvider('failing', {
+      generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
+      stream: async function* () {
+        throw new Error('model exploded');
+      },
+    });
+
+    const mocks = createMockProviders();
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ role: 'assistant', content: [] });
+    const events = new EventBus();
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+
+    const result = await loop.iterate({
+      state,
+      systemPrompt: '',
+      budget: state.budget,
+      workspaceRoot: '/',
+      provider: 'failing',
+      providerConfig: { apiKey: 'key', model: 'model' },
+    }, createMockHooks(), new AgentStreamController(), 1);
+
+    expect(result.finalOutput.content).toContain('model exploded');
+    expect(result.finalOutput.completed).toBe(true);
+    expect(result.newMessages).toHaveLength(0);
+  });
+
   it('injects skill catalog into system prompt', async () => {
     let capturedSystem = '';
     registerProvider('skill-capture', {

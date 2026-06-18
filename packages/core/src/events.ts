@@ -3,7 +3,7 @@ import type { AgentState } from './state.js';
 export type AgentEvent =
   | 'core-agent:init' | 'core-agent:start' | 'core-agent:stop' | 'core-agent:error'
   | 'turn:before' | 'turn:after'
-  | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after'
+  | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after' | 'phase:reason:error'
   | 'phase:execute:before' | 'phase:execute:after'
   | 'phase:observe' | 'phase:reflect'
   | 'tool:before' | 'tool:after' | 'tool:error'
@@ -15,6 +15,7 @@ export interface EventContext {
   turn?: unknown;
   turnResult?: unknown;
   toolCall?: unknown;
+  error?: unknown;
 }
 
 export type EventHandler = (ctx: EventContext) => Promise<void> | void;

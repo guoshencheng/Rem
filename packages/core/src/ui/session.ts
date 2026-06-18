@@ -68,14 +68,16 @@ export function createUIAgentSession(
         .then((finalText) => {
           callbacks.onAssistantMessageFinalized?.(finalText);
         })
-        .catch((error) => {
-          const err = error instanceof Error ? error : new Error(String(error));
-          callbacks.onError?.(err);
+        .catch((_error) => {
+          // Error is reported via onError from the fullStream consumer above.
         });
 
-      result.output.catch((error) => {
-        const err = error instanceof Error ? error : new Error(String(error));
-        callbacks.onError?.(err);
+      result.stream.usage.catch((_error) => {
+        // Error is reported via onError from the fullStream consumer above.
+      });
+
+      result.output.catch((_error) => {
+        // Error is reported via onError from the fullStream consumer above.
       });
     },
 

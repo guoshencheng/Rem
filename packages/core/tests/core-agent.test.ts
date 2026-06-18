@@ -191,7 +191,7 @@ describe('CoreAgent', () => {
     expect((await result.output).content).toBe('Custom!');
   });
 
-  it('should enter error state when turn fails', async () => {
+  it('should return error output instead of crashing when turn fails', async () => {
     const turnRunner = {
       run: vi.fn().mockRejectedValue(new Error('Turn failed')),
     };
@@ -204,7 +204,12 @@ describe('CoreAgent', () => {
     agent.on('core-agent:error', errorHandler);
 
     await agent.initialize();
-    await expect(agent.run({ content: 'Hi' }).output).rejects.toThrow('Turn failed');
+    const result = agent.run({ content: 'Hi' });
+
+    await expect(result.output).resolves.toEqual({
+      content: 'Error: Turn failed',
+      completed: true,
+    });
     expect(agent.status).toBe('error');
     expect(errorHandler).toHaveBeenCalled();
   });

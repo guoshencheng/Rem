@@ -190,9 +190,15 @@ export class CoreAgent {
       } catch (error) {
         this.state.status = 'error';
         this.abortController = undefined;
+        const message = error instanceof Error ? error.message : String(error);
+        const output: AgentOutput = {
+          content: this.interrupted ? 'Response interrupted.' : `Error: ${message}`,
+          completed: true,
+        };
         await this.events.emit('core-agent:error', { agent: this, state: this.state });
-        controller.fail(error instanceof Error ? error : new Error(String(error)));
-        throw error;
+        controller.finish(output);
+        await this.sessionProvider.save(this.state.session);
+        return output;
       }
     })();
 

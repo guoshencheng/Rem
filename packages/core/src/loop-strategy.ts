@@ -100,20 +100,41 @@ export class ReactLoop implements LoopStrategy {
 
     const assistantMsg = this.getOrCreateAssistantMessage(ctx.state);
 
-    const inferResult = await this.inferWithRetry({
-      provider: ctx.provider ?? 'mock',
-      providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
-      system: systemWithSkills,
-      messages,
-      tools: hasTools ? tools : undefined,
-      signal: ctx.signal,
-      onChunk: (chunk) => {
-        const agentChunk = this.mapToAgentStreamChunk(chunk, step);
-        if (agentChunk) {
-          controller.append(agentChunk);
-        }
-      },
-    });
+    let inferResult: InferenceResult;
+    try {
+      inferResult = await this.inferWithRetry({
+        provider: ctx.provider ?? 'mock',
+        providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
+        system: systemWithSkills,
+        messages,
+        tools: hasTools ? tools : undefined,
+        signal: ctx.signal,
+        onChunk: (chunk) => {
+          const agentChunk = this.mapToAgentStreamChunk(chunk, step);
+          if (agentChunk) {
+            controller.append(agentChunk);
+          }
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.events.emit('phase:reason:error', { agent: this, state: ctx.state, error });
+      return {
+        finalOutput: {
+          content: `Error during reasoning: ${message}`,
+          completed: true,
+        },
+        newMessages: [],
+        toolCalls: [],
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+          outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+        },
+      };
+    }
 
     this.appendToAssistantMessage(assistantMsg, inferResult);
 

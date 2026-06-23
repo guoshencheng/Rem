@@ -1,5 +1,6 @@
-import type { BudgetPolicy, BudgetStatus } from '../sdk/budget-policy.js';
-import type { AgentState } from '../state.js';
+import type { BudgetPolicy, BudgetStatus } from '../../../sdk/budget-policy.js';
+import type { AgentState } from '../../../state.js';
+import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
 export interface FixedBudgetConfig {
   maxTurns: number;
@@ -12,7 +13,7 @@ export class FixedBudgetPolicy implements BudgetPolicy {
 
   constructor(config: FixedBudgetConfig) {
     this.maxTurns = config.maxTurns;
-    this.timeoutMs = config.timeoutMs ?? 300_000; // 5 minutes default
+    this.timeoutMs = config.timeoutMs ?? 300_000;
   }
 
   checkTurn(state: AgentState): boolean {
@@ -24,7 +25,7 @@ export class FixedBudgetPolicy implements BudgetPolicy {
   }
 
   shouldCircuitBreak(): boolean {
-    return false; // P0: no circuit breaker
+    return false;
   }
 
   getStatus(state: AgentState): BudgetStatus {
@@ -37,4 +38,15 @@ export class FixedBudgetPolicy implements BudgetPolicy {
       reason: turnsRemaining === 0 ? 'max_turns exceeded' : undefined,
     };
   }
+}
+
+export function createProvider(config: FixedBudgetConfig | undefined): FixedBudgetPolicy {
+  if (!config) {
+    throw new Error('FixedBudgetPolicy requires maxTurns');
+  }
+  return new FixedBudgetPolicy(config);
+}
+
+export function getDefaultOptions(ctx: ProviderLoaderContext): FixedBudgetConfig {
+  return { maxTurns: ctx.maxTurns };
 }

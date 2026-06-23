@@ -3,7 +3,7 @@ import { ReactLoop } from '../src/loop-strategy.js';
 import { AgentState } from '../src/state.js';
 import { EventBus } from '../src/events.js';
 import { IterationBudget } from '../src/budget.js';
-import { SimpleErrorHandler } from '../src/defaults/simple-error-handler.js';
+import { SimpleErrorHandler } from '../src/plugins/error/simple/index.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 import type { ErrorHandler } from '../src/sdk/error-handler.js';
 import type { SkillProvider, Skill } from '../src/sdk/skill-provider.js';

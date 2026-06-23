@@ -23,6 +23,7 @@ describe('createUIAgentSession', () => {
 
   it('calls onStart and onStatusChange when agent starts', async () => {
     const agent = createTestAgent(0);
+    await agent.ready();
     await agent.initialize();
 
     const onStart = vi.fn();

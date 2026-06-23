@@ -9,9 +9,9 @@ import type {
   ConfigProvider,
   ResolvedAgentConfig,
   ResolvedModelConfig,
-} from '../sdk/config-provider.js';
-import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
-import { resolveTilde, getDefaultSessionsDir, getDefaultSkillsDir } from '../config/paths.js';
+} from '../../../sdk/config-provider.js';
+import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
+import { resolveTilde, getDefaultSessionsDir, getDefaultSkillsDir } from '../../../config/paths.js';
 
 export interface ConfigFileData {
   [key: string]: unknown;
@@ -235,4 +235,8 @@ export class DefaultConfigProvider implements ConfigProvider {
     const defaultEnv = model.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
     return this.env[defaultEnv] ?? '';
   }
+}
+
+export function createProvider(options: DefaultConfigProviderOptions = {}): DefaultConfigProvider {
+  return new DefaultConfigProvider(options);
 }

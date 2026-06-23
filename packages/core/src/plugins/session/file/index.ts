@@ -1,8 +1,13 @@
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
-import type { ModelMessage } from '../types.js';
-import type { Session, SessionProvider, SessionSummary } from '../session.js';
+import type { ModelMessage } from '../../../types.js';
+import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
+import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
+
+export interface FileSessionProviderOptions {
+  dir: string;
+}
 
 interface SerializedSession {
   sessionId: string;
@@ -112,4 +117,15 @@ export class FileSessionProvider implements SessionProvider {
     };
     await writeFile(this.filePath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
   }
+}
+
+export function createProvider(options: FileSessionProviderOptions | undefined): FileSessionProvider {
+  if (!options?.dir) {
+    throw new Error('FileSessionProvider requires dir');
+  }
+  return new FileSessionProvider(options.dir);
+}
+
+export function getDefaultOptions(ctx: ProviderLoaderContext): FileSessionProviderOptions {
+  return { dir: ctx.sessionsDir };
 }

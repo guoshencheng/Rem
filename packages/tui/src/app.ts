@@ -88,6 +88,7 @@ export class TUIApp implements UISessionCallbacks {
   }
 
   async init(): Promise<void> {
+    await this.agent.ready();
     await this.agent.initialize({ sessionId: this.sessionId });
     this.loadHistory();
   }
@@ -157,6 +158,7 @@ export class TUIApp implements UISessionCallbacks {
     this.currentStreamMessage = undefined;
     this.titleGenerated = false;
     this.sessionId = sessionId;
+    await this.agent.ready();
     await this.agent.initialize({ sessionId });
     this.chatLog.clearMessages();
     this.loadHistory();

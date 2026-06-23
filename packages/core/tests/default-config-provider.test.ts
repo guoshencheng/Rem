@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { DefaultConfigProvider } from '../src/plugins/default-config-provider.js';
+import { DefaultConfigProvider } from '../src/plugins/config/default/index.js';
 
 describe('DefaultConfigProvider', () => {
   let tempDir: string;

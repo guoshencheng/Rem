@@ -1,4 +1,4 @@
-import type { ErrorHandler, ErrorCategory } from '../sdk/error-handler.js';
+import type { ErrorHandler, ErrorCategory } from '../../../sdk/error-handler.js';
 
 interface ApiLikeError extends Error {
   name: 'APIError';
@@ -24,4 +24,8 @@ export class SimpleErrorHandler implements ErrorHandler {
   getRetryInstruction(_category: ErrorCategory): string | undefined {
     return undefined;
   }
+}
+
+export function createProvider(): SimpleErrorHandler {
+  return new SimpleErrorHandler();
 }

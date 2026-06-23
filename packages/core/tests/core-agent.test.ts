@@ -3,7 +3,7 @@ import { CoreAgent } from '../src/core-agent.js';
 import type { AgentStreamChunk } from '../src/types.js';
 import { IterationBudget } from '../src/budget.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
-import type { SessionProvider } from '../src/session.js';
+import type { SessionProvider } from '../src/sdk/session-provider.js';
 
 const createMockModel = (): any => ({ provider: 'test', modelId: 'test-model' });
 
@@ -25,6 +25,7 @@ describe('CoreAgent', () => {
       name: 'test-agent',
       model: createMockModel(),
     });
+    await agent.ready();
     await agent.initialize();
     expect(agent.status).toBe('idle');
   });
@@ -36,6 +37,7 @@ describe('CoreAgent', () => {
       budget: new IterationBudget({ maxTurns: 5 }),
     });
 
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Hello' });
 
@@ -61,9 +63,10 @@ describe('CoreAgent', () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
-      sessionProvider: mockSessionProvider as SessionProvider,
+      sessionProvider: mockSessionProvider as unknown as SessionProvider,
     });
 
+    await agent.ready();
     await agent.initialize();
     await agent.run({ content: 'Hello' }).output;
 
@@ -91,9 +94,10 @@ describe('CoreAgent', () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
-      sessionProvider: mockSessionProvider as SessionProvider,
+      sessionProvider: mockSessionProvider as unknown as SessionProvider,
     });
 
+    await agent.ready();
     await agent.initialize({ sessionId: 'existing-id' });
     expect(mockSessionProvider.load).toHaveBeenCalledWith('existing-id');
     expect(agent['state'].conversation).toHaveLength(1);
@@ -107,6 +111,7 @@ describe('CoreAgent', () => {
       budget: new IterationBudget({ maxTurns: 5 }),
     });
 
+    await agent.ready();
     await agent.initialize();
     await agent.run({ content: 'Hello' }).output;
     expect(agent['state'].conversation.length).toBeGreaterThan(0);
@@ -125,6 +130,7 @@ describe('CoreAgent', () => {
     const handler = vi.fn();
     agent.on('core-agent:init', handler);
 
+    await agent.ready();
     await agent.initialize();
     expect(handler).toHaveBeenCalled();
   });
@@ -148,6 +154,7 @@ describe('CoreAgent', () => {
     const errorHandler = vi.fn();
     agent.on('core-agent:error', errorHandler);
 
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Slow' });
     agent.interrupt();
@@ -162,6 +169,7 @@ describe('CoreAgent', () => {
       model: createMockModel(),
     });
 
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Hi' });
 
@@ -185,6 +193,7 @@ describe('CoreAgent', () => {
       providerConfig: { apiKey: 'key', model: 'model' },
     });
 
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Hello' });
 
@@ -198,11 +207,24 @@ describe('CoreAgent', () => {
     const agent = new CoreAgent({
       name: 'test',
       model: createMockModel(),
+      sessionProvider: {
+        create: vi.fn().mockResolvedValue({
+          sessionId: 's-fail',
+          conversation: [],
+          currentTurn: 0,
+          metadata: {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+        load: vi.fn().mockResolvedValue(null),
+        save: vi.fn(),
+      } as unknown as SessionProvider,
       turnRunner: turnRunner as any,
     });
     const errorHandler = vi.fn();
     agent.on('core-agent:error', errorHandler);
 
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Hi' });
 
@@ -220,6 +242,7 @@ describe('CoreAgent', () => {
       model: createMockModel(),
       budget: new IterationBudget({ maxTurns: 5 }),
     });
+    await agent.ready();
     await agent.initialize();
     const result = agent.run({ content: 'Hello' });
 
@@ -261,9 +284,10 @@ describe('CoreAgent', () => {
       const agent = new CoreAgent({
         name: 'test',
         model: createMockModel(),
-        sessionProvider: provider,
+        sessionProvider: provider as unknown as SessionProvider,
       });
-      await agent.initialize();
+      await agent.ready();
+    await agent.initialize();
 
       const sessions = await agent.listSessions();
       expect(sessions).toHaveLength(1);
@@ -277,7 +301,8 @@ describe('CoreAgent', () => {
         name: 'test',
         model: createMockModel(),
       });
-      await agent.initialize();
+      await agent.ready();
+    await agent.initialize();
       const title = await agent.generateTitle();
       expect(title).toBe('');
     });
@@ -287,7 +312,8 @@ describe('CoreAgent', () => {
         name: 'test',
         model: createMockModel(),
       });
-      await agent.initialize();
+      await agent.ready();
+    await agent.initialize();
       await agent.run({ content: 'Hello' }).output;
 
       await agent.generateTitle();
@@ -303,9 +329,43 @@ describe('CoreAgent', () => {
         name: 'test',
         model: createMockModel(),
       });
-      await agent.initialize();
+      await agent.ready();
+    await agent.initialize();
       expect(agent.sessionId).toBeDefined();
       expect(typeof agent.sessionId).toBe('string');
+    });
+  });
+
+  describe('dynamic provider loading', () => {
+    it('loads providers by builtin module name', async () => {
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+        budget: new IterationBudget({ maxTurns: 5 }),
+        sessionProvider: 'in-memory',
+        memoryProvider: 'simple',
+      });
+
+      await agent.ready();
+    await agent.initialize();
+      const result = await agent.run({ content: 'Hello' }).output;
+      expect(result.content).toBe('Done!');
+      expect(agent.status).toBe('idle');
+    });
+
+    it('loads providers from an absolute path', async () => {
+      const path = new URL('./fixtures/custom-memory-provider.js', import.meta.url).href;
+      const agent = new CoreAgent({
+        name: 'test',
+        model: createMockModel(),
+        budget: new IterationBudget({ maxTurns: 5 }),
+        memoryProvider: { module: path, options: { prefix: 'PathLoaded' } },
+      });
+
+      await agent.ready();
+    await agent.initialize();
+      const result = await agent.run({ content: 'Hello' }).output;
+      expect(result.content).toBe('Done!');
     });
   });
 });

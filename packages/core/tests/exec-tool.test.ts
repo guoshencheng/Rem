@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AgentToolRegistry } from '../src/registry/tool-registry.js';
-import { createExecToolDefinition, createExecToolExecutor } from '../src/plugins/tools/exec.js';
+import { createExecToolDefinition, createExecToolExecutor } from '../src/plugins/tool/file-system/exec.js';
 import type { ToolContext } from '../src/sdk/tool-provider.js';
 
 function createRegistry() {

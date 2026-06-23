@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { FileSkillProvider } from '../src/plugins/file-skill-provider.js';
+import { FileSkillProvider } from '../src/plugins/skill/file/index.js';
 
 describe('FileSkillProvider', () => {
   let tempDir: string;

@@ -1,5 +1,6 @@
-import { AgentToolRegistry } from '../../registry/tool-registry.js';
-import type { ToolPolicyLike } from '../../sdk/tool-policy.js';
+import { AgentToolRegistry } from '../../../registry/tool-registry.js';
+import type { ToolPolicyLike } from '../../../sdk/tool-policy.js';
+import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 import { createReadToolDefinition, createReadToolExecutor } from './read.js';
 import { createWriteToolDefinition, createWriteToolExecutor } from './write.js';
 import { createEditToolDefinition, createEditToolExecutor } from './edit.js';
@@ -29,4 +30,19 @@ export function createFileSystemTools(options: FileSystemToolsOptions): AgentToo
   }
 
   return registry;
+}
+
+export function createProvider(options: FileSystemToolsOptions | undefined): AgentToolRegistry {
+  if (!options?.workspaceRoot) {
+    throw new Error('FileSystemTools requires workspaceRoot');
+  }
+  return createFileSystemTools(options);
+}
+
+export function getDefaultOptions(ctx: ProviderLoaderContext): FileSystemToolsOptions {
+  return {
+    workspaceRoot: ctx.workspaceRoot,
+    readOnly: ctx.readOnly,
+    toolPolicy: ctx.toolPolicy,
+  };
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEditToolExecutor } from '../src/plugins/tools/edit.js';
+import { createEditToolExecutor } from '../src/plugins/tool/file-system/edit.js';
 
 const ctx = (workspaceRoot: string, readOnly = false) => ({
   cwd: workspaceRoot,

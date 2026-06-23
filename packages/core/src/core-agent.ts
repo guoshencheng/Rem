@@ -9,40 +9,38 @@ import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ConfigProvider, AgentBehaviorConfig } from './sdk/config-provider.js';
-import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
-import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
-import { NoOpCompressor } from './defaults/no-op-compressor.js';
-import { FileSkillProvider } from './plugins/file-skill-provider.js';
+import type { ProviderReference, ProviderLoader, ProviderLoaderContext, ProviderRegistry } from './sdk/provider-loader.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { resolveProviderConfig } from './llm/api-registry.js';
 import type { ProviderConfig } from './llm/types.js';
-import type { SessionProvider, SessionSummary } from './session.js';
-import { InMemorySessionProvider } from './session.js';
+import type { SessionProvider, SessionSummary } from './sdk/session-provider.js';
 import type { TurnRunner, TurnHooks } from './turn.js';
 import { ReactTurnRunner } from './turn.js';
 import type { LoopStrategy } from './loop-strategy.js';
 import { ReactLoop } from './loop-strategy.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
-import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { InferenceEngine } from './llm/engine.js';
-import { createFileSystemTools } from './plugins/tools/index.js';
 import type { ToolPolicyConfig } from './sdk/tool-policy.js';
 import type { ApprovalManager } from './security/approval-manager.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import { getDefaultSkillsDir, getDefaultSessionsDir } from './config/paths.js';
+import { DefaultProviderLoader } from './registry/provider-loader.js';
+import { AgentProviderRegistry } from './registry/provider-registry.js';
+import { builtinProviderResolver } from './plugins/index.js';
+import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
 
 export interface CoreAgentConfig {
   name?: string;
   budget?: IterationBudget;
-  toolProvider?: ToolProvider;
-  memoryProvider?: MemoryProvider;
-  errorHandler?: ErrorHandler;
-  budgetPolicy?: BudgetPolicy;
-  compressor?: ContextCompressor;
-  sessionProvider?: SessionProvider;
+  toolProvider?: ProviderReference<ToolProvider>;
+  memoryProvider?: ProviderReference<MemoryProvider>;
+  errorHandler?: ProviderReference<ErrorHandler>;
+  budgetPolicy?: ProviderReference<BudgetPolicy>;
+  compressor?: ProviderReference<ContextCompressor>;
+  sessionProvider?: ProviderReference<SessionProvider>;
   turnRunner?: TurnRunner;
   loopStrategy?: LoopStrategy;
-  skillProvider?: SkillProvider;
+  skillProvider?: ProviderReference<SkillProvider>;
   configProvider?: ConfigProvider;
   provider?: string;
   providerConfig?: ProviderConfig;
@@ -50,6 +48,7 @@ export interface CoreAgentConfig {
   workspaceRoot?: string;
   readOnly?: boolean;
   toolPolicy?: ToolPolicyConfig;
+  providerLoader?: ProviderLoader;
 }
 
 export interface AgentStreamResult {
@@ -67,12 +66,17 @@ export class CoreAgent {
   private resolvedProvider: { provider: string; providerConfig: ProviderConfig };
   private events: EventBus;
   private state: AgentState;
-  private sessionProvider: SessionProvider;
-  private turnRunner: TurnRunner;
-  private toolProvider?: ToolProvider;
+  private providerLoader: ProviderLoader;
+  private registry!: ProviderRegistry;
+  private turnRunner!: TurnRunner;
   private interrupted = false;
   private abortController?: AbortController;
   private budgetPolicy?: BudgetPolicy;
+  private _ready = false;
+
+  get isReady(): boolean {
+    return this._ready;
+  }
 
   get status() {
     return this.state.status;
@@ -97,8 +101,7 @@ export class CoreAgent {
     this.resolvedBehavior = this.resolveBehaviorConfig(config);
     this.resolvedProvider = this.resolveProviderConfig(config);
     this.events = new EventBus();
-    this.sessionProvider = config.sessionProvider ?? new InMemorySessionProvider();
-    this.turnRunner = config.turnRunner ?? this.createDefaultTurnRunner();
+    this.providerLoader = config.providerLoader ?? new DefaultProviderLoader(builtinProviderResolver);
     this.state = new AgentState(undefined, config.budget);
   }
 
@@ -136,39 +139,78 @@ export class CoreAgent {
     return { provider, providerConfig: resolveProviderConfig(provider) };
   }
 
-  private createDefaultTurnRunner(): TurnRunner {
-    const workspaceRoot = this.resolvedBehavior.workspaceRoot;
-    this.toolProvider =
-      this.config.toolProvider ??
-      createFileSystemTools({
-        workspaceRoot,
-        readOnly: this.resolvedBehavior.readOnly,
-        toolPolicy: this.config.configProvider?.getToolConfig?.().policy ?? this.config.toolPolicy,
-      });
+  private createLoaderContext(): ProviderLoaderContext {
+    return {
+      kind: 'tool',
+      agentName: this.name,
+      workspaceRoot: this.resolvedBehavior.workspaceRoot,
+      readOnly: this.resolvedBehavior.readOnly,
+      skillsDir: this.resolvedBehavior.skillsDir,
+      sessionsDir: this.resolvedBehavior.sessionsDir,
+      maxTurns: this.resolvedBehavior.maxTurns,
+      toolPolicy: this.config.configProvider?.getToolConfig?.().policy ?? this.config.toolPolicy,
+    };
+  }
+
+  private createRegistry(): Promise<ProviderRegistry> {
+    const registry = new AgentProviderRegistry({
+      loader: this.providerLoader,
+      ctx: this.createLoaderContext(),
+      refs: {
+        sessionProvider: this.config.sessionProvider,
+        toolProvider: this.config.toolProvider,
+        memoryProvider: this.config.memoryProvider,
+        compressor: this.config.compressor,
+        errorHandler: this.config.errorHandler,
+        skillProvider: this.config.skillProvider,
+        budgetPolicy: this.config.budgetPolicy,
+      },
+    });
+    return registry.initialize().then(() => registry);
+  }
+
+  private async createDefaultTurnRunner(): Promise<TurnRunner> {
+    const toolProvider = this.registry.require<ToolProvider>('tool');
     const loopStrategy =
       this.config.loopStrategy ??
       new ReactLoop(
         this.events,
-        this.toolProvider,
-        this.config.memoryProvider ?? new SimpleMemoryProvider(this.name),
-        this.config.compressor ?? new NoOpCompressor(),
-        this.config.errorHandler ?? new SimpleErrorHandler(),
-        this.config.skillProvider ?? new FileSkillProvider({ skillsDir: this.resolvedBehavior.skillsDir }),
+        toolProvider,
+        this.registry.require<MemoryProvider>('memory'),
+        this.registry.require<ContextCompressor>('compressor'),
+        this.registry.require<ErrorHandler>('error'),
+        this.registry.get<SkillProvider>('skill'),
       );
     return new ReactTurnRunner(loopStrategy);
   }
 
+  async ready(): Promise<void> {
+    if (this._ready) {
+      return;
+    }
+    this.registry = await this.createRegistry();
+    this.turnRunner = this.config.turnRunner ?? (await this.createDefaultTurnRunner());
+    this.budgetPolicy = this.registry.get<BudgetPolicy>('budget') ?? undefined;
+    this._ready = true;
+  }
+
   async initialize(options?: { sessionId?: string }): Promise<void> {
+    if (!this._ready) {
+      throw new Error('Providers not ready — call ready() before initialize()');
+    }
+
+    const sessionProvider = this.registry.require<SessionProvider>('session');
+
     if (options?.sessionId) {
-      const session = await this.sessionProvider.load(options.sessionId);
+      const session = await sessionProvider.load(options.sessionId);
       this.state = new AgentState(session ?? undefined, this.config.budget);
       if (!session) {
         this.state.session.sessionId = options.sessionId;
-        await this.sessionProvider.save(this.state.session);
+        await sessionProvider.save(this.state.session);
       }
     } else {
       this.state = new AgentState(undefined, this.config.budget);
-      await this.sessionProvider.save(this.state.session);
+      await sessionProvider.save(this.state.session);
     }
     this.state.status = 'idle';
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
@@ -197,10 +239,10 @@ export class CoreAgent {
         return output;
       }
 
-      // Add user message to Session
       const userMessage: ModelMessage = { role: 'user', content: input.content } as ModelMessage;
       this.state.addMessage(userMessage);
-      await this.sessionProvider.save(this.state.session);
+      const sessionProvider = this.registry.require<SessionProvider>('session');
+      await sessionProvider.save(this.state.session);
 
       const abortController = new AbortController();
       this.abortController = abortController;
@@ -226,7 +268,7 @@ export class CoreAgent {
         this.state.currentTurn++;
         this.state.status = 'idle';
         this.abortController = undefined;
-        await this.sessionProvider.save(this.state.session);
+        await sessionProvider.save(this.state.session);
         await this.events.emit('core-agent:stop', { agent: this, state: this.state });
 
         const output: AgentOutput = {
@@ -245,7 +287,7 @@ export class CoreAgent {
         };
         await this.events.emit('core-agent:error', { agent: this, state: this.state });
         controller.finish(output);
-        await this.sessionProvider.save(this.state.session);
+        await sessionProvider.save(this.state.session);
         return output;
       }
     })();
@@ -255,10 +297,7 @@ export class CoreAgent {
 
   private createTurnHooks(): TurnHooks {
     return {
-      // Intentionally a no-op/observation hook: ReactLoop already adds messages
-      // to internal state; CoreAgent updates session from result.newMessages after
-      // the turn completes.
-      onMessageAdded: (msg: ModelMessage) => {
+      onMessageAdded: (_msg: ModelMessage) => {
         if (this.interrupted) {
           return;
         }
@@ -278,7 +317,7 @@ export class CoreAgent {
     approvalId: string,
     decision: 'allow-once' | 'allow-always' | 'deny',
   ): boolean {
-    const provider = this.toolProvider as ToolProviderWithApprovals | undefined;
+    const provider = this.registry.get<ToolProvider>('tool') as ToolProviderWithApprovals | undefined;
     if (!provider || typeof provider.getApprovalManager !== 'function') return false;
     return provider.getApprovalManager().resolve(approvalId, decision);
   }
@@ -313,7 +352,7 @@ export class CoreAgent {
       const title = result.text.trim().slice(0, 80);
       if (title) {
         this.state.session.metadata.title = title;
-        await this.sessionProvider.save(this.state.session);
+        await this.registry.require<SessionProvider>('session').save(this.state.session);
       }
       return title;
     } catch {
@@ -322,12 +361,12 @@ export class CoreAgent {
   }
 
   async listSessions(): Promise<SessionSummary[]> {
-    return this.sessionProvider.list();
+    return this.registry.require<SessionProvider>('session').list();
   }
 
   async reset(): Promise<void> {
     this.state.reset();
-    this.turnRunner = this.config.turnRunner ?? this.createDefaultTurnRunner();
+    this.turnRunner = this.config.turnRunner ?? (await this.createDefaultTurnRunner());
     await this.events.emit('core-agent:init', { agent: this, state: this.state });
   }
 
@@ -340,10 +379,13 @@ export class CoreAgent {
   }
 
   private getBudgetPolicy(): BudgetPolicy {
-    const maxTurns = this.config.budget
-      ? this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount
-      : this.resolvedBehavior.maxTurns;
-    return this.budgetPolicy ??= this.config.budgetPolicy ?? new FixedBudgetPolicy({ maxTurns });
+    if (!this.budgetPolicy) {
+      const maxTurns = this.config.budget
+        ? this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount
+        : this.resolvedBehavior.maxTurns;
+      this.budgetPolicy = new FixedBudgetPolicy({ maxTurns });
+    }
+    return this.budgetPolicy;
   }
 }
 
@@ -354,8 +396,8 @@ export function createAgentFromEnv(options?: {
   apiKey?: string;
   baseURL?: string;
   maxTurns?: number;
-  sessionProvider?: SessionProvider;
-  skillProvider?: SkillProvider;
+  sessionProvider?: ProviderReference<SessionProvider>;
+  skillProvider?: ProviderReference<SkillProvider>;
   configProvider?: ConfigProvider;
   configPath?: string;
   workspaceRoot?: string;
@@ -398,7 +440,7 @@ export function createAgentFromEnv(options?: {
     provider,
     providerConfig,
     sessionProvider: options?.sessionProvider,
-    skillProvider: options?.skillProvider ?? new FileSkillProvider({ skillsDir: behavior?.skillsDir ?? getDefaultSkillsDir() }),
+    skillProvider: options?.skillProvider ?? 'file',
     workspaceRoot: options?.workspaceRoot ?? behavior?.workspaceRoot,
     readOnly: options?.readOnly ?? behavior?.readOnly,
     toolPolicy: options?.toolPolicy ?? configProvider?.getToolConfig?.().policy,

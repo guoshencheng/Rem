@@ -1,7 +1,7 @@
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
-import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
-import type { ToolSchema, ToolSet } from '../llm/types.js';
+import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../../../sdk/tool-provider.js';
+import type { ToolSchema, ToolSet } from '../../../llm/types.js';
 
 export class InMemoryToolProvider implements ToolProvider {
   private tools = new Map<
@@ -78,4 +78,8 @@ export class InMemoryToolProvider implements ToolProvider {
     }
     return results;
   }
+}
+
+export function createProvider(): InMemoryToolProvider {
+  return new InMemoryToolProvider();
 }

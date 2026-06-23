@@ -2,11 +2,11 @@ import { Type, type Static } from '@sinclair/typebox';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { access as fsAccess } from 'node:fs/promises';
-import { resolveReadPath } from '../../security/workspace-root-guard.js';
+import { resolveReadPath } from '../../../security/workspace-root-guard.js';
 import { normalizePositiveLimit } from './shared/limits.js';
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from './shared/truncate.js';
-import { resolveWorkspacePath } from '../../security/workspace-root-guard.js';
-import type { ToolDefinition, ToolExecutor, ToolContext } from '../../sdk/tool-provider.js';
+import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
+import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 
 const readSchema = Type.Object(
   {

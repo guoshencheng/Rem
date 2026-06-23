@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SimpleErrorHandler } from '../src/defaults/simple-error-handler.js';
+import { SimpleErrorHandler } from '../src/plugins/error/simple/index.js';
 
 function createApiError(message: string, status?: number): Error {
   const error = new Error(message);

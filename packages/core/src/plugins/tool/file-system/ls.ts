@@ -3,8 +3,8 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import nodePath from 'node:path';
 import { normalizePositiveLimit } from './shared/limits.js';
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from './shared/truncate.js';
-import { resolveWorkspacePath } from '../../security/workspace-root-guard.js';
-import type { ToolDefinition, ToolExecutor, ToolContext } from '../../sdk/tool-provider.js';
+import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
+import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 
 const lsSchema = Type.Object(
   {

@@ -47,7 +47,7 @@ describe('CoreAgent skill integration', () => {
       },
     });
 
-    const { FileSkillProvider } = await import('../src/plugins/file-skill-provider.js');
+    const { FileSkillProvider } = await import('../src/plugins/skill/file/index.js');
     const skillProvider = new FileSkillProvider({ skillsDir: tempDir });
 
     const agent = new CoreAgent({
@@ -59,6 +59,7 @@ describe('CoreAgent skill integration', () => {
       skillProvider,
     });
 
+    await agent.ready();
     await agent.initialize();
     const result = await agent.run({ content: 'List my GitHub issues' }).output;
 
@@ -77,12 +78,13 @@ describe('CoreAgent skill integration', () => {
       resolveConfig: () => ({ apiKey: 'env-key', model: 'env-model' }),
     });
 
-    const { FileSkillProvider } = await import('../src/plugins/file-skill-provider.js');
+    const { FileSkillProvider } = await import('../src/plugins/skill/file/index.js');
     const skillProvider = new FileSkillProvider({ skillsDir: tempDir });
 
     const { createAgentFromEnv } = await import('../src/core-agent.js');
     const created = createAgentFromEnv({ name: 'env-test', provider: 'env-openai', skillProvider });
 
+    await created.ready();
     await created.initialize();
     const result = await created.run({ content: 'Hello' }).output;
 

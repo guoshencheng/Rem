@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SimpleMemoryProvider } from '../src/defaults/simple-memory-provider.js';
+import { SimpleMemoryProvider } from '../src/plugins/memory/simple/index.js';
 import { AgentState } from '../src/state.js';
 import { IterationBudget } from '../src/budget.js';
 

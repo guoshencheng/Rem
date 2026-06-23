@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FixedBudgetPolicy } from '../src/defaults/fixed-budget-policy.js';
+import { FixedBudgetPolicy } from '../src/plugins/budget/fixed/index.js';
 import { AgentState } from '../src/state.js';
 import { IterationBudget } from '../src/budget.js';
 

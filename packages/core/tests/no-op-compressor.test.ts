@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NoOpCompressor } from '../src/defaults/no-op-compressor.js';
+import { NoOpCompressor } from '../src/plugins/compressor/no-op/index.js';
 import { AgentState } from '../src/state.js';
 
 describe('NoOpCompressor', () => {

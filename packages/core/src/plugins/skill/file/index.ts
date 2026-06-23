@@ -1,8 +1,9 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join, basename } from 'path';
-import type { Skill, SkillProvider } from '../sdk/skill-provider.js';
-import { DefaultSkillCatalog } from '../sdk/skill-provider.js';
-import { parseSkillMarkdown } from '../utils/skill-parser.js';
+import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
+import { DefaultSkillCatalog } from '../../../sdk/skill-provider.js';
+import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
+import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
 export interface FileSkillProviderOptions {
   skillsDir: string;
@@ -64,4 +65,12 @@ export class FileSkillProvider implements SkillProvider {
   formatCatalog(skills: Skill[]): string {
     return this.catalog.format(skills);
   }
+}
+
+export function createProvider(options?: Partial<FileSkillProviderOptions>): FileSkillProvider {
+  return new FileSkillProvider(options);
+}
+
+export function getDefaultOptions(ctx: ProviderLoaderContext): Partial<FileSkillProviderOptions> {
+  return { skillsDir: ctx.skillsDir };
 }

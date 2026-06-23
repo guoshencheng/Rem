@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { InMemoryToolProvider } from '../src/defaults/in-memory-tool-provider.js';
+import { InMemoryToolProvider } from '../src/plugins/tool/in-memory/index.js';
 
 const echoSchema = Type.Object(
   { msg: Type.String() },

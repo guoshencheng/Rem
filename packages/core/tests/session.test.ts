@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InMemorySessionProvider } from '../src/session.js';
+import { InMemorySessionProvider } from '../src/plugins/session/in-memory/index.js';
 import type { ModelMessage } from '../src/types.js';
 
 describe('InMemorySessionProvider', () => {

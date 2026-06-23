@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { FileSessionProvider } from '../src/defaults/file-session-provider.js';
+import { FileSessionProvider } from '../src/plugins/session/file/index.js';
 import type { ModelMessage } from '../src/types.js';
 
 describe('FileSessionProvider', () => {

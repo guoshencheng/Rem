@@ -1,7 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { ToolDefinition, ToolExecutor, ToolContext } from '../../sdk/tool-provider.js';
+import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 
 const execFileAsync = promisify(execFile);
 

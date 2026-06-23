@@ -47,6 +47,48 @@ describe('tool-policy-pipeline', () => {
     expect(result.map((t) => t.name)).toEqual(['read']);
   });
 
+  it('expands coding profile', () => {
+    const tools = [makeTool('read', true), makeTool('write'), makeTool('exec')];
+    const result = applyToolPolicyPipeline({
+      tools,
+      readOnly: false,
+      policy: { profile: 'coding' },
+    });
+    expect(result.map((t) => t.name).sort()).toEqual(['exec', 'read', 'write']);
+  });
+
+  it('applies provider-specific policy', () => {
+    const tools = [makeTool('read', true), makeTool('write')];
+    const result = applyToolPolicyPipeline({
+      tools,
+      readOnly: false,
+      policy: { byProvider: { openai: { deny: ['write'] } } },
+      provider: 'openai',
+    });
+    expect(result.map((t) => t.name)).toEqual(['read']);
+  });
+
+  it('applies sender-specific policy', () => {
+    const tools = [makeTool('read', true), makeTool('write')];
+    const result = applyToolPolicyPipeline({
+      tools,
+      readOnly: false,
+      policy: { toolsBySender: { 'id:guest': { deny: ['write'] } } },
+      sender: 'id:guest',
+    });
+    expect(result.map((t) => t.name)).toEqual(['read']);
+  });
+
+  it('applies sandbox tool policy', () => {
+    const tools = [makeTool('read', true), makeTool('write')];
+    const result = applyToolPolicyPipeline({
+      tools,
+      readOnly: false,
+      policy: { sandbox: { mode: 'all', tools: { deny: ['write'] } } },
+    });
+    expect(result.map((t) => t.name)).toEqual(['read']);
+  });
+
   it('empty allow list denies all tools', () => {
     const tools = [makeTool('read', true), makeTool('write', false, true)];
     const result = applyToolPolicyPipeline({ tools, readOnly: false, policy: { allow: [] } });

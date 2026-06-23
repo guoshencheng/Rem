@@ -1,5 +1,7 @@
 export * from './tool-provider.js';
 export * from './tool-policy.js';
+export * from './tool-hook.js';
+export * from './config-provider.js';
 export * from './memory-provider.js';
 export * from './error-handler.js';
 export * from './budget-policy.js';

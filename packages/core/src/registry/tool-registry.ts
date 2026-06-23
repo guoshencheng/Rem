@@ -1,17 +1,19 @@
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
-import type { ToolPolicyLike } from '../sdk/tool-policy.js';
+import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
+import type { ToolHook } from '../sdk/tool-hook.js';
 import type { ToolSchema, ToolSet } from '../llm/types.js';
-import { applyToolPolicyPipeline, normalizeToolName } from '../security/tool-policy-pipeline.js';
-import type { ApprovalHook } from '../security/approval-hook.js';
-import { defaultApprovalHook } from '../security/approval-hook.js';
+import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
+import { ApprovalManager } from '../security/approval-manager.js';
+import { ToolHookRunner } from '../security/tool-hook-runner.js';
+import { createDangerousToolHook } from '../security/tool-hooks/dangerous-tool-hook.js';
 
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;
   readOnly?: boolean;
-  policy?: ToolPolicyLike;
-  approvalHook?: ApprovalHook;
+  policy?: ToolPolicyConfig;
+  hooks?: ToolHook[];
 }
 
 export class AgentToolRegistry implements ToolProvider {
@@ -25,14 +27,22 @@ export class AgentToolRegistry implements ToolProvider {
   >();
   private workspaceRoot: string;
   private readOnly: boolean;
-  private policy: ToolPolicyLike;
-  private approvalHook: ApprovalHook;
+  private policy: ToolPolicyConfig;
+  private approvalManager = new ApprovalManager();
+  private hookRunner: ToolHookRunner;
 
   constructor(options: AgentToolRegistryOptions) {
     this.workspaceRoot = options.workspaceRoot;
     this.readOnly = options.readOnly ?? false;
     this.policy = options.policy ?? {};
-    this.approvalHook = options.approvalHook ?? defaultApprovalHook;
+    this.hookRunner = new ToolHookRunner({
+      hooks: [createDangerousToolHook(this.tools), ...(options.hooks ?? [])],
+      approvalManager: this.approvalManager,
+    });
+  }
+
+  getApprovalManager(): ApprovalManager {
+    return this.approvalManager;
   }
 
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void {
@@ -87,22 +97,27 @@ export class AgentToolRegistry implements ToolProvider {
         continue;
       }
 
-      if (registered.def.dangerous) {
-        const approval = await this.approvalHook(call.toolName, call.input, ctx);
-        if (!approval.approved) {
-          results.push({
-            toolCallId: call.toolCallId,
-            toolName: call.toolName,
-            output: '',
-            error: approval.reason || `Tool "${call.toolName}" was not approved`,
-            details: { audit: { approved: false } },
-          });
-          continue;
-        }
+      const hookOutcome = await this.hookRunner.run({
+        ...ctx,
+        toolName: call.toolName,
+        toolCallId: call.toolCallId,
+        input: call.input,
+      });
+
+      if (hookOutcome.blocked) {
+        results.push({
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+          output: '',
+          error: hookOutcome.blocked.reason,
+          details: { audit: { approved: false } },
+        });
+        continue;
       }
 
       try {
-        const { output, details } = await registered.executor(call.input as never, ctx);
+        const executeParams = (hookOutcome.params ?? call.input) as never;
+        const { output, details } = await registered.executor(executeParams, ctx);
         results.push({
           toolCallId: call.toolCallId,
           toolName: call.toolName,

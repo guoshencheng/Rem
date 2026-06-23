@@ -88,41 +88,87 @@ describe('AgentToolRegistry', () => {
     expect(tools.write).toBeUndefined();
   });
 
-  it('runs approval hook for dangerous tools', async () => {
-    const approvalHook = vi.fn().mockResolvedValue({ approved: true });
-    const registry = new AgentToolRegistry({
-      workspaceRoot: '/workspace',
-      approvalHook,
-    });
+  it('runs dangerous-tool hook for dangerous tools', async () => {
+    const registry = createRegistry();
     registry.register(
       { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
       async () => ({ output: 'ok' }),
     );
 
-    await registry.execute(
+    const executePromise = registry.execute(
       [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
       { cwd: '/workspace', workspaceRoot: '/workspace' },
     );
 
-    expect(approvalHook).toHaveBeenCalledWith('write', { msg: 'x' }, expect.any(Object));
+    // Wait one tick so the hook creates the pending approval
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const pending = registry.getApprovalManager().listPending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.toolName).toBe('write');
+
+    registry.getApprovalManager().resolve(pending[0].approvalId, 'allow-once');
+    const results = await executePromise;
+
+    expect(results[0].output).toBe('ok');
   });
 
-  it('blocks dangerous tools when approval hook denies', async () => {
-    const approvalHook = vi.fn().mockResolvedValue({ approved: false, reason: 'blocked' });
-    const registry = new AgentToolRegistry({
-      workspaceRoot: '/workspace',
-      approvalHook,
-    });
+  it('blocks dangerous tools when approval is denied', async () => {
+    const registry = createRegistry();
     registry.register(
       { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
       async () => ({ output: 'ok' }),
+    );
+
+    const executePromise = registry.execute(
+      [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
+      { cwd: '/workspace', workspaceRoot: '/workspace' },
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const pending = registry.getApprovalManager().listPending();
+    registry.getApprovalManager().resolve(pending[0].approvalId, 'deny');
+    const results = await executePromise;
+
+    expect(results[0].error).toContain('denied');
+  });
+
+  it('blocks tools when a custom hook blocks', async () => {
+    const blockHook = () => ({ block: { reason: 'blocked by policy' } });
+    const registry = new AgentToolRegistry({
+      workspaceRoot: '/workspace',
+      hooks: [blockHook],
+    });
+    registry.register(
+      { name: 'echo', description: 'Echo', parameters: echoSchema, readOnly: true },
+      async ({ msg }) => ({ output: msg }),
     );
 
     const results = await registry.execute(
-      [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
+      [{ toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } }],
       { cwd: '/workspace', workspaceRoot: '/workspace' },
     );
 
-    expect(results[0].error).toBe('blocked');
+    expect(results[0].error).toBe('blocked by policy');
+  });
+
+  it('passes modified params to executor when hook returns params', async () => {
+    const modifyHook = (ctx: { input: unknown }) => ({
+      params: { ...(ctx.input as Record<string, string>), extra: 'added' },
+    });
+    const registry = new AgentToolRegistry({
+      workspaceRoot: '/workspace',
+      hooks: [modifyHook],
+    });
+    registry.register(
+      { name: 'echo', description: 'Echo', parameters: echoSchema, readOnly: true },
+      async (input: { msg: string; extra?: string }) => ({ output: `${input.msg}:${input.extra}` }),
+    );
+
+    const results = await registry.execute(
+      [{ toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } }],
+      { cwd: '/workspace', workspaceRoot: '/workspace' },
+    );
+
+    expect(results[0].output).toBe('hi:added');
   });
 });

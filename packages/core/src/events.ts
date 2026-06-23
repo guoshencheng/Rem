@@ -7,6 +7,7 @@ export type AgentEvent =
   | 'phase:execute:before' | 'phase:execute:after'
   | 'phase:observe' | 'phase:reflect'
   | 'tool:before' | 'tool:after' | 'tool:error'
+  | 'tool:approval:requested' | 'tool:approval:resolved' | 'tool:approval:expired' | 'tool:blocked'
   | 'compress:before' | 'compress:after';
 
 export interface EventContext {

@@ -3,9 +3,17 @@ import { CoreAgent } from '../../src/core-agent.js';
 import { createUIAgentSession } from '../../src/ui/session.js';
 import { IterationBudget } from '../../src/budget.js';
 
+function createTestAgent(maxTurns: number): CoreAgent {
+  return new CoreAgent({
+    name: 'Test',
+    budget: new IterationBudget({ maxTurns }),
+    providerConfig: { provider: 'openai', model: 'gpt-4o', apiKey: 'test-key' },
+  });
+}
+
 describe('createUIAgentSession', () => {
   it('returns a UIAgentSession', () => {
-    const agent = new CoreAgent({ name: 'Test', budget: new IterationBudget({ maxTurns: 10 }) });
+    const agent = createTestAgent(10);
     const session = createUIAgentSession(agent);
     expect(session.maxTurns).toBe(10);
     expect(typeof session.submit).toBe('function');
@@ -14,7 +22,7 @@ describe('createUIAgentSession', () => {
   });
 
   it('calls onStart and onStatusChange when agent starts', async () => {
-    const agent = new CoreAgent({ name: 'Test', budget: new IterationBudget({ maxTurns: 0 }) });
+    const agent = createTestAgent(0);
     await agent.initialize();
 
     const onStart = vi.fn();
@@ -30,7 +38,7 @@ describe('createUIAgentSession', () => {
   });
 
   it('calls interrupt on the agent', () => {
-    const agent = new CoreAgent({ name: 'Test', budget: new IterationBudget({ maxTurns: 10 }) });
+    const agent = createTestAgent(10);
     const interruptSpy = vi.spyOn(agent, 'interrupt');
     const session = createUIAgentSession(agent);
     session.interrupt();

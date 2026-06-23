@@ -8,12 +8,14 @@ import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
+import type { ConfigProvider, AgentBehaviorConfig } from './sdk/config-provider.js';
 import { SimpleMemoryProvider } from './defaults/simple-memory-provider.js';
 import { FixedBudgetPolicy } from './defaults/fixed-budget-policy.js';
 import { NoOpCompressor } from './defaults/no-op-compressor.js';
 import { FileSkillProvider } from './plugins/file-skill-provider.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { resolveProviderConfig } from './llm/api-registry.js';
+import type { ProviderConfig } from './llm/types.js';
 import type { SessionProvider, SessionSummary } from './session.js';
 import { InMemorySessionProvider } from './session.js';
 import type { TurnRunner, TurnHooks } from './turn.js';
@@ -24,12 +26,13 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import { SimpleErrorHandler } from './defaults/simple-error-handler.js';
 import { InferenceEngine } from './llm/engine.js';
 import { createFileSystemTools } from './plugins/tools/index.js';
-import type { ToolPolicyLike } from './sdk/tool-policy.js';
+import type { ToolPolicyConfig } from './sdk/tool-policy.js';
+import type { ApprovalManager } from './security/approval-manager.js';
 import { AgentStreamController } from './stream/agent-stream.js';
-import { getDefaultSkillsDir } from './config/paths.js';
+import { getDefaultSkillsDir, getDefaultSessionsDir } from './config/paths.js';
 
 export interface CoreAgentConfig {
-  name: string;
+  name?: string;
   budget?: IterationBudget;
   toolProvider?: ToolProvider;
   memoryProvider?: MemoryProvider;
@@ -40,15 +43,13 @@ export interface CoreAgentConfig {
   turnRunner?: TurnRunner;
   loopStrategy?: LoopStrategy;
   skillProvider?: SkillProvider;
+  configProvider?: ConfigProvider;
   provider?: string;
-  providerConfig?: {
-    apiKey: string;
-    baseURL?: string;
-    model: string;
-  };
+  providerConfig?: ProviderConfig;
+  maxTurns?: number;
   workspaceRoot?: string;
   readOnly?: boolean;
-  toolPolicy?: ToolPolicyLike;
+  toolPolicy?: ToolPolicyConfig;
 }
 
 export interface AgentStreamResult {
@@ -56,12 +57,19 @@ export interface AgentStreamResult {
   output: Promise<AgentOutput>;
 }
 
+interface ToolProviderWithApprovals extends ToolProvider {
+  getApprovalManager(): ApprovalManager;
+}
+
 export class CoreAgent {
   private config: CoreAgentConfig;
+  private resolvedBehavior: Required<AgentBehaviorConfig>;
+  private resolvedProvider: { provider: string; providerConfig: ProviderConfig };
   private events: EventBus;
   private state: AgentState;
   private sessionProvider: SessionProvider;
   private turnRunner: TurnRunner;
+  private toolProvider?: ToolProvider;
   private interrupted = false;
   private abortController?: AbortController;
   private budgetPolicy?: BudgetPolicy;
@@ -79,33 +87,73 @@ export class CoreAgent {
     return this.state.sessionId;
   }
 
+  get name(): string {
+    return this.resolvedBehavior.name;
+  }
+
   constructor(config: CoreAgentConfig) {
+    registerBuiltInProviders();
     this.config = config;
+    this.resolvedBehavior = this.resolveBehaviorConfig(config);
+    this.resolvedProvider = this.resolveProviderConfig(config);
     this.events = new EventBus();
     this.sessionProvider = config.sessionProvider ?? new InMemorySessionProvider();
     this.turnRunner = config.turnRunner ?? this.createDefaultTurnRunner();
     this.state = new AgentState(undefined, config.budget);
-    registerBuiltInProviders();
+  }
+
+  private resolveBehaviorConfig(config: CoreAgentConfig): Required<AgentBehaviorConfig> {
+    const fromProvider = config.configProvider?.getBehaviorConfig?.();
+    return {
+      name: config.name ?? fromProvider?.name ?? 'Rem Agent',
+      maxTurns: config.maxTurns ?? fromProvider?.maxTurns ?? 60,
+      workspaceRoot: config.workspaceRoot ?? fromProvider?.workspaceRoot ?? process.cwd(),
+      readOnly: config.readOnly ?? fromProvider?.readOnly ?? false,
+      sessionsDir: fromProvider?.sessionsDir ?? getDefaultSessionsDir(),
+      skillsDir: fromProvider?.skillsDir ?? getDefaultSkillsDir(),
+    };
+  }
+
+  private resolveProviderConfig(config: CoreAgentConfig): { provider: string; providerConfig: ProviderConfig } {
+    if (config.providerConfig) {
+      return {
+        provider: config.provider ?? 'openai',
+        providerConfig: config.providerConfig,
+      };
+    }
+    if (config.configProvider) {
+      const cfg = config.configProvider.getModelConfig(config.provider);
+      return {
+        provider: cfg.provider,
+        providerConfig: {
+          model: cfg.model,
+          apiKey: cfg.apiKey,
+          baseURL: cfg.baseURL,
+        },
+      };
+    }
+    const provider = config.provider ?? 'openai';
+    return { provider, providerConfig: resolveProviderConfig(provider) };
   }
 
   private createDefaultTurnRunner(): TurnRunner {
-    const workspaceRoot = this.config.workspaceRoot ?? process.cwd();
-    const toolProvider =
+    const workspaceRoot = this.resolvedBehavior.workspaceRoot;
+    this.toolProvider =
       this.config.toolProvider ??
       createFileSystemTools({
         workspaceRoot,
-        readOnly: this.config.readOnly,
-        toolPolicy: this.config.toolPolicy,
+        readOnly: this.resolvedBehavior.readOnly,
+        toolPolicy: this.config.configProvider?.getToolConfig?.().policy ?? this.config.toolPolicy,
       });
     const loopStrategy =
       this.config.loopStrategy ??
       new ReactLoop(
         this.events,
-        toolProvider,
-        this.config.memoryProvider ?? new SimpleMemoryProvider(this.config.name),
+        this.toolProvider,
+        this.config.memoryProvider ?? new SimpleMemoryProvider(this.name),
         this.config.compressor ?? new NoOpCompressor(),
         this.config.errorHandler ?? new SimpleErrorHandler(),
-        this.config.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
+        this.config.skillProvider ?? new FileSkillProvider({ skillsDir: this.resolvedBehavior.skillsDir }),
       );
     return new ReactTurnRunner(loopStrategy);
   }
@@ -161,14 +209,14 @@ export class CoreAgent {
         const result = await this.turnRunner.run({
           input,
           conversation: [...this.state.conversation],
-          systemPrompt: `You are ${this.config.name}.`,
+          systemPrompt: `You are ${this.name}.`,
           budget: this.state.budget,
           signal: abortController.signal,
-          provider: this.config.provider ?? 'openai',
-          providerConfig: this.config.providerConfig ?? resolveProviderConfig(this.config.provider ?? 'openai'),
-          workspaceRoot: this.config.workspaceRoot ?? process.cwd(),
-          readOnly: this.config.readOnly,
-          agentName: this.config.name,
+          provider: this.resolvedProvider.provider,
+          providerConfig: this.resolvedProvider.providerConfig,
+          workspaceRoot: this.resolvedBehavior.workspaceRoot,
+          readOnly: this.resolvedBehavior.readOnly,
+          agentName: this.name,
         }, this.createTurnHooks(), controller);
 
         for (const msg of result.newMessages) {
@@ -226,6 +274,15 @@ export class CoreAgent {
     this.abortController?.abort();
   }
 
+  resolveToolApproval(
+    approvalId: string,
+    decision: 'allow-once' | 'allow-always' | 'deny',
+  ): boolean {
+    const provider = this.toolProvider as ToolProviderWithApprovals | undefined;
+    if (!provider || typeof provider.getApprovalManager !== 'function') return false;
+    return provider.getApprovalManager().resolve(approvalId, decision);
+  }
+
   async generateTitle(): Promise<string> {
     if (this.state.session.metadata.title) {
       return this.state.session.metadata.title as string;
@@ -236,8 +293,8 @@ export class CoreAgent {
     );
     if (userMessages.length === 0) return '';
 
-    const provider = this.config.provider ?? 'openai';
-    const providerConfig = this.config.providerConfig ?? resolveProviderConfig(provider);
+    const provider = this.resolvedProvider.provider;
+    const providerConfig = this.resolvedProvider.providerConfig;
     const engine = new InferenceEngine();
 
     try {
@@ -283,33 +340,68 @@ export class CoreAgent {
   }
 
   private getBudgetPolicy(): BudgetPolicy {
-    return this.budgetPolicy ??= this.config.budgetPolicy ?? new FixedBudgetPolicy({
-      maxTurns: this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount,
-    });
+    const maxTurns = this.config.budget
+      ? this.state.budget.getStatus().turnsRemaining + this.state.budget.turnCount
+      : this.resolvedBehavior.maxTurns;
+    return this.budgetPolicy ??= this.config.budgetPolicy ?? new FixedBudgetPolicy({ maxTurns });
   }
 }
 
-export function createAgentFromEnv(options: {
-  name: string;
+export function createAgentFromEnv(options?: {
+  name?: string;
   provider?: string;
+  model?: string;
+  apiKey?: string;
+  baseURL?: string;
   maxTurns?: number;
   sessionProvider?: SessionProvider;
   skillProvider?: SkillProvider;
+  configProvider?: ConfigProvider;
+  configPath?: string;
   workspaceRoot?: string;
   readOnly?: boolean;
-  toolPolicy?: ToolPolicyLike;
+  toolPolicy?: ToolPolicyConfig;
 }): CoreAgent {
   registerBuiltInProviders();
-  const provider = options.provider ?? 'openai';
+  const configProvider = options?.configProvider;
+  const behavior = configProvider?.getBehaviorConfig?.();
+  const modelCfg = configProvider?.getModelConfig?.(options?.provider);
+  const provider = options?.provider ?? modelCfg?.provider ?? 'openai';
+
+  const providerConfig: ProviderConfig | undefined =
+    options?.provider !== undefined
+      ? {
+          model: options.model ?? '',
+          apiKey: options.apiKey ?? '',
+          baseURL: options.baseURL,
+        }
+      : options?.model !== undefined || options?.apiKey !== undefined || options?.baseURL !== undefined
+        ? {
+            model: options.model ?? modelCfg?.model ?? '',
+            apiKey: options.apiKey ?? modelCfg?.apiKey ?? '',
+            baseURL: options.baseURL ?? modelCfg?.baseURL,
+          }
+        : modelCfg
+          ? {
+              model: modelCfg.model,
+              apiKey: modelCfg.apiKey,
+              baseURL: modelCfg.baseURL,
+            }
+          : undefined;
+
+  const name = options?.name ?? behavior?.name ?? 'Rem Agent';
+  const maxTurns = options?.maxTurns ?? behavior?.maxTurns ?? 60;
+
   return new CoreAgent({
-    name: options.name,
-    budget: new IterationBudget({ maxTurns: options.maxTurns ?? 60 }),
+    name,
+    budget: new IterationBudget({ maxTurns }),
     provider,
-    providerConfig: resolveProviderConfig(provider),
-    sessionProvider: options.sessionProvider,
-    skillProvider: options.skillProvider ?? new FileSkillProvider({ skillsDir: getDefaultSkillsDir() }),
-    workspaceRoot: options.workspaceRoot,
-    readOnly: options.readOnly,
-    toolPolicy: options.toolPolicy,
+    providerConfig,
+    sessionProvider: options?.sessionProvider,
+    skillProvider: options?.skillProvider ?? new FileSkillProvider({ skillsDir: behavior?.skillsDir ?? getDefaultSkillsDir() }),
+    workspaceRoot: options?.workspaceRoot ?? behavior?.workspaceRoot,
+    readOnly: options?.readOnly ?? behavior?.readOnly,
+    toolPolicy: options?.toolPolicy ?? configProvider?.getToolConfig?.().policy,
+    configProvider,
   });
 }

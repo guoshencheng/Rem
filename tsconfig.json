@@ -9,6 +9,8 @@
     "forceConsistentCasingInFileNames": true
   },
   "references": [
-    { "path": "./packages/core" }
+    { "path": "./packages/core" },
+    { "path": "./packages/sdk" },
+    { "path": "./packages/server" }
   ]
 }

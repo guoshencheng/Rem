@@ -1,5 +1,5 @@
 import { Container, Spacer } from "@earendil-works/pi-tui";
-import type { AgentStreamChunk } from "rem-agent-core";
+import type { AgentStreamChunk } from "rem-agent-sdk";
 import { AssistantMessage } from "./assistant-message.js";
 import { FunctionToolBlock } from "./function-tool-block.js";
 import { ReasoningBlock } from "./reasoning-block.js";

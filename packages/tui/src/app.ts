@@ -7,15 +7,8 @@ import {
   TUI,
   matchesKey,
 } from "@earendil-works/pi-tui";
-import type {
-  AgentStatus,
-  AgentStreamChunk,
-  CoreAgent,
-  SessionSummary,
-  UIAgentSession,
-  UISessionCallbacks,
-} from "rem-agent-core";
-import { createUIAgentSession } from "rem-agent-core";
+import type { AgentStreamChunk, SessionSummary } from "rem-agent-sdk";
+import { AgentClient } from "rem-agent-sdk";
 import { ChatLog } from "./chat-log.js";
 import { EventLog } from "./event-log.js";
 import { StatusBar } from "./status-bar.js";
@@ -24,32 +17,33 @@ import { SessionPicker } from "./session-picker.js";
 import type { SessionPickerItem } from "./session-picker.js";
 
 export interface TUIAppOptions {
-  agent: CoreAgent;
+  serverUrl: string;
   sessionId?: string;
+  maxTurns?: number;
 }
 
-export class TUIApp implements UISessionCallbacks {
+export class TUIApp {
   private tui: TUI;
   private chatLog: ChatLog;
   private eventLog: EventLog;
   private statusBar: StatusBar;
   private input: Input;
   private root: Container;
-  private agent: CoreAgent;
-  private session: UIAgentSession;
+  private client: AgentClient;
+  private sessionId: string;
   private currentStreamMessage?: StreamAssistantMessage;
   private titleGenerated = false;
-  private sessionId?: string;
+  private maxTurns: number;
+  private currentTurn = 0;
 
   constructor(options: TUIAppOptions) {
-    this.agent = options.agent;
-    this.sessionId = options.sessionId;
-    this.session = createUIAgentSession(this.agent);
-    this.session.setCallbacks(this);
+    this.client = new AgentClient(options.serverUrl);
+    this.sessionId = options.sessionId ?? this.generateId();
+    this.maxTurns = options.maxTurns ?? 60;
 
     this.chatLog = new ChatLog();
     this.eventLog = new EventLog();
-    this.statusBar = new StatusBar(this.session.maxTurns);
+    this.statusBar = new StatusBar(this.maxTurns);
     this.input = new Input();
 
     this.input.onSubmit = async (value: string) => {
@@ -67,12 +61,12 @@ export class TUIApp implements UISessionCallbacks {
         return;
       }
       if (trimmed) {
-        this.session.submit(trimmed);
+        this.submit(trimmed);
       }
     };
 
     this.input.onEscape = () => {
-      this.session.interrupt();
+      this.client.interrupt(this.sessionId).catch(() => {});
     };
 
     this.root = new Container();
@@ -88,9 +82,7 @@ export class TUIApp implements UISessionCallbacks {
   }
 
   async init(): Promise<void> {
-    await this.agent.ready();
-    await this.agent.initialize({ sessionId: this.sessionId });
-    this.loadHistory();
+    // No direct agent initialization needed; session is created lazily on server.
   }
 
   start(): void {
@@ -102,15 +94,12 @@ export class TUIApp implements UISessionCallbacks {
     this.tui.stop();
   }
 
-  private loadHistory(): void {
-    const messages = this.agent.conversation;
-    if (messages.length > 0) {
-      this.chatLog.loadMessages(messages);
-    }
+  private generateId(): string {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
 
   private async handleResumeCommand(): Promise<void> {
-    const sessions = await this.agent.listSessions();
+    const sessions = await this.client.listSessions();
     if (sessions.length === 0) {
       this.eventLog.addEvent("resume", "no sessions found");
       this.tui.requestRender(true);
@@ -120,7 +109,7 @@ export class TUIApp implements UISessionCallbacks {
     const items: SessionPickerItem[] = sessions.map((s: SessionSummary) => ({
       sessionId: s.sessionId,
       title: s.title,
-      updatedAt: s.updatedAt,
+      updatedAt: new Date(s.updatedAt),
       messageCount: s.messageCount,
     }));
 
@@ -143,26 +132,25 @@ export class TUIApp implements UISessionCallbacks {
   }
 
   private async handleNewSession(): Promise<void> {
-    this.agent.interrupt();
+    this.client.interrupt(this.sessionId).catch(() => {});
     this.currentStreamMessage = undefined;
     this.titleGenerated = false;
-    await this.agent.reset();
+    this.currentTurn = 0;
+    this.sessionId = this.generateId();
     this.chatLog.clearMessages();
-    this.statusBar.update(0, this.agent.maxTurns, "idle", this.agent.sessionId);
+    this.statusBar.update(0, this.maxTurns, "idle", this.sessionId);
     this.eventLog.addEvent("session", "new session created");
     this.tui.requestRender(true);
   }
 
   private async switchSession(sessionId: string): Promise<void> {
-    this.agent.interrupt();
+    this.client.interrupt(this.sessionId).catch(() => {});
     this.currentStreamMessage = undefined;
     this.titleGenerated = false;
     this.sessionId = sessionId;
-    await this.agent.ready();
-    await this.agent.initialize({ sessionId });
+    this.currentTurn = 0;
     this.chatLog.clearMessages();
-    this.loadHistory();
-    this.statusBar.update(this.session.currentTurn, this.session.maxTurns, "idle", sessionId);
+    this.statusBar.update(0, this.maxTurns, "idle", sessionId);
     this.eventLog.addEvent("resume", `loaded session ${sessionId.slice(0, 8)}`);
     this.tui.requestRender(true);
   }
@@ -179,42 +167,32 @@ export class TUIApp implements UISessionCallbacks {
       return { consume: true };
     }
     return undefined;
-    return undefined;
   }
 
-  onStart = (): void => {
-    this.eventLog.addEvent("core-agent:start");
-  };
-
-  onStop = (): void => {
-    this.eventLog.addEvent("core-agent:stop");
-  };
-
-  onError = (error: Error): void => {
-    this.eventLog.addEvent("core-agent:error", error.message);
-    this.chatLog.addAssistant(`Error: ${error.message}`);
-    this.tui.requestRender(true);
-  };
-
-  onStatusChange = (status: AgentStatus): void => {
-    const currentTurn = this.session.currentTurn;
-    this.statusBar.update(currentTurn, this.session.maxTurns, status);
-    this.tui.requestRender(true);
-  };
-
-  onTurnChange = (currentTurn: number, maxTurns: number): void => {
-    this.statusBar.update(currentTurn, maxTurns, "running");
-    this.eventLog.addEvent("turn:before", `turn #${currentTurn}`);
-    this.tui.requestRender(true);
-  };
-
-  onUserMessage = (text: string): void => {
+  private async submit(text: string): Promise<void> {
     this.chatLog.addUser(text);
     this.input.setValue("");
+    this.statusBar.update(this.currentTurn, this.maxTurns, "running");
+    this.eventLog.addEvent("turn:before", `turn #${this.currentTurn}`);
     this.tui.requestRender(true);
-  };
 
-  onStreamChunk = (chunk: AgentStreamChunk): void => {
+    this.currentStreamMessage = this.chatLog.startAssistant();
+
+    try {
+      const stream = await this.client.run(this.sessionId, text);
+      for await (const chunk of stream) {
+        this.handleChunk(chunk);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.eventLog.addEvent("core-agent:error", message);
+      this.chatLog.addAssistant(`Error: ${message}`);
+      this.statusBar.update(this.currentTurn, this.maxTurns, "error");
+      this.tui.requestRender(true);
+    }
+  }
+
+  private handleChunk(chunk: AgentStreamChunk): void {
     if (!this.currentStreamMessage) {
       this.currentStreamMessage = this.chatLog.startAssistant();
     }
@@ -222,22 +200,14 @@ export class TUIApp implements UISessionCallbacks {
 
     if (chunk.type === "finish" || chunk.type === "error") {
       this.currentStreamMessage = undefined;
+      this.statusBar.update(
+        this.currentTurn,
+        this.maxTurns,
+        "idle",
+        this.sessionId,
+      );
     }
 
     this.tui.requestRender(true);
-  };
-
-  onAssistantMessageFinalized = async (_text: string): Promise<void> => {
-    this.currentStreamMessage = undefined;
-    this.tui.requestRender(true);
-
-    if (!this.titleGenerated) {
-      this.titleGenerated = true;
-      try {
-        await this.agent.generateTitle();
-      } catch {
-        /* title generation is non-critical */
-      }
-    }
-  };
+  }
 }

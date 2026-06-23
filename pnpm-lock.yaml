@@ -65,14 +65,49 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.43)
 
+  packages/sdk:
+    dependencies:
+      rem-agent-core:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/server:
+    dependencies:
+      rem-agent-core:
+        specifier: workspace:*
+        version: link:../core
+      rem-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.43)
+
   packages/tui:
     dependencies:
       '@earendil-works/pi-tui':
         specifier: ^0.79.3
         version: 0.79.3
-      rem-agent-core:
+      rem-agent-sdk:
         specifier: workspace:*
-        version: link:../core
+        version: link:../sdk
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

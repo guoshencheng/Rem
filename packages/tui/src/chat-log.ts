@@ -1,6 +1,6 @@
 import { Container } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
-import type { ModelMessage } from "rem-agent-core";
+import type { ModelMessage } from "rem-agent-sdk";
 import { UserMessage } from "./message/user-message.js";
 import { AssistantMessage } from "./message/assistant-message.js";
 import { StreamAssistantMessage } from "./message/stream-message.js";

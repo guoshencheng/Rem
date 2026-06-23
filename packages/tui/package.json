@@ -13,10 +13,10 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "cd ../.. && vitest run packages/tui/tests"
+    "test": "cd ../.. \u0026\u0026 vitest run packages/tui/tests"
   },
   "dependencies": {
-    "rem-agent-core": "workspace:*",
+    "rem-agent-sdk": "workspace:*",
     "@earendil-works/pi-tui": "^0.79.3"
   },
   "devDependencies": {

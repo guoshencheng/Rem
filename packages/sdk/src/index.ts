@@ -9,3 +9,4 @@ export type {
   ServerStreamEvent,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
+export type { AgentStreamChunk, ModelMessage } from 'rem-agent-core';

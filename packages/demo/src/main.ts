@@ -1,36 +1,32 @@
 import "dotenv/config";
-
-import { createAgentFromEnv, FileSessionProvider } from "rem-agent-core";
+import { AgentServer } from "rem-agent-server";
 import { TUIApp } from "rem-agent-tui";
 import { resolveConfig } from "./config.js";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
 
-  const sessionProvider = new FileSessionProvider(config.sessionDir);
+  process.env.REM_AGENT_SESSIONS_DIR = config.sessionDir;
+  process.env.REM_AGENT_NAME = config.agentName;
+  process.env.REM_AGENT_MAX_TURNS = String(config.maxTurns);
 
-  if (config.sessionId) {
-    const existing = await sessionProvider.load(config.sessionId);
-    if (!existing) {
-      console.error(`Session not found: ${config.sessionId}`);
-      process.exit(1);
-    }
-  }
-
-  const agent = createAgentFromEnv({
-    name: config.agentName,
-    maxTurns: config.maxTurns,
-    sessionProvider,
+  const server = new AgentServer({
+    port: config.port,
+    host: config.host,
   });
+  await server.start();
 
-  const app = new TUIApp({ agent, sessionId: config.sessionId });
+  const app = new TUIApp({
+    serverUrl: `http://${config.host}:${config.port}`,
+    sessionId: config.sessionId,
+    maxTurns: config.maxTurns,
+  });
   await app.init();
-
   app.start();
 
   process.on("SIGINT", () => {
     app.stop();
-    process.exit(0);
+    server.stop().finally(() => process.exit(0));
   });
 }
 

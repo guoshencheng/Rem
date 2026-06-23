@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "rem-agent-core": "workspace:*",
+    "rem-agent-server": "workspace:*",
+    "rem-agent-sdk": "workspace:*",
     "rem-agent-tui": "workspace:*",
     "dotenv": "^16.4.0"
   },

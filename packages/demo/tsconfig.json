@@ -16,5 +16,9 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "references": [{ "path": "../core" }]
+  "references": [
+    { "path": "../core" },
+    { "path": "../server" },
+    { "path": "../tui" }
+  ]
 }

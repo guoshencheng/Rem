@@ -6,6 +6,8 @@ export interface DemoConfig {
   maxTurns: number;
   sessionDir: string;
   sessionId?: string;
+  port: number;
+  host: string;
 }
 
 function parseArgs(): { sessionId?: string } {
@@ -30,11 +32,15 @@ export function resolveConfig(): DemoConfig {
   const maxTurns = parseInt(process.env.DEMO_MAX_TURNS ?? '60', 10);
   const sessionDir = resolveSessionDir();
   const args = parseArgs();
+  const port = parseInt(process.env.DEMO_PORT ?? '8321', 10);
+  const host = process.env.DEMO_HOST ?? 'localhost';
 
   return {
     agentName,
     maxTurns,
     sessionDir,
     sessionId: args.sessionId,
+    port,
+    host,
   };
 }

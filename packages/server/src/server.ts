@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server } from 'node:http';
+import { createServer as createHttpServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { corsMiddleware } from './middleware/cors.js';
 import {
   handleAgentRun,

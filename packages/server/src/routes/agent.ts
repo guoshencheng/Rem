@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { SessionProvider } from 'rem-agent-core';
 import { runAgent, ProviderManager } from 'rem-agent-core';
 import type {
   RunRequest,
@@ -62,10 +63,10 @@ export async function handleAgentReset(
   const body = await getRequestBody(req);
   const { sessionId } = JSON.parse(body) as ResetRequest;
   const pm = await ProviderManager.getInstance();
-  const sessionProvider = pm.require('session');
+  const sessionProvider = pm.require<SessionProvider>('session');
   const session = await sessionProvider.load(sessionId);
   if (session) {
-    session.messages = [];
+    session.conversation = [];
     session.metadata = {};
     await sessionProvider.save(session);
   }

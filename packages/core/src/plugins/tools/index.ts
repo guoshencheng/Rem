@@ -4,6 +4,7 @@ import { createReadToolDefinition, createReadToolExecutor } from './read.js';
 import { createWriteToolDefinition, createWriteToolExecutor } from './write.js';
 import { createEditToolDefinition, createEditToolExecutor } from './edit.js';
 import { createLsToolDefinition, createLsToolExecutor } from './ls.js';
+import { createExecToolDefinition, createExecToolExecutor } from './exec.js';
 
 export interface FileSystemToolsOptions {
   workspaceRoot: string;
@@ -20,6 +21,7 @@ export function createFileSystemTools(options: FileSystemToolsOptions): AgentToo
 
   registry.register(createReadToolDefinition(), createReadToolExecutor());
   registry.register(createLsToolDefinition(), createLsToolExecutor());
+  registry.register(createExecToolDefinition(), createExecToolExecutor());
 
   if (!options.readOnly) {
     registry.register(createWriteToolDefinition(), createWriteToolExecutor());

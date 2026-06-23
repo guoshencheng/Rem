@@ -51,6 +51,12 @@ importers:
       rem-agent-core:
         specifier: workspace:*
         version: link:../core
+      rem-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk
+      rem-agent-server:
+        specifier: workspace:*
+        version: link:../server
       rem-agent-tui:
         specifier: workspace:*
         version: link:../tui

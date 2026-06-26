@@ -8,6 +8,8 @@
     "test:watch": "vitest",
     "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-sdk build && pnpm --filter rem-agent-sdk typecheck && pnpm --filter rem-agent-server build && pnpm --filter rem-agent-server typecheck && pnpm --filter rem-agent-tui build && pnpm --filter rem-agent-tui typecheck && pnpm --filter rem-agent-demo typecheck",
     "demo": "pnpm --filter rem-agent-demo start",
+    "demo:server": "pnpm --filter rem-agent-demo start -- server",
+    "demo:tui": "pnpm --filter rem-agent-demo start -- tui",
     "demo:debug": "REM_AGENT_DEBUG=1 pnpm --filter rem-agent-demo start"
   },
   "devDependencies": {

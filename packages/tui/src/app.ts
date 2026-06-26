@@ -1,11 +1,12 @@
 import {
   createCliRenderer,
-  Box,
-  Text,
-  Input,
-  ScrollBox,
-  Select,
+  BoxRenderable,
+  TextRenderable,
+  InputRenderable,
+  ScrollBoxRenderable,
+  SelectRenderable,
   TextAttributes,
+  InputRenderableEvents,
 } from "@opentui/core";
 import type { KeyEvent, CliRenderer } from "@opentui/core";
 import type { AgentStreamChunk, SessionSummary } from "rem-agent-sdk";
@@ -33,13 +34,6 @@ interface ReasoningPartState {
   startTime: number;
   duration?: number;
 }
-
-interface TextPartState {
-  type: "text";
-  content: string;
-}
-
-type PartState = TextPartState | ReasoningPartState | ToolPartState;
 
 // ---- helpers ----
 
@@ -75,13 +69,25 @@ function previewText(text: string): string {
 // ---- block helpers ----
 
 interface BlockHandle {
-  container: ReturnType<typeof Box>;
+  label: TextRenderable;
+  body: TextRenderable;
+  container: BoxRenderable;
   setCollapsed(c: boolean): void;
 }
 
-function createReasoningBlock(part: ReasoningPartState, collapsed: boolean): BlockHandle {
-  const label = Text({ content: "" as string, attributes: TextAttributes.DIM });
-  const body = Text({ content: "" as string, visible: false });
+function createReasoningBlock(
+  renderer: CliRenderer,
+  part: ReasoningPartState,
+  collapsed: boolean,
+): BlockHandle {
+  const label = new TextRenderable(renderer, {
+    content: "",
+    attributes: TextAttributes.DIM,
+  });
+  const body = new TextRenderable(renderer, {
+    content: part.content,
+    visible: !collapsed,
+  });
 
   function update() {
     const base = part.duration != null
@@ -89,19 +95,23 @@ function createReasoningBlock(part: ReasoningPartState, collapsed: boolean): Blo
       : "thinking";
     if (collapsed) {
       const prev = previewText(part.content);
-      (label as any).content = `${base}${prev ? `: ${prev}` : ""} > (ctrl+o)`;
+      label.content = `${base}${prev ? `: ${prev}` : ""} > (ctrl+o)`;
     } else {
-      (label as any).content = base;
+      label.content = base;
     }
-    (body as any).content = part.content;
-    (body as any).visible = !collapsed;
+    body.content = part.content;
+    body.visible = !collapsed;
   }
 
   update();
 
-  const container = Box({ flexDirection: "column" }, label, body);
+  const container = new BoxRenderable(renderer, { flexDirection: "column" });
+  container.add(label);
+  container.add(body);
 
   return {
+    label,
+    body,
     container,
     setCollapsed(c: boolean) {
       collapsed = c;
@@ -110,9 +120,19 @@ function createReasoningBlock(part: ReasoningPartState, collapsed: boolean): Blo
   };
 }
 
-function createToolBlock(part: ToolPartState, collapsed: boolean): BlockHandle {
-  const label = Text({ content: "" as string, attributes: TextAttributes.DIM });
-  const body = Text({ content: "" as string, visible: false });
+function createToolBlock(
+  renderer: CliRenderer,
+  part: ToolPartState,
+  collapsed: boolean,
+): BlockHandle {
+  const label = new TextRenderable(renderer, {
+    content: "",
+    attributes: TextAttributes.DIM,
+  });
+  const body = new TextRenderable(renderer, {
+    content: "",
+    visible: false,
+  });
 
   function update() {
     const fmt = getToolFormatter(part.toolName);
@@ -122,33 +142,37 @@ function createToolBlock(part: ToolPartState, collapsed: boolean): BlockHandle {
 
     if (part.status === "pending" || part.status === "running") {
       const hint = collapsed ? " (ctrl+o)" : "";
-      (label as any).content = `${icon} ${call} ...${hint}`;
+      label.content = `${icon} ${call} ...${hint}`;
     } else {
       const summary = fmt.formatResultSummary(
         part.toolName, part.input, part.output ?? "", part.error,
       );
       if (collapsed) {
-        (label as any).content = `${icon} ${call}  ${summary}  (ctrl+o)`;
+        label.content = `${icon} ${call}  ${summary}  (ctrl+o)`;
       } else {
-        (label as any).content = `${icon} ${call}${dur ? ` (${dur})` : ""}`;
+        label.content = `${icon} ${call}${dur ? ` (${dur})` : ""}`;
       }
     }
 
     if (!collapsed && (part.status === "success" || part.status === "error")) {
-      (body as any).content = fmt.formatResultBody(
+      body.content = fmt.formatResultBody(
         part.toolName, part.input, part.output ?? "", part.error,
       );
-      (body as any).visible = true;
+      body.visible = true;
     } else {
-      (body as any).visible = false;
+      body.visible = false;
     }
   }
 
   update();
 
-  const container = Box({ flexDirection: "column" }, label, body);
+  const container = new BoxRenderable(renderer, { flexDirection: "column" });
+  container.add(label);
+  container.add(body);
 
   return {
+    label,
+    body,
     container,
     setCollapsed(c: boolean) {
       collapsed = c;
@@ -173,20 +197,21 @@ export class TUIApp {
   private currentTurn = 0;
   private running = false;
 
-  // UI refs (initialized in buildUI)
-  private chatBox!: ReturnType<typeof Box>;
-  private statusText!: ReturnType<typeof Text>;
-  private inputNode!: ReturnType<typeof Input>;
-  private overlayBox!: ReturnType<typeof Box>;
+  // UI refs
+  private chatBox!: BoxRenderable;
+  private statusText!: TextRenderable;
+  private inputNode!: InputRenderable;
+  private overlayBox!: BoxRenderable;
 
   // Collapse state
   private thinkingCollapsed = true;
   private toolsCollapsed = true;
 
-  // Current stream message tracking
-  private streamParts = new Map<string, PartState>();
-  private streamContainer: ReturnType<typeof Box> | null = null;
+  // Stream tracking
+  private streamParts = new Map<string, ToolPartState | ReasoningPartState>();
+  private streamContainer: BoxRenderable | null = null;
   private streamBlocks = new Map<string, BlockHandle>();
+  private streamTextRefs = new Map<string, TextRenderable>();
 
   constructor(options: TUIAppOptions) {
     this.client = new AgentClient(options.serverUrl);
@@ -215,18 +240,25 @@ export class TUIApp {
   // ---- UI construction ----
 
   private buildUI(): void {
-    this.statusText = Text({
-      content: this.buildStatusText() as string,
+    // Status bar
+    this.statusText = new TextRenderable(this.renderer, {
+      content: this.buildStatusText(),
       attributes: TextAttributes.DIM,
     });
 
-    this.inputNode = Input({
+    // Input
+    this.inputNode = new InputRenderable(this.renderer, {
       placeholder: "Type a message...",
       width: "100%",
     });
+    this.inputNode.on(InputRenderableEvents.ENTER, (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed) this.handleSubmit(trimmed);
+    });
 
-    this.overlayBox = Box({
-      position: "absolute" as any,
+    // Overlay (hidden initially)
+    this.overlayBox = new BoxRenderable(this.renderer, {
+      position: "absolute",
       left: 0,
       top: 0,
       width: "100%",
@@ -235,22 +267,33 @@ export class TUIApp {
       visible: false,
     });
 
-    this.chatBox = Box({ flexDirection: "column", gap: 1 });
+    // Chat area
+    this.chatBox = new BoxRenderable(this.renderer, {
+      flexDirection: "column",
+      gap: 1,
+    });
 
-    const scrollBox = ScrollBox(
-      { flexGrow: 1, stickyStart: "bottom" as any },
-      this.chatBox,
-    );
+    const scrollBox = new ScrollBoxRenderable(this.renderer, {
+      flexGrow: 1,
+      stickyStart: "bottom",
+    });
+    scrollBox.add(this.chatBox);
 
-    this.renderer.root.add(
-      Box(
-        { flexDirection: "column", height: "100%" },
-        scrollBox,
-        this.statusText,
-        Box({ marginTop: 1 }, this.inputNode),
-        this.overlayBox,
-      ),
-    );
+    // Root layout
+    const root = new BoxRenderable(this.renderer, {
+      flexDirection: "column",
+      height: "100%",
+    });
+    root.add(scrollBox);
+    root.add(this.statusText);
+
+    const inputRow = new BoxRenderable(this.renderer, { marginTop: 1 });
+    inputRow.add(this.inputNode);
+    root.add(inputRow);
+
+    root.add(this.overlayBox);
+
+    this.renderer.root.add(root);
 
     this.bindKeys();
   }
@@ -262,7 +305,7 @@ export class TUIApp {
   }
 
   private updateStatus(): void {
-    (this.statusText as any).content = this.buildStatusText();
+    this.statusText.content = this.buildStatusText();
   }
 
   private bindKeys(): void {
@@ -278,16 +321,8 @@ export class TUIApp {
           block.setCollapsed(this.thinkingCollapsed);
         }
       }
-      if (key.name === "return" || key.name === "enter") {
-        const input = this.inputNode as any;
-        const value: string = input.value ?? "";
-        const trimmed = value.trim();
-        if (trimmed) {
-          this.handleSubmit(trimmed);
-        }
-      }
       if (key.name === "escape") {
-        if ((this.overlayBox as any).visible) {
+        if (this.overlayBox.visible) {
           this.hidePicker();
         } else if (this.running) {
           this.client.interrupt(this.sessionId).catch(() => {});
@@ -296,26 +331,34 @@ export class TUIApp {
     });
   }
 
-  // ---- message rendering ----
+  // ---- messages ----
 
   private addUserText(text: string): void {
-    (this.chatBox as any).add(
-      Box({ padding: 1 }, Text({ content: text as string })),
-    );
+    const box = new BoxRenderable(this.renderer, { id: this.nextMsgId(), padding: 1 });
+    box.add(new TextRenderable(this.renderer, { content: text }));
+    this.chatBox.add(box);
   }
 
   private addAssistantText(text: string): void {
-    (this.chatBox as any).add(
-      Box({ padding: 1 }, Text({ content: text as string })),
-    );
+    const box = new BoxRenderable(this.renderer, { id: this.nextMsgId(), padding: 1 });
+    box.add(new TextRenderable(this.renderer, { content: text }));
+    this.chatBox.add(box);
   }
 
+  private _chatMsgId = 0;
+
   private clearChat(): void {
-    // Remove all children by clearing and re-adding chatBox
-    const parent = (this.chatBox as any).parent;
-    // Actually, just create a new chat box
-    this.chatBox = Box({ flexDirection: "column", gap: 1 });
-    // Re-add to the scrollBox's content
+    // Track child counts before clearing
+    const count = this._chatMsgId;
+    for (let i = 1; i <= count; i++) {
+      this.chatBox.remove(`msg-${i}`);
+    }
+    this._chatMsgId = 0;
+  }
+
+  private nextMsgId(): string {
+    this._chatMsgId++;
+    return `msg-${this._chatMsgId}`;
   }
 
   // ---- submit & streaming ----
@@ -339,7 +382,7 @@ export class TUIApp {
     this.running = true;
     this.currentTurn++;
     this.addUserText(text);
-    (this.inputNode as any).value = "";
+    this.inputNode.value = "";
     this.updateStatus();
 
     this.startStreamMessage();
@@ -352,9 +395,7 @@ export class TUIApp {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (this.streamContainer && this.streamParts.size === 0) {
-        (this.chatBox as any).add(
-          Box({ padding: 1 }, Text({ content: `Error: ${msg}` as string })),
-        );
+        this.addAssistantText(`Error: ${msg}`);
       }
       this.endStream();
       this.running = false;
@@ -365,60 +406,79 @@ export class TUIApp {
   private startStreamMessage(): void {
     this.streamParts.clear();
     this.streamBlocks.clear();
-    this.streamContainer = Box({ flexDirection: "column" });
-    (this.chatBox as any).add(this.streamContainer);
+    this.streamTextRefs.clear();
+    this.streamContainer = new BoxRenderable(this.renderer, {
+      id: this.nextMsgId(),
+      flexDirection: "column",
+    });
+    this.chatBox.add(this.streamContainer);
   }
 
   private endStream(): void {
     this.streamContainer = null;
     this.streamParts.clear();
     this.streamBlocks.clear();
+    this.streamTextRefs.clear();
   }
 
   private handleChunk(chunk: AgentStreamChunk): void {
     if (!this.streamContainer) return;
 
-    const container = this.streamContainer as any;
-
     switch (chunk.type) {
       case "text-start":
+        this.streamParts.set(chunk.partId, {} as ToolPartState);
+        break;
+
       case "text-delta": {
-        const existing = this.streamParts.get(chunk.partId);
-        if (existing && existing.type === "text" && chunk.type === "text-delta") {
-          existing.content += (chunk as { text: string }).text;
-        } else if (chunk.type === "text-delta") {
-          const part: TextPartState = { type: "text", content: (chunk as { text: string }).text };
-          this.streamParts.set(chunk.partId, part);
-          container.add(
-            Box({ padding: 1 }, Text({ content: part.content as string, id: chunk.partId })),
-          );
+        const existing = this.streamTextRefs.get(chunk.partId);
+        if (existing) {
+          existing.content += chunk.text;
         } else {
-          this.streamParts.set(chunk.partId, { type: "text", content: "" });
+          const text = new TextRenderable(this.renderer, { content: chunk.text });
+          this.streamTextRefs.set(chunk.partId, text);
+          const box = new BoxRenderable(this.renderer, { padding: 1 });
+          box.add(text);
+          this.streamContainer.add(box);
         }
         break;
       }
+
       case "reasoning-start": {
-        const part: ReasoningPartState = { type: "reasoning", content: "", startTime: Date.now() };
+        const part: ReasoningPartState = {
+          type: "reasoning", content: "", startTime: Date.now(),
+        };
         this.streamParts.set(chunk.partId, part);
-        const block = createReasoningBlock(part, this.thinkingCollapsed);
+        const block = createReasoningBlock(this.renderer, part, this.thinkingCollapsed);
+        block.container.id = `block-${chunk.partId}`;
         this.streamBlocks.set(chunk.partId, block);
-        container.add(block.container);
+        this.streamContainer.add(block.container);
         break;
       }
+
       case "reasoning-delta": {
         const part = this.streamParts.get(chunk.partId);
         if (part && part.type === "reasoning") {
           part.content += chunk.text;
+          const block = this.streamBlocks.get(chunk.partId);
+          if (block) {
+            block.setCollapsed(this.thinkingCollapsed);
+          }
         }
         break;
       }
+
       case "reasoning-finish": {
         const part = this.streamParts.get(chunk.partId);
         if (part && part.type === "reasoning") {
           part.duration = Date.now() - part.startTime;
+          const block = this.streamBlocks.get(chunk.partId);
+          if (block) {
+            block.setCollapsed(this.thinkingCollapsed);
+          }
         }
         break;
       }
+
       case "tool-call-start":
       case "tool-call": {
         const part: ToolPartState = {
@@ -429,45 +489,55 @@ export class TUIApp {
           startTime: Date.now(),
         };
         this.streamParts.set(chunk.partId, part);
-        const block = createToolBlock(part, this.toolsCollapsed);
+        const oldBlock = this.streamBlocks.get(chunk.partId);
+        if (oldBlock) {
+          this.streamContainer.remove(`block-${chunk.partId}`);
+        }
+        const block = createToolBlock(this.renderer, part, this.toolsCollapsed);
+        block.container.id = `block-${chunk.partId}`;
         this.streamBlocks.set(chunk.partId, block);
-        container.add(block.container);
+        this.streamContainer.add(block.container);
         break;
       }
+
       case "tool-result-start": {
         const part = this.streamParts.get(chunk.partId);
         if (part && part.type === "tool") {
           part.status = "running";
+          const block = this.streamBlocks.get(chunk.partId);
+          if (block) block.setCollapsed(this.toolsCollapsed);
         }
         break;
       }
+
       case "tool-result": {
+        const tr = chunk as { output: string; error?: string };
         const part = this.streamParts.get(chunk.partId);
         if (part && part.type === "tool") {
-          part.status = (chunk as { error?: string }).error ? "error" : "success";
-          part.output = (chunk as { output: string }).output;
-          part.error = (chunk as { error?: string }).error;
+          part.status = tr.error ? "error" : "success";
+          part.output = tr.output;
+          part.error = tr.error;
           part.endTime = Date.now();
+          const block = this.streamBlocks.get(chunk.partId);
+          if (block) block.setCollapsed(this.toolsCollapsed);
         }
         break;
       }
+
       case "finish": {
         if (this.streamParts.size === 0 && chunk.output.content) {
-          container.add(
-            Box({ padding: 1 }, Text({ content: chunk.output.content as string })),
-          );
+          this.addAssistantText(chunk.output.content);
         }
         this.endStream();
         this.running = false;
         this.updateStatus();
         break;
       }
+
       case "error": {
         const msg = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
         if (this.streamParts.size === 0) {
-          container.add(
-            Box({ padding: 1 }, Text({ content: `Error: ${msg}` as string })),
-          );
+          this.addAssistantText(`Error: ${msg}`);
         }
         this.endStream();
         this.running = false;
@@ -484,24 +554,8 @@ export class TUIApp {
     this.currentTurn = 0;
     this.running = false;
     this.sessionId = generateId();
-    // Clear chat by removing all children
-    this.clearChatBox();
+    this.clearChat();
     this.updateStatus();
-  }
-
-  private clearChatBox(): void {
-    // VNode `remove` chaining: remove children one by one
-    // Since VNodes proxy method calls, just try to clear
-    try {
-      const box = this.chatBox as any;
-      // Iterate and remove children
-      if (typeof box.clear === "function") {
-        box.clear();
-      }
-    } catch {
-      // Fallback: recreate the chat box
-      this.chatBox = Box({ flexDirection: "column", gap: 1 });
-    }
   }
 
   private async handleResumeCommand(): Promise<void> {
@@ -522,42 +576,43 @@ export class TUIApp {
       value: s.sessionId,
     }));
 
-    const selectNode = Select({ options });
+    // Clear previous overlay content
+    this.overlayBox.remove("picker-content");
+    this.overlayBox.remove("picker-select");
 
-    (selectNode as any).on("select", (_index: number, option: { value: string } | null) => {
+    const selectNode = new SelectRenderable(this.renderer, { id: "picker-select", options });
+    selectNode.on("select", (_index: number, option: { value: string } | null) => {
       if (option) {
         this.hidePicker();
         this.switchSession(option.value);
       }
     });
 
-    const box = this.overlayBox as any;
-    // Remove previous overlay content
-    // OverlayBox doesn't have clear, so just set visible and re-add
-    box.visible = true;
+    const pickerBox = new BoxRenderable(this.renderer, {
+      position: "absolute",
+      left: "25%",
+      top: "25%",
+      width: "50%",
+      height: "50%",
+      borderStyle: "rounded",
+      padding: 2,
+      flexDirection: "column",
+    });
+    pickerBox.add(new TextRenderable(this.renderer, {
+      content: "Select Session (Esc to cancel)",
+      fg: "#FFFF00",
+    }));
+    const selectWrapper = new BoxRenderable(this.renderer, { flexGrow: 1 });
+    selectWrapper.add(selectNode);
+    pickerBox.add(selectWrapper);
 
-    box.add(
-      Box(
-        {
-          position: "absolute" as any,
-          left: "25%",
-          top: "25%",
-          width: "50%",
-          height: "50%",
-          borderStyle: "rounded",
-          padding: 2,
-          flexDirection: "column",
-        },
-        Text({ content: "Select Session (Esc to cancel)" as string, fg: "#FFFF00" }),
-        Box({ flexGrow: 1 }, selectNode),
-      ),
-    );
-
+    this.overlayBox.add(pickerBox);
+    this.overlayBox.visible = true;
     selectNode.focus();
   }
 
   private hidePicker(): void {
-    (this.overlayBox as any).visible = false;
+    this.overlayBox.visible = false;
     this.inputNode.focus();
   }
 
@@ -566,7 +621,7 @@ export class TUIApp {
     this.sessionId = sessionId;
     this.currentTurn = 0;
     this.running = false;
-    this.clearChatBox();
+    this.clearChat();
     this.updateStatus();
   }
 }

@@ -17,7 +17,9 @@
   },
   "dependencies": {
     "rem-agent-sdk": "workspace:*",
-    "@earendil-works/pi-tui": "^0.79.3"
+    "@opentui/core": "^0.4.2",
+    "@opentui/solid": "^0.4.2",
+    "solid-js": "^1.9.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

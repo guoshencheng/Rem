@@ -15,7 +15,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "jsxImportSource": "solid-js"
   },
   "include": ["src/**/*"],

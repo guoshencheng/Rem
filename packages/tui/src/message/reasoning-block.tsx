@@ -28,11 +28,11 @@ export function ReasoningBlock(props: {
 
   return (
     <box borderStyle="single" padding={1}>
-      <box onClick={() => setLocalCollapsed((v) => !v)}>
-        <text dim>{label()}</text>
+      <box>
+        <text>{label()}</text>
       </box>
       <Show when={!collapsed()}>
-        <markdown content={props.part.content} />
+        <text>{props.part.content}</text>
       </Show>
     </box>
   );

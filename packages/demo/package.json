@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/main.js",
+    "start": "node --experimental-ffi dist/main.js",
     "test": "vitest run"
   },
   "dependencies": {
@@ -13,6 +13,8 @@
     "rem-agent-server": "workspace:*",
     "rem-agent-sdk": "workspace:*",
     "rem-agent-tui": "workspace:*",
+    "@opentui/core": "^0.4.2",
+    "@opentui/solid": "^0.4.2",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {

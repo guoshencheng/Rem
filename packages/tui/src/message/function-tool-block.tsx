@@ -59,11 +59,11 @@ export function FunctionToolBlock(props: {
 
   return (
     <box borderStyle="single" padding={1}>
-      <box onClick={() => setLocalCollapsed((v) => !v)}>
-        <text dim>{label()}</text>
+      <box>
+        <text>{label()}</text>
       </box>
       <Show when={!collapsed() && (props.part.status === "success" || props.part.status === "error")}>
-        <markdown content={body()} />
+        <text>{body()}</text>
       </Show>
     </box>
   );

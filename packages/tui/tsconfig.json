@@ -16,7 +16,7 @@
     "sourceMap": true,
     "composite": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "solid-js"
+    "jsxImportSource": "@opentui/solid"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"],

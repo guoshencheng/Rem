@@ -88,80 +88,86 @@ export function createAppStore(initial: AppState) {
   }
 
   function applyChunk(msgIndex: number, chunk: import("rem-agent-sdk").AgentStreamChunk) {
+    const sm = state.messages[msgIndex];
+    if (!sm || sm.role !== "assistant-streaming") return;
+
+    const pid = (chunk as { partId?: string }).partId ?? "";
+
     switch (chunk.type) {
       case "text-start":
       case "text-delta": {
-        const partId = chunk.partId;
-        const existing = state.messages[msgIndex]?.parts?.[partId];
+        const existing = sm.parts[pid];
         if (existing && existing.type === "text" && chunk.type === "text-delta") {
-          setState("messages", msgIndex, "parts", partId, "content",
-            (c: string) => c + (chunk as { text: string }).text);
+          existing.content += (chunk as { text: string }).text;
         } else {
-          setState("messages", msgIndex, "parts", partId, {
+          sm.parts[pid] = {
             type: "text",
             content: chunk.type === "text-delta" ? (chunk as { text: string }).text : "",
-          });
+          };
         }
         break;
       }
       case "reasoning-start":
-        setState("messages", msgIndex, "parts", chunk.partId, {
+        sm.parts[pid] = {
           type: "reasoning",
           content: "",
           startTime: Date.now(),
-        });
+        };
         break;
       case "reasoning-delta": {
-        const re = state.messages[msgIndex]?.parts?.[chunk.partId];
-        if (!re || re.type !== "reasoning") {
-          setState("messages", msgIndex, "parts", chunk.partId, {
+        const re = sm.parts[pid];
+        if (re && re.type === "reasoning") {
+          re.content += chunk.text;
+        } else {
+          sm.parts[pid] = {
             type: "reasoning",
             content: chunk.text,
             startTime: Date.now(),
-          });
-        } else {
-          setState("messages", msgIndex, "parts", chunk.partId, "content",
-            (c: string) => c + chunk.text);
+          };
         }
         break;
       }
       case "reasoning-finish": {
-        const re = state.messages[msgIndex]?.parts?.[chunk.partId];
+        const re = sm.parts[pid];
         if (re && re.type === "reasoning") {
-          setState("messages", msgIndex, "parts", chunk.partId, "duration",
-            Date.now() - (re.startTime ?? Date.now()));
+          re.duration = Date.now() - (re.startTime ?? Date.now());
         }
         break;
       }
       case "tool-call-start":
-        setState("messages", msgIndex, "parts", chunk.partId, {
+        sm.parts[pid] = {
           type: "tool",
           toolName: chunk.toolName,
           input: undefined,
           status: "pending",
           startTime: Date.now(),
-        });
+        };
         break;
       case "tool-call":
-        setState("messages", msgIndex, "parts", chunk.partId, {
+        sm.parts[pid] = {
           type: "tool",
           toolName: chunk.toolName,
           input: (chunk as { input: unknown }).input,
           status: "pending",
           startTime: Date.now(),
-        });
+        };
         break;
-      case "tool-result-start":
-        setState("messages", msgIndex, "parts", chunk.partId, "status", "running");
+      case "tool-result-start": {
+        const tp = sm.parts[pid];
+        if (tp && tp.type === "tool") {
+          tp.status = "running";
+        }
         break;
+      }
       case "tool-result": {
         const tr = chunk as { output: string; error?: string };
-        setState("messages", msgIndex, "parts", chunk.partId, {
-          status: tr.error ? "error" : "success",
-          output: tr.output,
-          error: tr.error,
-          endTime: Date.now(),
-        });
+        const tp = sm.parts[pid];
+        if (tp && tp.type === "tool") {
+          tp.status = tr.error ? "error" : "success";
+          tp.output = tr.output;
+          tp.error = tr.error;
+          tp.endTime = Date.now();
+        }
         break;
       }
     }

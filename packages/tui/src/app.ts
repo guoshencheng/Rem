@@ -5,6 +5,7 @@ import {
   InputRenderable,
   ScrollBoxRenderable,
   SelectRenderable,
+  SelectRenderableEvents,
   TextAttributes,
   InputRenderableEvents,
 } from "@opentui/core";
@@ -581,7 +582,7 @@ export class TUIApp {
     this.overlayBox.remove("picker-select");
 
     const selectNode = new SelectRenderable(this.renderer, { id: "picker-select", options });
-    selectNode.on("select", (_index: number, option: { value: string } | null) => {
+    selectNode.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: { value: string } | null) => {
       if (option) {
         this.hidePicker();
         this.switchSession(option.value);
@@ -589,6 +590,7 @@ export class TUIApp {
     });
 
     const pickerBox = new BoxRenderable(this.renderer, {
+      id: "picker-content",
       position: "absolute",
       left: "25%",
       top: "25%",

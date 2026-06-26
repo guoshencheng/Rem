@@ -6,7 +6,6 @@ import {
   ScrollBox,
   Select,
   TextAttributes,
-  InputRenderableEvents,
 } from "@opentui/core";
 import type { KeyEvent, CliRenderer } from "@opentui/core";
 import type { AgentStreamChunk, SessionSummary } from "rem-agent-sdk";
@@ -226,13 +225,6 @@ export class TUIApp {
       width: "100%",
     });
 
-    (this.inputNode as any).on(InputRenderableEvents.ENTER, (value: string) => {
-      const trimmed = value.trim();
-      if (trimmed) {
-        this.handleSubmit(trimmed);
-      }
-    });
-
     this.overlayBox = Box({
       position: "absolute" as any,
       left: 0,
@@ -284,6 +276,14 @@ export class TUIApp {
         this.toolsCollapsed = !this.toolsCollapsed;
         for (const block of this.streamBlocks.values()) {
           block.setCollapsed(this.thinkingCollapsed);
+        }
+      }
+      if (key.name === "return" || key.name === "enter") {
+        const input = this.inputNode as any;
+        const value: string = input.value ?? "";
+        const trimmed = value.trim();
+        if (trimmed) {
+          this.handleSubmit(trimmed);
         }
       }
       if (key.name === "escape") {

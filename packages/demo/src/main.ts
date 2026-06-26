@@ -1,11 +1,8 @@
 import "dotenv/config";
 import { AgentServer } from "rem-agent-server";
 import { TUIApp } from "rem-agent-tui";
-import type { TUIAppOptions } from "rem-agent-tui";
 import { spawn } from "node:child_process";
 import { resolveConfig } from "./config.js";
-import { createCliRenderer } from "@opentui/core";
-import { render } from "@opentui/solid";
 
 function getChildEnv(config: ReturnType<typeof resolveConfig>): NodeJS.ProcessEnv {
   return {
@@ -39,22 +36,18 @@ async function runServer(): Promise<void> {
 
 async function runTUI(): Promise<void> {
   const config = resolveConfig();
-  const renderer = await createCliRenderer({
-    exitOnCtrlC: false,
-    targetFps: 30,
-    screenMode: "alternate-screen",
-  });
-
-  process.on("SIGINT", () => {
-    renderer.destroy();
-    process.exit(0);
-  });
-
-  await render(() => TUIApp({
+  const app = new TUIApp({
     serverUrl: `http://${config.host}:${config.port}`,
     sessionId: config.sessionId,
     maxTurns: config.maxTurns,
-  }), renderer);
+  });
+  await app.init();
+  app.start();
+
+  process.on("SIGINT", () => {
+    app.stop();
+    process.exit(0);
+  });
 }
 
 async function runAll(): Promise<void> {

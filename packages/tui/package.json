@@ -13,13 +13,11 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "cd ../.. \u0026\u0026 vitest run packages/tui/tests"
+    "test": "cd ../.. && vitest run packages/tui/tests"
   },
   "dependencies": {
-    "rem-agent-sdk": "workspace:*",
     "@opentui/core": "^0.4.2",
-    "@opentui/solid": "^0.4.2",
-    "solid-js": "^1.9.0"
+    "rem-agent-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

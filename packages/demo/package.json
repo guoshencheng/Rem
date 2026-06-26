@@ -9,13 +9,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "rem-agent-core": "workspace:*",
-    "rem-agent-server": "workspace:*",
-    "rem-agent-sdk": "workspace:*",
-    "rem-agent-tui": "workspace:*",
     "@opentui/core": "^0.4.2",
-    "@opentui/solid": "^0.4.2",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "rem-agent-core": "workspace:*",
+    "rem-agent-sdk": "workspace:*",
+    "rem-agent-server": "workspace:*",
+    "rem-agent-tui": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

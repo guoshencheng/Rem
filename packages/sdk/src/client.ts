@@ -47,7 +47,6 @@ export class AgentClient {
         for await (const event of events) {
           if (
             event.event === 'chunk' ||
-            event.event === 'finish' ||
             event.event === 'error'
           ) {
             yield parseAgentStreamEvent(event);

@@ -32,9 +32,9 @@ export class TUIApp {
   private client: AgentClient;
   private sessionId: string;
   private currentStreamMessage?: StreamAssistantMessage;
-  private titleGenerated = false;
   private maxTurns: number;
   private currentTurn = 0;
+  private running = false;
 
   constructor(options: TUIAppOptions) {
     this.client = new AgentClient(options.serverUrl);
@@ -61,7 +61,7 @@ export class TUIApp {
         return;
       }
       if (trimmed) {
-        this.submit(trimmed);
+        await this.submit(trimmed);
       }
     };
 
@@ -134,8 +134,8 @@ export class TUIApp {
   private async handleNewSession(): Promise<void> {
     this.client.interrupt(this.sessionId).catch(() => {});
     this.currentStreamMessage = undefined;
-    this.titleGenerated = false;
     this.currentTurn = 0;
+    this.running = false;
     this.sessionId = this.generateId();
     this.chatLog.clearMessages();
     this.statusBar.update(0, this.maxTurns, "idle", this.sessionId);
@@ -146,9 +146,9 @@ export class TUIApp {
   private async switchSession(sessionId: string): Promise<void> {
     this.client.interrupt(this.sessionId).catch(() => {});
     this.currentStreamMessage = undefined;
-    this.titleGenerated = false;
     this.sessionId = sessionId;
     this.currentTurn = 0;
+    this.running = false;
     this.chatLog.clearMessages();
     this.statusBar.update(0, this.maxTurns, "idle", sessionId);
     this.eventLog.addEvent("resume", `loaded session ${sessionId.slice(0, 8)}`);
@@ -170,6 +170,20 @@ export class TUIApp {
   }
 
   private async submit(text: string): Promise<void> {
+    if (this.running) {
+      this.eventLog.addEvent("turn:reject", "already running");
+      this.tui.requestRender(true);
+      return;
+    }
+    if (this.currentTurn >= this.maxTurns) {
+      this.eventLog.addEvent("turn:reject", "max turns reached");
+      this.chatLog.addAssistant("Maximum turns reached. Start a new session with /new.");
+      this.tui.requestRender(true);
+      return;
+    }
+
+    this.running = true;
+    this.currentTurn++;
     this.chatLog.addUser(text);
     this.input.setValue("");
     this.statusBar.update(this.currentTurn, this.maxTurns, "running");
@@ -189,6 +203,8 @@ export class TUIApp {
       this.chatLog.addAssistant(`Error: ${message}`);
       this.statusBar.update(this.currentTurn, this.maxTurns, "error");
       this.tui.requestRender(true);
+    } finally {
+      this.running = false;
     }
   }
 
@@ -198,12 +214,29 @@ export class TUIApp {
     }
     this.currentStreamMessage.appendChunk(chunk);
 
-    if (chunk.type === "finish" || chunk.type === "error") {
+    if (chunk.type === "finish") {
+      if (chunk.output.content && this.currentStreamMessage.isEmpty()) {
+        this.currentStreamMessage.setText(chunk.output.content);
+      }
+      this.currentStreamMessage.markComplete();
       this.currentStreamMessage = undefined;
       this.statusBar.update(
         this.currentTurn,
         this.maxTurns,
         "idle",
+        this.sessionId,
+      );
+    } else if (chunk.type === "error") {
+      const message = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
+      if (this.currentStreamMessage.isEmpty()) {
+        this.currentStreamMessage.setText(`Error: ${message}`);
+      }
+      this.currentStreamMessage.markComplete();
+      this.currentStreamMessage = undefined;
+      this.statusBar.update(
+        this.currentTurn,
+        this.maxTurns,
+        "error",
         this.sessionId,
       );
     }

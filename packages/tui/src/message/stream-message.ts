@@ -12,11 +12,20 @@ type Part =
 export class StreamAssistantMessage extends Container {
   private parts = new Map<string, Part>();
   private thinkingCollapsed: boolean;
+  private complete = false;
 
   constructor(thinkingCollapsed = true) {
     super();
     this.thinkingCollapsed = thinkingCollapsed;
     this.addChild(new Spacer(1));
+  }
+
+  isEmpty(): boolean {
+    return this.parts.size === 0;
+  }
+
+  markComplete(): void {
+    this.complete = true;
   }
 
   appendChunk(chunk: AgentStreamChunk): void {

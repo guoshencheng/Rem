@@ -205,12 +205,23 @@ export class DefaultConfigProvider implements ConfigProvider {
     const id = modelId ?? cfg.activeModel ?? 'default';
     const model = cfg.models?.[id] ?? cfg.model ?? { provider: 'openai', model: '' };
 
+    const resolvedModel = model.model || this.readProviderEnv(model.provider, 'MODEL') || '';
+    const resolvedBaseURL =
+      resolveOptionalTemplate(model.baseURL, this.env) ??
+      this.readProviderEnv(model.provider, 'BASE_URL');
+
     return {
       provider: model.provider,
-      model: model.model,
+      model: resolvedModel,
       apiKey: this.resolveApiKey(model),
-      baseURL: resolveOptionalTemplate(model.baseURL, this.env),
+      baseURL: resolvedBaseURL,
     };
+  }
+
+  private readProviderEnv(provider: string, suffix: string): string | undefined {
+    const key = `${provider.toUpperCase()}_${suffix}`;
+    const value = this.env[key];
+    return value || undefined;
   }
 
   getToolConfig(): AgentToolConfig {

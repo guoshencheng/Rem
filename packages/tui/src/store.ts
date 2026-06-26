@@ -23,7 +23,7 @@ export type MessagePart = TextPart | ReasoningPart | ToolPart;
 // ---- 消息类型 ----
 export type UserMsg = { role: "user"; content: string };
 export type AssistantMsg = { role: "assistant"; content: string };
-export type StreamMsg = { role: "assistant-streaming"; parts: Record<string, MessagePart> };
+export type StreamMsg = { role: "assistant-streaming"; parts: Record<string, MessagePart>; completed: boolean; error?: string };
 export type Message = UserMsg | AssistantMsg | StreamMsg;
 
 // ---- 状态类型 ----
@@ -82,9 +82,10 @@ export function createAppStore(initial: AppState) {
   }
 
   function startStreamMessage(): number {
-    const msg: StreamMsg = { role: "assistant-streaming", parts: {} };
+    const msg: StreamMsg = { role: "assistant-streaming", parts: {}, completed: false };
+    const idx = state.messages.length;
     setState("messages", (m) => [...m, msg]);
-    return state.messages.length;
+    return idx;
   }
 
   function applyChunk(msgIndex: number, chunk: import("rem-agent-sdk").AgentStreamChunk) {
@@ -176,13 +177,12 @@ export function createAppStore(initial: AppState) {
   function finishStreamMessage(msgIndex: number, content: string) {
     const msg = state.messages[msgIndex];
     if (!msg || msg.role !== "assistant-streaming") return;
+    msg.completed = true;
     if (content && Object.keys(msg.parts).length === 0) {
       setState("messages", msgIndex, {
         role: "assistant",
         content,
       } as AssistantMsg);
-    } else {
-      setState("messages", msgIndex, "role", "assistant" as const);
     }
   }
 
@@ -195,7 +195,8 @@ export function createAppStore(initial: AppState) {
         content: `Error: ${errorMessage}`,
       } as AssistantMsg);
     } else {
-      setState("messages", msgIndex, "role", "assistant" as const);
+      msg.completed = true;
+      msg.error = errorMessage;
     }
   }
 

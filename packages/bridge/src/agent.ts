@@ -1,7 +1,8 @@
 import type { AgentStreamChunk, RunAgentResult } from 'rem-agent-core';
-import { runAgent as coreRunAgent, LocalSessionProvider } from 'rem-agent-core';
+import { runAgent as coreRunAgent } from 'rem-agent-core';
 import type { ServerMessage } from 'rem-agent-core';
 import type { ProviderManager } from 'rem-agent-core';
+import type { SessionProvider } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 
 export type { ServerMessage } from 'rem-agent-core';
@@ -28,10 +29,11 @@ export interface ResetResult {
 export class AgentService {
   private activeRuns = new Map<string, AbortController>();
   private activeStreams = new Map<string, RunAgentResult>();
-  private sessionProvider: LocalSessionProvider;
+  private sessionProvider: SessionProvider;
+  private msgCache = new Map<string, ServerMessage[]>();
 
   constructor(private providerManager: ProviderManager) {
-    this.sessionProvider = providerManager.require('session') as LocalSessionProvider;
+    this.sessionProvider = providerManager.require<SessionProvider>('session');
   }
 
   /* ---- Agent lifecycle ---- */
@@ -93,13 +95,13 @@ export class AgentService {
         if (tc) { tc.result = { success: !chunk.error, output: chunk.output, error: chunk.error, durationMs: 0 }; }
       } else if (chunk.type === 'finish') {
         assistant.status = 'done';
-        const existing = this.sessionProvider.pullMessages(sessionId);
-        this.sessionProvider.cueMessages(sessionId, [...existing, assistant]);
+        const existing = this.msgCache.get(sessionId) ?? [];
+        this.msgCache.set(sessionId, [...existing, assistant]);
       } else if (chunk.type === 'error') {
         assistant.status = 'error';
         assistant.error = String(chunk.error);
-        const existing = this.sessionProvider.pullMessages(sessionId);
-        this.sessionProvider.cueMessages(sessionId, [...existing, assistant]);
+        const existing = this.msgCache.get(sessionId) ?? [];
+        this.msgCache.set(sessionId, [...existing, assistant]);
       }
     };
 
@@ -140,7 +142,7 @@ export class AgentService {
   /* ---- Message tracking ---- */
 
   addUserMessage(sessionId: string, content: string): void {
-    this.sessionProvider.cueMessages(sessionId, [
+    this.msgCache.set(sessionId, [
       {
         id: crypto.randomUUID(),
         role: 'user',
@@ -152,7 +154,11 @@ export class AgentService {
   }
 
   getMessages(sessionId: string): ServerMessage[] {
-    return this.sessionProvider.pullMessages(sessionId);
+    const cached = this.msgCache.get(sessionId);
+    if (cached) return cached;
+
+    const session = (this.sessionProvider as any).pullMessages?.(sessionId);
+    return session ?? [];
   }
 
   async listSessions(): Promise<{ sessionId: string; title: string; messageCount: number }[]> {

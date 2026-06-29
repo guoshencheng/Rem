@@ -1,4 +1,4 @@
-import type { AgentStreamChunk, ServerMessage, SessionSummary as CoreSessionSummary } from 'rem-agent-core';
+import type { AgentStreamChunk, ServerMessage, ContentPart, SessionSummary as CoreSessionSummary } from 'rem-agent-core';
 
 export interface SessionSummary extends CoreSessionSummary {
   pinned?: boolean;
@@ -44,4 +44,4 @@ export function isSSEError(c: AgentStreamChunk): c is AgentStreamChunk & { type:
   return c.type === 'error';
 }
 
-export type { AgentStreamChunk };
+export type { AgentStreamChunk, ContentPart };

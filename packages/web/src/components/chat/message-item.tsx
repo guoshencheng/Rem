@@ -69,6 +69,8 @@ export function MessageItem({ message }: MessageItemProps) {
     : (message.status === 'streaming' && !message.content && !message.reasoning) ? 'streaming'
     : null;
 
+  const hasParts = message.parts && message.parts.length > 0;
+
   return (
     <div className="px-4 py-3">
       <div className={cn(
@@ -76,14 +78,42 @@ export function MessageItem({ message }: MessageItemProps) {
         message.status === 'error' && 'border-err/50',
       )}>
         {thinkingStatus && <ThinkingBar status={thinkingStatus} />}
-        <ReasoningBlock text={message.reasoning ?? ''} isStreaming={message.status === 'streaming'} />
-        {message.toolCalls.map((tc) => <ToolCallBlock key={tc.id} tool={tc} />)}
-        {message.content && (
-          <div className="prose prose-invert prose-sm max-w-none text-tx">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents as unknown as Components}>
-              {message.content}
-            </ReactMarkdown>
-          </div>
+        {hasParts ? (
+          message.parts.map((part, i) => {
+            if (part.type === 'reasoning') {
+              return <ReasoningBlock key={i} text={part.text} isStreaming={message.status === 'streaming'} />;
+            }
+            if (part.type === 'tool-call') {
+              return <ToolCallBlock key={i} tool={{
+                id: part.toolCallId,
+                name: part.toolName,
+                arguments: part.arguments,
+                result: part.result,
+              }} />;
+            }
+            if (part.type === 'text' && part.text) {
+              return (
+                <div key={i} className="prose prose-invert prose-sm max-w-none text-tx">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents as unknown as Components}>
+                    {part.text}
+                  </ReactMarkdown>
+                </div>
+              );
+            }
+            return null;
+          })
+        ) : (
+          <>
+            <ReasoningBlock text={message.reasoning ?? ''} isStreaming={message.status === 'streaming'} />
+            {message.toolCalls.map((tc) => <ToolCallBlock key={tc.id} tool={tc} />)}
+            {message.content && (
+              <div className="prose prose-invert prose-sm max-w-none text-tx">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents as unknown as Components}>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
+          </>
         )}
         {message.status === 'error' && message.error && (
           <div className="mt-2 px-3 py-2 rounded-btn bg-err-bg text-err text-xs border border-err/30">{message.error}</div>

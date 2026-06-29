@@ -1,11 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { SessionSummary, UIMessage, AgentStreamChunk } from './types';
-import {
-  isSSETextDelta, isSSEReasoningDelta, isSSEToolCallStart,
-  isSSEToolResult, isSSEFinish, isSSEError,
-} from './types';
+import type { SessionSummary, UIMessage, AgentStreamChunk, ContentPart } from './types';
 import {
   listSessions, createSession, getSession, updateSession,
   deleteSession, runAgent, interruptAgent,
@@ -99,6 +95,7 @@ export const useSessionStore = create<{
       role: 'user',
       content: text,
       toolCalls: [],
+      parts: [{ type: 'text', text } as ContentPart],
       status: 'done',
     };
     const assistantMsg: UIMessage = {
@@ -106,6 +103,7 @@ export const useSessionStore = create<{
       role: 'assistant',
       content: '',
       toolCalls: [],
+      parts: [] as ContentPart[],
       status: 'pending',
     };
     assistantMessageId = assistantMsg.id;
@@ -133,67 +131,103 @@ export const useSessionStore = create<{
   },
 
   onChunk: (chunk: AgentStreamChunk) => {
-    if (isSSETextDelta(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId ? { ...m, content: m.content + chunk.text } : m,
-        ),
-      }));
-    } else if (isSSEReasoningDelta(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId ? { ...m, reasoning: (m.reasoning ?? '') + chunk.text } : m,
-        ),
-      }));
-    } else if (isSSEToolCallStart(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId ? {
-            ...m,
-            toolCalls: [...m.toolCalls, { id: chunk.toolCallId, name: chunk.toolName, arguments: {} }],
-          } : m,
-        ),
-      }));
-    } else if (isSSEToolResult(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId
-            ? {
-                ...m,
-                toolCalls: m.toolCalls.map((tc) =>
-                  tc.id === chunk.toolCallId
-                    ? {
-                        ...tc,
-                        result: {
-                          success: !chunk.error,
-                          output: chunk.output,
-                          error: chunk.error,
-                          durationMs: 0,
-                        },
-                      }
-                    : tc,
-                ),
-              }
-            : m,
-        ),
-      }));
-    } else if (isSSEFinish(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId ? { ...m, status: 'done' as const } : m,
-        ),
-        streaming: false,
-      }));
-    } else if (isSSEError(chunk)) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMessageId
-            ? { ...m, status: 'error' as const, error: String(chunk.error) }
-            : m,
-        ),
-        streaming: false,
-      }));
-    }
+    set((s) => {
+      const msgs = s.messages.map((m) => {
+        if (m.id !== assistantMessageId) return m;
+        const parts = [...m.parts];
+        const msg = { ...m, parts };
+
+        switch (chunk.type) {
+          case 'text-start': {
+            parts.push({ type: 'text', text: '' } as ContentPart);
+            break;
+          }
+          case 'text-delta': {
+            const last = parts[parts.length - 1];
+            if (last?.type === 'text') {
+              parts[parts.length - 1] = { ...last, text: last.text + chunk.text };
+              msg.content += chunk.text;
+            }
+            break;
+          }
+          case 'reasoning-start': {
+            parts.push({ type: 'reasoning', text: '' } as ContentPart);
+            break;
+          }
+          case 'reasoning-delta': {
+            const last = parts[parts.length - 1];
+            if (last?.type === 'reasoning') {
+              parts[parts.length - 1] = { ...last, text: last.text + chunk.text };
+              msg.reasoning = (msg.reasoning ?? '') + chunk.text;
+            }
+            break;
+          }
+          case 'reasoning-finish': {
+            break;
+          }
+          case 'tool-call-start': {
+            parts.push({
+              type: 'tool-call',
+              toolCallId: chunk.toolCallId,
+              toolName: chunk.toolName,
+              arguments: {},
+            } as ContentPart);
+            msg.toolCalls = [...msg.toolCalls, { id: chunk.toolCallId, name: chunk.toolName, arguments: {} }];
+            break;
+          }
+          case 'tool-call': {
+            const idx = parts.findIndex((p): p is ContentPart & { type: 'tool-call' } =>
+              p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
+            );
+            if (idx >= 0) {
+              parts[idx] = { ...parts[idx], arguments: (chunk.input as Record<string, unknown>) ?? {} };
+            }
+            msg.toolCalls = msg.toolCalls.map((tc) =>
+              tc.id === chunk.toolCallId ? { ...tc, arguments: (chunk.input as Record<string, unknown>) ?? {} } : tc,
+            );
+            break;
+          }
+          case 'tool-call-finish': {
+            break;
+          }
+          case 'tool-result-start': {
+            break;
+          }
+          case 'tool-result': {
+            const idx = parts.findIndex((p): p is ContentPart & { type: 'tool-call' } =>
+              p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
+            );
+            if (idx >= 0) {
+              const part = parts[idx] as ContentPart & { type: 'tool-call'; result?: { success: boolean; output: string; error?: string; durationMs: number } };
+              parts[idx] = {
+                ...part,
+                result: { success: !chunk.error, output: chunk.output ?? '', error: chunk.error, durationMs: 0 },
+              };
+            }
+            msg.toolCalls = msg.toolCalls.map((tc) =>
+              tc.id === chunk.toolCallId
+                ? { ...tc, result: { success: !chunk.error, output: chunk.output ?? '', error: chunk.error, durationMs: 0 } }
+                : tc,
+            );
+            break;
+          }
+          case 'finish': {
+            msg.status = 'done';
+            break;
+          }
+          case 'error': {
+            msg.status = 'error';
+            msg.error = String(chunk.error);
+            break;
+          }
+        }
+
+        return msg;
+      });
+
+      const streaming = chunk.type !== 'finish' && chunk.type !== 'error';
+      return { messages: msgs, streaming };
+    });
   },
 
   setReconnecting: (v: boolean) => set({ reconnecting: v }),

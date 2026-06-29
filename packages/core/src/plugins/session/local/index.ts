@@ -4,6 +4,17 @@ import { join } from 'path';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
+  | {
+      type: 'tool-call';
+      toolCallId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      result?: { success: boolean; output: string; error?: string; durationMs: number };
+    };
+
 export interface ServerMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -15,6 +26,7 @@ export interface ServerMessage {
     arguments: Record<string, unknown>;
     result?: { success: boolean; output: string; error?: string; durationMs: number };
   }>;
+  parts: ContentPart[];
   status: 'pending' | 'streaming' | 'done' | 'error';
   error?: string;
 }

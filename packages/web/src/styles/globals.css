@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+@variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-bg: #0f1318;
+  --color-sb: #151a21;
+  --color-card: #1a2129;
+  --color-card2: #161c23;
+  --color-bd: #232b35;
+  --color-bd2: #2a333e;
+  --color-tx: #e6ebf1;
+  --color-tx2: #9aa7b4;
+  --color-tx3: #5d6b7a;
+  --color-ac: #b9a9ff;
+  --color-ac-ink: #1c1635;
+  --color-ac-soft: #2a2350;
+  --color-ok: #6ee7b7;
+  --color-ok-bg: #10241d;
+  --color-err: #fb7185;
+  --color-err-bg: #2a1620;
+  --color-warn: #fbbf24;
+  --color-warn-bg: #2a2310;
+  --radius-card: 14px;
+  --radius-btn: 9px;
+  --radius-chip: 18px;
+  --font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-tx);
+    font-family: var(--font-sans);
+  }
+
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(185, 169, 255, 0.12);
+    border-color: var(--color-ac);
+  }
+
+  ::selection {
+    background-color: rgba(185, 169, 255, 0.3);
+  }
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bd2) transparent;
+}

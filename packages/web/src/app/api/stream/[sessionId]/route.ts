@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server';
-import { getAgentService } from '../services';
+import type { AgentService } from 'rem-agent-bridge';
+import { getContainer } from '@/lib/container';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
-  const agentService = await getAgentService();
+  const container = await getContainer();
+  const agentService = container.resolve<AgentService>('agentService');
 
   const active = agentService.getStream(sessionId);
   if (!active) {

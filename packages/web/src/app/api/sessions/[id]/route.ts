@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionService } from '../../services';
+import type { SessionService } from 'rem-agent-bridge';
+import { getContainer } from '@/lib/container';
 
 export async function GET(
   _request: NextRequest,
@@ -7,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const sessionService = await getSessionService();
+    const container = await getContainer();
+    const sessionService = container.resolve<SessionService>('sessionService');
     return NextResponse.json({
       sessionId: id,
       title: 'New Chat',
@@ -26,7 +28,8 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { title, pinned } = body as { title?: string; pinned?: boolean };
-    const sessionService = await getSessionService();
+    const container = await getContainer();
+    const sessionService = container.resolve<SessionService>('sessionService');
     sessionService.update(id, { title, pinned });
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -40,7 +43,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const sessionService = await getSessionService();
+    const container = await getContainer();
+    const sessionService = container.resolve<SessionService>('sessionService');
     sessionService.delete(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgentService } from '../services';
+import type { AgentService } from 'rem-agent-bridge';
+import { getContainer } from '@/lib/container';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +11,8 @@ export async function POST(request: NextRequest) {
       interrupt?: boolean;
     };
 
-    const agentService = await getAgentService();
+    const container = await getContainer();
+    const agentService = container.resolve<AgentService>('agentService');
 
     if (interrupt) {
       const result = agentService.interrupt(sessionId);

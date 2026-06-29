@@ -22,13 +22,13 @@ export class SessionService {
     return sessions.map((s) => ({
       ...s,
       title: meta.get(s.sessionId)?.title ?? s.title,
-      updatedAt: new Date(),
+      updatedAt: Date.now(),
     }));
   }
 
   create() {
     const sessionId = crypto.randomUUID();
-    return { sessionId, title: 'New Chat', updatedAt: new Date(), messageCount: 0 };
+    return { sessionId, title: 'New Chat', updatedAt: Date.now(), messageCount: 0 };
   }
 
   async getMessages(sessionId: string) {

@@ -1,7 +1,6 @@
 import type { AgentStreamChunk } from 'rem-agent-core';
 import type {
   RunRequest,
-  RunResponse,
   SessionSummary,
   InterruptRequest,
   ResetRequest,
@@ -21,22 +20,10 @@ export class AgentClient {
       body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
     });
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       throw new Error(
         `Failed to start run: ${response.status} ${response.statusText}`,
       );
-    }
-
-    const { streamUrl } = (await response.json()) as RunResponse;
-    return this.consumeStream(streamUrl);
-  }
-
-  private async consumeStream(
-    streamUrl: string,
-  ): Promise<AsyncIterable<AgentStreamChunk>> {
-    const response = await fetch(`${this.baseUrl}${streamUrl}`);
-    if (!response.ok || !response.body) {
-      throw new Error(`Failed to connect to stream: ${response.status}`);
     }
 
     const reader = response.body.getReader();

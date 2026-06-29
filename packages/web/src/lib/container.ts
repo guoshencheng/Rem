@@ -1,4 +1,4 @@
-import { createContainer, asClass, asValue, Lifetime, type AwilixContainer } from 'awilix';
+import { createContainer, asFunction, asValue, Lifetime, type AwilixContainer } from 'awilix';
 import { createProviderManager } from 'rem-agent-core';
 import { AgentService, SessionService } from 'rem-agent-bridge';
 
@@ -8,8 +8,12 @@ async function configureContainer(): Promise<AwilixContainer> {
 
   container.register({
     providerManager: asValue(pm),
-    agentService: asClass(AgentService, { lifetime: Lifetime.SINGLETON }),
-    sessionService: asClass(SessionService, { lifetime: Lifetime.SINGLETON }),
+    agentService: asFunction(({ providerManager }) => new AgentService(providerManager), {
+      lifetime: Lifetime.SINGLETON,
+    }),
+    sessionService: asFunction(({ agentService }) => new SessionService(agentService), {
+      lifetime: Lifetime.SINGLETON,
+    }),
   });
 
   return container;

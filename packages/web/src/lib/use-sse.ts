@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
-import type { AgentStreamChunk } from './types.js';
-import { parseSSEStream, parseAgentStreamEvent } from './stream-parser.js';
+import type { AgentStreamChunk } from './types';
+import { parseSSEStream, parseAgentStreamEvent } from './stream-parser';
 
 type ChunkHandler = (chunk: AgentStreamChunk) => void;
 type StatusHandler = (status: 'connecting' | 'reconnecting' | 'error' | 'done') => void;

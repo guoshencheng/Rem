@@ -1,4 +1,4 @@
-import type { SSEEvent, AgentStreamChunk } from './types.js';
+import type { SSEEvent, AgentStreamChunk } from './types';
 
 export function parseSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncIterable<SSEEvent> {
   const decoder = new TextDecoder();

@@ -1,4 +1,4 @@
-import type { SessionSummary, RunResponse } from './types.js';
+import type { SessionSummary, RunResponse } from './types';
 
 export async function runAgent(sessionId: string, input: string): Promise<RunResponse> {
   const res = await fetch('/api/agent/run', {

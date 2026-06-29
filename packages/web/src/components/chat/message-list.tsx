@@ -32,6 +32,17 @@ export function MessageList() {
           R
         </div>
         <span>你好，请问有什么可以帮助你的？</span>
+        <div className="flex gap-2 flex-wrap justify-center max-w-md mt-2">
+          {['帮我写段代码', '解释一个概念', '帮我分析数据'].map((hint) => (
+            <button
+              key={hint}
+              onClick={() => useSessionStore.getState().sendMessage(hint)}
+              className="px-3 py-1.5 rounded-chip bg-card border border-bd2 text-xs text-tx2 hover:text-tx hover:border-ac/50 transition-colors"
+            >
+              {hint}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }

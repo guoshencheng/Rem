@@ -1,15 +1,15 @@
 'use client';
 
 import { create } from 'zustand';
-import type { SessionSummary, UIMessage, AgentStreamChunk } from './types.js';
+import type { SessionSummary, UIMessage, AgentStreamChunk } from './types';
 import {
   isSSETextDelta, isSSEReasoningDelta, isSSEToolCallStart,
   isSSEToolResult, isSSEFinish, isSSEError,
-} from './types.js';
+} from './types';
 import {
   listSessions, createSession, getSession, updateSession,
   deleteSession, runAgent, interruptAgent,
-} from './agent-client.js';
+} from './agent-client';
 import type { ToolCallRecord } from 'rem-agent-core';
 
 let assistantMessageId = '';

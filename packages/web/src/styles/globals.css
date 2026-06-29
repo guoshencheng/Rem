@@ -50,3 +50,21 @@
   scrollbar-width: thin;
   scrollbar-color: var(--color-bd2) transparent;
 }
+
+/* highlight.js theme override — dark theme compatible with our palette */
+@layer base {
+  .hljs { background: var(--color-card2); color: var(--color-tx2); }
+  .hljs-keyword { color: #c792ea; }
+  .hljs-string { color: var(--color-ok); }
+  .hljs-number { color: #f78c6c; }
+  .hljs-comment { color: var(--color-tx3); font-style: italic; }
+  .hljs-function { color: #82aaff; }
+  .hljs-title { color: #82aaff; }
+  .hljs-params { color: var(--color-tx); }
+  .hljs-built_in { color: var(--color-ac); }
+  .hljs-type { color: #ffcb6b; }
+  .hljs-literal { color: #f78c6c; }
+  .hljs-meta { color: var(--color-ac); }
+  .hljs-attr { color: var(--color-ac); }
+  .hljs-variable { color: var(--color-tx); }
+}

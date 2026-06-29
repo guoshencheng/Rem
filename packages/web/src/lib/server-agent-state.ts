@@ -38,35 +38,29 @@ interface AgentEntry {
 const g = globalThis as unknown as {
   _remAgentStore?: Map<string, AgentEntry>;
   _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
+  _remSessionProvider?: InMemorySessionProvider;
+  _remMemoryProvider?: SimpleMemoryProvider;
 };
 
 if (!g._remAgentStore) g._remAgentStore = new Map();
 if (!g._remActiveStreams) g._remActiveStreams = new Map();
+if (!g._remSessionProvider) g._remSessionProvider = new InMemorySessionProvider();
+if (!g._remMemoryProvider) g._remMemoryProvider = new SimpleMemoryProvider('Rem Agent');
 
 const agentStore = g._remAgentStore;
 const activeStreams = g._remActiveStreams;
-
-let sharedSessionProvider: InMemorySessionProvider;
-let sharedMemoryProvider: SimpleMemoryProvider;
-
-function getSharedProviders() {
-  if (!sharedSessionProvider) {
-    sharedSessionProvider = new InMemorySessionProvider();
-    sharedMemoryProvider = new SimpleMemoryProvider('Rem Agent');
-  }
-  return { sharedSessionProvider, sharedMemoryProvider };
-}
+const sharedSessionProvider = g._remSessionProvider;
+const sharedMemoryProvider = g._remMemoryProvider;
 
 export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
   let entry = agentStore.get(sessionId);
   if (!entry) {
-    const { sharedSessionProvider: sp, sharedMemoryProvider: mp } = getSharedProviders();
     const agent = new CoreAgent({
       name: 'Rem Agent',
       budget: new IterationBudget({ maxTurns: 60 }),
       provider: 'openai',
-      sessionProvider: sp,
-      memoryProvider: mp,
+      sessionProvider: sharedSessionProvider,
+      memoryProvider: sharedMemoryProvider,
       toolProvider: new InMemoryToolProvider(),
       skillProvider: new FileSkillProvider(),
       compressor: new NoOpCompressor(),
@@ -109,10 +103,24 @@ export async function generateTitle(sessionId: string): Promise<string> {
   return entry.agent.generateTitle();
 }
 
-export async function listAgentSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt: Date; messageCount: number }>> {
-  const firstEntry = agentStore.values().next().value;
-  if (!firstEntry) return [];
-  return firstEntry.agent.listSessions();
+export async function listAgentSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }>> {
+  const result: Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }> = [];
+  for (const [sessionId, entry] of agentStore.entries()) {
+    result.push({
+      sessionId,
+      title: entry.messages.length > 0 ? extractTitle(entry.messages) : undefined,
+      updatedAt: Date.now(),
+      messageCount: entry.messages.length,
+    });
+  }
+  return result.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function extractTitle(messages: ServerMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user');
+  if (!firstUser) return 'New Chat';
+  const text = firstUser.content.trim();
+  return text.length > 20 ? text.slice(0, 20) + '...' : text;
 }
 
 export function addUserMessage(sessionId: string, content: string): void {

@@ -24,14 +24,11 @@ export async function GET(request: NextRequest) {
 export async function POST() {
   try {
     const sessionId = crypto.randomUUID();
-    const agent = await getOrCreateAgent(sessionId);
-
-    const title = 'New Chat';
-    await agent.initialize({ sessionId });
+    await getOrCreateAgent(sessionId);
 
     return NextResponse.json({
       sessionId,
-      title,
+      title: 'New Chat',
       updatedAt: Date.now(),
       messageCount: 0,
     });

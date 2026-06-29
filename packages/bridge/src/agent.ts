@@ -49,6 +49,7 @@ export class AgentService {
   private activeStreams = new Map<string, RunAgentResult>();
   private sessionProvider: LocalSessionProvider;
   private msgCache = new Map<string, SessionMessages>();
+  private _pmReady = false;
 
   constructor() {
     this.sessionProvider = new LocalSessionProvider(resolve(process.cwd(), '.sessions'));
@@ -62,8 +63,7 @@ export class AgentService {
   }
 
   private async ensureProviderManager(): Promise<void> {
-    const existing = await ProviderManager.getInstance().catch(() => null);
-    if (existing) return;
+    if (this._pmReady) return;
     ProviderManager.resetInstance();
     await ProviderManager.getInstance({
       configProvider: {
@@ -87,6 +87,7 @@ export class AgentService {
       errorHandler: new SimpleErrorHandler(),
       budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
     });
+    this._pmReady = true;
   }
 
   /* ---- Agent lifecycle ---- */

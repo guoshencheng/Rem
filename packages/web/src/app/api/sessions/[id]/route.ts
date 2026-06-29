@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrCreateAgent } from '@/lib/server-agent-state';
+import { getOrCreateAgent, getSessionMessages } from '@/lib/server-agent-state';
 
 const titles = new Map<string, string>();
 const pins = new Map<string, boolean>();
@@ -10,22 +10,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const agent = await getOrCreateAgent(id);
-
-    const messages = agent.conversation
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg, idx) => ({
-      id: `msg-${idx}`,
-      role: msg.role as 'user' | 'assistant',
-      content: extractText(msg.content),
-      status: 'done' as const,
-      toolCalls: [] as unknown[],
-    }));
+    await getOrCreateAgent(id);
 
     return NextResponse.json({
       sessionId: id,
       title: titles.get(id) ?? 'New Chat',
-      messages,
+      messages: getSessionMessages(id),
     });
   } catch (err) {
     return NextResponse.json(
@@ -33,17 +23,6 @@ export async function GET(
       { status: 500 },
     );
   }
-}
-
-function extractText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return (content as Array<{ type?: string; text?: string }>)
-      .filter((p) => p.type === 'text')
-      .map((p) => p.text ?? '')
-      .join('');
-  }
-  return '';
 }
 
 export async function PATCH(

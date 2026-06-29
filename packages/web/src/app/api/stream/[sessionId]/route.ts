@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getActiveRun, clearActiveRun } from '@/lib/server-agent-state';
+import { getActiveRun, clearActiveRun, applyStreamChunk } from '@/lib/server-agent-state';
 
 export async function GET(
   _request: NextRequest,
@@ -21,6 +21,7 @@ export async function GET(
     async start(controller) {
       try {
         for await (const chunk of active.result.stream.fullStream) {
+          applyStreamChunk(sessionId, chunk);
           const line = `event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(line));
           if (chunk.type === 'finish' || chunk.type === 'error') break;

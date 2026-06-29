@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrCreateAgent, setActiveRun, interruptActiveRun } from '@/lib/server-agent-state';
+import { getOrCreateAgent, setActiveRun, interruptActiveRun, addUserMessage } from '@/lib/server-agent-state';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const abort = new AbortController();
     const result = agent.run({ content, timestamp: new Date() });
     setActiveRun(sessionId, result, abort);
+    addUserMessage(sessionId, content);
 
     return NextResponse.json({ sessionId, streamUrl: `/api/stream/${sessionId}` });
   } catch (err) {

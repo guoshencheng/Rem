@@ -9,12 +9,30 @@ import {
   SimpleErrorHandler,
   FixedBudgetPolicy,
 } from 'rem-agent-core';
+import type { AgentStreamChunk } from 'rem-agent-core';
 
 type Agent = CoreAgent;
 type RunResult = ReturnType<Agent['run']>;
 
+export interface ServerMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  reasoning?: string;
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    result?: { success: boolean; output: string; error?: string; durationMs: number };
+  }>;
+  status: 'pending' | 'streaming' | 'done' | 'error';
+  error?: string;
+}
+
 interface AgentEntry {
   agent: Agent;
+  messages: ServerMessage[];
+  assistantMsgId: string;
 }
 
 const g = globalThis as unknown as {
@@ -57,7 +75,7 @@ export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
     });
     await agent.ready();
     await agent.initialize({ sessionId });
-    entry = { agent };
+    entry = { agent, messages: [], assistantMsgId: '' };
     agentStore.set(sessionId, entry);
   }
   return entry.agent;
@@ -95,4 +113,61 @@ export async function listAgentSessions(): Promise<Array<{ sessionId: string; ti
   const firstEntry = agentStore.values().next().value;
   if (!firstEntry) return [];
   return firstEntry.agent.listSessions();
+}
+
+export function addUserMessage(sessionId: string, content: string): void {
+  const entry = agentStore.get(sessionId);
+  if (!entry) return;
+  entry.messages.push({
+    id: crypto.randomUUID(),
+    role: 'user',
+    content,
+    toolCalls: [],
+    status: 'done',
+  });
+  const assistId = crypto.randomUUID();
+  entry.assistantMsgId = assistId;
+  entry.messages.push({
+    id: assistId,
+    role: 'assistant',
+    content: '',
+    toolCalls: [],
+    status: 'pending',
+  });
+}
+
+export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): void {
+  const entry = agentStore.get(sessionId);
+  if (!entry) return;
+  const targetId = entry.assistantMsgId;
+  const msg = entry.messages.find((m) => m.id === targetId);
+  if (!msg) return;
+
+  if (chunk.type === 'text-delta') {
+    msg.content += chunk.text;
+    msg.status = 'streaming';
+  } else if (chunk.type === 'reasoning-delta') {
+    msg.reasoning = (msg.reasoning ?? '') + chunk.text;
+    msg.status = 'streaming';
+  } else if (chunk.type === 'tool-call-start') {
+    msg.toolCalls.push({ id: chunk.toolCallId, name: chunk.toolName, arguments: {} });
+    msg.status = 'streaming';
+  } else if (chunk.type === 'tool-call') {
+    const tc = msg.toolCalls.find((t) => t.id === chunk.toolCallId);
+    if (tc) tc.arguments = (chunk.input as Record<string, unknown>) ?? {};
+  } else if (chunk.type === 'tool-result') {
+    const tc = msg.toolCalls.find((t) => t.id === chunk.toolCallId);
+    if (tc) {
+      tc.result = { success: !chunk.error, output: chunk.output, error: chunk.error, durationMs: 0 };
+    }
+  } else if (chunk.type === 'finish') {
+    msg.status = 'done';
+  } else if (chunk.type === 'error') {
+    msg.status = 'error';
+    msg.error = String(chunk.error);
+  }
+}
+
+export function getSessionMessages(sessionId: string): ServerMessage[] {
+  return agentStore.get(sessionId)?.messages ?? [];
 }

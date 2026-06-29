@@ -17,21 +17,38 @@ interface AgentEntry {
   agent: Agent;
 }
 
-const sharedSessionProvider = new InMemorySessionProvider();
-const sharedMemoryProvider = new SimpleMemoryProvider('Rem Agent');
+const g = globalThis as unknown as {
+  _remAgentStore?: Map<string, AgentEntry>;
+  _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
+};
 
-const agentStore = new Map<string, AgentEntry>();
-const activeStreams = new Map<string, { result: RunResult; abort: AbortController }>();
+if (!g._remAgentStore) g._remAgentStore = new Map();
+if (!g._remActiveStreams) g._remActiveStreams = new Map();
+
+const agentStore = g._remAgentStore;
+const activeStreams = g._remActiveStreams;
+
+let sharedSessionProvider: InMemorySessionProvider;
+let sharedMemoryProvider: SimpleMemoryProvider;
+
+function getSharedProviders() {
+  if (!sharedSessionProvider) {
+    sharedSessionProvider = new InMemorySessionProvider();
+    sharedMemoryProvider = new SimpleMemoryProvider('Rem Agent');
+  }
+  return { sharedSessionProvider, sharedMemoryProvider };
+}
 
 export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
   let entry = agentStore.get(sessionId);
   if (!entry) {
+    const { sharedSessionProvider: sp, sharedMemoryProvider: mp } = getSharedProviders();
     const agent = new CoreAgent({
       name: 'Rem Agent',
       budget: new IterationBudget({ maxTurns: 60 }),
       provider: 'openai',
-      sessionProvider: sharedSessionProvider,
-      memoryProvider: sharedMemoryProvider,
+      sessionProvider: sp,
+      memoryProvider: mp,
       toolProvider: new InMemoryToolProvider(),
       skillProvider: new FileSkillProvider(),
       compressor: new NoOpCompressor(),

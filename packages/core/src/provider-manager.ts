@@ -1,7 +1,7 @@
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { AgentProviderRegistry } from './registry/provider-registry.js';
 import { DefaultProviderLoader } from './registry/provider-loader.js';
-import { builtinProviderResolver } from './plugins/index.js';
+import { resolveBuiltinLoader } from './plugins/index.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import type {
   ProviderReference,
@@ -59,7 +59,7 @@ export class ProviderManager {
     const behavior = this.configProvider.getBehaviorConfig();
     const toolCfg = this.configProvider.getToolConfig();
 
-    const loader = new DefaultProviderLoader(builtinProviderResolver);
+    const loader = new DefaultProviderLoader(resolveBuiltinLoader);
     const registry = new AgentProviderRegistry({
       loader,
       ctx: {

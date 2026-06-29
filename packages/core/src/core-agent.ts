@@ -26,7 +26,7 @@ import { AgentStreamController } from './stream/agent-stream.js';
 import { getDefaultSkillsDir, getDefaultSessionsDir } from './config/paths.js';
 import { DefaultProviderLoader } from './registry/provider-loader.js';
 import { AgentProviderRegistry } from './registry/provider-registry.js';
-import { builtinProviderResolver } from './plugins/index.js';
+import { resolveBuiltinLoader } from './plugins/index.js';
 import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
 
 export interface CoreAgentConfig {
@@ -101,7 +101,7 @@ export class CoreAgent {
     this.resolvedBehavior = this.resolveBehaviorConfig(config);
     this.resolvedProvider = this.resolveProviderConfig(config);
     this.events = new EventBus();
-    this.providerLoader = config.providerLoader ?? new DefaultProviderLoader(builtinProviderResolver);
+    this.providerLoader = config.providerLoader ?? new DefaultProviderLoader(resolveBuiltinLoader);
     this.state = new AgentState(undefined, config.budget);
   }
 

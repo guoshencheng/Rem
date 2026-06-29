@@ -6,7 +6,7 @@ import type {
   ProviderReference,
   ProviderDescriptor,
   ProviderModule,
-  BuiltinProviderResolver,
+  ProviderModuleRef,
 } from '../sdk/provider-loader.js';
 
 function isDescriptor<T>(ref: ProviderReference<T>): ref is ProviderDescriptor<T> {
@@ -19,7 +19,7 @@ function isDescriptor<T>(ref: ProviderReference<T>): ref is ProviderDescriptor<T
 }
 
 export class DefaultProviderLoader implements ProviderLoader {
-  constructor(private resolveBuiltin?: BuiltinProviderResolver) {}
+  constructor(private resolveBuiltin?: (kind: string, name: string) => ProviderModuleRef | string | undefined) {}
 
   async load<T>(ref: ProviderReference<T>, ctx: ProviderLoaderContext): Promise<T> {
     if (typeof ref !== 'string' && !isDescriptor(ref)) {
@@ -27,14 +27,28 @@ export class DefaultProviderLoader implements ProviderLoader {
     }
 
     const descriptor = typeof ref === 'string' ? { module: ref } : ref;
-    const modulePath = this.resolveModulePath(descriptor.module, ctx.kind);
+    const name = descriptor.module;
+    const kind = ctx.kind;
+
+    const builtinResult = this.resolveBuiltin?.(kind as any, name);
+    if (typeof builtinResult === 'function') {
+      const mod = await builtinResult();
+      const options = descriptor.options ?? (mod as any).getDefaultOptions?.(ctx);
+      return mod.createProvider(options);
+    }
+
+    const modulePath = this.resolveModulePath(name, kind, typeof builtinResult === 'string' ? builtinResult : undefined);
     const mod = await this.importModule<T>(modulePath);
 
     const options = descriptor.options ?? mod.getDefaultOptions?.(ctx);
     return mod.createProvider(options);
   }
 
-  private resolveModulePath(nameOrPath: string, kind: string): string {
+  private resolveModulePath(nameOrPath: string, kind: string, builtinPath?: string): string {
+    if (builtinPath) {
+      return builtinPath;
+    }
+
     if (nameOrPath.startsWith('file://')) {
       return fileURLToPath(nameOrPath);
     }
@@ -45,13 +59,6 @@ export class DefaultProviderLoader implements ProviderLoader {
 
     if (nameOrPath.startsWith('./') || nameOrPath.startsWith('../')) {
       return resolve(process.cwd(), nameOrPath);
-    }
-
-    if (this.resolveBuiltin) {
-      const builtin = this.resolveBuiltin(kind as any, nameOrPath);
-      if (builtin) {
-        return builtin;
-      }
     }
 
     throw new Error(

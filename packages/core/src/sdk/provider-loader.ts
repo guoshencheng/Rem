@@ -39,7 +39,9 @@ export interface ProviderLoader {
   load<T>(ref: ProviderReference<T>, ctx: ProviderLoaderContext): Promise<T>;
 }
 
-export type BuiltinProviderResolver = (kind: ProviderKind, name: string) => string | undefined;
+export type ProviderModuleRef = () => Promise<ProviderModule<any>>;
+
+export type BuiltinProviderResolver = (kind: ProviderKind, name: string) => ProviderModuleRef | string | undefined;
 
 export interface ProviderRegistry {
   initialize(): Promise<void>;

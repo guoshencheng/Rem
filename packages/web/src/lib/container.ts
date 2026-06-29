@@ -4,7 +4,9 @@ import { AgentService, SessionService } from 'rem-agent-bridge';
 import { resolve } from 'path';
 
 async function configureContainer(): Promise<AwilixContainer> {
-  const sessionsDir = resolve(process.cwd(), '.sessions');
+  const sessionsDir = process.env.SESSIONS_DIR
+    ? resolve(process.env.SESSIONS_DIR)
+    : resolve(process.cwd(), '.sessions');
   const pm = await createProviderManager({
     sessionProvider: new LocalSessionProvider(sessionsDir),
   });

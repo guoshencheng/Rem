@@ -52,5 +52,9 @@ export function parseSSEStream(
 }
 
 export function parseAgentStreamEvent(event: SSEEvent): AgentStreamChunk {
-  return JSON.parse(event.data) as AgentStreamChunk;
+  try {
+    return JSON.parse(event.data) as AgentStreamChunk;
+  } catch {
+    return { type: 'error', error: { name: 'ParseError', message: `Invalid SSE data: ${event.data.slice(0, 100)}` } } as AgentStreamChunk;
+  }
 }

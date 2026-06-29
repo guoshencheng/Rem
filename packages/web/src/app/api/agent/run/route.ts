@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
     }
 
     const { stream } = agentService.run({ sessionId, content });
-    agentService.addUserMessage(sessionId, content);
 
     return createSSEResponse(stream.fullStream);
   } catch (err) {

@@ -9,7 +9,7 @@ import { useSSE } from '@/lib/use-sse';
 export function ChatPanel() {
   const streaming = useSessionStore((s) => s.streaming);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  const messages = useSessionStore((s) => s.messages);
+  const pendingContent = useSessionStore((s) => s.pendingContent);
   const reconnecting = useSessionStore((s) => s.reconnecting);
   const serverError = useSessionStore((s) => s.serverError);
   const onChunk = useSessionStore((s) => s.onChunk);
@@ -17,16 +17,14 @@ export function ChatPanel() {
   const { connect, disconnect } = useSSE();
 
   useEffect(() => {
-    if (!streaming || !currentSessionId) return;
-    const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
-    if (!lastUserMsg) return;
+    if (!pendingContent || !currentSessionId) return;
 
     connect(
       '/api/agent/run',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: currentSessionId, content: lastUserMsg.content }),
+        body: JSON.stringify({ sessionId: currentSessionId, content: pendingContent }),
       },
       (chunk) => onChunk(chunk),
       (err) => {
@@ -39,7 +37,7 @@ export function ChatPanel() {
     );
 
     return () => disconnect();
-  }, [streaming, currentSessionId]); // intentionally not depending on messages
+  }, [pendingContent, currentSessionId]);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">

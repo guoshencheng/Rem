@@ -54,7 +54,6 @@ function buildPartsFromContent(content: unknown): ContentPart[] {
 export class AgentService {
   private activeRuns = new Map<string, AbortController>();
   private sessionProvider: SessionProvider;
-  private msgCache = new Map<string, ServerMessage[]>();
 
   constructor(private providerManager: ProviderManager) {
     this.sessionProvider = providerManager.require<SessionProvider>('session');
@@ -68,19 +67,18 @@ export class AgentService {
     }
 
     const abortController = new AbortController();
-    this.activeRuns.set(params.sessionId, abortController);
-
     const result = coreRunAgent({
       input: { content: params.content, timestamp: new Date() },
       sessionId: params.sessionId,
       signal: abortController.signal,
       pm: this.providerManager,
     });
+    this.activeRuns.set(params.sessionId, abortController);
 
     const tapped = this.tapFullStream(result.stream.fullStream, params.sessionId);
     const tappedStream = { ...result.stream, fullStream: tapped };
 
-    result.output.finally(() => {
+    result.output.catch(() => {}).finally(() => {
       this.activeRuns.delete(params.sessionId);
     });
 
@@ -144,40 +142,9 @@ export class AgentService {
           break;
         }
         case 'finish': {
-          const id = crypto.randomUUID();
-          const msg: ServerMessage = {
-            id,
-            role: 'assistant',
-            content: parts.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(''),
-            reasoning: parts.filter((p) => p.type === 'reasoning').map((p) => (p as { text: string }).text).join(''),
-            toolCalls: parts
-              .filter((p) => p.type === 'tool-call')
-              .map((p) => ({
-                id: p.toolCallId,
-                name: p.toolName,
-                arguments: p.arguments,
-                result: p.result,
-              })),
-            parts,
-            status: 'done',
-          };
-          const existing = this.msgCache.get(sessionId) ?? [];
-          this.msgCache.set(sessionId, [...existing, msg]);
           break;
         }
         case 'error': {
-          const id = crypto.randomUUID();
-          const msg: ServerMessage = {
-            id,
-            role: 'assistant',
-            content: '',
-            toolCalls: [],
-            parts,
-            status: 'error',
-            error: String(chunk.error instanceof Error ? chunk.error.message : (chunk.error as any)?.message ?? chunk.error),
-          };
-          const existing = this.msgCache.get(sessionId) ?? [];
-          this.msgCache.set(sessionId, [...existing, msg]);
           break;
         }
       }
@@ -214,23 +181,7 @@ export class AgentService {
 
   /* ---- Message tracking ---- */
 
-  addUserMessage(sessionId: string, content: string): void {
-    this.msgCache.set(sessionId, [
-      {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content,
-        toolCalls: [],
-        parts: [{ type: 'text', text: content } as ContentPart],
-        status: 'done',
-      },
-    ]);
-  }
-
   async getMessages(sessionId: string): Promise<ServerMessage[]> {
-    const cached = this.msgCache.get(sessionId);
-    if (cached) return cached;
-
     const session = await this.sessionProvider.load(sessionId);
     if (!session) return [];
 

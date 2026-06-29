@@ -15,6 +15,7 @@ export const useSessionStore = create<{
   searchQuery: string;
   messages: UIMessage[];
   streaming: boolean;
+  pendingContent: string | null;
   initialized: boolean;
   error: string | null;
   serverError: boolean;
@@ -33,12 +34,14 @@ export const useSessionStore = create<{
   onChunk: (chunk: AgentStreamChunk) => void;
   setReconnecting: (v: boolean) => void;
   clearError: () => void;
+  clearPending: () => void;
 }>((set, get) => ({
   sessions: [],
   currentSessionId: null,
   searchQuery: '',
   messages: [],
   streaming: false,
+  pendingContent: null,
   initialized: false,
   error: null,
   serverError: false,
@@ -112,6 +115,7 @@ export const useSessionStore = create<{
       messages: [...messages, userMsg, assistantMsg],
       error: null,
       streaming: true,
+      pendingContent: text,
     });
   },
 
@@ -217,12 +221,18 @@ export const useSessionStore = create<{
 
   setReconnecting: (v: boolean) => set({ reconnecting: v }),
   clearError: () => set({ error: null }),
+  clearPending: () => set({ pendingContent: null }),
 
   interrupt: async () => {
     const { currentSessionId } = get();
     if (!currentSessionId) return;
     try { await interruptAgent(currentSessionId); } catch { /* ignore */ }
-    set({ streaming: false });
+    set((s) => ({
+      streaming: false,
+      messages: s.messages.map((m) =>
+        m.id === assistantMessageId ? { ...m, status: 'error' as const, error: '用户中断' } : m,
+      ),
+    }));
   },
 
   renameSession: async (id: string, title: string) => {

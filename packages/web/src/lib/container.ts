@@ -1,47 +1,9 @@
 import { createContainer, asClass, asValue, Lifetime, type AwilixContainer } from 'awilix';
-import {
-  createProviderManager,
-  LocalSessionProvider,
-  InMemoryToolProvider,
-  SimpleMemoryProvider,
-  FileSkillProvider,
-  NoOpCompressor,
-  SimpleErrorHandler,
-  FixedBudgetPolicy,
-} from 'rem-agent-core';
-import type { ConfigProvider, ResolvedModelConfig } from 'rem-agent-core';
+import { createProviderManager } from 'rem-agent-core';
 import { AgentService, SessionService } from 'rem-agent-bridge';
-import { resolve } from 'path';
 
 async function configureContainer(): Promise<AwilixContainer> {
-  const sessionsDir = resolve(process.cwd(), '.sessions');
-  const skillsDir = resolve(process.cwd(), '.skills');
-
-  const pm = await createProviderManager({
-    configProvider: {
-      getConfig: () => ({
-        name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
-        sessionsDir, skillsDir,
-        toolPolicy: undefined, model: { provider: 'openai', model: '', apiKey: '', baseURL: undefined },
-      }),
-      getBehaviorConfig: () => ({
-        name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
-        sessionsDir, skillsDir,
-      }),
-      getModelConfig: (): ResolvedModelConfig => ({
-        provider: 'openai', model: '', apiKey: '', baseURL: undefined,
-      }),
-      getToolConfig: () => ({ policy: undefined }),
-    } as ConfigProvider,
-    sessionProvider: new LocalSessionProvider(sessionsDir),
-    toolProvider: new InMemoryToolProvider(),
-    memoryProvider: new SimpleMemoryProvider('Rem Agent'),
-    skillProvider: new FileSkillProvider({ skillsDir }),
-    compressor: new NoOpCompressor(),
-    errorHandler: new SimpleErrorHandler(),
-    budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
-  });
-
+  const pm = await createProviderManager();
   const container = createContainer();
 
   container.register({

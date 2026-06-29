@@ -9,6 +9,7 @@ export { SimpleErrorHandler } from './error/simple/index.js';
 export { SimpleMemoryProvider } from './memory/simple/index.js';
 export { InMemorySessionProvider } from './session/in-memory/index.js';
 export { FileSessionProvider } from './session/file/index.js';
+export { LocalSessionProvider } from './session/local/index.js';
 export { FileSkillProvider } from './skill/file/index.js';
 export { createFileSystemTools } from './tool/file-system/index.js';
 export { InMemoryToolProvider } from './tool/in-memory/index.js';

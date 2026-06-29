@@ -64,8 +64,10 @@ export function MessageItem({ message }: MessageItemProps) {
     );
   }
 
-  const showThinkingBar = message.status === 'pending' ||
-    (message.status === 'streaming' && !message.content && !message.reasoning);
+  const thinkingStatus: 'pending' | 'streaming' | null =
+    message.status === 'pending' ? 'pending'
+    : (message.status === 'streaming' && !message.content && !message.reasoning) ? 'streaming'
+    : null;
 
   return (
     <div className="px-4 py-3">
@@ -73,7 +75,7 @@ export function MessageItem({ message }: MessageItemProps) {
         'max-w-[85%] rounded-card rounded-bl-sm bg-card border border-bd px-4 py-2.5 text-sm leading-relaxed',
         message.status === 'error' && 'border-err/50',
       )}>
-        {showThinkingBar && <ThinkingBar />}
+        {thinkingStatus && <ThinkingBar status={thinkingStatus} />}
         <ReasoningBlock text={message.reasoning ?? ''} isStreaming={message.status === 'streaming'} />
         {message.toolCalls.map((tc) => <ToolCallBlock key={tc.id} tool={tc} />)}
         {message.content && (

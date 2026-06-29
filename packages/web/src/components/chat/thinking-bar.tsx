@@ -1,8 +1,21 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Clock } from 'lucide-react';
 
-export function ThinkingBar() {
+interface ThinkingBarProps {
+  status: 'pending' | 'streaming';
+}
+
+export function ThinkingBar({ status }: ThinkingBarProps) {
+  if (status === 'pending') {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 text-tx3 text-sm">
+        <Clock size={14} />
+        <span>Pending</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 px-4 py-2 text-tx3 text-sm">
       <Loader2 size={14} className="animate-spin" />

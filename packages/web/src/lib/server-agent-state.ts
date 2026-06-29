@@ -48,17 +48,22 @@ const g = globalThis as unknown as {
 class LocalSessionProvider implements SessionProvider {
   private dir: string;
   private loaded = false;
+  private msgCache = new Map<string, ServerMessage[]>();
 
   constructor(dir: string) {
     this.dir = resolve(process.cwd(), dir);
   }
 
-  private sessionPath(sessionId: string): string {
+  private filePath(sessionId: string): string {
     return join(this.dir, `${sessionId}.json`);
   }
 
-  private msgPath(sessionId: string): string {
-    return join(this.dir, `${sessionId}_messages.json`);
+  cueMessages(sessionId: string, messages: ServerMessage[]): void {
+    this.msgCache.set(sessionId, messages);
+  }
+
+  getCachedMessages(sessionId: string): ServerMessage[] {
+    return this.msgCache.get(sessionId) ?? [];
   }
 
   private async ensureDir(): Promise<void> {
@@ -82,8 +87,11 @@ class LocalSessionProvider implements SessionProvider {
 
   async load(sessionId: string): Promise<Session | null> {
     try {
-      const raw = await readFile(this.sessionPath(sessionId), 'utf-8');
+      const raw = await readFile(this.filePath(sessionId), 'utf-8');
       const data = JSON.parse(raw);
+      if (Array.isArray(data.messages)) {
+        this.msgCache.set(sessionId, data.messages as ServerMessage[]);
+      }
       return {
         sessionId: data.sessionId,
         conversation: data.conversation ?? [],
@@ -102,12 +110,13 @@ class LocalSessionProvider implements SessionProvider {
     const data = {
       sessionId: session.sessionId,
       conversation: session.conversation,
+      messages: this.msgCache.get(session.sessionId) ?? [],
       currentTurn: session.currentTurn,
       metadata: session.metadata,
       createdAt: session.createdAt.toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    await writeFile(this.sessionPath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
+    await writeFile(this.filePath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
   }
 
   async list(): Promise<SessionSummary[]> {
@@ -121,7 +130,7 @@ class LocalSessionProvider implements SessionProvider {
 
     const summaries: SessionSummary[] = [];
     for (const entry of entries) {
-      if (!entry.endsWith('.json') || entry.includes('_messages')) continue;
+      if (!entry.endsWith('.json')) continue;
       const id = entry.slice(0, -5);
       try {
         const raw = await readFile(join(this.dir, entry), 'utf-8');
@@ -130,7 +139,7 @@ class LocalSessionProvider implements SessionProvider {
           sessionId: id,
           title: body.metadata?.title as string | undefined,
           updatedAt: new Date(body.updatedAt),
-          messageCount: Array.isArray(body.conversation) ? body.conversation.length : 0,
+          messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
         });
       } catch {
         continue;
@@ -139,23 +148,8 @@ class LocalSessionProvider implements SessionProvider {
     return summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
-  async saveMessages(sessionId: string, messages: ServerMessage[]): Promise<void> {
-    await this.ensureDir();
-    await writeFile(this.msgPath(sessionId), JSON.stringify(messages, null, 2), 'utf-8');
-  }
-
-  async loadMessages(sessionId: string): Promise<ServerMessage[]> {
-    try {
-      const raw = await readFile(this.msgPath(sessionId), 'utf-8');
-      return JSON.parse(raw) as ServerMessage[];
-    } catch {
-      return [];
-    }
-  }
-
   async deleteSession(sessionId: string): Promise<void> {
-    try { await unlink(this.sessionPath(sessionId)); } catch { /* ignore */ }
-    try { await unlink(this.msgPath(sessionId)); } catch { /* ignore */ }
+    try { await unlink(this.filePath(sessionId)); } catch { /* ignore */ }
   }
 }
 
@@ -187,7 +181,7 @@ export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
     await agent.ready();
     await agent.initialize({ sessionId });
 
-    const existingMessages = await sharedSessionProvider.loadMessages(sessionId);
+    const existingMessages = sharedSessionProvider.getCachedMessages(sessionId);
     entry = { agent, messages: existingMessages, assistantMsgId: '' };
     agentStore.set(sessionId, entry);
   }
@@ -306,11 +300,11 @@ export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): vo
     }
   } else if (chunk.type === 'finish') {
     msg.status = 'done';
-    sharedSessionProvider.saveMessages(sessionId, entry.messages);
+    sharedSessionProvider.cueMessages(sessionId, entry.messages);
   } else if (chunk.type === 'error') {
     msg.status = 'error';
     msg.error = String(chunk.error);
-    sharedSessionProvider.saveMessages(sessionId, entry.messages);
+    sharedSessionProvider.cueMessages(sessionId, entry.messages);
   }
 }
 

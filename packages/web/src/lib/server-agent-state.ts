@@ -8,29 +8,12 @@ import {
   SimpleErrorHandler,
   FixedBudgetPolicy,
 } from 'rem-agent-core';
-import type { AgentStreamChunk } from 'rem-agent-core';
-import type { SessionProvider, Session, SessionSummary } from 'rem-agent-core';
-import { randomUUID } from 'crypto';
-import { mkdir, readFile, readdir, writeFile, unlink } from 'fs/promises';
-import { join, resolve } from 'path';
+import type { AgentStreamChunk, SessionProvider } from 'rem-agent-core';
+import { LocalSessionStore } from './local-session-store';
+import type { ServerMessage } from './local-session-store';
 
 type Agent = CoreAgent;
 type RunResult = ReturnType<Agent['run']>;
-
-export interface ServerMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  reasoning?: string;
-  toolCalls: Array<{
-    id: string;
-    name: string;
-    arguments: Record<string, unknown>;
-    result?: { success: boolean; output: string; error?: string; durationMs: number };
-  }>;
-  status: 'pending' | 'streaming' | 'done' | 'error';
-  error?: string;
-}
 
 interface AgentEntry {
   agent: Agent;
@@ -38,45 +21,13 @@ interface AgentEntry {
   assistantMsgId: string;
 }
 
-const g = globalThis as unknown as {
-  _remAgentStore?: Map<string, AgentEntry>;
-  _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
-  _remSessionProvider?: LocalSessionProvider;
-  _remMemoryProvider?: SimpleMemoryProvider;
-};
+class SessionStoreAdapter implements SessionProvider {
+  constructor(private store: LocalSessionStore) {}
 
-class LocalSessionProvider implements SessionProvider {
-  private dir: string;
-  private loaded = false;
-  private msgCache = new Map<string, ServerMessage[]>();
-
-  constructor(dir: string) {
-    this.dir = resolve(process.cwd(), dir);
-  }
-
-  private filePath(sessionId: string): string {
-    return join(this.dir, `${sessionId}.json`);
-  }
-
-  cueMessages(sessionId: string, messages: ServerMessage[]): void {
-    this.msgCache.set(sessionId, messages);
-  }
-
-  getCachedMessages(sessionId: string): ServerMessage[] {
-    return this.msgCache.get(sessionId) ?? [];
-  }
-
-  private async ensureDir(): Promise<void> {
-    if (this.loaded) return;
-    await mkdir(this.dir, { recursive: true });
-    this.loaded = true;
-  }
-
-  async create(): Promise<Session> {
-    await this.ensureDir();
+  async create() {
     const now = new Date();
     return {
-      sessionId: randomUUID(),
+      sessionId: crypto.randomUUID(),
       conversation: [],
       currentTurn: 0,
       metadata: {},
@@ -85,83 +36,37 @@ class LocalSessionProvider implements SessionProvider {
     };
   }
 
-  async load(sessionId: string): Promise<Session | null> {
-    try {
-      const raw = await readFile(this.filePath(sessionId), 'utf-8');
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.messages)) {
-        this.msgCache.set(sessionId, data.messages as ServerMessage[]);
-      }
-      return {
-        sessionId: data.sessionId,
-        conversation: data.conversation ?? [],
-        currentTurn: data.currentTurn ?? 0,
-        metadata: data.metadata ?? {},
-        createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt),
-      };
-    } catch {
-      return null;
-    }
+  async load(sessionId: string) {
+    const { session } = await this.store.loadSession(sessionId);
+    return session;
   }
 
-  async save(session: Session): Promise<void> {
-    await this.ensureDir();
-    const data = {
-      sessionId: session.sessionId,
-      conversation: session.conversation,
-      messages: this.msgCache.get(session.sessionId) ?? [],
-      currentTurn: session.currentTurn,
-      metadata: session.metadata,
-      createdAt: session.createdAt.toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await writeFile(this.filePath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
+  async save(session: Parameters<SessionProvider['save']>[0]) {
+    await this.store.saveSession(session);
   }
 
-  async list(): Promise<SessionSummary[]> {
-    await this.ensureDir();
-    let entries: string[];
-    try {
-      entries = await readdir(this.dir);
-    } catch {
-      return [];
-    }
-
-    const summaries: SessionSummary[] = [];
-    for (const entry of entries) {
-      if (!entry.endsWith('.json')) continue;
-      const id = entry.slice(0, -5);
-      try {
-        const raw = await readFile(join(this.dir, entry), 'utf-8');
-        const body = JSON.parse(raw);
-        summaries.push({
-          sessionId: id,
-          title: body.metadata?.title as string | undefined,
-          updatedAt: new Date(body.updatedAt),
-          messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
-        });
-      } catch {
-        continue;
-      }
-    }
-    return summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }
-
-  async deleteSession(sessionId: string): Promise<void> {
-    try { await unlink(this.filePath(sessionId)); } catch { /* ignore */ }
+  async list() {
+    return this.store.listSessions();
   }
 }
 
+const g = globalThis as unknown as {
+  _remAgentStore?: Map<string, AgentEntry>;
+  _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
+  _remSessionStore?: LocalSessionStore;
+  _remMemoryProvider?: SimpleMemoryProvider;
+};
+
 if (!g._remAgentStore) g._remAgentStore = new Map();
 if (!g._remActiveStreams) g._remActiveStreams = new Map();
-if (!g._remSessionProvider) g._remSessionProvider = new LocalSessionProvider('.sessions');
+if (!g._remSessionStore) g._remSessionStore = new LocalSessionStore('.sessions');
 if (!g._remMemoryProvider) g._remMemoryProvider = new SimpleMemoryProvider('Rem Agent');
 
 const agentStore = g._remAgentStore;
 const activeStreams = g._remActiveStreams;
-const sharedSessionProvider = g._remSessionProvider;
+const sessionStore = g._remSessionStore;
 const sharedMemoryProvider = g._remMemoryProvider;
+const sessionProvider = new SessionStoreAdapter(sessionStore);
 
 export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
   let entry = agentStore.get(sessionId);
@@ -170,7 +75,7 @@ export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
       name: 'Rem Agent',
       budget: new IterationBudget({ maxTurns: 60 }),
       provider: 'openai',
-      sessionProvider: sharedSessionProvider,
+      sessionProvider,
       memoryProvider: sharedMemoryProvider,
       toolProvider: new InMemoryToolProvider(),
       skillProvider: new FileSkillProvider(),
@@ -181,8 +86,8 @@ export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
     await agent.ready();
     await agent.initialize({ sessionId });
 
-    const existingMessages = sharedSessionProvider.getCachedMessages(sessionId);
-    entry = { agent, messages: existingMessages, assistantMsgId: '' };
+    const existing = sessionStore.getMessages(sessionId);
+    entry = { agent, messages: existing, assistantMsgId: '' };
     agentStore.set(sessionId, entry);
   }
   return entry.agent;
@@ -210,28 +115,20 @@ export function interruptActiveRun(sessionId: string): boolean {
   return false;
 }
 
-export async function generateTitle(sessionId: string): Promise<string> {
-  const entry = agentStore.get(sessionId);
-  if (!entry) return '';
-  return entry.agent.generateTitle();
-}
-
-export async function listAgentSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }>> {
+export async function listAgentSessions() {
+  const diskSessions = await sessionStore.listSessions();
   const result: Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }> = [];
 
-  // First, include all sessions from disk (survive restart)
-  const diskSessions = await sharedSessionProvider.list();
   for (const s of diskSessions) {
     const entry = agentStore.get(s.sessionId);
     result.push({
       sessionId: s.sessionId,
       title: s.title ?? extractTitle(entry?.messages ?? []),
-      updatedAt: s.updatedAt.getTime(),
+      updatedAt: s.updatedAt instanceof Date ? s.updatedAt.getTime() : Date.now(),
       messageCount: entry?.messages.length ?? s.messageCount,
     });
   }
 
-  // Then add sessions only in agentStore (not yet on disk)
   for (const [sessionId, entry] of agentStore.entries()) {
     if (!result.find((r) => r.sessionId === sessionId)) {
       result.push({
@@ -300,11 +197,11 @@ export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): vo
     }
   } else if (chunk.type === 'finish') {
     msg.status = 'done';
-    sharedSessionProvider.cueMessages(sessionId, entry.messages);
+    sessionStore.cacheMessages(sessionId, entry.messages);
   } else if (chunk.type === 'error') {
     msg.status = 'error';
     msg.error = String(chunk.error);
-    sharedSessionProvider.cueMessages(sessionId, entry.messages);
+    sessionStore.cacheMessages(sessionId, entry.messages);
   }
 }
 
@@ -314,5 +211,5 @@ export function getSessionMessages(sessionId: string): ServerMessage[] {
 
 export async function deleteSessionFromStore(sessionId: string): Promise<void> {
   agentStore.delete(sessionId);
-  await sharedSessionProvider.deleteSession(sessionId);
+  await sessionStore.deleteSession(sessionId);
 }

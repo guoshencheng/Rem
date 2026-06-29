@@ -85,10 +85,9 @@ export class AgentService {
       output: result.output,
     });
 
-    result.output.finally(() => {
-      this.activeRuns.delete(params.sessionId);
-      this.activeStreams.delete(params.sessionId);
-    });
+  result.output.finally(() => {
+    this.activeRuns.delete(params.sessionId);
+  });
 
     return { sessionId: params.sessionId };
   }

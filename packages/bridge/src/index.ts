@@ -2,7 +2,6 @@ export { AgentClient } from './client.js';
 export { parseSSEStream, parseAgentStreamEvent } from './sse.js';
 export type {
   RunRequest,
-  RunResponse,
   SessionSummary,
   InterruptRequest,
   ResetRequest,

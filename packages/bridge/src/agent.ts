@@ -1,6 +1,6 @@
-import type { AgentStreamChunk, RunAgentResult } from 'rem-agent-core';
+import type { AgentStreamChunk, AgentStream } from 'rem-agent-core';
 import { runAgent as coreRunAgent } from 'rem-agent-core';
-import type { ServerMessage, ContentPart } from 'rem-agent-core';
+import type { ServerMessage, ContentPart, AgentOutput } from 'rem-agent-core';
 import type { ProviderManager } from 'rem-agent-core';
 import type { SessionProvider } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
@@ -13,7 +13,8 @@ export interface RunParams {
 }
 
 export interface RunResult {
-  sessionId: string;
+  stream: AgentStream;
+  output: Promise<AgentOutput>;
 }
 
 export interface InterruptResult {
@@ -52,7 +53,6 @@ function buildPartsFromContent(content: unknown): ContentPart[] {
 
 export class AgentService {
   private activeRuns = new Map<string, AbortController>();
-  private activeStreams = new Map<string, RunAgentResult>();
   private sessionProvider: SessionProvider;
   private msgCache = new Map<string, ServerMessage[]>();
 
@@ -62,7 +62,7 @@ export class AgentService {
 
   /* ---- Agent lifecycle ---- */
 
-  async run(params: RunParams): Promise<RunResult> {
+  run(params: RunParams): RunResult {
     if (this.activeRuns.has(params.sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
@@ -80,16 +80,11 @@ export class AgentService {
     const tapped = this.tapFullStream(result.stream.fullStream, params.sessionId);
     const tappedStream = { ...result.stream, fullStream: tapped };
 
-    this.activeStreams.set(params.sessionId, {
-      stream: tappedStream,
-      output: result.output,
+    result.output.finally(() => {
+      this.activeRuns.delete(params.sessionId);
     });
 
-  result.output.finally(() => {
-    this.activeRuns.delete(params.sessionId);
-  });
-
-    return { sessionId: params.sessionId };
+    return { stream: tappedStream, output: result.output };
   }
 
   private tapFullStream(
@@ -210,15 +205,10 @@ export class AgentService {
     return { sessionId, interrupted: !!controller };
   }
 
-  getStream(sessionId: string): RunAgentResult | undefined {
-    return this.activeStreams.get(sessionId);
-  }
-
   async reset(sessionId: string): Promise<ResetResult> {
     const controller = this.activeRuns.get(sessionId);
     if (controller) controller.abort();
     this.activeRuns.delete(sessionId);
-    this.activeStreams.delete(sessionId);
     return { sessionId, reset: true };
   }
 

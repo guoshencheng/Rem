@@ -5,11 +5,6 @@ export interface RunRequest {
   content: string;
 }
 
-export interface RunResponse {
-  sessionId: string;
-  streamUrl: string;
-}
-
 export interface InterruptRequest {
   sessionId: string;
 }

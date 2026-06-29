@@ -11,7 +11,7 @@ export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Stream error';
         controller.enqueue(
-          encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: message })}\n\n`),
+          encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: { message } })}\n\n`),
         );
       } finally {
         controller.close();

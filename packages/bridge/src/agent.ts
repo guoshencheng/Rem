@@ -179,7 +179,7 @@ export class AgentService {
             toolCalls: [],
             parts,
             status: 'error',
-            error: String(chunk.error),
+            error: String(chunk.error instanceof Error ? chunk.error.message : (chunk.error as any)?.message ?? chunk.error),
           };
           const existing = this.msgCache.get(sessionId) ?? [];
           this.msgCache.set(sessionId, [...existing, msg]);

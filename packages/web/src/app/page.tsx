@@ -10,9 +10,13 @@ export default function Home() {
 
   useEffect(() => {
     init().then(() => {
-      const { sessions, currentSessionId, createSession } = useSessionStore.getState();
-      if (!currentSessionId) {
-        createSession();
+      const state = useSessionStore.getState();
+      if (state.sessions.length > 0 && !state.currentSessionId) {
+        state.selectSession(state.sessions[0].sessionId);
+      } else if (!state.currentSessionId) {
+        state.createSession();
+      } else {
+        useSessionStore.setState({ initialized: true });
       }
     });
   }, [init]);

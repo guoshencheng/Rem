@@ -20,6 +20,7 @@ export const useSessionStore = create<{
   searchQuery: string;
   messages: UIMessage[];
   streaming: boolean;
+  initialized: boolean;
   error: string | null;
   serverError: boolean;
   reconnecting: boolean;
@@ -43,6 +44,7 @@ export const useSessionStore = create<{
   searchQuery: '',
   messages: [],
   streaming: false,
+  initialized: false,
   error: null,
   serverError: false,
   reconnecting: false,
@@ -63,6 +65,7 @@ export const useSessionStore = create<{
         sessions: [session, ...s.sessions],
         currentSessionId: session.sessionId,
         messages: [],
+        initialized: true,
         error: null,
       }));
     } catch (err) {
@@ -80,6 +83,7 @@ export const useSessionStore = create<{
         currentSessionId: id,
         messages: (detail.messages ?? []) as UIMessage[],
         streaming: false,
+        initialized: true,
         error: null,
       });
     } catch (err) {

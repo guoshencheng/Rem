@@ -12,8 +12,7 @@ import {
 import type { AgentStreamChunk } from 'rem-agent-core';
 import { resolve } from 'path';
 
-type Agent = CoreAgent;
-type RunResult = ReturnType<Agent['run']>;
+type RunResult = ReturnType<CoreAgent['run']>;
 
 export interface ServerMessage {
   id: string;
@@ -30,56 +29,63 @@ export interface ServerMessage {
   error?: string;
 }
 
-interface AgentEntry {
-  agent: Agent;
+interface SessionMessages {
   messages: ServerMessage[];
   assistantMsgId: string;
 }
 
 const g = globalThis as unknown as {
-  _remAgentStore?: Map<string, AgentEntry>;
   _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
   _remSessionProvider?: LocalSessionProvider;
   _remMemoryProvider?: SimpleMemoryProvider;
+  _remMsgCache?: Map<string, SessionMessages>;
 };
 
-if (!g._remAgentStore) g._remAgentStore = new Map();
 if (!g._remActiveStreams) g._remActiveStreams = new Map();
 if (!g._remSessionProvider) g._remSessionProvider = new LocalSessionProvider(resolve(process.cwd(), '.sessions'));
 if (!g._remMemoryProvider) g._remMemoryProvider = new SimpleMemoryProvider('Rem Agent');
+if (!g._remMsgCache) g._remMsgCache = new Map();
 
-const agentStore = g._remAgentStore;
 const activeStreams = g._remActiveStreams;
 const sessionProvider = g._remSessionProvider;
 const sharedMemoryProvider = g._remMemoryProvider;
+const msgCache = g._remMsgCache;
 
-export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
-  let entry = agentStore.get(sessionId);
-  if (!entry) {
-    const agent = new CoreAgent({
-      name: 'Rem Agent',
-      budget: new IterationBudget({ maxTurns: 60 }),
-      provider: 'openai',
-      sessionProvider,
-      memoryProvider: sharedMemoryProvider,
-      toolProvider: new InMemoryToolProvider(),
-      skillProvider: new FileSkillProvider(),
-      compressor: new NoOpCompressor(),
-      errorHandler: new SimpleErrorHandler(),
-      budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
-    });
-    await agent.ready();
-    await agent.initialize({ sessionId });
-
-    const existing = (sessionProvider.pullMessages(sessionId) ?? []) as ServerMessage[];
-    entry = { agent, messages: existing, assistantMsgId: '' };
-    agentStore.set(sessionId, entry);
-  }
-  return entry.agent;
+function createAgent(sessionId: string): CoreAgent {
+  return new CoreAgent({
+    name: 'Rem Agent',
+    budget: new IterationBudget({ maxTurns: 60 }),
+    provider: 'openai',
+    sessionProvider,
+    memoryProvider: sharedMemoryProvider,
+    toolProvider: new InMemoryToolProvider(),
+    skillProvider: new FileSkillProvider(),
+    compressor: new NoOpCompressor(),
+    errorHandler: new SimpleErrorHandler(),
+    budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
+  });
 }
 
-export function setActiveRun(sessionId: string, result: RunResult, abort: AbortController): void {
+async function getAgent(sessionId: string): Promise<CoreAgent> {
+  const agent = createAgent(sessionId);
+  await agent.ready();
+  await agent.initialize({ sessionId });
+
+  // 从磁盘恢复 UI 消息
+  const cached = sessionProvider.pullMessages(sessionId) as ServerMessage[] | undefined;
+  if (cached?.length) {
+    msgCache.set(sessionId, { messages: cached, assistantMsgId: '' });
+  }
+
+  return agent;
+}
+
+export async function runAgent(sessionId: string, content: string): Promise<RunResult> {
+  const agent = await getAgent(sessionId);
+  const abort = new AbortController();
+  const result = agent.run({ content, timestamp: new Date() });
   activeStreams.set(sessionId, { result, abort });
+  return result;
 }
 
 export function getActiveRun(sessionId: string) {
@@ -105,7 +111,7 @@ export async function listAgentSessions() {
   const result: Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }> = [];
 
   for (const s of diskSessions) {
-    const entry = agentStore.get(s.sessionId);
+    const entry = msgCache.get(s.sessionId);
     result.push({
       sessionId: s.sessionId,
       title: s.title ?? extractTitle(entry?.messages ?? []),
@@ -114,7 +120,7 @@ export async function listAgentSessions() {
     });
   }
 
-  for (const [sessionId, entry] of agentStore.entries()) {
+  for (const [sessionId, entry] of msgCache.entries()) {
     if (!result.find((r) => r.sessionId === sessionId)) {
       result.push({
         sessionId,
@@ -136,8 +142,11 @@ function extractTitle(messages: ServerMessage[]): string {
 }
 
 export function addUserMessage(sessionId: string, content: string): void {
-  const entry = agentStore.get(sessionId);
-  if (!entry) return;
+  let entry = msgCache.get(sessionId);
+  if (!entry) {
+    entry = { messages: [], assistantMsgId: '' };
+    msgCache.set(sessionId, entry);
+  }
   entry.messages.push({
     id: crypto.randomUUID(),
     role: 'user',
@@ -157,7 +166,7 @@ export function addUserMessage(sessionId: string, content: string): void {
 }
 
 export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): void {
-  const entry = agentStore.get(sessionId);
+  const entry = msgCache.get(sessionId);
   if (!entry) return;
   const targetId = entry.assistantMsgId;
   const msg = entry.messages.find((m) => m.id === targetId);
@@ -191,12 +200,12 @@ export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): vo
 }
 
 export function getSessionMessages(sessionId: string): ServerMessage[] {
-  const entry = agentStore.get(sessionId);
+  const entry = msgCache.get(sessionId);
   if (entry?.messages.length) return entry.messages;
   return (sessionProvider.pullMessages(sessionId) ?? []) as ServerMessage[];
 }
 
 export async function deleteSessionFromStore(sessionId: string): Promise<void> {
-  agentStore.delete(sessionId);
+  msgCache.delete(sessionId);
   await sessionProvider.delete(sessionId);
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrCreateAgent, getSessionMessages, deleteSessionFromStore } from '@/lib/server-agent-state';
+import { getSessionMessages, deleteSessionFromStore } from '@/lib/server-agent-state';
 
 const titles = new Map<string, string>();
 const pins = new Map<string, boolean>();
@@ -10,12 +10,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    await getOrCreateAgent(id);
+    const messages = getSessionMessages(id);
 
     return NextResponse.json({
       sessionId: id,
       title: titles.get(id) ?? 'New Chat',
-      messages: getSessionMessages(id),
+      messages,
     });
   } catch (err) {
     return NextResponse.json(

@@ -1,19 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { ProviderManager } from '../src/provider-manager.js';
+import { describe, it, expect } from 'vitest';
+import { createProviderManager } from '../src/provider-manager.js';
 
 describe('ProviderManager', () => {
-  beforeEach(() => {
-    ProviderManager.resetInstance();
-  });
-
-  it('returns the same instance', async () => {
-    const a = await ProviderManager.getInstance();
-    const b = await ProviderManager.getInstance();
-    expect(a).toBe(b);
+  it('creates a new instance via factory function', async () => {
+    const pm = await createProviderManager();
+    expect(pm).toBeDefined();
   });
 
   it('provides required providers after init', async () => {
-    const pm = await ProviderManager.getInstance();
+    const pm = await createProviderManager();
     expect(pm.require('session')).toBeDefined();
     expect(pm.require('tool')).toBeDefined();
     expect(pm.require('memory')).toBeDefined();
@@ -22,7 +17,7 @@ describe('ProviderManager', () => {
   });
 
   it('exposes model and behavior config', async () => {
-    const pm = await ProviderManager.getInstance();
+    const pm = await createProviderManager();
     const behavior = pm.getBehaviorConfig();
     expect(behavior.name).toBe('Rem Agent');
     expect(behavior.maxTurns).toBe(60);

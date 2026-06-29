@@ -40,32 +40,17 @@ export interface ProviderManagerConfig {
 }
 
 export class ProviderManager {
-  private static instance?: ProviderManager;
   private config: ProviderManagerConfig;
   private configProvider!: ConfigProvider;
   private registry!: ProviderRegistry;
   private initialized = false;
 
-  static async getInstance(
-    config?: ProviderManagerConfig,
-  ): Promise<ProviderManager> {
-    if (!ProviderManager.instance) {
-      ProviderManager.instance = new ProviderManager(config ?? {});
-      await ProviderManager.instance.initialize();
-    }
-    return ProviderManager.instance;
-  }
-
-  static resetInstance(): void {
-    ProviderManager.instance = undefined;
-  }
-
-  private constructor(config: ProviderManagerConfig) {
+  constructor(config: ProviderManagerConfig) {
     registerBuiltInProviders();
     this.config = config;
   }
 
-  private async initialize(): Promise<void> {
+  async init(): Promise<void> {
     if (this.initialized) return;
 
     this.configProvider =
@@ -147,4 +132,12 @@ export class ProviderManager {
   require<T>(kind: string): T {
     return this.registry.require(kind as any) as T;
   }
+}
+
+export async function createProviderManager(
+  config?: ProviderManagerConfig,
+): Promise<ProviderManager> {
+  const pm = new ProviderManager(config ?? {});
+  await pm.init();
+  return pm;
 }

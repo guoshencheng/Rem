@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import type { ServerType } from '@hono/node-server';
-import { ProviderManager } from 'rem-agent-core';
+import { createProviderManager } from 'rem-agent-core';
 import { createApp } from './app.js';
 
 export interface AgentServerOptions {
@@ -23,7 +23,7 @@ export class AgentServer {
   }
 
   async start(): Promise<void> {
-    await ProviderManager.getInstance({ configPath: this.configPath });
+    await createProviderManager({ configPath: this.configPath });
 
     this.server = serve({
       fetch: this.app.fetch,

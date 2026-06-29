@@ -7,7 +7,7 @@ import { ReactTurnRunner } from './turn.js';
 import { ReactLoop } from './loop-strategy.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import { AgentStreamController } from './stream/agent-stream.js';
-import { ProviderManager } from './provider-manager.js';
+import { createProviderManager } from './provider-manager.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
@@ -31,7 +31,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
   const stream = controller.stream;
 
   const outputPromise = (async (): Promise<AgentOutput> => {
-    const pm = await ProviderManager.getInstance();
+    const pm = await createProviderManager();
     const behavior = pm.getBehaviorConfig();
     const modelConfig = pm.getModelConfig();
 

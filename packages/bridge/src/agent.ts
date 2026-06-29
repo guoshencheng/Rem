@@ -1,7 +1,7 @@
 import type { AgentStreamChunk, RunAgentResult } from 'rem-agent-core';
 import {
   runAgent as coreRunAgent,
-  ProviderManager,
+  createProviderManager,
   LocalSessionProvider,
   InMemoryToolProvider,
   SimpleMemoryProvider,
@@ -64,8 +64,7 @@ export class AgentService {
 
   private async ensureProviderManager(): Promise<void> {
     if (this._pmReady) return;
-    ProviderManager.resetInstance();
-    await ProviderManager.getInstance({
+    await createProviderManager({
       configProvider: {
         getConfig: () => ({
           name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,

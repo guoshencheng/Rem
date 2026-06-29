@@ -8,6 +8,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./sse": {
+      "import": "./dist/sse.js",
+      "types": "./dist/sse.d.ts"
     }
   },
   "scripts": {

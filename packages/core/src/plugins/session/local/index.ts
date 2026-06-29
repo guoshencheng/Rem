@@ -1,9 +1,23 @@
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
-import type { ModelMessage } from '../../../types.js';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
+
+export interface ServerMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  reasoning?: string;
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    result?: { success: boolean; output: string; error?: string; durationMs: number };
+  }>;
+  status: 'pending' | 'streaming' | 'done' | 'error';
+  error?: string;
+}
 
 export interface LocalSessionProviderOptions {
   dir: string;
@@ -16,18 +30,9 @@ interface IndexEntry {
   messageCount: number;
 }
 
-interface SerializedSession {
-  sessionId: string;
-  conversation: ModelMessage[];
-  currentTurn: number;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export class LocalSessionProvider implements SessionProvider {
   private dir: string;
-  private _msgCache = new Map<string, unknown[]>();
+  private _msgCache = new Map<string, ServerMessage[]>();
 
   constructor(dir: string) {
     this.dir = dir;
@@ -102,11 +107,11 @@ export class LocalSessionProvider implements SessionProvider {
     await this.removeFromIndex(sessionId);
   }
 
-  cueMessages(sessionId: string, messages: unknown[]): void {
+  cueMessages(sessionId: string, messages: ServerMessage[]): void {
     this._msgCache.set(sessionId, messages);
   }
 
-  pullMessages(sessionId: string): unknown[] {
+  pullMessages(sessionId: string): ServerMessage[] {
     return this._msgCache.get(sessionId) ?? [];
   }
 

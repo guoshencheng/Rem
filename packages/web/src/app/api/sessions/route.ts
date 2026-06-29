@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionService } from '@/lib/services/session-service';
+import { SessionService } from 'rem-agent-bridge';
 
 const sessionService = new SessionService();
 

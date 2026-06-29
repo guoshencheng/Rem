@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ToolCallRecord } from 'rem-agent-core';
+import type { ServerMessage } from 'rem-agent-core';
+
+type ToolCall = ServerMessage['toolCalls'][number];
 
 interface ToolCallBlockProps {
-  tool: ToolCallRecord;
+  tool: ToolCall;
 }
 
 export function ToolCallBlock({ tool }: ToolCallBlockProps) {

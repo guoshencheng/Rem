@@ -1,22 +1,10 @@
-import type { AgentStreamChunk, ToolCallRecord } from 'rem-agent-core';
+import type { AgentStreamChunk, ServerMessage, SessionSummary as CoreSessionSummary } from 'rem-agent-core';
 
-export interface SessionSummary {
-  sessionId: string;
-  title?: string;
-  updatedAt: number;
-  messageCount: number;
+export interface SessionSummary extends CoreSessionSummary {
   pinned?: boolean;
 }
 
-export interface UIMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  reasoning?: string;
-  toolCalls: ToolCallRecord[];
-  status: 'pending' | 'streaming' | 'done' | 'error';
-  error?: string;
-}
+export type UIMessage = ServerMessage;
 
 export interface RunResponse {
   sessionId: string;
@@ -56,4 +44,4 @@ export function isSSEError(c: AgentStreamChunk): c is AgentStreamChunk & { type:
   return c.type === 'error';
 }
 
-export type { AgentStreamChunk, ToolCallRecord };
+export type { AgentStreamChunk };

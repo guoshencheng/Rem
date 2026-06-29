@@ -19,6 +19,7 @@
     "react-markdown": "^10.0.0",
     "react-virtuoso": "^4.0.0",
     "rehype-highlight": "^7.0.0",
+    "rem-agent-bridge": "workspace:*",
     "rem-agent-core": "workspace:*",
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^2.6.0",

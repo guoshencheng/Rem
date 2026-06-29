@@ -10,7 +10,7 @@ export function SessionList() {
   const sorted = [...sessions].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
-    return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+    return ((b.updatedAt?.getTime()) ?? 0) - ((a.updatedAt?.getTime()) ?? 0);
   });
 
   if (sessions.length === 0) {

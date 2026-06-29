@@ -10,7 +10,6 @@ import {
   listSessions, createSession, getSession, updateSession,
   deleteSession, runAgent, interruptAgent,
 } from './agent-client';
-import type { ToolCallRecord } from 'rem-agent-core';
 
 let assistantMessageId = '';
 
@@ -147,16 +146,12 @@ export const useSessionStore = create<{
         ),
       }));
     } else if (isSSEToolCallStart(chunk)) {
-      const newTool: ToolCallRecord = {
-        id: chunk.toolCallId,
-        name: chunk.toolName,
-        arguments: {} as Record<string, unknown>,
-        durationMs: 0,
-        timestamp: new Date(),
-      };
       set((s) => ({
         messages: s.messages.map((m) =>
-          m.id === assistantMessageId ? { ...m, toolCalls: [...m.toolCalls, newTool] } : m,
+          m.id === assistantMessageId ? {
+            ...m,
+            toolCalls: [...m.toolCalls, { id: chunk.toolCallId, name: chunk.toolName, arguments: {} }],
+          } : m,
         ),
       }));
     } else if (isSSEToolResult(chunk)) {
@@ -173,7 +168,7 @@ export const useSessionStore = create<{
                           success: !chunk.error,
                           output: chunk.output,
                           error: chunk.error,
-                          durationMs: tc.durationMs,
+                          durationMs: 0,
                         },
                       }
                     : tc,

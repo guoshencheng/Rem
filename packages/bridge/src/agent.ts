@@ -157,8 +157,18 @@ export class AgentService {
     const cached = this.msgCache.get(sessionId);
     if (cached) return cached;
 
-    await this.sessionProvider.load(sessionId);
-    return (this.sessionProvider as any as { pullMessages?(id: string): ServerMessage[] }).pullMessages?.(sessionId) ?? [];
+    const session = await this.sessionProvider.load(sessionId);
+    if (!session) return [];
+
+    return session.conversation
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg) => ({
+        id: crypto.randomUUID(),
+        role: msg.role as 'user' | 'assistant',
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        toolCalls: [],
+        status: 'done' as const,
+      }));
   }
 
   async listSessions(): Promise<{ sessionId: string; title: string; messageCount: number }[]> {

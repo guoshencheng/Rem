@@ -12,16 +12,20 @@ export async function GET(
     const { id } = await params;
     const agent = await getOrCreateAgent(id);
 
+    const messages = agent.conversation
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg, idx) => ({
+      id: `msg-${idx}`,
+      role: msg.role as 'user' | 'assistant',
+      content: extractText(msg.content),
+      status: 'done' as const,
+      toolCalls: [] as unknown[],
+    }));
+
     return NextResponse.json({
       sessionId: id,
       title: titles.get(id) ?? 'New Chat',
-      messages: agent.conversation.map((msg, idx) => ({
-        id: `msg-${idx}`,
-        role: msg.role as 'user' | 'assistant',
-        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-        status: 'done' as const,
-        toolCalls: [],
-      })),
+      messages,
     });
   } catch (err) {
     return NextResponse.json(
@@ -29,6 +33,17 @@ export async function GET(
       { status: 500 },
     );
   }
+}
+
+function extractText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return (content as Array<{ type?: string; text?: string }>)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text ?? '')
+      .join('');
+  }
+  return '';
 }
 
 export async function PATCH(

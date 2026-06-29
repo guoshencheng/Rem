@@ -10,8 +10,9 @@ export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): 
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Stream error';
+        const name = err instanceof Error ? err.name : 'Error';
         controller.enqueue(
-          encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: { message } })}\n\n`),
+          encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: { name, message } })}\n\n`),
         );
       } finally {
         controller.close();

@@ -1,11 +1,24 @@
-import { createAgentFromEnv } from 'rem-agent-core';
+import {
+  CoreAgent,
+  IterationBudget,
+  InMemorySessionProvider,
+  InMemoryToolProvider,
+  SimpleMemoryProvider,
+  FileSkillProvider,
+  NoOpCompressor,
+  SimpleErrorHandler,
+  FixedBudgetPolicy,
+} from 'rem-agent-core';
 
-type Agent = ReturnType<typeof createAgentFromEnv>;
+type Agent = CoreAgent;
 type RunResult = ReturnType<Agent['run']>;
 
 interface AgentEntry {
   agent: Agent;
 }
+
+const sharedSessionProvider = new InMemorySessionProvider();
+const sharedMemoryProvider = new SimpleMemoryProvider('Rem Agent');
 
 const agentStore = new Map<string, AgentEntry>();
 const activeStreams = new Map<string, { result: RunResult; abort: AbortController }>();
@@ -13,7 +26,18 @@ const activeStreams = new Map<string, { result: RunResult; abort: AbortControlle
 export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
   let entry = agentStore.get(sessionId);
   if (!entry) {
-    const agent = createAgentFromEnv({ name: 'Rem Agent', maxTurns: 60 });
+    const agent = new CoreAgent({
+      name: 'Rem Agent',
+      budget: new IterationBudget({ maxTurns: 60 }),
+      provider: 'openai',
+      sessionProvider: sharedSessionProvider,
+      memoryProvider: sharedMemoryProvider,
+      toolProvider: new InMemoryToolProvider(),
+      skillProvider: new FileSkillProvider(),
+      compressor: new NoOpCompressor(),
+      errorHandler: new SimpleErrorHandler(),
+      budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
+    });
     await agent.ready();
     await agent.initialize({ sessionId });
     entry = { agent };

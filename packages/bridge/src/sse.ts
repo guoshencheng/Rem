@@ -10,6 +10,8 @@ export function parseSSEStream(
 ): AsyncIterable<SSEEvent> {
   const decoder = new TextDecoder();
   let buffer = '';
+  let eventType: string | undefined;
+  let dataLines: string[] = [];
 
   return {
     [Symbol.asyncIterator]: async function* () {
@@ -21,9 +23,6 @@ export function parseSSEStream(
 
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-
-        let eventType: string | undefined;
-        let dataLines: string[] = [];
 
         for (const line of lines) {
           if (line === '') {

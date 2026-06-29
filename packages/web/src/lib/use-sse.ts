@@ -48,7 +48,6 @@ export function useSSE() {
 
           for await (const sse of parseSSEStream(reader)) {
             const chunk = parseAgentStreamEvent(sse);
-            console.log('[SSE recv]', chunk.type);
             onChunk(chunk);
             if (chunk.type === 'finish' || chunk.type === 'error') {
               onStatus?.(chunk.type === 'error' ? 'error' : 'done');

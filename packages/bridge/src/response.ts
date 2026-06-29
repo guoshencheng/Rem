@@ -7,7 +7,6 @@ export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): 
       try {
         for await (const chunk of fullStream) {
           controller.enqueue(encoder.encode(`event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`));
-          console.log(`[SSE send] ${chunk.type}${chunk.type === 'reasoning-delta' ? ' ' + (chunk as any).text?.slice(0, 30) : ''}`);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Stream error';

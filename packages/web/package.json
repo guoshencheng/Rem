@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.1",
+    "awilix": "^13.0.5",
     "clsx": "^2.1.0",
     "highlight.js": "^11.0.0",
     "lucide-react": "^0.400.0",

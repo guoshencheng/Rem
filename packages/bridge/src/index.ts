@@ -1,5 +1,6 @@
 export { AgentClient } from './client.js';
 export { parseSSEStream, parseAgentStreamEvent } from './sse.js';
+export { createSSEResponse } from './response.js';
 export type {
   RunRequest,
   SessionSummary,

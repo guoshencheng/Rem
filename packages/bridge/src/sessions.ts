@@ -1,4 +1,4 @@
-import { AgentService } from './agent.js';
+import type { AgentService } from './agent.js';
 
 interface SessionEntry {
   title?: string;
@@ -15,29 +15,15 @@ export function extractTitle(messages: Array<{ role: string; content: string }>)
 }
 
 export class SessionService {
-  private agentService: AgentService;
+  constructor(private agentService: AgentService) {}
 
-  constructor() {
-    this.agentService = AgentService.getInstance();
-  }
-
-  list() {
-    const agentSvc = AgentService.getInstance();
-    const result: Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }> = [];
-
-    const msgCache = (agentSvc as unknown as { msgCache?: Map<string, { messages: Array<{ role: string; content: string }> }> }).msgCache;
-    if (msgCache) {
-      for (const [sessionId, entry] of msgCache.entries()) {
-        result.push({
-          sessionId,
-          title: meta.get(sessionId)?.title ?? extractTitle(entry.messages),
-          updatedAt: Date.now(),
-          messageCount: entry.messages.length,
-        });
-      }
-    }
-
-    return result.sort((a, b) => b.updatedAt - a.updatedAt);
+  async list() {
+    const sessions = await this.agentService.listSessions();
+    return sessions.map((s) => ({
+      ...s,
+      title: meta.get(s.sessionId)?.title ?? s.title,
+      updatedAt: Date.now(),
+    }));
   }
 
   create() {

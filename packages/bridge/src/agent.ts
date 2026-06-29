@@ -1,17 +1,7 @@
 import type { AgentStreamChunk, RunAgentResult } from 'rem-agent-core';
-import {
-  runAgent as coreRunAgent,
-  createProviderManager,
-  LocalSessionProvider,
-  InMemoryToolProvider,
-  SimpleMemoryProvider,
-  FileSkillProvider,
-  NoOpCompressor,
-  SimpleErrorHandler,
-  FixedBudgetPolicy,
-} from 'rem-agent-core';
+import { runAgent as coreRunAgent, LocalSessionProvider } from 'rem-agent-core';
 import type { ServerMessage } from 'rem-agent-core';
-import { resolve } from 'path';
+import type { ProviderManager } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 
 export type { ServerMessage } from 'rem-agent-core';
@@ -35,65 +25,18 @@ export interface ResetResult {
   reset: boolean;
 }
 
-interface SessionMessages {
-  messages: ServerMessage[];
-  assistantMsgId: string;
-}
-
-const g = globalThis as unknown as {
-  _remBridgeAgentService?: AgentService;
-};
-
 export class AgentService {
   private activeRuns = new Map<string, AbortController>();
   private activeStreams = new Map<string, RunAgentResult>();
   private sessionProvider: LocalSessionProvider;
-  private msgCache = new Map<string, SessionMessages>();
-  private _pmReady = false;
 
-  constructor() {
-    this.sessionProvider = new LocalSessionProvider(resolve(process.cwd(), '.sessions'));
-  }
-
-  static getInstance(): AgentService {
-    if (!g._remBridgeAgentService) {
-      g._remBridgeAgentService = new AgentService();
-    }
-    return g._remBridgeAgentService;
-  }
-
-  private async ensureProviderManager(): Promise<void> {
-    if (this._pmReady) return;
-    await createProviderManager({
-      configProvider: {
-        getConfig: () => ({
-          name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
-          sessionsDir: resolve(process.cwd(), '.sessions'), skillsDir: resolve(process.cwd(), '.skills'),
-          toolPolicy: undefined, model: { provider: 'openai', model: '', apiKey: '', baseURL: undefined },
-        }),
-        getBehaviorConfig: () => ({
-          name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
-          sessionsDir: resolve(process.cwd(), '.sessions'), skillsDir: resolve(process.cwd(), '.skills'),
-        }),
-        getModelConfig: () => ({ provider: 'openai', model: '', apiKey: '', baseURL: undefined }),
-        getToolConfig: () => ({ policy: undefined }),
-      } as import('rem-agent-core').ConfigProvider,
-      sessionProvider: this.sessionProvider,
-      toolProvider: new InMemoryToolProvider(),
-      memoryProvider: new SimpleMemoryProvider('Rem Agent'),
-      skillProvider: new FileSkillProvider(),
-      compressor: new NoOpCompressor(),
-      errorHandler: new SimpleErrorHandler(),
-      budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
-    });
-    this._pmReady = true;
+  constructor(private providerManager: ProviderManager) {
+    this.sessionProvider = providerManager.require('session') as LocalSessionProvider;
   }
 
   /* ---- Agent lifecycle ---- */
 
   async run(params: RunParams): Promise<RunResult> {
-    await this.ensureProviderManager();
-
     if (this.activeRuns.has(params.sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
@@ -105,9 +48,16 @@ export class AgentService {
       input: { content: params.content, timestamp: new Date() },
       sessionId: params.sessionId,
       signal: abortController.signal,
+      pm: this.providerManager,
     });
 
-    this.activeStreams.set(params.sessionId, result);
+    const tapped = this.tapFullStream(result.stream.fullStream, params.sessionId);
+    const tappedStream = { ...result.stream, fullStream: tapped };
+
+    this.activeStreams.set(params.sessionId, {
+      stream: tappedStream,
+      output: result.output,
+    });
 
     result.output.finally(() => {
       this.activeRuns.delete(params.sessionId);
@@ -115,6 +65,56 @@ export class AgentService {
     });
 
     return { sessionId: params.sessionId };
+  }
+
+  private tapFullStream(
+    source: AsyncIterable<AgentStreamChunk>,
+    sessionId: string,
+  ): AsyncIterable<AgentStreamChunk> {
+    type TC = { id: string; name: string; arguments: Record<string, unknown>; result?: { success: boolean; output?: string; error?: string; durationMs: number } };
+    const assistantMsgId = crypto.randomUUID();
+    const assistant: ServerMessage = { id: assistantMsgId, role: 'assistant', content: '', toolCalls: [], status: 'pending' };
+
+    const applyChunk = (chunk: AgentStreamChunk) => {
+      if (chunk.type === 'text-delta') {
+        assistant.content += chunk.text;
+        assistant.status = 'streaming';
+      } else if (chunk.type === 'reasoning-delta') {
+        assistant.reasoning = (assistant.reasoning ?? '') + chunk.text;
+        assistant.status = 'streaming';
+      } else if (chunk.type === 'tool-call-start') {
+        assistant.toolCalls.push({ id: chunk.toolCallId, name: chunk.toolName, arguments: {} });
+        assistant.status = 'streaming';
+      } else if (chunk.type === 'tool-call') {
+        const tc = assistant.toolCalls.find((t: TC) => t.id === chunk.toolCallId) as TC | undefined;
+        if (tc) tc.arguments = (chunk.input as Record<string, unknown>) ?? {};
+      } else if (chunk.type === 'tool-result') {
+        const tc = assistant.toolCalls.find((t: TC) => t.id === chunk.toolCallId) as TC | undefined;
+        if (tc) { tc.result = { success: !chunk.error, output: chunk.output, error: chunk.error, durationMs: 0 }; }
+      } else if (chunk.type === 'finish') {
+        assistant.status = 'done';
+        const existing = this.sessionProvider.pullMessages(sessionId);
+        this.sessionProvider.cueMessages(sessionId, [...existing, assistant]);
+      } else if (chunk.type === 'error') {
+        assistant.status = 'error';
+        assistant.error = String(chunk.error);
+        const existing = this.sessionProvider.pullMessages(sessionId);
+        this.sessionProvider.cueMessages(sessionId, [...existing, assistant]);
+      }
+    };
+
+    return {
+      [Symbol.asyncIterator]() {
+        const it = source[Symbol.asyncIterator]();
+        return {
+          async next() {
+            const r = await it.next();
+            if (r.value) applyChunk(r.value);
+            return r;
+          }
+        };
+      }
+    };
   }
 
   interrupt(sessionId: string): InterruptResult {
@@ -129,68 +129,38 @@ export class AgentService {
     return this.activeStreams.get(sessionId);
   }
 
+  async reset(sessionId: string): Promise<ResetResult> {
+    const controller = this.activeRuns.get(sessionId);
+    if (controller) controller.abort();
+    this.activeRuns.delete(sessionId);
+    this.activeStreams.delete(sessionId);
+    return { sessionId, reset: true };
+  }
+
   /* ---- Message tracking ---- */
 
   addUserMessage(sessionId: string, content: string): void {
-    let entry = this.msgCache.get(sessionId);
-    if (!entry) {
-      entry = { messages: [], assistantMsgId: '' };
-      this.msgCache.set(sessionId, entry);
-    }
-    entry.messages.push({
-      id: crypto.randomUUID(),
-      role: 'user',
-      content,
-      toolCalls: [],
-      status: 'done',
-    });
-    const assistId = crypto.randomUUID();
-    entry.assistantMsgId = assistId;
-    entry.messages.push({
-      id: assistId,
-      role: 'assistant',
-      content: '',
-      toolCalls: [],
-      status: 'pending',
-    });
-  }
-
-  applyChunk(sessionId: string, chunk: AgentStreamChunk): void {
-    const entry = this.msgCache.get(sessionId);
-    if (!entry) return;
-    const msg = entry.messages.find((m) => m.id === entry.assistantMsgId);
-    if (!msg) return;
-
-    if (chunk.type === 'text-delta') {
-      msg.content += chunk.text;
-      msg.status = 'streaming';
-    } else if (chunk.type === 'reasoning-delta') {
-      msg.reasoning = (msg.reasoning ?? '') + chunk.text;
-      msg.status = 'streaming';
-    } else if (chunk.type === 'tool-call-start') {
-      msg.toolCalls.push({ id: chunk.toolCallId, name: chunk.toolName, arguments: {} });
-      msg.status = 'streaming';
-    } else if (chunk.type === 'tool-call') {
-      const tc = msg.toolCalls.find((t: { id: string }) => t.id === chunk.toolCallId);
-      if (tc) tc.arguments = (chunk.input as Record<string, unknown>) ?? {};
-    } else if (chunk.type === 'tool-result') {
-      const tc = msg.toolCalls.find((t: { id: string }) => t.id === chunk.toolCallId);
-      if (tc) {
-        tc.result = { success: !chunk.error, output: chunk.output, error: chunk.error, durationMs: 0 };
-      }
-    } else if (chunk.type === 'finish') {
-      msg.status = 'done';
-      this.sessionProvider.cueMessages(sessionId, entry.messages);
-    } else if (chunk.type === 'error') {
-      msg.status = 'error';
-      msg.error = String(chunk.error);
-      this.sessionProvider.cueMessages(sessionId, entry.messages);
-    }
+    this.sessionProvider.cueMessages(sessionId, [
+      {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content,
+        toolCalls: [],
+        status: 'done',
+      },
+    ]);
   }
 
   getMessages(sessionId: string): ServerMessage[] {
-    const entry = this.msgCache.get(sessionId);
-    if (entry?.messages.length) return entry.messages;
     return this.sessionProvider.pullMessages(sessionId);
+  }
+
+  async listSessions(): Promise<{ sessionId: string; title: string; messageCount: number }[]> {
+    const summaries = await this.sessionProvider.list();
+    return summaries.map((s) => ({
+      sessionId: s.sessionId,
+      title: s.title ?? 'New Chat',
+      messageCount: s.messageCount,
+    }));
   }
 }

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionService } from 'rem-agent-bridge';
-
-const sessionService = new SessionService();
+import { getSessionService } from '../services';
 
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get('q') ?? '';
-    let sessions = sessionService.list();
+    const sessionService = await getSessionService();
+    let sessions = await sessionService.list();
     if (q) {
       const lower = q.toLowerCase();
       sessions = sessions.filter((s) => (s.title ?? '').toLowerCase().includes(lower));
@@ -19,6 +18,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST() {
+  const sessionService = await getSessionService();
   const result = sessionService.create();
   return NextResponse.json(result);
 }

@@ -1,13 +1,12 @@
 import { NextRequest } from 'next/server';
-import { AgentService } from 'rem-agent-bridge';
-
-const agentService = AgentService.getInstance();
+import { getAgentService } from '../services';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
+  const agentService = await getAgentService();
 
   const active = agentService.getStream(sessionId);
   if (!active) {
@@ -22,7 +21,6 @@ export async function GET(
     async start(controller) {
       try {
         for await (const chunk of active.stream.fullStream) {
-          agentService.applyChunk(sessionId, chunk);
           controller.enqueue(encoder.encode(`event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`));
           if (chunk.type === 'finish' || chunk.type === 'error') break;
         }

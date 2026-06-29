@@ -1,16 +1,19 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { ServiceError, AgentService, SessionService } from 'rem-agent-bridge';
+import { createProviderManager } from 'rem-agent-core';
+import type { ProviderManagerConfig } from 'rem-agent-core';
 import type { AppContext } from './types.js';
 import { agentRoutes } from './routes/agent.js';
 import { sessionsRoutes } from './routes/sessions.js';
 import { streamRoutes } from './routes/stream.js';
 
-export function createApp(): Hono<AppContext> {
+export async function createApp(pmConfig?: ProviderManagerConfig): Promise<Hono<AppContext>> {
   const app = new Hono<AppContext>();
 
-  const agentService = new AgentService();
-  const sessionService = new SessionService();
+  const pm = await createProviderManager(pmConfig);
+  const agentService = new AgentService(pm);
+  const sessionService = new SessionService(agentService);
 
   app.use('*', cors());
   app.use('*', async (c, next) => {

@@ -7,7 +7,7 @@ export const agentRoutes = new Hono<AppContext>();
 agentRoutes.post('/run', async (c) => {
   const { sessionId, content } = await c.req.json<RunRequest>();
   const agentService = c.get('agentService');
-  const result = agentService.run({ sessionId, content });
+  const result = await agentService.run({ sessionId, content });
   return c.json(
     {
       sessionId: result.sessionId,

@@ -120,6 +120,9 @@ export const useSessionStore = create<{
   },
 
   onChunk: (chunk: AgentStreamChunk) => {
+    if (chunk.type.startsWith('reasoning')) {
+      console.log('[store]', chunk.type);
+    }
     set((s) => {
       const msgs = s.messages.map((m) => {
         if (m.id !== assistantMessageId) return m;

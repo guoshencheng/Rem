@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { SessionSummary, UIMessage, AgentStreamChunk, ContentPart } from './types';
 import {
   listSessions, createSession, getSession, updateSession,
-  deleteSession, runAgent, interruptAgent,
+  deleteSession, interruptAgent,
 } from './agent-client';
 
 let assistantMessageId = '';
@@ -23,7 +23,7 @@ export const useSessionStore = create<{
   init: () => Promise<void>;
   createSession: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
-  sendMessage: (text: string) => Promise<{ streamUrl: string } | undefined>;
+  sendMessage: (text: string) => void;
   interrupt: () => Promise<void>;
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -86,7 +86,7 @@ export const useSessionStore = create<{
     }
   },
 
-  sendMessage: async (text: string) => {
+  sendMessage: (text: string) => {
     const { currentSessionId, messages } = get();
     if (!currentSessionId || get().streaming) return;
 
@@ -108,26 +108,11 @@ export const useSessionStore = create<{
     };
     assistantMessageId = assistantMsg.id;
 
-    set({ messages: [...messages, userMsg, assistantMsg], error: null });
-
-    try {
-      const result = await runAgent(currentSessionId, text);
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMsg.id ? { ...m, status: 'streaming' as const } : m,
-        ),
-        streaming: true,
-      }));
-      return result;
-    } catch (err) {
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantMsg.id
-            ? { ...m, status: 'error' as const, error: err instanceof Error ? err.message : '发送失败' }
-            : m,
-        ),
-      }));
-    }
+    set({
+      messages: [...messages, userMsg, assistantMsg],
+      error: null,
+      streaming: true,
+    });
   },
 
   onChunk: (chunk: AgentStreamChunk) => {
@@ -180,7 +165,7 @@ export const useSessionStore = create<{
               p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
             );
             if (idx >= 0) {
-              parts[idx] = { ...parts[idx], arguments: (chunk.input as Record<string, unknown>) ?? {} };
+              parts[idx] = { ...parts[idx], arguments: (chunk.input as Record<string, unknown>) ?? {} } as ContentPart;
             }
             msg.toolCalls = msg.toolCalls.map((tc) =>
               tc.id === chunk.toolCallId ? { ...tc, arguments: (chunk.input as Record<string, unknown>) ?? {} } : tc,

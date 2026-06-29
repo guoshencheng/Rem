@@ -5,11 +5,11 @@ import { useEffect } from 'react';
 import { MessageList } from './message-list';
 import { InputBox } from './input-box';
 import { useSSE } from '@/lib/use-sse';
-import { getStreamUrl } from '@/lib/agent-client';
 
 export function ChatPanel() {
   const streaming = useSessionStore((s) => s.streaming);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const messages = useSessionStore((s) => s.messages);
   const reconnecting = useSessionStore((s) => s.reconnecting);
   const serverError = useSessionStore((s) => s.serverError);
   const onChunk = useSessionStore((s) => s.onChunk);
@@ -18,14 +18,20 @@ export function ChatPanel() {
 
   useEffect(() => {
     if (!streaming || !currentSessionId) return;
+    const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
+    if (!lastUserMsg) return;
 
-    const streamUrl = getStreamUrl(currentSessionId);
     connect(
-      streamUrl,
+      '/api/agent/run',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId, content: lastUserMsg.content }),
+      },
       (chunk) => onChunk(chunk),
       (err) => {
         console.error('SSE error:', err);
-        onChunk({ type: 'error', error: err });
+        onChunk({ type: 'error', error: err } as any);
       },
       (status) => {
         setReconnecting(status === 'reconnecting');
@@ -33,7 +39,7 @@ export function ChatPanel() {
     );
 
     return () => disconnect();
-  }, [streaming, currentSessionId, connect, disconnect, onChunk, setReconnecting]);
+  }, [streaming, currentSessionId]); // intentionally not depending on messages
 
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">

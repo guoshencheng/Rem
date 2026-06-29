@@ -7,6 +7,12 @@ import { parseSSEStream, parseAgentStreamEvent } from './stream-parser';
 type ChunkHandler = (chunk: AgentStreamChunk) => void;
 type StatusHandler = (status: 'connecting' | 'reconnecting' | 'error' | 'done') => void;
 
+interface FetchOptions {
+  method?: string;
+  body?: string;
+  headers?: Record<string, string>;
+}
+
 export function useSSE() {
   const abortRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef(0);
@@ -15,6 +21,7 @@ export function useSSE() {
   const connect = useCallback(
     (
       url: string,
+      options: FetchOptions,
       onChunk: ChunkHandler,
       onError?: (err: Error) => void,
       onStatus?: StatusHandler,
@@ -25,7 +32,12 @@ export function useSSE() {
       async function start() {
         try {
           onStatus?.('connecting');
-          const response = await fetch(url, { signal: abort.signal });
+          const response = await fetch(url, {
+            method: options.method ?? 'GET',
+            headers: options.headers,
+            body: options.body,
+            signal: abort.signal,
+          });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }

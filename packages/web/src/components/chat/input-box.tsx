@@ -13,15 +13,13 @@ export function InputBox() {
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const interrupt = useSessionStore((s) => s.interrupt);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed || streaming || !initialized) return;
-    const result = await sendMessage(trimmed);
-    if (result) {
-      setText('');
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
+    sendMessage(trimmed);
+    setText('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
     }
   };
 

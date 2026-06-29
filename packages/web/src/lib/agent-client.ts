@@ -1,6 +1,6 @@
-import type { SessionSummary, RunResponse } from './types';
+import type { SessionSummary } from './types';
 
-export async function runAgent(sessionId: string, input: string): Promise<RunResponse> {
+export async function runAgent(sessionId: string, input: string): Promise<Response> {
   const res = await fetch('/api/agent/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -10,7 +10,7 @@ export async function runAgent(sessionId: string, input: string): Promise<RunRes
     const text = await res.text().catch(() => '');
     throw new Error(`Failed to run agent: ${res.status} ${text}`);
   }
-  return res.json() as Promise<RunResponse>;
+  return res;
 }
 
 export async function interruptAgent(sessionId: string): Promise<void> {
@@ -67,8 +67,4 @@ export async function deleteSession(sessionId: string): Promise<void> {
     const text = await res.text().catch(() => '');
     throw new Error(`Failed to delete session: ${res.status} ${text}`);
   }
-}
-
-export function getStreamUrl(sessionId: string): string {
-  return `/api/stream/${sessionId}`;
 }

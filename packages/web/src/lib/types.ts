@@ -6,16 +6,6 @@ export interface SessionSummary extends CoreSessionSummary {
 
 export type UIMessage = ServerMessage;
 
-export interface RunResponse {
-  sessionId: string;
-  streamUrl: string;
-}
-
-export interface SSEEvent {
-  event?: string;
-  data: string;
-}
-
 export function isSSETextDelta(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'text-delta' } {
   return c.type === 'text-delta';
 }

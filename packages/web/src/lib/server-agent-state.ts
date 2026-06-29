@@ -1,7 +1,6 @@
 import {
   CoreAgent,
   IterationBudget,
-  InMemorySessionProvider,
   InMemoryToolProvider,
   SimpleMemoryProvider,
   FileSkillProvider,
@@ -10,6 +9,10 @@ import {
   FixedBudgetPolicy,
 } from 'rem-agent-core';
 import type { AgentStreamChunk } from 'rem-agent-core';
+import type { SessionProvider, Session, SessionSummary } from 'rem-agent-core';
+import { randomUUID } from 'crypto';
+import { mkdir, readFile, readdir, writeFile, unlink } from 'fs/promises';
+import { join, resolve } from 'path';
 
 type Agent = CoreAgent;
 type RunResult = ReturnType<Agent['run']>;
@@ -38,13 +41,127 @@ interface AgentEntry {
 const g = globalThis as unknown as {
   _remAgentStore?: Map<string, AgentEntry>;
   _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
-  _remSessionProvider?: InMemorySessionProvider;
+  _remSessionProvider?: LocalSessionProvider;
   _remMemoryProvider?: SimpleMemoryProvider;
 };
 
+class LocalSessionProvider implements SessionProvider {
+  private dir: string;
+  private loaded = false;
+
+  constructor(dir: string) {
+    this.dir = resolve(process.cwd(), dir);
+  }
+
+  private sessionPath(sessionId: string): string {
+    return join(this.dir, `${sessionId}.json`);
+  }
+
+  private msgPath(sessionId: string): string {
+    return join(this.dir, `${sessionId}_messages.json`);
+  }
+
+  private async ensureDir(): Promise<void> {
+    if (this.loaded) return;
+    await mkdir(this.dir, { recursive: true });
+    this.loaded = true;
+  }
+
+  async create(): Promise<Session> {
+    await this.ensureDir();
+    const now = new Date();
+    return {
+      sessionId: randomUUID(),
+      conversation: [],
+      currentTurn: 0,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async load(sessionId: string): Promise<Session | null> {
+    try {
+      const raw = await readFile(this.sessionPath(sessionId), 'utf-8');
+      const data = JSON.parse(raw);
+      return {
+        sessionId: data.sessionId,
+        conversation: data.conversation ?? [],
+        currentTurn: data.currentTurn ?? 0,
+        metadata: data.metadata ?? {},
+        createdAt: new Date(data.createdAt),
+        updatedAt: new Date(data.updatedAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async save(session: Session): Promise<void> {
+    await this.ensureDir();
+    const data = {
+      sessionId: session.sessionId,
+      conversation: session.conversation,
+      currentTurn: session.currentTurn,
+      metadata: session.metadata,
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await writeFile(this.sessionPath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
+  }
+
+  async list(): Promise<SessionSummary[]> {
+    await this.ensureDir();
+    let entries: string[];
+    try {
+      entries = await readdir(this.dir);
+    } catch {
+      return [];
+    }
+
+    const summaries: SessionSummary[] = [];
+    for (const entry of entries) {
+      if (!entry.endsWith('.json') || entry.includes('_messages')) continue;
+      const id = entry.slice(0, -5);
+      try {
+        const raw = await readFile(join(this.dir, entry), 'utf-8');
+        const body = JSON.parse(raw);
+        summaries.push({
+          sessionId: id,
+          title: body.metadata?.title as string | undefined,
+          updatedAt: new Date(body.updatedAt),
+          messageCount: Array.isArray(body.conversation) ? body.conversation.length : 0,
+        });
+      } catch {
+        continue;
+      }
+    }
+    return summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+
+  async saveMessages(sessionId: string, messages: ServerMessage[]): Promise<void> {
+    await this.ensureDir();
+    await writeFile(this.msgPath(sessionId), JSON.stringify(messages, null, 2), 'utf-8');
+  }
+
+  async loadMessages(sessionId: string): Promise<ServerMessage[]> {
+    try {
+      const raw = await readFile(this.msgPath(sessionId), 'utf-8');
+      return JSON.parse(raw) as ServerMessage[];
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    try { await unlink(this.sessionPath(sessionId)); } catch { /* ignore */ }
+    try { await unlink(this.msgPath(sessionId)); } catch { /* ignore */ }
+  }
+}
+
 if (!g._remAgentStore) g._remAgentStore = new Map();
 if (!g._remActiveStreams) g._remActiveStreams = new Map();
-if (!g._remSessionProvider) g._remSessionProvider = new InMemorySessionProvider();
+if (!g._remSessionProvider) g._remSessionProvider = new LocalSessionProvider('.sessions');
 if (!g._remMemoryProvider) g._remMemoryProvider = new SimpleMemoryProvider('Rem Agent');
 
 const agentStore = g._remAgentStore;
@@ -69,7 +186,9 @@ export async function getOrCreateAgent(sessionId: string): Promise<Agent> {
     });
     await agent.ready();
     await agent.initialize({ sessionId });
-    entry = { agent, messages: [], assistantMsgId: '' };
+
+    const existingMessages = await sharedSessionProvider.loadMessages(sessionId);
+    entry = { agent, messages: existingMessages, assistantMsgId: '' };
     agentStore.set(sessionId, entry);
   }
   return entry.agent;
@@ -105,14 +224,31 @@ export async function generateTitle(sessionId: string): Promise<string> {
 
 export async function listAgentSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }>> {
   const result: Array<{ sessionId: string; title?: string; updatedAt: number; messageCount: number }> = [];
-  for (const [sessionId, entry] of agentStore.entries()) {
+
+  // First, include all sessions from disk (survive restart)
+  const diskSessions = await sharedSessionProvider.list();
+  for (const s of diskSessions) {
+    const entry = agentStore.get(s.sessionId);
     result.push({
-      sessionId,
-      title: entry.messages.length > 0 ? extractTitle(entry.messages) : undefined,
-      updatedAt: Date.now(),
-      messageCount: entry.messages.length,
+      sessionId: s.sessionId,
+      title: s.title ?? extractTitle(entry?.messages ?? []),
+      updatedAt: s.updatedAt.getTime(),
+      messageCount: entry?.messages.length ?? s.messageCount,
     });
   }
+
+  // Then add sessions only in agentStore (not yet on disk)
+  for (const [sessionId, entry] of agentStore.entries()) {
+    if (!result.find((r) => r.sessionId === sessionId)) {
+      result.push({
+        sessionId,
+        title: extractTitle(entry.messages),
+        updatedAt: Date.now(),
+        messageCount: entry.messages.length,
+      });
+    }
+  }
+
   return result.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -170,12 +306,19 @@ export function applyStreamChunk(sessionId: string, chunk: AgentStreamChunk): vo
     }
   } else if (chunk.type === 'finish') {
     msg.status = 'done';
+    sharedSessionProvider.saveMessages(sessionId, entry.messages);
   } else if (chunk.type === 'error') {
     msg.status = 'error';
     msg.error = String(chunk.error);
+    sharedSessionProvider.saveMessages(sessionId, entry.messages);
   }
 }
 
 export function getSessionMessages(sessionId: string): ServerMessage[] {
   return agentStore.get(sessionId)?.messages ?? [];
+}
+
+export async function deleteSessionFromStore(sessionId: string): Promise<void> {
+  agentStore.delete(sessionId);
+  await sharedSessionProvider.deleteSession(sessionId);
 }

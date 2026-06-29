@@ -6,3 +6,7 @@ refer
 *.tsbuildinfo
 packages/**/*.js
 vitest.config.js
+
+# superpowers brainstorm artifacts
+.superpowers/
+.next.sessions/

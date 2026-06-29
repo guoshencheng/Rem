@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrCreateAgent, getSessionMessages } from '@/lib/server-agent-state';
+import { getOrCreateAgent, getSessionMessages, deleteSessionFromStore } from '@/lib/server-agent-state';
 
 const titles = new Map<string, string>();
 const pins = new Map<string, boolean>();
@@ -58,6 +58,7 @@ export async function DELETE(
     const { id } = await params;
     titles.delete(id);
     pins.delete(id);
+    await deleteSessionFromStore(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

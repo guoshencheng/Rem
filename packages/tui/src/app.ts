@@ -12,174 +12,15 @@ import {
 import type { KeyEvent, CliRenderer } from "@opentui/core";
 import type { AgentStreamChunk, SessionSummary } from "rem-agent-sdk";
 import { AgentClient } from "rem-agent-sdk";
-import { getToolFormatter } from "./message/tool-formatter.js";
-
-// ---- types ----
-
-type ToolStatus = "pending" | "running" | "success" | "error";
-
-interface ToolPartState {
-  type: "tool";
-  toolName: string;
-  input?: unknown;
-  status: ToolStatus;
-  output?: string;
-  error?: string;
-  startTime: number;
-  endTime?: number;
-}
-
-interface ReasoningPartState {
-  type: "reasoning";
-  content: string;
-  startTime: number;
-  duration?: number;
-}
+import { createReasoningBlock } from "./message/reasoning-block.js";
+import type { ReasoningPartState, ReasoningBlockHandle } from "./message/reasoning-block.js";
+import { createToolBlock } from "./message/function-tool-block.js";
+import type { ToolPartState, ToolBlockHandle } from "./message/function-tool-block.js";
 
 // ---- helpers ----
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function statusIcon(status: ToolStatus): string {
-  switch (status) {
-    case "pending":
-    case "running":
-      return "◐";
-    case "success":
-      return "✓";
-    case "error":
-      return "✗";
-  }
-}
-
-function formatDuration(startTime: number, endTime?: number): string {
-  if (!endTime) return "";
-  const ms = endTime - startTime;
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function previewText(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  return clean.length > 50 ? `${clean.slice(0, 50)}…` : clean;
-}
-
-// ---- block helpers ----
-
-interface BlockHandle {
-  label: TextRenderable;
-  body: TextRenderable;
-  container: BoxRenderable;
-  setCollapsed(c: boolean): void;
-}
-
-function createReasoningBlock(
-  renderer: CliRenderer,
-  part: ReasoningPartState,
-  collapsed: boolean,
-): BlockHandle {
-  const label = new TextRenderable(renderer, {
-    content: "",
-    attributes: TextAttributes.DIM,
-  });
-  const body = new TextRenderable(renderer, {
-    content: part.content,
-    visible: !collapsed,
-  });
-
-  function update() {
-    const base = part.duration != null
-      ? `think for ${(part.duration / 1000).toFixed(1)}s`
-      : "thinking";
-    if (collapsed) {
-      const prev = previewText(part.content);
-      label.content = `${base}${prev ? `: ${prev}` : ""} > (ctrl+o)`;
-    } else {
-      label.content = base;
-    }
-    body.content = part.content;
-    body.visible = !collapsed;
-  }
-
-  update();
-
-  const container = new BoxRenderable(renderer, { flexDirection: "column" });
-  container.add(label);
-  container.add(body);
-
-  return {
-    label,
-    body,
-    container,
-    setCollapsed(c: boolean) {
-      collapsed = c;
-      update();
-    },
-  };
-}
-
-function createToolBlock(
-  renderer: CliRenderer,
-  part: ToolPartState,
-  collapsed: boolean,
-): BlockHandle {
-  const label = new TextRenderable(renderer, {
-    content: "",
-    attributes: TextAttributes.DIM,
-  });
-  const body = new TextRenderable(renderer, {
-    content: "",
-    visible: false,
-  });
-
-  function update() {
-    const fmt = getToolFormatter(part.toolName);
-    const icon = statusIcon(part.status);
-    const call = fmt.formatCall(part.toolName, part.input);
-    const dur = formatDuration(part.startTime, part.endTime);
-
-    if (part.status === "pending" || part.status === "running") {
-      const hint = collapsed ? " (ctrl+o)" : "";
-      label.content = `${icon} ${call} ...${hint}`;
-    } else {
-      const summary = fmt.formatResultSummary(
-        part.toolName, part.input, part.output ?? "", part.error,
-      );
-      if (collapsed) {
-        label.content = `${icon} ${call}  ${summary}  (ctrl+o)`;
-      } else {
-        label.content = `${icon} ${call}${dur ? ` (${dur})` : ""}`;
-      }
-    }
-
-    if (!collapsed && (part.status === "success" || part.status === "error")) {
-      body.content = fmt.formatResultBody(
-        part.toolName, part.input, part.output ?? "", part.error,
-      );
-      body.visible = true;
-    } else {
-      body.visible = false;
-    }
-  }
-
-  update();
-
-  const container = new BoxRenderable(renderer, { flexDirection: "column" });
-  container.add(label);
-  container.add(body);
-
-  return {
-    label,
-    body,
-    container,
-    setCollapsed(c: boolean) {
-      collapsed = c;
-      update();
-    },
-  };
 }
 
 // ---- TUIApp ----
@@ -211,7 +52,7 @@ export class TUIApp {
   // Stream tracking
   private streamParts = new Map<string, ToolPartState | ReasoningPartState>();
   private streamContainer: BoxRenderable | null = null;
-  private streamBlocks = new Map<string, BlockHandle>();
+  private streamBlocks = new Map<string, ReasoningBlockHandle | ToolBlockHandle>();
   private streamTextRefs = new Map<string, TextRenderable>();
 
   constructor(options: TUIAppOptions) {
@@ -251,10 +92,6 @@ export class TUIApp {
     this.inputNode = new InputRenderable(this.renderer, {
       placeholder: "Type a message...",
       width: "100%",
-    });
-    this.inputNode.on(InputRenderableEvents.ENTER, (value: string) => {
-      const trimmed = value.trim();
-      if (trimmed) this.handleSubmit(trimmed);
     });
 
     // Overlay (hidden initially)
@@ -389,12 +226,17 @@ export class TUIApp {
     this.startStreamMessage();
 
     try {
+      process.stderr.write(`[DEBUG] calling client.run(${this.sessionId}, "${text.slice(0, 20)}")\n`);
       const stream = await this.client.run(this.sessionId, text);
+      process.stderr.write(`[DEBUG] got stream, iterating...\n`);
       for await (const chunk of stream) {
+        process.stderr.write(`[DEBUG] chunk: ${chunk.type}\n`);
         this.handleChunk(chunk);
       }
+      process.stderr.write(`[DEBUG] stream ended\n`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[DEBUG] error: ${msg}\n`);
       if (this.streamContainer && this.streamParts.size === 0) {
         this.addAssistantText(`Error: ${msg}`);
       }

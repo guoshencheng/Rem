@@ -1,6 +1,6 @@
 import {
-  CoreAgent,
-  IterationBudget,
+  runAgent as coreRunAgent,
+  ProviderManager,
   LocalSessionProvider,
   InMemoryToolProvider,
   SimpleMemoryProvider,
@@ -12,7 +12,7 @@ import {
 import type { AgentStreamChunk } from 'rem-agent-core';
 import { resolve } from 'path';
 
-type RunResult = ReturnType<CoreAgent['run']>;
+type RunResult = ReturnType<typeof coreRunAgent>;
 
 export interface ServerMessage {
   id: string;
@@ -37,53 +37,55 @@ interface SessionMessages {
 const g = globalThis as unknown as {
   _remActiveStreams?: Map<string, { result: RunResult; abort: AbortController }>;
   _remSessionProvider?: LocalSessionProvider;
-  _remMemoryProvider?: SimpleMemoryProvider;
   _remMsgCache?: Map<string, SessionMessages>;
+  _remPmReady?: Promise<void>;
 };
 
 if (!g._remActiveStreams) g._remActiveStreams = new Map();
 if (!g._remSessionProvider) g._remSessionProvider = new LocalSessionProvider(resolve(process.cwd(), '.sessions'));
-if (!g._remMemoryProvider) g._remMemoryProvider = new SimpleMemoryProvider('Rem Agent');
 if (!g._remMsgCache) g._remMsgCache = new Map();
 
 const activeStreams = g._remActiveStreams;
 const sessionProvider = g._remSessionProvider;
-const sharedMemoryProvider = g._remMemoryProvider;
 const msgCache = g._remMsgCache;
 
-function createAgent(sessionId: string): CoreAgent {
-  return new CoreAgent({
-    name: 'Rem Agent',
-    budget: new IterationBudget({ maxTurns: 60 }),
-    provider: 'openai',
-    sessionProvider,
-    memoryProvider: sharedMemoryProvider,
-    toolProvider: new InMemoryToolProvider(),
-    skillProvider: new FileSkillProvider(),
-    compressor: new NoOpCompressor(),
-    errorHandler: new SimpleErrorHandler(),
-    budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
-  });
-}
-
-async function getAgent(sessionId: string): Promise<CoreAgent> {
-  const agent = createAgent(sessionId);
-  await agent.ready();
-  await agent.initialize({ sessionId });
-
-  // 从磁盘恢复 UI 消息
-  const cached = sessionProvider.pullMessages(sessionId) as ServerMessage[] | undefined;
-  if (cached?.length) {
-    msgCache.set(sessionId, { messages: cached, assistantMsgId: '' });
+function ensureProviderManager(): Promise<void> {
+  if (!g._remPmReady) {
+    ProviderManager.resetInstance();
+    g._remPmReady = ProviderManager.getInstance({
+      configProvider: {
+        getConfig: () => ({
+          name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
+          sessionsDir: resolve(process.cwd(), '.sessions'), skillsDir: resolve(process.cwd(), '.skills'),
+          toolPolicy: undefined, model: { provider: 'openai', model: '', apiKey: '', baseURL: undefined },
+        }),
+        getBehaviorConfig: () => ({
+          name: 'Rem Agent', maxTurns: 60, workspaceRoot: process.cwd(), readOnly: false,
+          sessionsDir: resolve(process.cwd(), '.sessions'), skillsDir: resolve(process.cwd(), '.skills'),
+        }),
+        getModelConfig: () => ({ provider: 'openai', model: '', apiKey: '', baseURL: undefined }),
+        getToolConfig: () => ({ policy: undefined }),
+      } as import('rem-agent-core').ConfigProvider,
+      sessionProvider: sessionProvider,
+      toolProvider: new InMemoryToolProvider(),
+      memoryProvider: new SimpleMemoryProvider('Rem Agent'),
+      skillProvider: new FileSkillProvider(),
+      compressor: new NoOpCompressor(),
+      errorHandler: new SimpleErrorHandler(),
+      budgetPolicy: new FixedBudgetPolicy({ maxTurns: 60 }),
+    }).then(() => {});
   }
-
-  return agent;
+  return g._remPmReady;
 }
 
 export async function runAgent(sessionId: string, content: string): Promise<RunResult> {
-  const agent = await getAgent(sessionId);
+  await ensureProviderManager();
   const abort = new AbortController();
-  const result = agent.run({ content, timestamp: new Date() });
+  const result = coreRunAgent({
+    input: { content, timestamp: new Date() },
+    sessionId,
+    signal: abort.signal,
+  });
   activeStreams.set(sessionId, { result, abort });
   return result;
 }

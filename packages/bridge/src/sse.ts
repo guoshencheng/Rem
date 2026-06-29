@@ -15,38 +15,37 @@ export function parseSSEStream(
     [Symbol.asyncIterator]: async function* () {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+        }
+
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
-        let currentEvent: Partial<SSEEvent> = {};
+        let eventType: string | undefined;
+        let dataLines: string[] = [];
+
         for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent.event = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            currentEvent.data = line.slice(6);
-          } else if (line === '') {
-            if (currentEvent.data !== undefined) {
-              yield currentEvent as SSEEvent;
+          if (line === '') {
+            if (dataLines.length > 0) {
+              yield { event: eventType, data: dataLines.join('\n') };
+              eventType = undefined;
+              dataLines = [];
             }
-            currentEvent = {};
+            continue;
+          }
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            dataLines.push(line.slice(6));
           }
         }
-      }
 
-      if (buffer.trim()) {
-        const lines = buffer.split('\n');
-        let currentEvent: Partial<SSEEvent> = {};
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent.event = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            currentEvent.data = line.slice(6);
-          } else if (line === '' && currentEvent.data !== undefined) {
-            yield currentEvent as SSEEvent;
-            currentEvent = {};
+        if (done) {
+          if (dataLines.length > 0) {
+            yield { event: eventType, data: dataLines.join('\n') };
           }
+          return;
         }
       }
     },

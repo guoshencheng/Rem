@@ -1,9 +1,13 @@
 import { createContainer, asFunction, asValue, Lifetime, type AwilixContainer } from 'awilix';
-import { createProviderManager } from 'rem-agent-core';
+import { createProviderManager, LocalSessionProvider } from 'rem-agent-core';
 import { AgentService, SessionService } from 'rem-agent-bridge';
+import { resolve } from 'path';
 
 async function configureContainer(): Promise<AwilixContainer> {
-  const pm = await createProviderManager();
+  const sessionsDir = resolve(process.cwd(), '.sessions');
+  const pm = await createProviderManager({
+    sessionProvider: new LocalSessionProvider(sessionsDir),
+  });
   const container = createContainer();
 
   container.register({

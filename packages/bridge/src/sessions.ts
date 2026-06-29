@@ -31,7 +31,7 @@ export class SessionService {
     return { sessionId, title: 'New Chat', updatedAt: Date.now(), messageCount: 0 };
   }
 
-  getMessages(sessionId: string) {
+  async getMessages(sessionId: string) {
     return this.agentService.getMessages(sessionId);
   }
 

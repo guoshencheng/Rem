@@ -13,7 +13,7 @@ export async function GET(
     return NextResponse.json({
       sessionId: id,
       title: 'New Chat',
-      messages: sessionService.getMessages(id),
+      messages: await sessionService.getMessages(id),
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });

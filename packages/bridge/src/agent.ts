@@ -153,12 +153,12 @@ export class AgentService {
     ]);
   }
 
-  getMessages(sessionId: string): ServerMessage[] {
+  async getMessages(sessionId: string): Promise<ServerMessage[]> {
     const cached = this.msgCache.get(sessionId);
     if (cached) return cached;
 
-    const session = (this.sessionProvider as any).pullMessages?.(sessionId);
-    return session ?? [];
+    await this.sessionProvider.load(sessionId);
+    return (this.sessionProvider as any as { pullMessages?(id: string): ServerMessage[] }).pullMessages?.(sessionId) ?? [];
   }
 
   async listSessions(): Promise<{ sessionId: string; title: string; messageCount: number }[]> {

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionMessages, deleteSessionFromStore } from '@/lib/server-agent-state';
+import { SessionService } from '@/lib/services/session-service';
 
-const titles = new Map<string, string>();
-const pins = new Map<string, boolean>();
+const sessionService = new SessionService();
 
 export async function GET(
   _request: NextRequest,
@@ -10,18 +9,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const messages = getSessionMessages(id);
-
     return NextResponse.json({
       sessionId: id,
-      title: titles.get(id) ?? 'New Chat',
-      messages,
+      title: 'New Chat',
+      messages: sessionService.getMessages(id),
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
   }
 }
 
@@ -33,20 +27,10 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { title, pinned } = body as { title?: string; pinned?: boolean };
-
-    if (title) {
-      titles.set(id, title);
-    }
-    if (pinned !== undefined) {
-      pins.set(id, pinned);
-    }
-
+    sessionService.update(id, { title, pinned });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
   }
 }
 
@@ -56,14 +40,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    titles.delete(id);
-    pins.delete(id);
-    await deleteSessionFromStore(id);
+    await sessionService.delete(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
   }
 }

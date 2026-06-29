@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runAgent, interruptActiveRun, addUserMessage } from '@/lib/server-agent-state';
+import { AgentService } from '@/lib/services/agent-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,8 +10,10 @@ export async function POST(request: NextRequest) {
       interrupt?: boolean;
     };
 
+    const agentService = AgentService.getInstance();
+
     if (interrupt) {
-      const interrupted = interruptActiveRun(sessionId);
+      const interrupted = agentService.interrupt(sessionId);
       return NextResponse.json({ sessionId, interrupted });
     }
 
@@ -19,8 +21,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'sessionId and content are required' }, { status: 400 });
     }
 
-    await runAgent(sessionId, content);
-    addUserMessage(sessionId, content);
+    await agentService.run(sessionId, content);
+    agentService.addUserMessage(sessionId, content);
 
     return NextResponse.json({ sessionId, streamUrl: `/api/stream/${sessionId}` });
   } catch (err) {

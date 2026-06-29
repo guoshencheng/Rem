@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
-import { getActiveRun, clearActiveRun, applyStreamChunk } from '@/lib/server-agent-state';
+import { AgentService } from '@/lib/services/agent-service';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
+  const agentService = AgentService.getInstance();
 
-  const active = getActiveRun(sessionId);
+  const active = agentService.getStream(sessionId);
   if (!active) {
     return new Response(JSON.stringify({ error: 'No active stream' }), {
       status: 404,
@@ -16,23 +17,19 @@ export async function GET(
   }
 
   const encoder = new TextEncoder();
-
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of active.result.stream.fullStream) {
-          applyStreamChunk(sessionId, chunk);
-          const line = `event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`;
-          controller.enqueue(encoder.encode(line));
+        for await (const chunk of active.stream.fullStream) {
+          agentService.applyChunk(sessionId, chunk);
+          controller.enqueue(encoder.encode(`event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`));
           if (chunk.type === 'finish' || chunk.type === 'error') break;
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Stream error';
-        const line = `event: error\ndata: ${JSON.stringify({ type: 'error', error: message })}\n\n`;
-        controller.enqueue(encoder.encode(line));
+        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: message })}\n\n`));
       } finally {
         controller.close();
-        clearActiveRun(sessionId);
       }
     },
   });

@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@opentui/core": "^0.4.2",
-    "rem-agent-sdk": "workspace:*"
+    "rem-agent-bridge": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

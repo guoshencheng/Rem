@@ -12,7 +12,7 @@
     "@opentui/core": "^0.4.2",
     "dotenv": "^16.4.0",
     "rem-agent-core": "workspace:*",
-    "rem-agent-sdk": "workspace:*",
+    "rem-agent-bridge": "workspace:*",
     "rem-agent-server": "workspace:*",
     "rem-agent-tui": "workspace:*"
   },

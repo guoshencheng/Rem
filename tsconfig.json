@@ -10,7 +10,7 @@
   },
   "references": [
     { "path": "./packages/core" },
-    { "path": "./packages/sdk" },
+    { "path": "./packages/bridge" },
     { "path": "./packages/server" }
   ]
 }

@@ -16,8 +16,10 @@
     "test": "cd ../.. \u0026\u0026 vitest run packages/server/tests"
   },
   "dependencies": {
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.0.0",
     "rem-agent-core": "workspace:*",
-    "rem-agent-sdk": "workspace:*"
+    "rem-agent-bridge": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

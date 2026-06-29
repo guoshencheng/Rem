@@ -10,8 +10,8 @@ import {
   InputRenderableEvents,
 } from "@opentui/core";
 import type { KeyEvent, CliRenderer } from "@opentui/core";
-import type { AgentStreamChunk, SessionSummary } from "rem-agent-sdk";
-import { AgentClient } from "rem-agent-sdk";
+import type { AgentStreamChunk, SessionSummary } from "rem-agent-bridge";
+import { AgentClient } from "rem-agent-bridge";
 import { createReasoningBlock } from "./message/reasoning-block.js";
 import type { ReasoningPartState, ReasoningBlockHandle } from "./message/reasoning-block.js";
 import { createToolBlock } from "./message/function-tool-block.js";

@@ -1,74 +1,31 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { SessionProvider } from 'rem-agent-core';
-import { runAgent, ProviderManager } from 'rem-agent-core';
-import type {
-  RunRequest,
-  InterruptRequest,
-  ResetRequest,
-} from 'rem-agent-sdk';
-import { getRequestBody, sendJson, sendError } from '../utils.js';
-import { activeRuns, activeStreams } from '../state.js';
+import { Hono } from 'hono';
+import type { RunRequest, InterruptRequest, ResetRequest } from 'rem-agent-bridge';
+import type { AppContext } from '../types.js';
 
-export async function handleAgentRun(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = await getRequestBody(req);
-  const { sessionId, content } = JSON.parse(body) as RunRequest;
+export const agentRoutes = new Hono<AppContext>();
 
-  if (activeRuns.has(sessionId)) {
-    sendError(res, 409, 'Session is already running');
-    return;
-  }
+agentRoutes.post('/run', async (c) => {
+  const { sessionId, content } = await c.req.json<RunRequest>();
+  const agentService = c.get('agentService');
+  const result = agentService.run({ sessionId, content });
+  return c.json(
+    {
+      sessionId: result.sessionId,
+      streamUrl: `/api/stream/${encodeURIComponent(result.sessionId)}`,
+    },
+    202,
+  );
+});
 
-  const abortController = new AbortController();
-  activeRuns.set(sessionId, abortController);
+agentRoutes.post('/interrupt', async (c) => {
+  const { sessionId } = await c.req.json<InterruptRequest>();
+  const agentService = c.get('agentService');
+  return c.json(agentService.interrupt(sessionId));
+});
 
-  const result = runAgent({
-    input: { content, timestamp: new Date() },
-    sessionId,
-    signal: abortController.signal,
-  });
-
-  activeStreams.set(sessionId, result);
-
-  result.output.finally(() => {
-    activeRuns.delete(sessionId);
-    activeStreams.delete(sessionId);
-  });
-
-  sendJson(res, 202, {
-    sessionId,
-    streamUrl: `/api/stream/${encodeURIComponent(sessionId)}`,
-  });
-}
-
-export async function handleAgentInterrupt(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = await getRequestBody(req);
-  const { sessionId } = JSON.parse(body) as InterruptRequest;
-  const controller = activeRuns.get(sessionId);
-  if (controller) {
-    controller.abort();
-  }
-  sendJson(res, 200, { sessionId, interrupted: !!controller });
-}
-
-export async function handleAgentReset(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = await getRequestBody(req);
-  const { sessionId } = JSON.parse(body) as ResetRequest;
-  const pm = await ProviderManager.getInstance();
-  const sessionProvider = pm.require<SessionProvider>('session');
-  const session = await sessionProvider.load(sessionId);
-  if (session) {
-    session.conversation = [];
-    session.metadata = {};
-    await sessionProvider.save(session);
-  }
-  sendJson(res, 200, { sessionId, reset: true });
-}
+agentRoutes.post('/reset', async (c) => {
+  const { sessionId } = await c.req.json<ResetRequest>();
+  const agentService = c.get('agentService');
+  const result = await agentService.reset(sessionId);
+  return c.json(result);
+});

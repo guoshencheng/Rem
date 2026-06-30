@@ -18,7 +18,6 @@
 | `packages/bridge` | `rem-agent-bridge` | 桥接层 | HTTP client/server、SSE 编解码、AgentService、SessionService |
 | `packages/web` | `rem-agent-web` | 表现层 | Next.js 15 + React 19 聊天 UI，SSE 流消费，会话管理 |
 | `packages/tui` | `rem-agent-tui` | 表现层 | 基于 `@opentui/core` 的终端 UI 组件 |
-| `packages/demo` | `rem-agent-demo` | 集成层 | 连接 TUI 到 core 的演示入口 |
 
 ---
 
@@ -170,13 +169,13 @@
                           │ depends on
           ┌───────────────┼───────────────┐
           │               │               │
-┌─────────┴──────┐  ┌────┴──┐  ┌─────────┴──────────┐
-│ rem-agent-tui  │  │ demo  │  │  rem-agent-core    │
-│  (终端 UI)     │  │(集成)  │  │  (核心引擎)         │
-└────────────────┘  └───────┘  └────────────────────┘
+     ┌─────────┴──────┐  ┌─────────┴──────────┐
+     │ rem-agent-tui  │  │  rem-agent-core    │
+     │  (终端 UI)     │  │  (核心引擎)         │
+     └────────────────┘  └────────────────────┘
 ```
 
-**依赖方向：** `web → bridge → core`，`tui → bridge → core`，`demo → tui + bridge + core`
+**依赖方向：** `web → bridge → core`，`tui → bridge → core`
 
 ---
 
@@ -417,14 +416,10 @@ rem/
 │   │       ├── components/sidebar/  3 个侧边栏组件
 │   │       ├── lib/                 7 个工具模块 (session-store, use-sse, container, ...)
 │   │       └── styles/globals.css   Tailwind v4 主题
-│   ├── tui/                     rem-agent-tui — 终端 UI
-│   │   └── src/
-│   │       ├── app.ts               TUIApp 核心类
-│   │       └── message/             消息渲染 (reasoning-block, function-tool-block, tool-formatter)
-│   └── demo/                    rem-agent-demo — 演示入口
+│   └── tui/                     rem-agent-tui — 终端 UI
 │       └── src/
-│           ├── main.ts              入口点
-│           └── config.ts            Demo 层配置
+│           ├── app.ts               TUIApp 核心类
+│           └── message/             消息渲染 (reasoning-block, function-tool-block, tool-formatter)
 ├── docs/
 │   ├── architecture.md          本文档
 │   ├── core-design.md            Core 层详细设计

@@ -12,7 +12,6 @@
 2. [rem-agent-bridge](#2-rem-agent-bridge) — 8 个 TypeScript 文件
 3. [rem-agent-web](#3-rem-agent-web) — 22 个 TypeScript/TSX 文件
 4. [rem-agent-tui](#4-rem-agent-tui) — 5 个 TypeScript 文件
-5. [rem-agent-demo](#5-rem-agent-demo) — 2 个 TypeScript 文件
 
 ---
 
@@ -739,48 +738,6 @@ index.ts → app.ts
              ├── rem-agent-bridge
              ├── message/reasoning-block.ts → @opentui/core
              └── message/function-tool-block.ts → @opentui/core, tool-formatter.ts
-```
-
----
-
-## 5. rem-agent-demo
-
-**包名：** `rem-agent-demo` | **脚本：** `start` (node --experimental-ffi)
-**依赖：** `rem-agent-core`, `rem-agent-bridge`, `rem-agent-tui`, `dotenv`
-
-### 5.1 模块清单
-
-#### `src/main.ts`（24 行）— 入口点
-**函数：** `runTUI()` — 加载 dotenv，解析配置，创建并启动 `TUIApp`
-
-**红线遵守：** ✅ 不导入 `openai` SDK，不读 `OPENAI_API_KEY`。只处理 `DEMO_*` 配置。
-
-#### `src/config.ts`（46 行）— 配置解析
-**导出：** `DemoConfig`（接口），`resolveConfig()`
-
-**环境变量（均以 `DEMO_` 为前缀）：**
-
-| 环境变量 | 默认值 | 说明 |
-|---------|--------|------|
-| `DEMO_AGENT_NAME` | `"Core Demo Agent"` | Agent 名称 |
-| `DEMO_MAX_TURNS` | `60` | 最大轮次 |
-| `DEMO_SESSION_DIR` | `getDefaultSessionsDir()` | 会话目录 |
-| `DEMO_PORT` | `8321` | 服务端口 |
-| `DEMO_HOST` | `"localhost"` | 服务主机 |
-
-**命令行参数：** `--session <id>` — 指定恢复的 session ID
-
-**红线遵守：** ✅ 使用 `getDefaultSessionsDir`（来自 core）而非自行拼路径
-
-### 5.2 Demo 跨包依赖
-
-```
-demo/main.ts
-  ├── rem-agent-tui (TUIApp)
-  │     └── rem-agent-bridge (AgentClient, types)
-  │           └── rem-agent-core (runAgent, types)
-  ├── rem-agent-core (getDefaultSessionsDir)
-  └── dotenv
 ```
 
 ---

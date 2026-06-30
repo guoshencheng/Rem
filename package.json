@@ -6,11 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-bridge build && pnpm --filter rem-agent-bridge typecheck && pnpm --filter rem-agent-tui build && pnpm --filter rem-agent-tui typecheck && pnpm --filter rem-agent-demo typecheck",
-    "demo": "pnpm --filter rem-agent-demo start",
-    "demo:server": "pnpm --filter rem-agent-demo start -- server",
-    "demo:tui": "pnpm --filter rem-agent-demo start -- tui",
-    "demo:debug": "REM_AGENT_DEBUG=1 pnpm --filter rem-agent-demo start"
+    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-bridge build && pnpm --filter rem-agent-bridge typecheck && pnpm --filter rem-agent-tui build && pnpm --filter rem-agent-tui typecheck"
   },
   "devDependencies": {
     "@opentui/core-darwin-arm64": "^0.4.2",

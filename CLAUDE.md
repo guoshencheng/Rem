@@ -13,7 +13,6 @@
 packages/
   core/   — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
   tui/    — rem-agent-tui：基于 core 的终端 UI 组件
-  demo/   — rem-agent-demo：基于 core 的 TUI 演示程序
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
@@ -26,7 +25,6 @@ packages/
 | `pnpm test` | 运行所有测试（vitest） |
 | `pnpm typecheck` | 全仓类型检查 |
 | `pnpm --filter rem-agent-core typecheck` | 仅检查 core |
-| `pnpm --filter rem-agent-demo start` | 运行 demo |
 
 ## 红线与边界
 
@@ -44,8 +42,8 @@ const agent = createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
 
 Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `ProviderConfig`。
 
-- ✅ Demo 只处理 `DEMO_AGENT_NAME`、`DEMO_MAX_TURNS` 等演示层配置。
-- ❌ Demo 不导入 `openai` SDK，不读 `OPENAI_API_KEY`。
+- ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `name`、`maxTurns`）。
+- ❌ 客户端不导入 `openai` SDK，不读 `OPENAI_API_KEY`。
 
 ### 2. 模块拆分遵循 module-separation-convention
 
@@ -64,8 +62,6 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 | `packages/core/src/llm/api-registry.ts` | Provider 注册与 `resolveProviderConfig` |
 | `packages/core/src/llm/providers/openai.ts` | OpenAI provider + `resolveConfig` |
 | `packages/core/src/llm/providers/anthropic.ts` | Anthropic provider + `resolveConfig` |
-| `packages/demo/src/agent.ts` | Demo 层对 `CoreAgent` 的事件绑定 |
-| `packages/demo/src/config.ts` | Demo 层配置（仅 `DEMO_*` 变量） |
 
 ## 深入文档
 
@@ -74,9 +70,8 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 | 系统架构 | `docs/architecture.md` |
 | Core 层设计 | `docs/core-design.md` |
 | Core API 与事件 | `packages/core/README.md` |
-| Demo 用法 | `packages/demo/README.md` |
 
 ## 测试
 
-- 单元测试放在 `packages/core/tests/` 和 `packages/demo/src/*.test.ts`。
+- 单元测试放在 `packages/core/tests/`。
 - 运行测试前确保类型检查通过：`pnpm typecheck && pnpm test`。

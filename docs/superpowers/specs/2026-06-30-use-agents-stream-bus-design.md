@@ -84,11 +84,20 @@ class BroadcastBus {
 
 ### AgentService 集成
 
-`AgentService.run()` 内部修改：
-- `run` 开始时：`bus.publish({ workspace, sessionId, type: 'session-start' })`
-- 每个 chunk 产出时：`bus.publish({ workspace, sessionId, type: 'chunk', chunk })`
-- 正常结束时：`bus.publish({ workspace, sessionId, type: 'session-end' })`
-- 异常时：`bus.publish({ workspace, sessionId, type: 'session-error', error })`
+`AgentService.run()` 内部修改——每个 delta 先持久化，再广播：
+
+1. `run` 开始时：`bus.publish({ workspace, sessionId, type: 'session-start' })`
+
+2. 每个 delta 产出时（如 `text-delta`、`reasoning-delta`、`tool-call` 等）：
+   - 解析 delta，通过 `reduceStreamChunk` 累加到消息的 `ContentPart[]`
+   - 将累加后的消息**实时写入** session 存储（调用 `SessionProvider.save()`）
+   - 然后广播：`bus.publish({ workspace, sessionId, type: 'chunk', chunk })`
+   
+   **动机**：确保 Node 端 session 存储始终是最新的消息状态，即使 SSE 连接断开或客户端异常，服务端数据也不丢失。客户端重连后可随时通过 `getMessages` 恢复完整状态。
+
+3. 正常结束时：`bus.publish({ workspace, sessionId, type: 'session-end' })`
+
+4. 异常时：`bus.publish({ workspace, sessionId, type: 'session-error', error })`
 
 ### SSE 端点集成
 

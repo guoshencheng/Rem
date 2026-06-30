@@ -9,41 +9,46 @@
 - 纯前端状态管理，接收 `IAgentService` 注入
 - 使用 SSE 事件总线模式：前端一条长连接，事件全量推送（带 `workspace` + `sessionId`），前端按需处理
 - 所有 session 的消息在内存 map 中维护，切换 session 不会丢失数据
-- 触发 agent 运行仍通过 POST 端点（`POST /api/agent/run`），结果由 SSE 总线推送回前端
+- 触发 agent 运行仍通过 `IAgentService.run()`，结果通过 `IAgentService.stream()` 总线推送
+- `IAgentService` 接口新增 `stream(): AsyncIterable<BusEvent>` 方法，`AgentService` 和 `AgentRemoteService` 各自实现
 - `useAgents` 放在 `packages/web/src/lib/`
-- 桥接层仅新增 `BroadcastBus`（`packages/bridge/src/broadcast-bus.ts`），不改动其他现有文件
+- 桥接层新增 `BroadcastBus`（`packages/bridge/src/broadcast-bus.ts`）并扩展 `IAgentService`
 
 ## 架构总览
 
 ```
-┌─ 服务端 ─────────────────────────────────────────────────┐
-│                                                           │
-│  POST /api/agent/run ← AgentService.run() ──→ BroadcastBus│
-│  GET  /api/agent/stream ←──── BroadcastBus ──→ SSE 流    │
-│                                                           │
-└──────────────────────┬────────────────────────────────────┘
-                       │ 单条 SSE 连接（带 workspace + sessionId 的全量事件）
-┌─ 前端 ───────────────┴────────────────────────────────────┐
-│                                                           │
-│  useAgentBus(agentService)                                │
-│    ├─ SSE 连接管理 + 重连                                  │
-│    ├─ onEvent(listener) 全量分发                           │
-│    ├─ send(sessionId, content) → POST /run                │
-│    └─ interrupt(sessionId) → POST /interrupt              │
-│                                                           │
-│  useAgents(agentService)                                  │
-│    ├─ Map<sessionId, SessionState> 全局内存维护            │
-│    ├─ currentSession: { id, messages, status, error }     │
-│    ├─ sessions: SessionSummary[]                          │
-│    ├─ switchSession / createSession / deleteSession        │
-│    └─ send / interrupt（基于 currentSessionId）            │
-│                                                           │
-│  ChatPanel (props-driven, 无状态)                          │
-│    ├─ messages / status / error                           │
-│    ├─ onSend / onInterrupt                                │
-│    └─ 切换时卸载重建，数据不丢                               │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+┌─ 服务端 ───────────────────────────────────────────────────┐
+│                                                             │
+│  AgentService.run() ──→ (运行 agent) ──→ BroadcastBus      │
+│  AgentService.stream() ←── BroadcastBus.subscribe()        │
+│                                                             │
+└────────────────────┬────────────────────────────────────────┘
+                     │ (同进程内)          (跨网络：SSE)
+                     │ AsyncIterable       HTTP SSE
+┌─ 客户端 ───────────┴────────────────────────────────────────┐
+│                                                             │
+│  AgentRemoteService.stream() ← fetch('/api/agent/stream')   │
+│  AgentRemoteService.run()    → POST /api/agent/run          │
+│  AgentRemoteService.interrupt() → POST /api/agent/interrupt │
+│                                                             │
+│  useAgentBus(agentService)  ← 消费 agentService.stream()    │
+│    ├─ onEvent(listener) 全量分发                             │
+│    ├─ send(sessionId, content) → agentService.run()         │
+│    └─ interrupt(sessionId)     → agentService.interrupt()   │
+│                                                             │
+│  useAgents(agentService)                                    │
+│    ├─ Map<sessionId, SessionState> 全局内存维护              │
+│    ├─ currentSession: { id, messages, status, error }       │
+│    ├─ sessions: SessionSummary[]                            │
+│    ├─ switchSession / createSession / deleteSession          │
+│    └─ send / interrupt（基于 currentSessionId）              │
+│                                                             │
+│  ChatPanel (props-driven, 无状态)                            │
+│    ├─ messages / status / error                             │
+│    ├─ onSend / onInterrupt                                  │
+│    └─ 切换时卸载重建，数据不丢                                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -101,28 +106,108 @@ class BroadcastBus {
 
 ### SSE 端点集成
 
-`GET /api/agent/stream` 端点在 `packages/web/src/app/api/agent/stream/route.ts`（或内联在现有 `route.ts`）。连接时 `subscribe` 到 `bus`，接收到 `BusEvent` 后序列化为 SSE 格式写入 `ReadableStream`。
+`GET /api/agent/stream` 端点在 `packages/web/src/app/api/agent/stream/route.ts`。其职责是将 `AgentService.stream()` 的结果编码为 HTTP SSE 响应，供客户端的 `AgentRemoteService.stream()` 消费。
 
 ```typescript
-bus.subscribe((event) => {
-  controller.enqueue(`event: agent\ndata: ${JSON.stringify(event)}\n\n`);
-});
+// route.ts
+import { agentService } from '...';
+
+export async function GET() {
+  const stream = agentService.stream();
+  return createSSEResponse(stream);
+  // createSSEResponse 来自 bridge，将 AsyncIterable<BusEvent> 编码为 SSE
+}
 ```
 
-无事件时空连接保持 open（通过 SSE keep-alive comment 如 `:heartbeat\n\n`，每 15 秒一次）。
+`createSSEResponse` 需要在 bridge 层提供，将 `BusEvent` 序列化为 `event: bus\ndata: <JSON>\n\n` 格式。无事件时定时发送 SSE keep-alive comment `:heartbeat\n\n`（每 15 秒一次）。
 
 ---
 
-## 2. 前端 useAgentBus – SSE 连接管理
+## 2. IAgentService 扩展 —— stream() 方法
+
+**文件：** `packages/bridge/src/agent-service.interface.ts`
+
+在 `IAgentService` 接口中新增 `stream()` 方法，`AgentService` 和 `AgentRemoteService` 各自实现。
+
+```typescript
+export interface IAgentService {
+  run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>>;
+  interrupt(sessionId: string): Promise<void>;
+  reset(sessionId: string): Promise<void>;
+  listSessions(): Promise<SessionSummary[]>;
+  getMessages(sessionId: string): Promise<UIMessage[]>;
+
+  // 新增：广播事件流，返回同一进程/跨网络的所有 session 事件
+  stream(): AsyncIterable<BusEvent>;
+}
+```
+
+### AgentService.stream()（服务端实现）
+
+直接订阅同进程内的 `BroadcastBus` 单例，返回 async generator：
+
+```typescript
+async *stream(): AsyncIterable<BusEvent> {
+  let resolveNext: ((event: BusEvent) => void) | null = null;
+  let queue: BusEvent[] = [];
+
+  const unsub = bus.subscribe((event) => {
+    if (resolveNext) {
+      resolveNext(event);
+      resolveNext = null;
+    } else {
+      queue.push(event);
+    }
+  });
+
+  try {
+    while (true) {
+      if (queue.length > 0) {
+        yield queue.shift()!;
+      } else {
+        yield await new Promise<BusEvent>((r) => { resolveNext = r; });
+      }
+    }
+  } finally {
+    unsub();
+  }
+}
+```
+
+### AgentRemoteService.stream()（客户端实现）
+
+通过 HTTP SSE 连接获取远程流：
+
+```typescript
+async *stream(): AsyncIterable<BusEvent> {
+  const response = await fetch('/api/agent/stream');
+  const reader = response.body!.getReader();
+  const sseStream = parseSSEStream(reader);
+
+  for await (const sseEvent of sseStream) {
+    if (sseEvent.event === 'bus' && sseEvent.data) {
+      yield JSON.parse(sseEvent.data) as BusEvent;
+    }
+  }
+}
+```
+
+### 设计动机
+
+将 `stream()` 纳入 `IAgentService` 后，`useAgentBus` / `useAgents` 不再直接操作 `fetch` 或 `BroadcastBus`，仅消费 `agentService.stream()`。本地开发和远程部署使用同一套前端代码，切换只需注入不同的 `IAgentService` 实现。
+
+---
+
+## 3. 前端 useAgentBus —— 总线消费
 
 **文件：** `packages/web/src/lib/use-agent-bus.ts`
 
-应用级单例 hook，负责维护与 `/api/agent/stream` 的 SSE 长连接。
+应用级单例 hook，消费 `agentService.stream()` 并将事件全量分发给已注册的 listener。不再直接操作 `fetch` 或 SSE 解析——这些由 `AgentRemoteService.stream()` 内部完成。
 
 ### API
 
 ```typescript
-function useAgentBus(agentService: AgentRemoteService): {
+function useAgentBus(agentService: IAgentService): {
   onEvent(listener: (event: BusEvent) => void): () => void;
   send(sessionId: string, content: string): Promise<void>;
   interrupt(sessionId: string): Promise<void>;
@@ -133,12 +218,12 @@ function useAgentBus(agentService: AgentRemoteService): {
 
 | 要点 | 说明 |
 |---|---|
-| **SSE 连接** | 挂载时 `fetch('/api/agent/stream')`，读取 `ReadableStream`，经 `parseSSEStream` 解析，反序列化为 `BusEvent` |
+| **流消费** | 挂载时 `for await (const event of agentService.stream())` 消费事件流 |
 | **Listener 管理** | `onEvent` 注册回调到内部的 `Set`，返回 `unsubscribe`。事件到达时遍历所有 listener 同步调用 |
-| **重连** | 断开后自动重连，指数退避（1s, 2s, 4s, max 15s），重连成功后恢复分发 |
-| **send/interrupt** | 内部调用 `AgentRemoteService.run(sessionId, content)` / `AgentRemoteService.interrupt(sessionId)` |
+| **重连** | 当 `stream()` 的迭代器断开（网络中断），调用 `agentService.stream()` 重新建立连接，指数退避（1s, 2s, 4s, max 15s），重连成功后恢复分发 |
+| **send/interrupt** | 内部调用 `agentService.run(sessionId, content)` / `agentService.interrupt(sessionId)` |
 | **全量分发** | 不做 workspace 或 sessionId 过滤——所有事件发给所有 listener，由消费方自己判断 |
-| **单例** | 通过 `useRef` + 模块级标记确保整个应用只有一个 SSE 连接 |
+| **单例** | 通过 `useRef` + 模块级标记确保整个应用只有一个流消费循环 |
 
 ### 注意
 
@@ -147,7 +232,7 @@ function useAgentBus(agentService: AgentRemoteService): {
 
 ---
 
-## 3. 前端 useAgents – 全局 session 管理
+## 4. 前端 useAgents – 全局 session 管理
 
 **文件：** `packages/web/src/lib/use-agents.ts`
 
@@ -222,8 +307,8 @@ onEvent(event):
 
 | 操作 | 行为 |
 |---|---|
-| `send(content)` | 如果 `currentSession` 不为 null：在 messages 尾部追加 pending assistant message → `bus.send(currentSessionId, content)` |
-| `interrupt()` | `bus.interrupt(currentSessionId)` → status 设为 `done` |
+| `send(content)` | 如果 `currentSession` 不为 null：在 messages 尾部追加 pending assistant message → `useAgentBus.send(currentSessionId, content)` |
+| `interrupt()` | `useAgentBus.interrupt(currentSessionId)` → status 设为 `done` |
 | `switchSession(id)` | 更新 `currentSessionId`。如果 `sessionMap` 中还没有该 session 的状态，惰性加载历史 |
 | `createSession()` | `agentService` 创建新 session → 追加到 sessions → 切换到新 session |
 | `deleteSession(id)` | `agentService` 删除 → 从 sessions 和 sessionMap 中移除。如果删除的是当前 session，`currentSession` 置为 null |
@@ -240,7 +325,7 @@ onEvent(event):
 
 ---
 
-## 4. ChatPanel – 纯渲染组件
+## 5. ChatPanel – 纯渲染组件
 
 **文件：** `packages/web/src/components/chat/chat-panel.tsx`
 
@@ -271,7 +356,7 @@ interface ChatPanelProps {
 
 ---
 
-## 5. 组件关系图
+## 6. 组件关系图
 
 ```
 App
@@ -308,7 +393,7 @@ App
 
 ---
 
-## 6. 需要删除的旧代码
+## 7. 需要删除的旧代码
 
 | 文件 | 原因 |
 |---|---|
@@ -318,7 +403,7 @@ App
 
 ---
 
-## 7. 错误处理
+## 8. 错误处理
 
 | 场景 | 行为 |
 |---|---|
@@ -330,7 +415,7 @@ App
 
 ---
 
-## 8. 不做的
+## 9. 不做的
 
 - 不做 WebSocket：保持纯 HTTP + SSE，不改动传输协议
 - 不做消息持久化：消息由 core 的 `SessionProvider` 负责持久化，前端只反映当前内存状态

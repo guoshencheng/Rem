@@ -26,7 +26,7 @@ import type { ToolPolicyConfig } from './sdk/tool-policy.js';
 export interface ProviderManagerConfig {
   configPath?: string;
   configProvider?: ConfigProvider;
-  sessionProvider?: ProviderReference<SessionProvider>;
+  sessionProvider?: SessionProvider;
   toolProvider?: ProviderReference<ToolProvider>;
   memoryProvider?: ProviderReference<MemoryProvider>;
   compressor?: ProviderReference<ContextCompressor>;

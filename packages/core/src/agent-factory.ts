@@ -14,7 +14,7 @@ export interface CreateAgentOptions {
   apiKey?: string;
   baseURL?: string;
   maxTurns?: number;
-  sessionProvider?: ProviderReference<SessionProvider>;
+  sessionProvider?: SessionProvider;
   skillProvider?: ProviderReference<SkillProvider>;
   configProvider?: ConfigProvider;
   configPath?: string;

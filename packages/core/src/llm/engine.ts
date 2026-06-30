@@ -1,5 +1,5 @@
 import { resolveProvider } from './api-registry.js';
-import { StreamCollector } from './types.js';
+import { StreamCollector } from './stream-collector.js';
 import type { GenerateOptions, GenerateResult, StreamChunk, ToolSet } from './types.js';
 import type { ModelMessage } from '../types.js';
 import { partitionProviderStream } from './partition-stream.js';

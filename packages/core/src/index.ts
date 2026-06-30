@@ -17,6 +17,7 @@ export * from './registry/tool-registry.js';
 export * from './registry/provider-loader.js';
 export * from './registry/provider-registry.js';
 export * from './llm/types.js';
+export * from './llm/stream-collector.js';
 export * from './llm/api-registry.js';
 export * from './llm/engine.js';
 export * from './llm/providers/index.js';

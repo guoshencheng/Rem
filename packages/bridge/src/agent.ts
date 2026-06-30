@@ -1,15 +1,12 @@
 import type { AgentStreamChunk, AgentStream } from 'rem-agent-core';
 import { runAgent as coreRunAgent } from 'rem-agent-core';
-import type { ServerMessage, ContentPart, AgentOutput } from 'rem-agent-core';
+import type { AgentOutput } from 'rem-agent-core';
 import type { ProviderManager } from 'rem-agent-core';
 import type { SessionProvider } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { IAgentService } from './agent-service.interface.js';
-import type { SessionSummary } from './types.js';
-import { tapFullStream } from './stream-tap.js';
+import type { SessionSummary, UIMessage } from './types.js';
 import { buildPartsFromContent } from './content-builder.js';
-
-export type { ServerMessage } from 'rem-agent-core';
 
 export interface RunParams {
   sessionId: string;
@@ -55,13 +52,11 @@ export class AgentService implements IAgentService {
     });
     this.activeRuns.set(sessionId, abortController);
 
-    const tapped = tapFullStream(result.stream.fullStream, sessionId);
-
     result.output.catch(() => {}).finally(() => {
       this.activeRuns.delete(sessionId);
     });
 
-    return tapped;
+    return result.stream.fullStream;
   }
 
   async interrupt(sessionId: string): Promise<void> {
@@ -79,7 +74,7 @@ export class AgentService implements IAgentService {
 
   /* ---- Message tracking ---- */
 
-  async getMessages(sessionId: string): Promise<ServerMessage[]> {
+  async getMessages(sessionId: string): Promise<UIMessage[]> {
     const session = await this.sessionProvider.load(sessionId);
     if (!session) return [];
 
@@ -90,11 +85,6 @@ export class AgentService implements IAgentService {
         return {
           id: crypto.randomUUID(),
           role: msg.role as 'user' | 'assistant',
-          content: parts.filter((p): p is Extract<ContentPart, { type: 'text' }> => p.type === 'text').map((p) => p.text).join(''),
-          reasoning: parts.filter((p): p is Extract<ContentPart, { type: 'reasoning' }> => p.type === 'reasoning').map((p) => p.text).join(''),
-          toolCalls: parts
-            .filter((p): p is Extract<ContentPart, { type: 'tool-call' }> => p.type === 'tool-call')
-            .map((p) => ({ id: p.toolCallId, name: p.toolName, arguments: p.arguments, result: p.result })),
           parts,
           status: 'done' as const,
         };

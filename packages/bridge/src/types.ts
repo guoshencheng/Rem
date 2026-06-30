@@ -1,4 +1,12 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamChunk, ContentPart } from 'rem-agent-core';
+
+export interface UIMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  parts: ContentPart[];
+  status: 'pending' | 'streaming' | 'done' | 'error';
+  error?: string;
+}
 
 export interface RunRequest {
   sessionId: string;

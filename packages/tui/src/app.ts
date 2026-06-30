@@ -7,7 +7,7 @@ import {
 import type { KeyEvent, CliRenderer } from "@opentui/core";
 import type { AgentStreamChunk, SessionSummary, IAgentService } from "rem-agent-bridge";
 import { reduceStreamChunk } from "rem-agent-bridge";
-import type { StreamPart } from "rem-agent-bridge";
+import type { ContentPart } from "rem-agent-bridge";
 import { createReasoningBlock } from "./message/reasoning-block.js";
 import type { ReasoningPartState, ReasoningBlockHandle } from "./message/reasoning-block.js";
 import { createToolBlock } from "./message/function-tool-block.js";
@@ -38,7 +38,7 @@ export class TUIApp {
   private thinkingCollapsed = true;
   private toolsCollapsed = true;
 
-  private _streamParts: StreamPart[] = [];
+  private _streamParts: ContentPart[] = [];
   private streamContainer: BoxRenderable | null = null;
   private streamBlocks = new Map<string, ReasoningBlockHandle | ToolBlockHandle>();
   private streamTextRefs = new Map<string, TextRenderable>();

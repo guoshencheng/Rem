@@ -6,12 +6,12 @@ export type {
   InterruptRequest,
   ResetRequest,
   ServerStreamEvent,
+  UIMessage,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
-export type { AgentStreamChunk, ContentPart, ModelMessage, ServerMessage } from 'rem-agent-core';
+export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';
 
 export { reduceStreamChunk } from './stream-reducer.js';
-export type { StreamPart } from './stream-reducer.js';
 
 export type { IAgentService } from './agent-service.interface.js';
 export { AgentRemoteService } from './agent-remote-service.js';

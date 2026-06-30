@@ -1,5 +1,6 @@
-import type { AgentOutput, AgentStream, AgentStreamChunk, AgentStreamStepResult, LanguageModelUsage } from '../types.js';
+import type { AgentOutput, AgentStream, AgentStreamChunk } from '../types.js';
 import { generateId } from '../shared/generate-id.js';
+import { aggregateText, aggregateUsage, aggregateSteps } from './stream-aggregators.js';
 
 export type RawChunk =
   | { type: 'text-delta'; step: number; text: string }
@@ -79,10 +80,23 @@ export class AgentStreamController {
   get stream(): AgentStream {
     return {
       fullStream: this.createIterator(),
-      text: this.aggregateText(),
-      usage: this.aggregateUsage(),
-      steps: this.aggregateSteps(),
+      text: this.waitForFinish().then(() => aggregateText(this.queue)),
+      usage: this.waitForFinish().then(() => aggregateUsage(this.queue)),
+      steps: this.waitForFinish().then(() => aggregateSteps(this.queue)),
     };
+  }
+
+  private waitForFinish(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (this.finished) {
+          if (this.error) return reject(this.error);
+          return resolve();
+        }
+        setTimeout(check, 10);
+      };
+      check();
+    });
   }
 
   private ensurePartOpen(type: 'text' | 'reasoning', step: number): void {
@@ -141,71 +155,4 @@ export class AgentStreamController {
     };
   }
 
-  private aggregateText(): Promise<string> {
-    return this.aggregateRun((chunks) =>
-      chunks
-        .filter((c): c is { type: 'text-delta'; step: number; partId: string; text: string } => c.type === 'text-delta')
-        .map((c) => c.text)
-        .join(''),
-    );
-  }
-
-  private aggregateUsage(): Promise<LanguageModelUsage> {
-    return this.aggregateRun(() => ({
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-    }));
-  }
-
-  private aggregateSteps(): Promise<AgentStreamStepResult[]> {
-    return this.aggregateRun((chunks) => {
-      const stepMap = new Map<number, AgentStreamStepResult>();
-      for (const chunk of chunks) {
-        if (chunk.type === 'step-start') {
-          stepMap.set(chunk.step, { step: chunk.step, text: '', reasoning: '', toolCalls: [] });
-        } else if (chunk.type === 'text-delta') {
-          const step = stepMap.get(chunk.step) ?? { step: chunk.step, text: '', reasoning: '', toolCalls: [] };
-          step.text += chunk.text;
-          stepMap.set(chunk.step, step);
-        } else if (chunk.type === 'reasoning-delta') {
-          const step = stepMap.get(chunk.step) ?? { step: chunk.step, text: '', reasoning: '', toolCalls: [] };
-          step.reasoning += chunk.text;
-          stepMap.set(chunk.step, step);
-        } else if (chunk.type === 'tool-call') {
-          const step = stepMap.get(chunk.step) ?? { step: chunk.step, text: '', reasoning: '', toolCalls: [] };
-          step.toolCalls.push({
-            toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
-            input: chunk.input,
-          });
-          stepMap.set(chunk.step, step);
-        } else if (chunk.type === 'tool-result') {
-          const step = stepMap.get(chunk.step) ?? { step: chunk.step, text: '', reasoning: '', toolCalls: [] };
-          const tc = step.toolCalls.find((t: { toolCallId: string }) => t.toolCallId === chunk.toolCallId);
-          if (tc) {
-            tc.output = chunk.output;
-            tc.error = chunk.error;
-          }
-          stepMap.set(chunk.step, step);
-        }
-      }
-      return [...stepMap.values()];
-    });
-  }
-
-  private aggregateRun<T>(handler: (chunks: AgentStreamChunk[]) => T): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const check = () => {
-        if (this.finished) {
-          if (this.error) return reject(this.error);
-          return resolve(handler([...this.queue]));
-        }
-        setTimeout(check, 10);
-      };
-      check();
-    });
-  }
 }

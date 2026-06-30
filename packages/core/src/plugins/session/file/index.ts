@@ -10,6 +10,7 @@ export interface FileSessionProviderOptions {
 
 export class FileSessionProvider extends BaseSessionProvider {
   constructor(dir: string) {
+    console.log(`FileSessionProvider initialized with dir: ${dir}`);
     super(dir);
   }
 
@@ -60,5 +61,6 @@ export function createProvider(options: FileSessionProviderOptions | undefined):
 }
 
 export function getDefaultOptions(ctx: ProviderLoaderContext): FileSessionProviderOptions {
+  throw new Error(ctx.sessionsDir ? '' : 'FileSessionProvider requires sessionsDir in context');
   return { dir: ctx.sessionsDir };
 }

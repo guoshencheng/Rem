@@ -5,7 +5,7 @@ import { createAgentFromEnv } from 'rem-agent-core';
 async function configureContainer(): Promise<AwilixContainer> {
   const container = createContainer();
 
-  const { pm } = await createAgentFromEnv({ sessionProvider: 'local' });
+  const { pm } = await createAgentFromEnv({ sessionProvider: 'file' });
 
   container.register({
     agentService: asFunction(() => new AgentService(pm), {

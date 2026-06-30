@@ -11,38 +11,8 @@ import { InferenceEngine, type InferenceResult } from './llm/engine.js';
 import type { StreamChunk } from './llm/types.js';
 import { AgentStreamController, type RawChunk } from './stream/agent-stream.js';
 
-export interface TurnHooks {
-  onMessageAdded(msg: ModelMessage): void;
-  onToolCallRecorded(record: ToolCallRecord): void;
-}
-
-export interface LoopContext {
-  input?: UserInput;
-  state: AgentState;
-  systemPrompt: string;
-  budget: IterationBudget;
-  signal?: AbortSignal;
-  provider?: string;
-  providerConfig?: {
-    apiKey: string;
-    baseURL?: string;
-    model: string;
-  };
-  workspaceRoot: string;
-  readOnly?: boolean;
-  agentName?: string;
-}
-
-export interface LoopResult {
-  finalOutput: AgentOutput;
-  newMessages: ModelMessage[];
-  toolCalls: ToolCall[];
-  usage: LanguageModelUsage;
-}
-
-export interface LoopStrategy {
-  iterate(ctx: LoopContext, hooks: TurnHooks, controller: AgentStreamController, step: number): Promise<LoopResult>;
-}
+import type { LoopContext, TurnHooks, LoopResult, LoopStrategy } from './loop-types.js';
+export type { TurnHooks, LoopContext, LoopResult, LoopStrategy } from './loop-types.js';
 
 export class ReactLoop implements LoopStrategy {
   private inferenceEngine = new InferenceEngine();

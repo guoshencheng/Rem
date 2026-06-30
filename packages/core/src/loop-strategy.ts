@@ -241,7 +241,7 @@ export class ReactLoop implements LoopStrategy {
   }
 
   private appendToAssistantMessage(assistantMsg: ModelMessage, inferResult: InferenceResult): void {
-    const content = assistantMsg.content as any[];
+    const content = assistantMsg.content;
 
     if (inferResult.reasoning) {
       content.push({ type: 'reasoning', text: inferResult.reasoning });
@@ -256,7 +256,7 @@ export class ReactLoop implements LoopStrategy {
         type: 'tool-call',
         toolCallId: tc.toolCallId,
         toolName: tc.toolName,
-        input: tc.input,
+        arguments: tc.input,
       });
     }
   }

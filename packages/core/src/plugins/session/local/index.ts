@@ -4,32 +4,7 @@ import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 import { BaseSessionProvider } from '../base.js';
 
-export type ContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }
-  | {
-      type: 'tool-call';
-      toolCallId: string;
-      toolName: string;
-      arguments: Record<string, unknown>;
-      result?: { success: boolean; output: string; error?: string; durationMs: number };
-    };
-
-export interface ServerMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  reasoning?: string;
-  toolCalls: Array<{
-    id: string;
-    name: string;
-    arguments: Record<string, unknown>;
-    result?: { success: boolean; output: string; error?: string; durationMs: number };
-  }>;
-  parts: ContentPart[];
-  status: 'pending' | 'streaming' | 'done' | 'error';
-  error?: string;
-}
+import type { ContentPart } from '../../../types.js';
 
 export interface LocalSessionProviderOptions {
   dir: string;
@@ -43,7 +18,7 @@ interface IndexEntry {
 }
 
 export class LocalSessionProvider extends BaseSessionProvider {
-  private _msgCache = new Map<string, ServerMessage[]>();
+  private _msgCache = new Map<string, ContentPart[]>();
 
   constructor(dir: string) {
     super(dir);
@@ -95,11 +70,11 @@ export class LocalSessionProvider extends BaseSessionProvider {
     await this.removeFromIndex(sessionId);
   }
 
-  cueMessages(sessionId: string, messages: ServerMessage[]): void {
+  cueMessages(sessionId: string, messages: ContentPart[]): void {
     this._msgCache.set(sessionId, messages);
   }
 
-  pullMessages(sessionId: string): ServerMessage[] {
+  pullMessages(sessionId: string): ContentPart[] {
     return this._msgCache.get(sessionId) ?? [];
   }
 

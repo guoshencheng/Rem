@@ -23,7 +23,7 @@ describe('openaiProvider', () => {
     const result = await openaiProvider.generate({
       model: 'gpt-4o',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     });
 
     expect(result.text).toBe('Hello!');
@@ -55,7 +55,7 @@ describe('openaiProvider', () => {
     const result = await openaiProvider.generate({
       model: 'gpt-4o',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
       tools: {
         echo: { description: 'echo', parameters: { type: 'object' } },
       } as any,
@@ -82,7 +82,7 @@ describe('openaiProvider', () => {
     for await (const chunk of openaiProvider.stream({
       model: 'gpt-4o',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })) {
       chunks.push(chunk);
     }
@@ -105,7 +105,7 @@ describe('openaiProvider', () => {
       model: 'gpt-4o',
       apiKey: 'test-key',
       system: 'You are a tester',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     });
 
     expect(mockCreate).toHaveBeenCalledWith(
@@ -157,7 +157,7 @@ describe('openaiProvider', () => {
     await expect(openaiProvider.generate({
       model: 'gpt-4o',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })).rejects.toThrow('rate limited');
   });
 
@@ -201,7 +201,7 @@ describe('openaiProvider', () => {
     for await (const chunk of openaiProvider.stream({
       model: 'gpt-4o',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })) {
       chunks.push(chunk);
     }

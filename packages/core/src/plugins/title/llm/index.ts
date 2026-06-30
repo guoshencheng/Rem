@@ -13,8 +13,8 @@ export class LLMTitleProvider implements TitleProvider {
 
     const messages = userMessages.map(m => ({
       role: m.role,
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    }));
+      content: [{ type: 'text', text: m.content.filter(p => p.type === 'text').map(p => p.text).join(' ') || JSON.stringify(m.content) }],
+    })) as ModelMessage[];
 
     const provider = resolveProvider(config.provider);
     const rawStream = provider.stream({

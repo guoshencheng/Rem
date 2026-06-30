@@ -1,6 +1,14 @@
+export type ContentPart =
+  | { type: 'text';        text: string }
+  | { type: 'reasoning';   text: string }
+  | { type: 'tool-call';   toolCallId: string; toolName: string; arguments: unknown }
+  | { type: 'tool-result'; toolCallId: string; toolName?: string; output: string; error?: string };
+
+export type MessageContent = ContentPart[];
+
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: unknown;
+  content: MessageContent;
 }
 
 export interface LanguageModelUsage {

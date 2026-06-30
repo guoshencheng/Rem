@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { GenerateOptions, GenerateResult, StreamChunk } from '../types.js';
+import type { MessageContent } from '../../types.js';
 import { debugLog } from '../../shared/debug-log.js';
 
 export function convertToAnthropicMessages(messages: GenerateOptions['messages']): Anthropic.MessageParam[] {
@@ -7,7 +8,7 @@ export function convertToAnthropicMessages(messages: GenerateOptions['messages']
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content as string });
+      result.push({ role: 'user', content: msg.content.filter(p => p.type === 'text').map(p => p.text).join(' ') });
     } else if (msg.role === 'assistant') {
       const content = msg.content;
       if (typeof content === 'string') {
@@ -22,15 +23,15 @@ export function convertToAnthropicMessages(messages: GenerateOptions['messages']
               type: 'tool_use',
               id: part.toolCallId,
               name: part.toolName,
-              input: part.input,
+              input: part.arguments,
             });
           }
         }
         result.push({ role: 'assistant', content: blocks });
       }
     } else if (msg.role === 'tool') {
-      const parts = msg.content as unknown as Array<{ type: string; toolCallId?: string; output?: string }>;
-      const part = parts.find((p: { type: string }) => p.type === 'tool-result');
+      const parts = msg.content;
+      const part = parts.find((p) => p.type === 'tool-result') as { toolCallId: string; output: string } | undefined;
       result.push({
         role: 'user',
         content: [{

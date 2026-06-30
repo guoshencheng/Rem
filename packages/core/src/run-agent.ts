@@ -66,7 +66,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     }
 
-    const userMessage: ModelMessage = { role: 'user', content: params.input.content };
+    const userMessage: ModelMessage = { role: 'user', content: [{ type: 'text', text: params.input.content }] };
     state.addMessage(userMessage);
     await sessionProvider.save(state.session);
 

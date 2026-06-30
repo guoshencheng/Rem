@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { GenerateOptions, GenerateResult, StreamChunk } from '../types.js';
+import type { MessageContent } from '../../types.js';
 import { debugLog } from '../../shared/debug-log.js';
 
 export function safeJsonParse(value: string): unknown {
@@ -10,15 +11,7 @@ export function safeJsonParse(value: string): unknown {
   }
 }
 
-export function convertAssistantContent(content: unknown): OpenAI.Chat.ChatCompletionAssistantMessageParam {
-  if (typeof content === 'string') {
-    return { role: 'assistant', content };
-  }
-
-  if (!Array.isArray(content)) {
-    return { role: 'assistant', content: String(content) };
-  }
-
+export function convertAssistantContent(content: MessageContent): OpenAI.Chat.ChatCompletionAssistantMessageParam {
   const text = content
     .filter((part: any) => part.type === 'text')
     .map((part: any) => part.text)
@@ -52,12 +45,12 @@ export function convertToOpenAIMessages(
   }
   for (const msg of messages) {
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content as unknown as string });
+      result.push({ role: 'user', content: msg.content.filter(p => p.type === 'text').map(p => p.text).join(' ') });
     } else if (msg.role === 'assistant') {
       result.push(convertAssistantContent(msg.content));
     } else if (msg.role === 'tool') {
-      const parts = msg.content as unknown as Array<{ type: string; toolCallId?: string; output?: string }>;
-      const part = parts.find((p: { type: string }) => p.type === 'tool-result');
+      const parts = msg.content;
+      const part = parts.find((p) => p.type === 'tool-result') as { toolCallId: string; output: string } | undefined;
       result.push({
         role: 'tool',
         tool_call_id: part?.toolCallId ?? '',

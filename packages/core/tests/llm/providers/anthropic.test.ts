@@ -18,7 +18,7 @@ describe('anthropicProvider', () => {
     const result = await anthropicProvider.generate({
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     });
 
     expect(result.text).toBe('Hello!');
@@ -43,7 +43,7 @@ describe('anthropicProvider', () => {
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
       system: 'You are a tester',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     });
 
     expect(mockCreate).toHaveBeenCalledWith(
@@ -73,7 +73,7 @@ describe('anthropicProvider', () => {
     const result = await anthropicProvider.generate({
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     });
 
     expect(result.toolCalls).toHaveLength(1);
@@ -129,7 +129,7 @@ describe('anthropicProvider', () => {
     for await (const chunk of anthropicProvider.stream({
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })) {
       chunks.push(chunk);
     }
@@ -148,7 +148,7 @@ describe('anthropicProvider', () => {
     await expect(anthropicProvider.generate({
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })).rejects.toThrow('overloaded');
   });
 
@@ -178,7 +178,7 @@ describe('anthropicProvider', () => {
     for await (const chunk of anthropicProvider.stream({
       model: 'claude-sonnet-4-7',
       apiKey: 'test-key',
-      messages: [{ role: 'user', content: 'Hi' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
     })) {
       chunks.push(chunk);
     }

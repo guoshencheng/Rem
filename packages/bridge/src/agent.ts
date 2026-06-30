@@ -4,6 +4,10 @@ import type { ServerMessage, ContentPart, AgentOutput } from 'rem-agent-core';
 import type { ProviderManager } from 'rem-agent-core';
 import type { SessionProvider } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
+import type { IAgentService } from './agent-service.interface.js';
+import type { SessionSummary } from './types.js';
+import { tapFullStream } from './stream-tap.js';
+import { buildPartsFromContent } from './content-builder.js';
 
 export type { ServerMessage } from 'rem-agent-core';
 
@@ -27,31 +31,7 @@ export interface ResetResult {
   reset: boolean;
 }
 
-function buildPartsFromContent(content: unknown): ContentPart[] {
-  if (typeof content === 'string') {
-    return [{ type: 'text', text: content } as ContentPart];
-  }
-  if (!Array.isArray(content)) return [];
-  return content.map((item: Record<string, unknown>) => {
-    if (item.type === 'text') return { type: 'text', text: String(item.text ?? '') } as ContentPart;
-    if (item.type === 'reasoning') return { type: 'reasoning', text: String(item.text ?? '') } as ContentPart;
-    if (item.type === 'tool-call') return {
-      type: 'tool-call',
-      toolCallId: String(item.toolCallId ?? ''),
-      toolName: String(item.toolName ?? ''),
-      arguments: (item.input as Record<string, unknown>) ?? {},
-      result: item.result ? {
-        success: Boolean((item.result as Record<string, unknown>).success),
-        output: String((item.result as Record<string, unknown>).output ?? ''),
-        error: (item.result as Record<string, unknown>).error as string | undefined,
-        durationMs: Number((item.result as Record<string, unknown>).durationMs ?? 0),
-      } : undefined,
-    } as ContentPart;
-    return { type: 'text', text: '' } as ContentPart;
-  });
-}
-
-export class AgentService {
+export class AgentService implements IAgentService {
   private activeRuns = new Map<string, AbortController>();
   private sessionProvider: SessionProvider;
 
@@ -61,122 +41,40 @@ export class AgentService {
 
   /* ---- Agent lifecycle ---- */
 
-  run(params: RunParams): RunResult {
-    if (this.activeRuns.has(params.sessionId)) {
+  async run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>> {
+    if (this.activeRuns.has(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
 
     const abortController = new AbortController();
     const result = coreRunAgent({
-      input: { content: params.content, timestamp: new Date() },
-      sessionId: params.sessionId,
+      input: { content: input, timestamp: new Date() },
+      sessionId,
       signal: abortController.signal,
       pm: this.providerManager,
     });
-    this.activeRuns.set(params.sessionId, abortController);
+    this.activeRuns.set(sessionId, abortController);
 
-    const tapped = this.tapFullStream(result.stream.fullStream, params.sessionId);
-    const tappedStream = { ...result.stream, fullStream: tapped };
+    const tapped = tapFullStream(result.stream.fullStream, sessionId);
 
     result.output.catch(() => {}).finally(() => {
-      this.activeRuns.delete(params.sessionId);
+      this.activeRuns.delete(sessionId);
     });
 
-    return { stream: tappedStream, output: result.output };
+    return tapped;
   }
 
-  private tapFullStream(
-    source: AsyncIterable<AgentStreamChunk>,
-    sessionId: string,
-  ): AsyncIterable<AgentStreamChunk> {
-    const parts: ContentPart[] = [];
-
-    const applyChunk = (chunk: AgentStreamChunk) => {
-      switch (chunk.type) {
-        case 'text-start': {
-          parts.push({ type: 'text', text: '' });
-          break;
-        }
-        case 'text-delta': {
-          const last = parts[parts.length - 1];
-          if (last?.type === 'text') last.text += chunk.text;
-          break;
-        }
-        case 'reasoning-start': {
-          parts.push({ type: 'reasoning', text: '' });
-          break;
-        }
-        case 'reasoning-delta': {
-          const last = parts[parts.length - 1];
-          if (last?.type === 'reasoning') last.text += chunk.text;
-          break;
-        }
-        case 'tool-call-start': {
-          parts.push({
-            type: 'tool-call',
-            toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
-            arguments: {},
-          });
-          break;
-        }
-        case 'tool-call': {
-          const part = parts.find((p): p is ContentPart & { type: 'tool-call' } =>
-            p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
-          );
-          if (part) part.arguments = (chunk.input as Record<string, unknown>) ?? {};
-          break;
-        }
-        case 'tool-result': {
-          const part = parts.find((p): p is ContentPart & { type: 'tool-call' } =>
-            p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
-          );
-          if (part) {
-            part.result = {
-              success: !chunk.error,
-              output: chunk.output ?? '',
-              error: chunk.error,
-              durationMs: 0,
-            };
-          }
-          break;
-        }
-        case 'finish': {
-          break;
-        }
-        case 'error': {
-          break;
-        }
-      }
-    };
-
-    return {
-      [Symbol.asyncIterator]() {
-        const it = source[Symbol.asyncIterator]();
-        return {
-          async next() {
-            const r = await it.next();
-            if (r.value) applyChunk(r.value);
-            return r;
-          }
-        };
-      }
-    };
-  }
-
-  interrupt(sessionId: string): InterruptResult {
+  async interrupt(sessionId: string): Promise<void> {
     const controller = this.activeRuns.get(sessionId);
     if (controller) {
       controller.abort();
     }
-    return { sessionId, interrupted: !!controller };
   }
 
-  async reset(sessionId: string): Promise<ResetResult> {
+  async reset(sessionId: string): Promise<void> {
     const controller = this.activeRuns.get(sessionId);
     if (controller) controller.abort();
     this.activeRuns.delete(sessionId);
-    return { sessionId, reset: true };
   }
 
   /* ---- Message tracking ---- */
@@ -203,11 +101,12 @@ export class AgentService {
       });
   }
 
-  async listSessions(): Promise<{ sessionId: string; title: string; messageCount: number }[]> {
+  async listSessions(): Promise<SessionSummary[]> {
     const summaries = await this.sessionProvider.list();
     return summaries.map((s) => ({
       sessionId: s.sessionId,
       title: s.title ?? 'New Chat',
+      updatedAt: Date.now(),
       messageCount: s.messageCount,
     }));
   }

@@ -75,10 +75,11 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async getMessages(sessionId: string): Promise<ServerMessage[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}/messages`);
+    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`);
     if (!response.ok) {
       throw new Error(`Failed to get messages: ${response.status}`);
     }
-    return (await response.json()) as ServerMessage[];
+    const data = (await response.json()) as { messages?: ServerMessage[] };
+    return data.messages ?? [];
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { AgentService } from 'rem-agent-bridge';
+import type { IAgentService } from 'rem-agent-bridge';
 import { createSSEResponse } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
@@ -13,20 +13,20 @@ export async function POST(request: NextRequest) {
     };
 
     const container = await getContainer();
-    const agentService = container.resolve<AgentService>('agentService');
+    const agentService = container.resolve<IAgentService>('agentService');
 
     if (interrupt) {
-      const result = agentService.interrupt(sessionId);
-      return NextResponse.json({ sessionId, interrupted: result.interrupted });
+      await agentService.interrupt(sessionId);
+      return NextResponse.json({ sessionId, interrupted: true });
     }
 
     if (!content || !sessionId) {
       return NextResponse.json({ error: 'sessionId and content are required' }, { status: 400 });
     }
 
-    const { stream } = agentService.run({ sessionId, content });
+    const stream = await agentService.run(sessionId, content);
 
-    return createSSEResponse(stream.fullStream);
+    return createSSEResponse(stream);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Internal error' },

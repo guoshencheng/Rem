@@ -1,53 +1,30 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
-import type { AgentStreamChunk } from './types';
-import { parseSSEStream, parseAgentStreamEvent } from './stream-parser';
+import type { IAgentService } from 'rem-agent-bridge/client';
+import type { AgentStreamChunk } from 'rem-agent-bridge/client';
 
 type ChunkHandler = (chunk: AgentStreamChunk) => void;
 type StatusHandler = (status: 'connecting' | 'reconnecting' | 'error' | 'done') => void;
 
-interface FetchOptions {
-  method?: string;
-  body?: string;
-  headers?: Record<string, string>;
-}
-
-export function useSSE() {
-  const abortRef = useRef<AbortController | null>(null);
+export function useSSE(agentService: IAgentService) {
   const retryCountRef = useRef(0);
   const maxRetries = 3;
 
   const connect = useCallback(
     (
-      url: string,
-      options: FetchOptions,
+      sessionId: string,
+      content: string,
       onChunk: ChunkHandler,
       onError?: (err: Error) => void,
       onStatus?: StatusHandler,
     ) => {
-      const abort = new AbortController();
-      abortRef.current = abort;
-
       async function start() {
         try {
           onStatus?.('connecting');
-          const response = await fetch(url, {
-            method: options.method ?? 'GET',
-            headers: options.headers,
-            body: options.body,
-            signal: abort.signal,
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
+          const chunks = await agentService.run(sessionId, content);
           retryCountRef.current = 0;
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error('No readable stream');
-
-          for await (const sse of parseSSEStream(reader)) {
-            const chunk = parseAgentStreamEvent(sse);
+          for await (const chunk of chunks) {
             onChunk(chunk);
             if (chunk.type === 'finish' || chunk.type === 'error') {
               onStatus?.(chunk.type === 'error' ? 'error' : 'done');
@@ -56,7 +33,6 @@ export function useSSE() {
           }
           onStatus?.('done');
         } catch (err: unknown) {
-          if (err instanceof DOMException && err.name === 'AbortError') return;
           if (retryCountRef.current < maxRetries) {
             retryCountRef.current++;
             onStatus?.('reconnecting');
@@ -71,12 +47,10 @@ export function useSSE() {
 
       start();
     },
-    [],
+    [agentService],
   );
 
   const disconnect = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
     retryCountRef.current = 0;
   }, []);
 

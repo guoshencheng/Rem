@@ -12,6 +12,14 @@
     "./sse": {
       "import": "./dist/sse.js",
       "types": "./dist/sse.d.ts"
+    },
+    "./stream-reducer": {
+      "import": "./dist/stream-reducer.js",
+      "types": "./dist/stream-reducer.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
     }
   },
   "scripts": {

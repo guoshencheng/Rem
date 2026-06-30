@@ -2,10 +2,63 @@
 
 import { create } from 'zustand';
 import type { SessionSummary, UIMessage, AgentStreamChunk, ContentPart } from './types';
-import {
-  listSessions, createSession, getSession, updateSession,
-  deleteSession, interruptAgent,
-} from './agent-client';
+import { reduceStreamChunk, type StreamPart } from 'rem-agent-bridge/client';
+
+async function listSessions(q?: string): Promise<SessionSummary[]> {
+  const params = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await fetch(`/api/sessions${params}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to list sessions: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<SessionSummary[]>;
+}
+
+async function createSessionApi(): Promise<SessionSummary> {
+  const res = await fetch('/api/sessions', { method: 'POST' });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to create session: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<SessionSummary>;
+}
+
+async function getSession(id: string): Promise<{ sessionId: string; title?: string; messages: unknown[] }> {
+  const res = await fetch(`/api/sessions/${id}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to get session: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+async function updateSession(id: string, updates: { title?: string; pinned?: boolean }): Promise<void> {
+  const res = await fetch(`/api/sessions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to update session: ${res.status} ${text}`);
+  }
+}
+
+async function deleteSessionById(id: string): Promise<void> {
+  const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to delete session: ${res.status} ${text}`);
+  }
+}
+
+async function interruptAgent(id: string): Promise<void> {
+  await fetch('/api/agent/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId: id, interrupt: true }),
+  });
+}
 
 let assistantMessageId = '';
 
@@ -16,6 +69,7 @@ export const useSessionStore = create<{
   messages: UIMessage[];
   streaming: boolean;
   pendingContent: string | null;
+  streamParts: StreamPart[];
   initialized: boolean;
   error: string | null;
   serverError: boolean;
@@ -42,6 +96,7 @@ export const useSessionStore = create<{
   messages: [],
   streaming: false,
   pendingContent: null,
+  streamParts: [],
   initialized: false,
   error: null,
   serverError: false,
@@ -58,7 +113,7 @@ export const useSessionStore = create<{
 
   createSession: async () => {
     try {
-      const session = await createSession();
+      const session = await createSessionApi();
       set((s) => ({
         sessions: [session, ...s.sessions],
         currentSessionId: session.sessionId,
@@ -113,6 +168,7 @@ export const useSessionStore = create<{
 
     set({
       messages: [...messages, userMsg, assistantMsg],
+      streamParts: [],
       error: null,
       streaming: true,
       pendingContent: text,
@@ -133,101 +189,48 @@ export const useSessionStore = create<{
         };
       }
 
+      const newParts = reduceStreamChunk(s.streamParts, chunk);
+
       const msgs = s.messages.map((m) => {
         if (m.id !== assistantMessageId) return m;
-        const parts = [...m.parts];
-        const msg = { ...m, parts };
-
-        switch (chunk.type) {
-          case 'text-start': {
-            parts.push({ type: 'text', text: '' } as ContentPart);
-            break;
-          }
-          case 'text-delta': {
-            const last = parts[parts.length - 1];
-            if (last?.type === 'text') {
-              parts[parts.length - 1] = { ...last, text: last.text + chunk.text };
-              msg.content += chunk.text;
-            }
-            break;
-          }
-          case 'reasoning-start': {
-            parts.push({ type: 'reasoning', text: '' } as ContentPart);
-            break;
-          }
-          case 'reasoning-delta': {
-            const last = parts[parts.length - 1];
-            if (last?.type === 'reasoning') {
-              parts[parts.length - 1] = { ...last, text: last.text + chunk.text };
-              msg.reasoning = (msg.reasoning ?? '') + chunk.text;
-            }
-            break;
-          }
-          case 'reasoning-finish': {
-            break;
-          }
-          case 'tool-call-start': {
-            parts.push({
+        return {
+          ...m,
+          content: newParts.filter((p) => p.type === 'text').map((p) => p.content).join(''),
+          reasoning: newParts.filter((p) => p.type === 'reasoning').map((p) => p.content).join(''),
+          parts: newParts.map((p) => {
+            if (p.type === 'text') return { type: 'text', text: p.content } as ContentPart;
+            if (p.type === 'reasoning') return { type: 'reasoning', text: p.content } as ContentPart;
+            return {
               type: 'tool-call',
-              toolCallId: chunk.toolCallId,
-              toolName: chunk.toolName,
-              arguments: {},
-            } as ContentPart);
-            msg.toolCalls = [...msg.toolCalls, { id: chunk.toolCallId, name: chunk.toolName, arguments: {} }];
-            break;
-          }
-          case 'tool-call': {
-            const idx = parts.findIndex((p): p is ContentPart & { type: 'tool-call' } =>
-              p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
-            );
-            if (idx >= 0) {
-              parts[idx] = { ...parts[idx], arguments: (chunk.input as Record<string, unknown>) ?? {} } as ContentPart;
-            }
-            msg.toolCalls = msg.toolCalls.map((tc) =>
-              tc.id === chunk.toolCallId ? { ...tc, arguments: (chunk.input as Record<string, unknown>) ?? {} } : tc,
-            );
-            break;
-          }
-          case 'tool-call-finish': {
-            break;
-          }
-          case 'tool-result-start': {
-            break;
-          }
-          case 'tool-result': {
-            const idx = parts.findIndex((p): p is ContentPart & { type: 'tool-call' } =>
-              p.type === 'tool-call' && p.toolCallId === chunk.toolCallId,
-            );
-            if (idx >= 0) {
-              const part = parts[idx] as ContentPart & { type: 'tool-call'; result?: { success: boolean; output: string; error?: string; durationMs: number } };
-              parts[idx] = {
-                ...part,
-                result: { success: !chunk.error, output: chunk.output ?? '', error: chunk.error, durationMs: 0 },
-              };
-            }
-            msg.toolCalls = msg.toolCalls.map((tc) =>
-              tc.id === chunk.toolCallId
-                ? { ...tc, result: { success: !chunk.error, output: chunk.output ?? '', error: chunk.error, durationMs: 0 } }
-                : tc,
-            );
-            break;
-          }
-          case 'finish': {
-            msg.status = 'done';
-            break;
-          }
-          case 'error': {
-            msg.status = 'error';
-            msg.error = String(chunk.error);
-            break;
-          }
-        }
-
-        return msg;
+              toolCallId: p.toolCallId ?? '',
+              toolName: p.toolName ?? '',
+              arguments: (p.input as Record<string, unknown>) ?? {},
+              result: p.status ? {
+                success: p.status === 'success',
+                output: p.output ?? '',
+                error: p.error,
+                durationMs: p.duration ?? 0,
+              } : undefined,
+            } as ContentPart;
+          }),
+          toolCalls: newParts.filter((p) => p.type === 'tool').map((p) => ({
+            id: p.toolCallId ?? '',
+            name: p.toolName ?? '',
+            arguments: (p.input as Record<string, unknown>) ?? {},
+            result: p.status ? {
+              success: p.status === 'success',
+              output: p.output ?? '',
+              error: p.error,
+              durationMs: p.duration ?? 0,
+            } : undefined,
+          })),
+          status: chunk.type === 'finish' ? 'done' as const : chunk.type === 'error' ? 'error' as const : 'streaming' as const,
+          error: chunk.type === 'error' ? String(chunk.error) : undefined,
+        };
       });
 
       const streaming = chunk.type !== 'finish' && chunk.type !== 'error';
-      return { messages: msgs, streaming };
+      return { messages: msgs, streamParts: newParts, streaming };
     });
   },
 
@@ -260,7 +263,7 @@ export const useSessionStore = create<{
 
   deleteSession: async (id: string) => {
     try {
-      await deleteSession(id);
+      await deleteSessionById(id);
       set((s) => {
         const remaining = s.sessions.filter((ses) => ses.sessionId !== id);
         const next = remaining[0]?.sessionId ?? null;

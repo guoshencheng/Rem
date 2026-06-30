@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionService } from 'rem-agent-bridge';
+import type { IAgentService, SessionService } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
 export async function GET(
@@ -9,11 +9,12 @@ export async function GET(
   try {
     const { id } = await params;
     const container = await getContainer();
-    const sessionService = container.resolve<SessionService>('sessionService');
+    const agentService = container.resolve<IAgentService>('agentService');
+    const messages = await agentService.getMessages(id);
     return NextResponse.json({
       sessionId: id,
       title: 'New Chat',
-      messages: await sessionService.getMessages(id),
+      messages,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });

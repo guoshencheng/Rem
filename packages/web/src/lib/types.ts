@@ -1,4 +1,4 @@
-import type { AgentStreamChunk, ServerMessage, ContentPart, SessionSummary as CoreSessionSummary } from 'rem-agent-core';
+import type { AgentStreamChunk, ContentPart, ServerMessage, SessionSummary as CoreSessionSummary } from 'rem-agent-bridge';
 
 export interface SessionSummary extends CoreSessionSummary {
   pinned?: boolean;

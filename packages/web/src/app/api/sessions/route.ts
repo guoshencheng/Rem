@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionService } from 'rem-agent-bridge';
+import type { SessionService, IAgentService } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
 export async function GET(request: NextRequest) {
@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const q = url.searchParams.get('q') ?? '';
     const container = await getContainer();
-    const sessionService = container.resolve<SessionService>('sessionService');
-    let sessions = await sessionService.list();
+    const agentService = container.resolve<IAgentService>('agentService');
+    let sessions = await agentService.listSessions();
     if (q) {
       const lower = q.toLowerCase();
       sessions = sessions.filter((s) => (s.title ?? '').toLowerCase().includes(lower));

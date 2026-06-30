@@ -8,7 +8,7 @@ export type {
   ServerStreamEvent,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
-export type { AgentStreamChunk, ModelMessage, ServerMessage } from 'rem-agent-core';
+export type { AgentStreamChunk, ContentPart, ModelMessage, ServerMessage } from 'rem-agent-core';
 
 export { reduceStreamChunk } from './stream-reducer.js';
 export type { StreamPart } from './stream-reducer.js';

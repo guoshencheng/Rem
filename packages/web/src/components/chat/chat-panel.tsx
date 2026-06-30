@@ -1,10 +1,11 @@
 'use client';
 
 import { useSessionStore } from '@/lib/session-store';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MessageList } from './message-list';
 import { InputBox } from './input-box';
 import { useSSE } from '@/lib/use-sse';
+import { AgentRemoteService } from 'rem-agent-bridge/client';
 
 export function ChatPanel() {
   const streaming = useSessionStore((s) => s.streaming);
@@ -14,18 +15,15 @@ export function ChatPanel() {
   const serverError = useSessionStore((s) => s.serverError);
   const onChunk = useSessionStore((s) => s.onChunk);
   const setReconnecting = useSessionStore((s) => s.setReconnecting);
-  const { connect, disconnect } = useSSE();
+  const agentService = useMemo(() => new AgentRemoteService(''), []);
+  const { connect, disconnect } = useSSE(agentService);
 
   useEffect(() => {
     if (!pendingContent || !currentSessionId) return;
 
     connect(
-      '/api/agent/run',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: currentSessionId, content: pendingContent }),
-      },
+      currentSessionId,
+      pendingContent,
       (chunk) => onChunk(chunk),
       (err) => {
         console.error('SSE error:', err);

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ServerMessage } from 'rem-agent-core';
+import type { ServerMessage } from 'rem-agent-bridge/client';
 
 type ToolCall = ServerMessage['toolCalls'][number];
 

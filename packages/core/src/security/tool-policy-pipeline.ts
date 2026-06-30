@@ -40,20 +40,26 @@ export function applyToolPolicyPipeline(params: ToolPolicyPipelineParams): ToolD
 }
 
 function applyLayer(tools: ToolDefinition[], layer: ToolPolicyConfig): ToolDefinition[] {
-  const denySet = new Set(expandToolGroups(layer.deny ?? []));
-  let result = tools.filter((tool) => !denySet.has(normalizeToolName(tool.name)));
+  const hasAllow = layer.allow !== undefined;
+  const hasAlsoAllow = layer.alsoAllow !== undefined;
 
-  const allow = layer.allow ?? layer.alsoAllow;
-  if (allow) {
-    if (allow.length === 0) {
-      return [];
+  if (hasAllow || hasAlsoAllow) {
+    const allowSet = new Set(expandToolGroups(layer.allow ?? []));
+    const alsoAllowSet = new Set(expandToolGroups(layer.alsoAllow ?? []));
+    const combined = new Set([...allowSet, ...alsoAllowSet]);
+
+    if (combined.size > 0) {
+      tools = tools.filter((tool) => {
+        const name = normalizeToolName(tool.name);
+        return combined.has(name) || combined.has('*');
+      });
     }
-    const allowSet = new Set(expandToolGroups([...layer.allow ?? [], ...(layer.alsoAllow ?? [])]));
-    result = result.filter((tool) => {
-      const name = normalizeToolName(tool.name);
-      return allowSet.has(name) || allowSet.has('*');
-    });
   }
 
-  return result;
+  if (layer.deny && layer.deny.length > 0) {
+    const denySet = new Set(expandToolGroups(layer.deny));
+    tools = tools.filter((tool) => !denySet.has(normalizeToolName(tool.name)));
+  }
+
+  return tools;
 }

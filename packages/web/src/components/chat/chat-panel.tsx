@@ -1,55 +1,41 @@
 'use client';
 
-import { useSessionStore } from '@/lib/session-store';
-import { useEffect, useMemo } from 'react';
 import { MessageList } from './message-list';
 import { InputBox } from './input-box';
-import { useSSE } from '@/lib/use-sse';
-import { AgentRemoteService } from 'rem-agent-bridge/client';
+import type { UIMessage } from '@/lib/types';
 
-export function ChatPanel() {
-  const streaming = useSessionStore((s) => s.streaming);
-  const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  const pendingContent = useSessionStore((s) => s.pendingContent);
-  const reconnecting = useSessionStore((s) => s.reconnecting);
-  const serverError = useSessionStore((s) => s.serverError);
-  const onChunk = useSessionStore((s) => s.onChunk);
-  const setReconnecting = useSessionStore((s) => s.setReconnecting);
-  const agentService = useMemo(() => new AgentRemoteService(''), []);
-  const { connect, disconnect } = useSSE(agentService);
+export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
-  useEffect(() => {
-    if (!pendingContent || !currentSessionId) return;
+interface ChatPanelProps {
+  messages: UIMessage[];
+  status: SessionStatus;
+  error: string | null;
+  initialized: boolean;
+  onSend(content: string): void;
+  onInterrupt(): void;
+}
 
-    connect(
-      currentSessionId,
-      pendingContent,
-      (chunk) => onChunk(chunk),
-      (err) => {
-        console.error('SSE error:', err);
-        onChunk({ type: 'error', error: err } as any);
-      },
-      (status) => {
-        setReconnecting(status === 'reconnecting');
-      },
-    );
-
-    return () => disconnect();
-  }, [pendingContent, currentSessionId]);
+export function ChatPanel({ messages, status, error, initialized, onSend, onInterrupt }: ChatPanelProps) {
+  const streaming = status === 'streaming' || status === 'loading';
 
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">
       <header className="flex items-center gap-3 px-4 h-12 border-b border-bd flex-shrink-0">
         <span className="text-sm font-medium text-tx truncate flex-1">Rem Agent</span>
-        {reconnecting && (
-          <span className="text-xs text-warn bg-warn-bg px-2 py-0.5 rounded-chip animate-pulse">正在重连...</span>
+        {status === 'loading' && !streaming && (
+          <span className="text-xs text-warn bg-warn-bg px-2 py-0.5 rounded-chip animate-pulse">Connecting...</span>
         )}
-        {serverError && (
-          <span className="text-xs text-err bg-err-bg px-2 py-0.5 rounded-chip">服务异常</span>
+        {error && (
+          <span className="text-xs text-err bg-err-bg px-2 py-0.5 rounded-chip">{error}</span>
         )}
       </header>
-      <MessageList />
-      <InputBox />
+      <MessageList messages={messages} onSend={onSend} />
+      <InputBox
+        streaming={streaming}
+        initialized={initialized}
+        onSend={onSend}
+        onInterrupt={onInterrupt}
+      />
     </div>
   );
 }

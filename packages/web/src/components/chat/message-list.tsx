@@ -2,14 +2,21 @@
 
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { useRef, useEffect } from 'react';
-import { useSessionStore } from '@/lib/session-store';
 import { MessageItem } from './message-item';
 import type { UIMessage } from '@/lib/types';
 
-export function MessageList() {
-  const messages = useSessionStore((s) => s.messages);
-  const streamContent = messages.map((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.text).join('')).join('');
-  const streamReasoning = messages.map((m) => m.parts.filter((p) => p.type === 'reasoning').map((p) => p.text).join('')).join('');
+interface MessageListProps {
+  messages: UIMessage[];
+  onSend(content: string): void;
+}
+
+export function MessageList({ messages, onSend }: MessageListProps) {
+  const streamContent = messages
+    .map((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.text).join(''))
+    .join('');
+  const streamReasoning = messages
+    .map((m) => m.parts.filter((p) => p.type === 'reasoning').map((p) => p.text).join(''))
+    .join('');
   const virtRef = useRef<VirtuosoHandle>(null);
 
   useEffect(() => {
@@ -31,12 +38,12 @@ export function MessageList() {
         <div className="w-12 h-12 rounded-full bg-ac-soft flex items-center justify-center text-ac text-lg font-medium">
           R
         </div>
-        <span>你好，请问有什么可以帮助你的？</span>
+        <span>Hello, how can I help?</span>
         <div className="flex gap-2 flex-wrap justify-center max-w-md mt-2">
-          {['帮我写段代码', '解释一个概念', '帮我分析数据'].map((hint) => (
+          {['Write some code', 'Explain a concept', 'Analyze data'].map((hint) => (
             <button
               key={hint}
-              onClick={() => useSessionStore.getState().sendMessage(hint)}
+              onClick={() => onSend(hint)}
               className="px-3 py-1.5 rounded-chip bg-card border border-bd2 text-xs text-tx2 hover:text-tx hover:border-ac/50 transition-colors"
             >
               {hint}

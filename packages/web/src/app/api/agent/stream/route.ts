@@ -3,10 +3,12 @@ import type { BusEvent } from 'rem-agent-bridge';
 import { bus, createBusSSEResponse } from 'rem-agent-bridge';
 
 function busToAsyncIterable(): AsyncIterable<BusEvent> {
+  console.log('[SSE-endpoint] busToAsyncIterable called, subscribing to bus');
   let resolveNext: ((event: BusEvent) => void) | null = null;
   const queue: BusEvent[] = [];
 
   const unsub = bus.subscribe((event) => {
+    console.log(`[SSE-endpoint] bus event recv session=${event.sessionId} type=${event.type} workspace=${event.workspace}`);
     if (resolveNext) {
       resolveNext(event);
       resolveNext = null;
@@ -38,6 +40,7 @@ function busToAsyncIterable(): AsyncIterable<BusEvent> {
 }
 
 export async function GET() {
+  console.log('[SSE-endpoint] GET /api/agent/stream matched');
   try {
     const busStream = busToAsyncIterable();
     return createBusSSEResponse(busStream);

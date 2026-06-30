@@ -4,6 +4,7 @@ export class BroadcastBus {
   private subscribers = new Set<(event: BusEvent) => void>();
 
   publish(event: BusEvent): void {
+    console.log(`[BroadcastBus] publish session=${event.sessionId} type=${event.type} subs=${this.subscribers.size}`);
     for (const sub of this.subscribers) {
       try {
         sub(event);

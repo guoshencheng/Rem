@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AgentClient } from '../src/client.js';
+import { AgentRemoteService } from '../src/agent-remote-service.js';
 
-describe('AgentClient', () => {
+describe('AgentRemoteService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -37,7 +37,7 @@ describe('AgentClient', () => {
       },
     });
 
-    const client = new AgentClient('http://localhost:8321');
+    const client = new AgentRemoteService('http://localhost:8321');
     const stream = await client.run('s1', 'hello');
     const chunks: any[] = [];
     for await (const chunk of stream) {

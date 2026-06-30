@@ -1,4 +1,4 @@
-import type { AgentService } from './agent.js';
+import type { IAgentService } from './agent-service.interface.js';
 
 interface SessionEntry {
   title?: string;
@@ -15,7 +15,7 @@ export function extractTitle(messages: Array<{ role: string; content: string }>)
 }
 
 export class SessionService {
-  constructor(private agentService: AgentService) {}
+  constructor(private agentService: IAgentService) {}
 
   async list() {
     const sessions = await this.agentService.listSessions();

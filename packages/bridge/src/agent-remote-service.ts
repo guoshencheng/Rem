@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamChunk, ServerMessage } from 'rem-agent-core';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
   RunRequest,
@@ -72,5 +72,13 @@ export class AgentRemoteService implements IAgentService {
       throw new Error(`Failed to list sessions: ${response.status}`);
     }
     return (await response.json()) as SessionSummary[];
+  }
+
+  async getMessages(sessionId: string): Promise<ServerMessage[]> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}/messages`);
+    if (!response.ok) {
+      throw new Error(`Failed to get messages: ${response.status}`);
+    }
+    return (await response.json()) as ServerMessage[];
   }
 }

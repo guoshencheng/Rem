@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamChunk, ServerMessage } from 'rem-agent-core';
 import type { SessionSummary } from './types.js';
 
 export interface IAgentService {
@@ -6,4 +6,5 @@ export interface IAgentService {
   interrupt(sessionId: string): Promise<void>;
   reset(sessionId: string): Promise<void>;
   listSessions(): Promise<SessionSummary[]>;
+  getMessages(sessionId: string): Promise<ServerMessage[]>;
 }

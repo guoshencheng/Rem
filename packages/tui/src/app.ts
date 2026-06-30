@@ -11,7 +11,7 @@ import {
 } from "@opentui/core";
 import type { KeyEvent, CliRenderer } from "@opentui/core";
 import type { AgentStreamChunk, SessionSummary } from "rem-agent-bridge";
-import { AgentClient } from "rem-agent-bridge";
+import { AgentRemoteService } from "rem-agent-bridge";
 import { createReasoningBlock } from "./message/reasoning-block.js";
 import type { ReasoningPartState, ReasoningBlockHandle } from "./message/reasoning-block.js";
 import { createToolBlock } from "./message/function-tool-block.js";
@@ -33,7 +33,7 @@ export interface TUIAppOptions {
 
 export class TUIApp {
   private renderer!: CliRenderer;
-  private client: AgentClient;
+  private client: AgentRemoteService;
   private sessionId: string;
   private maxTurns: number;
   private currentTurn = 0;
@@ -56,7 +56,7 @@ export class TUIApp {
   private streamTextRefs = new Map<string, TextRenderable>();
 
   constructor(options: TUIAppOptions) {
-    this.client = new AgentClient(options.serverUrl);
+    this.client = new AgentRemoteService(options.serverUrl);
     this.sessionId = options.sessionId ?? generateId();
     this.maxTurns = options.maxTurns ?? 60;
   }

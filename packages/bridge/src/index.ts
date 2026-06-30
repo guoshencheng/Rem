@@ -1,4 +1,3 @@
-export { AgentClient } from './client.js';
 export { parseSSEStream, parseAgentStreamEvent } from './sse.js';
 export { createSSEResponse } from './response.js';
 export type {
@@ -13,6 +12,9 @@ export type { AgentStreamChunk, ModelMessage, ServerMessage } from 'rem-agent-co
 
 export { reduceStreamChunk } from './stream-reducer.js';
 export type { StreamPart } from './stream-reducer.js';
+
+export type { IAgentService } from './agent-service.interface.js';
+export { AgentRemoteService } from './agent-remote-service.js';
 
 export { AgentService } from './agent.js';
 export type { RunParams, RunResult, InterruptResult, ResetResult } from './agent.js';

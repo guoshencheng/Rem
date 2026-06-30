@@ -6,6 +6,7 @@ import type { SessionProvider } from 'rem-agent-core';
 import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
+import { runRegistry } from './run-registry.js';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type { SessionSummary, UIMessage } from './types.js';
@@ -31,7 +32,6 @@ export interface ResetResult {
 }
 
 export class AgentService implements IAgentService {
-  private activeRuns = new Map<string, AbortController>();
   private sessionProvider: SessionProvider;
   private workspace: string;
 
@@ -43,7 +43,7 @@ export class AgentService implements IAgentService {
   /* ---- Agent lifecycle ---- */
 
   async run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>> {
-    if (this.activeRuns.has(sessionId)) {
+    if (runRegistry.has(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
 
@@ -56,7 +56,7 @@ export class AgentService implements IAgentService {
       signal: abortController.signal,
       pm: this.providerManager,
     });
-    this.activeRuns.set(sessionId, abortController);
+    runRegistry.register(sessionId, abortController);
 
     let accumulatedParts: NonNullable<unknown>[] = [];
     const sessionProvider = this.sessionProvider;
@@ -111,23 +111,19 @@ export class AgentService implements IAgentService {
     };
 
     result.output.catch(() => {}).finally(() => {
-      this.activeRuns.delete(sessionId);
+      runRegistry.remove(sessionId);
     });
 
     return wrapped;
   }
 
   async interrupt(sessionId: string): Promise<void> {
-    const controller = this.activeRuns.get(sessionId);
-    if (controller) {
-      controller.abort();
-    }
+    runRegistry.abort(sessionId);
   }
 
   async reset(sessionId: string): Promise<void> {
-    const controller = this.activeRuns.get(sessionId);
-    if (controller) controller.abort();
-    this.activeRuns.delete(sessionId);
+    runRegistry.abort(sessionId);
+    runRegistry.remove(sessionId);
   }
 
   /* ---- Message tracking ---- */

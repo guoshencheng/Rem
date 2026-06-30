@@ -22,3 +22,4 @@ export type { RunParams, RunResult, InterruptResult, ResetResult } from './agent
 export { SessionService } from './sessions.js';
 export { ServiceError } from './errors.js';
 export { BroadcastBus, bus } from './broadcast-bus.js';
+export { runRegistry } from './run-registry.js';

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { BusEvent } from 'rem-agent-bridge';
 import { bus, createBusSSEResponse } from 'rem-agent-bridge';
 
+console.log('[SSE-endpoint] MODULE LOADED');
+
 function busToAsyncIterable(): AsyncIterable<BusEvent> {
   console.log('[SSE-endpoint] busToAsyncIterable called, subscribing to bus');
   let resolveNext: ((event: BusEvent) => void) | null = null;

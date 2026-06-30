@@ -44,7 +44,8 @@ export type AgentStreamChunk =
   | { type: 'tool-result'; step: number; partId: string; toolCallId: string; output: string; error?: string }
   | { type: 'tool-result-finish'; step: number; partId: string; toolCallId: string }
   | { type: 'finish'; output: AgentOutput }
-  | { type: 'error'; error: Error };
+  | { type: 'error'; error: Error }
+  | { type: 'session-title'; title: string };
 
 export interface AgentStreamStepResult {
   step: number;

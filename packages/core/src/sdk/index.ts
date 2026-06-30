@@ -9,4 +9,3 @@ export * from './compressor.js';
 export * from './skill-provider.js';
 export * from './session-provider.js';
 export * from './provider-loader.js';
-export * from './provider-loader.js';

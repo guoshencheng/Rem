@@ -121,6 +121,18 @@ export const useSessionStore = create<{
 
   onChunk: (chunk: AgentStreamChunk) => {
     set((s) => {
+      if (chunk.type === 'session-title') {
+        return {
+          sessions: s.currentSessionId
+            ? s.sessions.map((ses) =>
+                ses.sessionId === s.currentSessionId
+                  ? { ...ses, title: chunk.title }
+                  : ses,
+              )
+            : s.sessions,
+        };
+      }
+
       const msgs = s.messages.map((m) => {
         if (m.id !== assistantMessageId) return m;
         const parts = [...m.parts];

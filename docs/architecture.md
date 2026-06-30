@@ -1,234 +1,437 @@
-# Agent Harness System — 架构大纲
+# Rem Agent — 系统架构
 
+> 状态：✅ 与代码同步（2026-06-30）
+>
 > 基于 Hermes Agent 和 OpenClaw 架构分析，采用 Plugin-Core Balance 方案。
 
 ---
 
-## 1. 设计目标
+## 1. 项目概览
 
-构建一个 **Agent-first 的通用 Agent Harness 系统**：
+`rem-agent` 是一个 Agent-first 的 TypeScript monorepo，构建通用的 AI Agent Harness 系统。专注 Agent 推理循环、状态管理、事件系统、预算控制与工具执行。
 
-- 核心聚焦 Agent 推理循环、记忆、工具、技能
-- 通过稳定的 SDK 接口支持扩展
-- TypeScript/Node.js 实现，本地个人运行
-- 参考 Hermes Agent 的架构逻辑，吸收 OpenClaw 的插件边界设计
+**Monorepo 结构（pnpm workspace）：**
 
----
-
-## 2. 核心设计决策
-
-| 决策项 | 选择 | 理由 |
-|--------|------|------|
-| 架构模式 | Plugin-Core Balance | 核心精简 + SDK 扩展边界 |
-| 技术栈 | TypeScript/Node.js | 类型安全，参考 OpenClaw 实现 |
-| 核心哲学 | Agent-first | 贴近 Hermes，Gateway 可选 |
-| 部署模式 | 本地个人运行 | 专注核心，暂不考虑多租户 |
-| 配置方式 | YAML + 环境变量 | 参考 Hermes `cli-config.yaml` |
-| 记忆系统 | 三层记忆（Working/Episodic/Semantic） | Hermes 核心优势 |
-| 技能系统 | SKILL.md + 自动生成 | Hermes 自学习闭环 |
+| 包 | npm 名称 | 层级 | 职责 |
+|---|---|---|---|
+| `packages/core` | `rem-agent-core` | 核心层 | Agent 生命周期、ReAct 循环、状态、事件、预算、LLM、安全、SDK 接口 |
+| `packages/bridge` | `rem-agent-bridge` | 桥接层 | HTTP client/server、SSE 编解码、AgentService、SessionService |
+| `packages/web` | `rem-agent-web` | 表现层 | Next.js 15 + React 19 聊天 UI，SSE 流消费，会话管理 |
+| `packages/tui` | `rem-agent-tui` | 表现层 | 基于 `@opentui/core` 的终端 UI 组件 |
+| `packages/demo` | `rem-agent-demo` | 集成层 | 连接 TUI 到 core 的演示入口 |
 
 ---
 
-## 3. 总体架构
+## 2. 总体架构图
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     INTERFACE 层（可选）                           │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐               │
-│  │   CLI   │ │Telegram │ │Discord  │ │  Web    │               │
-│  │  (默认) │ │(插件)   │ │(插件)   │ │(插件)   │               │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘               │
-│       └─────────────┴───────────┴───────────┘                   │
-│                    │                                            │
-│              ┌─────┴─────┐                                     │
-│              │  Gateway  │  ← 通过 SDK 接入，非核心              │
-│              │ (ChannelProvider)                               │
-│              └─────┬─────┘                                     │
-├────────────────────┼────────────────────────────────────────────┤
-│                    │                                            │
-│              ┌─────┴─────┐                                     │
-│              │   Core    │  ← 核心引擎，不可替换                 │
-│              │  Harness  │                                     │
-│              └─────┬─────┘                                     │
-│                    │                                            │
-│    ┌───────────────┼───────────────┐                          │
-│    │           SDK 层              │  ← 稳定扩展接口            │
-│    │  ┌─────────┐ ┌─────────┐    │                          │
-│    │  │ Memory  │ │  Tool   │    │                          │
-│    │  │Provider │ │Provider │    │                          │
-│    │  └─────────┘ └─────────┘    │                          │
-│    │  ┌─────────┐ ┌─────────┐    │                          │
-│    │  │Channel  │ │ Skill   │    │                          │
-│    │  │Provider │ │Provider │    │                          │
-│    │  └─────────┘ └─────────┘    │                          │
-│    └───────────────┬───────────────┘                          │
-│                    │                                            │
-│    ┌───────────────┼───────────────┐                          │
-│    │         Plugins 层            │  ← 内置 + 第三方           │
-│    │  ┌─────────┐ ┌─────────┐    │                          │
-│    │  │three-tier│ │ terminal│    │                          │
-│    │  │ memory   │ │  tool   │    │                          │
-│    │  └─────────┘ └─────────┘    │                          │
-│    │  ┌─────────┐ ┌─────────┐    │                          │
-│    │  │  web    │ │  file   │    │                          │
-│    │  │  tool   │ │  tool   │    │                          │
-│    │  └─────────┘ └─────────┘    │                          │
-│    └───────────────────────────────┘                          │
-│                                                               │
-│    ┌───────────────────────────────────────┐                  │
-│    │         State 层                      │  ← 数据持久化      │
-│    │  ┌─────────────┐ ┌─────────────────┐  │                  │
-│    │  │ SessionStore│ │  MemoryStore    │  │                  │
-│    │  │ (消息历史)   │ │ (长期记忆/向量)  │  │                  │
-│    │  └─────────────┘ └─────────────────┘  │                  │
-│    │  ┌─────────────┐ ┌─────────────────┐  │                  │
-│    │  │ ConfigStore │ │  SkillStore     │  │                  │
-│    │  │ (配置/凭证)  │ │ (技能/元数据)    │  │                  │
-│    │  └─────────────┘ └─────────────────┘  │                  │
-│    │         ↓ SQLite + 文件系统            │                  │
-│    └───────────────────────────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         表现层 (Presentation)                             │
+│                                                                          │
+│  ┌─────────────────────────────┐     ┌──────────────────────────────┐   │
+│  │       rem-agent-web         │     │       rem-agent-tui          │   │
+│  │   Next.js 15 + React 19     │     │      @opentui/core           │   │
+│  │                             │     │                              │   │
+│  │  components/chat/           │     │  TUIApp                      │   │
+│  │  ├─ ChatPanel              │     │  ├─ message-list (滚动区)     │   │
+│  │  ├─ MessageList             │     │  ├─ InputBox                 │   │
+│  │  ├─ InputBox                │     │  ├─ ReasoningBlock (可折叠)   │   │
+│  │  ├─ MessageItem             │     │  └─ ToolBlock (可折叠)       │   │
+│  │  ├─ ReasoningBlock          │     │                              │   │
+│  │  ├─ ToolCallBlock           │     │  message/                    │   │
+│  │  └─ ThinkingBar             │     │  ├─ reasoning-block.ts       │   │
+│  │                             │     │  ├─ function-tool-block.ts   │   │
+│  │  components/sidebar/        │     │  └─ tool-formatter.ts        │   │
+│  │  ├─ SessionSidebar          │     │                              │   │
+│  │  ├─ SessionList             │     └──────────────┬───────────────┘   │
+│  │  └─ SessionItem             │                    │                    │
+│  │                             │                    │                    │
+│  │  lib/                       │                    │                    │
+│  │  ├─ session-store.ts        │                    │                    │
+│  │  │   (zustand 全局状态)     │                    │                    │
+│  │  ├─ use-sse.ts (SSE hook)   │                    │                    │
+│  │  ├─ container.ts (awilix DI)│                    │                    │
+│  │  ├─ agent-client.ts         │                    │                    │
+│  │  ├─ stream-parser.ts        │                    │                    │
+│  │  ├─ types.ts                │                    │                    │
+│  │  └─ utils.ts                │                    │                    │
+│  │                             │                    │                    │
+│  │  app/api/                   │                    │                    │
+│  │  ├─ agent/run/route.ts      │                    │                    │
+│  │  │   POST → SSE Response    │                    │                    │
+│  │  └─ sessions/route.ts       │                    │                    │
+│  │      GET/POST CRUD          │                    │                    │
+│  └─────────────┬───────────────┘                    │                    │
+│                │                                     │                    │
+└────────────────┼─────────────────────────────────────┼────────────────────┘
+                 │                                     │
+                 │          depends on                 │
+                 ▼                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        桥接层 (Bridge)                                    │
+│                                                                          │
+│  ┌────────────────────── rem-agent-bridge ────────────────────────────┐  │
+│  │                                                                     │  │
+│  │  客户端                               服务端                         │  │
+│  │  AgentClient                          AgentService                  │  │
+│  │  ├─ run(sessionId, input)             ├─ run({sessionId, content})  │  │
+│  │  │   → AsyncIterable<                │   → {stream, output}        │  │
+│  │  │     AgentStreamChunk>              │   → 调用 core.runAgent()    │  │
+│  │  ├─ interrupt() / reset()             ├─ getMessages()              │  │
+│  │  └─ listSessions()                    └─ 跟踪活跃 run               │  │
+│  │                                                                     │  │
+│  │  SSE 工具                            SessionService                 │  │
+│  │  ├─ parseSSEStream(reader)           ├─ list / create / get         │  │
+│  │  ├─ parseAgentStreamEvent(event)     ├─ update / delete             │  │
+│  │  └─ createSSEResponse(stream)        └─ 内存存储 + 元数据            │  │
+│  │                                                                     │  │
+│  │  errors.ts — ServiceError (HTTP 状态码错误类)                        │  │
+│  │  types.ts — RunRequest, InterruptRequest, ResetRequest,             │  │
+│  │             SessionSummary, ServerStreamEvent                       │  │
+│  │                                                                     │  │
+│  └─────────────────────────────────┬───────────────────────────────────┘  │
+│                                    │                                      │
+└────────────────────────────────────┼──────────────────────────────────────┘
+                                     │ depends on
+                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        核心层 (Core) — rem-agent-core                     │
+│                                                                          │
+│  ┌───────────────┐  ┌───────────────┐  ┌──────────────────────────────┐ │
+│  │  CoreAgent    │  │  runAgent()   │  │  createAgentFromEnv()        │ │
+│  │  生命周期管理   │  │  无状态运行    │  │  工厂函数                     │ │
+│  └───────┬───────┘  └───────┬───────┘  └──────────────────────────────┘ │
+│          │                  │                                            │
+│          ▼                  ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                        ReactLoop (ReAct 循环)                      │   │
+│  │                                                                   │   │
+│  │  ReactTurnRunner (带 step 限制的迭代器)                              │   │
+│  │                                                                   │   │
+│  │  执行流程:                                                         │   │
+│  │  prepare → reason → plan → execute → observe → reflect             │   │
+│  │                     ↑                │                             │   │
+│  │                     └─── reflect ◄───┘                             │   │
+│  └──────────────────────────────┬───────────────────────────────────┘   │
+│                                 │                                        │
+│                  ┌──────────────┼──────────────┐                        │
+│                  ▼              ▼              ▼                        │
+│  ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐           │
+│  │ InferenceEngine  │ │ ToolRegistry  │ │ MemoryProvider   │           │
+│  │ (LLM 封装)       │ │ (工具执行)     │ │ (上下文构建)      │           │
+│  └────────┬─────────┘ └───────────────┘ └──────────────────┘           │
+│           │                                                              │
+│           ▼                                                              │
+│  ┌─────────────────────────────────────────┐                           │
+│  │        LLMProvider 注册表                │                           │
+│  │  ├─ OpenAI  (openai SDK)                │                           │
+│  │  └─ Anthropic (@anthropic-ai/sdk)       │                           │
+│  └─────────────────────────────────────────┘                           │
+│                                                                          │
+│  基础设施:                                                               │
+│  ┌────────────┐ ┌───────────┐ ┌─────────────────┐ ┌──────────────────┐  │
+│  │ AgentState │ │ EventBus  │ │ IterationBudget │ │ AgentStream      │  │
+│  │ 对话历史/状态│ │ 事件系统   │ │ 轮次/错误护栏    │ │ Controller(队列流)│  │
+│  └────────────┘ └───────────┘ └─────────────────┘ └──────────────────┘  │
+│                                                                          │
+│  SDK 接口 (sdk/):                                                        │
+│  ToolProvider · MemoryProvider · SessionProvider · SkillProvider         │
+│  ConfigProvider · BudgetPolicy · ContextCompressor · ErrorHandler        │
+│  ToolPolicy · ToolHook · ProviderLoader                                 │
+│                                                                          │
+│  安全 (security/):                                                        │
+│  ApprovalManager · ToolHookRunner · ToolPolicyPipeline · WorkspaceGuard │
+│                                                                          │
+│  内置插件 (plugins/):                                                     │
+│  session (in-memory/file/local) · tool (in-memory/file-system)          │
+│  memory/simple · skill/file · budget/fixed · compressor/no-op           │
+│  error/simple · config/default                                          │
+│                                                                          │
+│  注册表 (registry/):                                                     │
+│  AgentToolRegistry · AgentProviderRegistry · DefaultProviderLoader      │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
-
-**设计原则：**
-
-1. Core 最小化 — 只包含 Agent 生命周期、事件循环、状态机
-2. SDK 稳定 — 四个接口定义清晰边界，变更需版本化
-3. Plugin 可替换 — 所有能力通过插件实现，包括默认能力
-4. Gateway 可选 — 不启动 Gateway 时，CLI 是唯一入口
 
 ---
 
-## 4. 模块说明
+## 3. 包间依赖关系
 
-### Core 层
+```
+                ┌──────────────────────────────┐
+                │       rem-agent-web           │
+                │  (Next.js 15 / React 19)      │
+                └─────────┬────────────────────┘
+                          │ depends on
+                ┌─────────┴────────────────────┐
+                │     rem-agent-bridge          │
+                │  (HTTP client/server, SSE)   │
+                └─────────┬────────────────────┘
+                          │ depends on
+          ┌───────────────┼───────────────┐
+          │               │               │
+┌─────────┴──────┐  ┌────┴──┐  ┌─────────┴──────────┐
+│ rem-agent-tui  │  │ demo  │  │  rem-agent-core    │
+│  (终端 UI)     │  │(集成)  │  │  (核心引擎)         │
+└────────────────┘  └───────┘  └────────────────────┘
+```
 
-| 文件 | 职责 | 关键能力 |
-|------|------|---------|
-| `harness.ts` | **生命周期管理** | 创建、运行、暂停、恢复、停止、重置 |
-| `loop.ts` | **ReAct 循环执行** | 准备→推理→计划→执行→观察→反思 |
-| `state.ts` | **会话状态管理** | 消息历史、预算、状态机、检查点 |
-| `events.ts` | **事件总线** | 插件钩子的分发、优先级管理 |
+**依赖方向：** `web → bridge → core`，`tui → bridge → core`，`demo → tui + bridge + core`
 
-### SDK 层
+---
 
-| 接口 | 职责 |
+## 4. 关键数据流
+
+### 流程 A：Web UI 完整请求生命周期
+
+```
+用户输入 "Hello"
+  │
+  ▼
+[web] InputBox → useSessionStore.sendMessage("Hello")
+  │  创建 userMsg + assistantMsg(pendingContent)
+  │
+  ▼
+[web] ChatPanel useEffect → POST /api/agent/run {sessionId, content}
+  │
+  ▼
+[web] app/api/agent/run/route.ts
+  │  container.resolve('agentService').run({sessionId, content})
+  │
+  ▼
+[bridge] AgentService.run()
+  │  调用 core.runAgent({pm, sessionId, input, signal})
+  │
+  ▼
+[core] runAgent()
+  │  创建 AgentStreamController
+  │  加载 Session → 构建 ReactLoop → 执行推理循环
+  │
+  ▼
+[core] ReactLoop.iterate()
+  │  ① MemoryProvider.buildContext()    → 系统提示 + 记忆
+  │  ② ContextCompressor               → 按需压缩上下文
+  │  ③ InferenceEngine.infer(...)       → LLM 调用 (带 onChunk 回调)
+  │  ④ ToolRegistry.execute(calls)      → 工具执行
+  │  ⑤ AgentStreamController.enqueue()  → 产出 AgentStreamChunk
+  │
+  ▼
+[bridge] AgentService 返回 {stream, output}
+  │
+  ▼
+[web route] createSSEResponse(stream.fullStream)
+  │  编码为 text/event-stream
+  │  event: chunk\ndata: {"type":"text-delta",...}\n\n
+  │
+  ▼
+[web/browser] useSSE → fetch() → ReadableStream
+  │  parseSSEStream(reader) → parseAgentStreamEvent → AgentStreamChunk
+  │
+  ▼
+[web] useSessionStore.onChunk(chunk)
+  │  更新 assistantMsg → React 重新渲染 MessageList
+  │
+  ▼
+用户看到流式响应
+```
+
+### 流程 B：TUI 终端流程
+
+```
+[用户] 输入文本
+  │
+  ▼
+[tui] TUIApp.handleSubmit(text)
+  │  client.run(sessionId, text)
+  │
+  ▼
+[bridge] AgentClient.run()
+  │  POST http://localhost:8321/api/agent/run {sessionId, content}
+  │  → SSE 流路径（同流程 A）
+  │
+  ▼
+[tui] 遍历 AgentStreamChunk
+  │  text-delta     → TextRenderable
+  │  reasoning-*    → ReasoningBlock (可折叠)
+  │  tool-call-*    → ToolBlock (可折叠，含格式化器)
+  │  error          → 错误消息
+```
+
+### 流程 C：Core 内部事件驱动
+
+```
+createAgentFromEnv({name, provider, maxTurns})
+  │
+  ▼
+new CoreAgent(config)
+  │  registerBuiltInProviders()
+  │  resolveProviderConfig() → 读取环境变量
+  │
+  ▼
+agent.initialize({sessionId?})
+  │  创建 AgentState，通过 SessionProvider 加载/保存
+  │  发出 'core-agent:init'
+  │
+  ▼
+agent.run({content: "Hello"})
+  │  发出 'core-agent:start'
+  │  进入 ReactTurnRunner 循环
+  │  对于每个 ReAct 步骤：
+  │    发出 'turn:before' → ReactLoop.iterate() → 发出 'turn:after'
+  │    检查 budgetPolicy.checkTurn()
+  │  循环直到完成 / 中断 / 预算耗尽
+  │  发出 'core-agent:stop'
+  │  返回 {stream, output}
+  │
+  ▼
+agent.on('turn:after', handler) — 可观测性
+agent.interrupt() — 优雅停止
+agent.reset() — 清除状态
+```
+
+---
+
+## 5. 核心设计原则
+
+| 原则 | 说明 |
 |------|------|
-| `MemoryProvider` | 记忆管理（系统提示构建、预取、同步） |
-| `ToolProvider` | 工具管理（定义发现、执行） |
-| `ChannelProvider` | 通道管理（启动/停止、消息收发） |
-| `SkillProvider` | 技能管理（发现、加载、注册） |
+| **Plugin-Core Balance** | Core 最小化（生命周期 + 循环 + 状态），所有能力通过 SDK 接口提供 |
+| **事件驱动** | Core 通过 EventBus 发出事件（`turn:before/after`、`phase:reason:*`），插件订阅 |
+| **Provider 注册表** | LLM provider 和 SDK provider 使用统一注册表模式（`registerProvider`/`resolveProvider`） |
+| **依赖注入** | Web 层通过 Awilix 连接，Core 通过 `ProviderManager`/`ProviderRegistry` 连接 |
+| **SSE 流** | `AgentStreamChunk` 标准化块类型，通过 HTTP SSE 传输 |
+| **预算护栏** | `IterationBudget` 强制执行最大轮次、连续错误、相同工具故障限制 |
+| **可扩展循环** | `LoopStrategy` 接口支持未来 Plan-and-Solve 等替代循环 |
 
-### State 层
+### 红线
 
-| 组件 | 职责 | 被谁使用 |
-|------|------|---------|
-| `SessionStore` | 会话消息存储、历史查询 | Core (初始化/保存)、Interface (历史列表) |
-| `MemoryStore` | 长期记忆、向量存储、FTS5 | MemoryProvider (插件) |
-| `ConfigStore` | 配置加载、环境变量、凭证 | Core 初始化、Interface |
-| `SkillStore` | 技能发现、加载、元数据 | SkillProvider (插件) |
+| 红线 | 说明 |
+|------|------|
+| Provider 配置由 Core 拥有 | 客户端禁止直接读取 `OPENAI_API_KEY` 等环境变量，必须通过 `createAgentFromEnv()` |
+| Core 不依赖 Vercel AI SDK | LLM 调用通过自建 Provider 层直接调用 `openai` / `@anthropic-ai/sdk` |
+| 模块按分离规范拆分 | 每个文件 ≤ 200 行（上限），类型/接口/实现分离 |
 
-**设计原则：**
-- State 层是**被动**的 — 只提供 CRUD，不主动触发任何逻辑
-- Core 通过事件钩子间接驱动保存（`after:turn` → 保存消息）
-- Interface 层可以直接查询 State（如 `/history` 命令）
+---
 
-### 记忆系统
+## 6. 事件系统
+
+Core 通过 `EventBus` 发出以下事件：
+
+| 事件 | 触发时机 | 订阅者示例 |
+|------|---------|-----------|
+| `core-agent:init` | agent 初始化完成 | 日志、状态同步 |
+| `core-agent:start` | agent 开始运行 | UI 状态更新 |
+| `core-agent:stop` | agent 运行完成 | UI 渲染最终结果 |
+| `turn:before` | 每轮开始前 | MemoryProvider 注入记忆 |
+| `turn:after` | 每轮结束后 | SkillProvider 提醒、日志记录 |
+| `phase:reason:before` | LLM 推理前 | BudgetChecker 检查预算 |
+| `phase:reason:after` | LLM 推理后 | 统计 token 消耗 |
+| `phase:execute:before` | 工具执行前 | SecurityPlugin 检查危险命令 |
+| `phase:execute:after` | 工具执行后 | 记录执行轨迹 |
+| `step:start` | ReactTurnRunner 步开始 | |
+| `step:finish` | ReactTurnRunner 步完成 | |
+
+---
+
+## 7. LLM Provider 层
 
 ```
-┌─────────────────────────────────────────┐
-│         Layer 1: Working Memory         │
-│         (会话级上下文)                   │
-│  • 当前对话消息列表                      │
-│  • 活跃任务状态                         │
-│  • ~128K token limit                    │
-├─────────────────────────────────────────┤
-│         Layer 2: Episodic Memory        │
-│         (跨会话经验)                     │
-│  • Vector store (SQLite + FTS5)         │
-│  • 具体任务经验 + 结果                   │
-│  • 情感评分（成功/失败）                 │
-│  • 每 6 小时自动压缩                     │
-├─────────────────────────────────────────┤
-│         Layer 3: Semantic Memory        │
-│         (长期知识)                       │
-│  • 抽象化的知识总结                      │
-│  • 用户偏好 (USER.md)                   │
-│  • Agent 笔记 (MEMORY.md)               │
-│  • 自动生成的技能                       │
-└─────────────────────────────────────────┘
+src/llm/
+├── types.ts              通用类型 (ProviderConfig, GenerateResult, StreamChunk, StreamCollector)
+├── api-registry.ts        注册表 (registerProvider, resolveProvider, resolveProviderConfig)
+├── engine.ts              InferenceEngine — 核心推理引擎
+├── partition-stream.ts    流分区 — 分离 thinking 标签与正文
+└── providers/
+    ├── index.ts           内置 Provider 注册
+    ├── openai.ts          OpenAI 实现 (generate + stream)
+    └── anthropic.ts       Anthropic 实现 (generate + stream)
+```
+
+**设计要点：**
+- 不依赖 Vercel AI SDK，直接封装各 provider 原生 SDK
+- `StreamCollector` 累积流式块，`partitionProviderStream` 分离 thinking/reasoning 内容
+- `InferenceEngine.infer()` 统一入口，根据 provider 名称路由
+
+---
+
+## 8. 基础设施
+
+| 组件 | 用途 |
+|------|------|
+| **包管理器** | pnpm (workspace) |
+| **测试** | Vitest |
+| **类型检查** | tsc --noEmit |
+| **Web 框架** | Next.js 15 (App Router) + React 19 |
+| **状态管理 (Web)** | Zustand |
+| **依赖注入 (Web)** | Awilix |
+| **TUI** | `@opentui/core` |
+| **LLM SDK** | `openai` (v6) + `@anthropic-ai/sdk` |
+| **模式验证** | `@sinclair/typebox` |
+| **配置** | YAML + 环境变量 |
+| **样式 (Web)** | Tailwind CSS v4 |
+| **Markdown 渲染** | react-markdown + remark-gfm + rehype-highlight |
+| **虚拟滚动** | react-virtuoso |
+
+---
+
+## 9. 项目目录结构（实际）
+
+```
+rem/
+├── packages/
+│   ├── core/                    rem-agent-core — 核心引擎
+│   │   └── src/
+│   │       ├── core-agent.ts        CoreAgent 类 + createAgentFromEnv()
+│   │       ├── run-agent.ts         无状态 runAgent() 函数
+│   │       ├── loop-strategy.ts     ReactLoop + LoopStrategy 接口
+│   │       ├── turn.ts              ReactTurnRunner + TurnContext
+│   │       ├── state.ts             AgentState
+│   │       ├── events.ts            EventBus + AgentEvent
+│   │       ├── budget.ts            IterationBudget
+│   │       ├── session.ts           Session / SessionSummary 接口
+│   │       ├── types.ts             核心类型 (ModelMessage, AgentStreamChunk, ...)
+│   │       ├── provider-manager.ts  ProviderManager 门面
+│   │       ├── config/paths.ts      路径解析
+│   │       ├── shared/              共享工具 (id 生成, debug-log, thinking-tag, code-regions)
+│   │       ├── stream/agent-stream.ts  AgentStreamController
+│   │       ├── llm/                 LLM 层 (types, api-registry, engine, partition-stream, providers/)
+│   │       ├── sdk/                 11 个 SDK 接口
+│   │       ├── registry/            AgentToolRegistry, ProviderRegistry, ProviderLoader
+│   │       ├── security/            审批管理, 工具策略, 工作区守卫
+│   │       ├── ui/                  UI 会话封装
+│   │       ├── utils/skill-parser.ts SKILL.md 解析
+│   │       └── plugins/             9 类内置 Provider 实现
+│   ├── bridge/                  rem-agent-bridge — 桥接层
+│   │   └── src/
+│   │       ├── client.ts            AgentClient (浏览器端 HTTP 客户端)
+│   │       ├── agent.ts             AgentService (服务端, 封装 core.runAgent)
+│   │       ├── sessions.ts          SessionService (会话元数据管理)
+│   │       ├── sse.ts               SSE 解析 (parseSSEStream, parseAgentStreamEvent)
+│   │       ├── response.ts          createSSEResponse (流 → SSE Response)
+│   │       ├── types.ts             请求/响应类型
+│   │       └── errors.ts            ServiceError
+│   ├── web/                     rem-agent-web — Web UI
+│   │   └── src/
+│   │       ├── app/                 Next.js App Router (layout, page, api routes)
+│   │       ├── components/chat/     7 个聊天组件
+│   │       ├── components/sidebar/  3 个侧边栏组件
+│   │       ├── lib/                 7 个工具模块 (session-store, use-sse, container, ...)
+│   │       └── styles/globals.css   Tailwind v4 主题
+│   ├── tui/                     rem-agent-tui — 终端 UI
+│   │   └── src/
+│   │       ├── app.ts               TUIApp 核心类
+│   │       └── message/             消息渲染 (reasoning-block, function-tool-block, tool-formatter)
+│   └── demo/                    rem-agent-demo — 演示入口
+│       └── src/
+│           ├── main.ts              入口点
+│           └── config.ts            Demo 层配置
+├── docs/
+│   ├── architecture.md          本文档
+│   ├── core-design.md            Core 层详细设计
+│   └── module-reference.md       模块级参考
+└── CLAUDE.md                    项目规则手册
 ```
 
 ---
 
-## 5. 项目目录结构
-
-```
-rem-agent/
-├── src/
-│   ├── core/                 # 核心引擎
-│   │   ├── harness.ts
-│   │   ├── loop.ts
-│   │   ├── state.ts
-│   │   └── events.ts
-│   ├── sdk/                  # 插件 SDK
-│   │   ├── memory-provider.ts
-│   │   ├── tool-provider.ts
-│   │   ├── channel-provider.ts
-│   │   └── skill-provider.ts
-│   ├── plugins/              # 内置插件
-│   │   ├── memory/
-│   │   │   └── three-tier.ts
-│   │   ├── tools/
-│   │   │   ├── terminal.ts
-│   │   │   ├── file.ts
-│   │   │   └── web.ts
-│   │   └── channels/
-│   │       └── cli.ts
-│   ├── state/                # 数据持久化
-│   │   ├── session-store.ts
-│   │   ├── memory-store.ts
-│   │   ├── config-store.ts
-│   │   └── skill-store.ts
-│   ├── registry/             # 注册表管理
-│   │   ├── tool-registry.ts
-│   │   └── plugin-loader.ts
-│   ├── utils/                # 通用工具
-│   └── index.ts              # 入口
-├── config/
-│   └── agent.yaml.example
-├── skills/                   # 技能仓库
-├── tests/
-├── package.json
-└── tsconfig.json
-```
-
----
-
-## 6. 实现优先级
-
-| 模块 | 复杂度 | 优先级 | 参考来源 |
-|------|--------|--------|----------|
-| Core (Harness + Loop + State) | 高 | P0 | Hermes `run_agent.py` |
-| SDK (四个接口) | 中 | P0 | OpenClaw `plugin-sdk` |
-| Memory (三层记忆) | 高 | P0 | Hermes `memory_manager.py` |
-| Tool Registry | 中 | P0 | Hermes `model_tools.py` |
-| CLI Entry | 低 | P0 | Hermes `cli.py` |
-| Config System | 低 | P1 | Hermes `cli-config.yaml` |
-| Skills System | 中 | P1 | Hermes `skills/` |
-| Gateway/Channels | 中 | P2 | OpenClaw `src/channels/` |
-
----
-
-## 7. 参考源码
-
-本地参考代码位于 `refer/` 目录：
-
-- `refer/hermes-agent/` — Hermes Agent 源码
-- `refer/openclaw/` — OpenClaw 源码
-
-引用规范见 `.claude/skills/reference-agent-frameworks.md`。
-
----
-
-*设计完成日期：2026-06-10*
+*最后更新：2026-06-30*

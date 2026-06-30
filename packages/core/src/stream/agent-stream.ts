@@ -59,6 +59,11 @@ export class AgentStreamController {
     this.pending = [];
   }
 
+  pushTitle(title: string): void {
+    if (this.finished) return;
+    this.enqueue({ type: 'session-title', title });
+  }
+
   stepStart(step: number): void {
     if (this.finished) return;
     this.lastStep = step;

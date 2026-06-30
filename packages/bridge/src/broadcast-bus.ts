@@ -5,7 +5,11 @@ export class BroadcastBus {
 
   publish(event: BusEvent): void {
     for (const sub of this.subscribers) {
-      sub(event);
+      try {
+        sub(event);
+      } catch {
+        // isolate subscriber errors
+      }
     }
   }
 

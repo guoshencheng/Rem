@@ -12,10 +12,10 @@ interface MessageListProps {
 
 export function MessageList({ messages, onSend }: MessageListProps) {
   const streamContent = messages
-    .map((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.text).join(''))
+    .map((m) => (m.parts ?? []).filter((p) => p.type === 'text').map((p) => p.text).join(''))
     .join('');
   const streamReasoning = messages
-    .map((m) => m.parts.filter((p) => p.type === 'reasoning').map((p) => p.text).join(''))
+    .map((m) => (m.parts ?? []).filter((p) => p.type === 'reasoning').map((p) => p.text).join(''))
     .join('');
   const virtRef = useRef<VirtuosoHandle>(null);
 

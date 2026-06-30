@@ -137,7 +137,7 @@ export class AgentService implements IAgentService {
       .map((msg) => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant',
-        parts: msg.content,
+        parts: msg.content ?? [],
         status: 'done' as const,
       }));
   }

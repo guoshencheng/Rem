@@ -21,6 +21,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
   private _msgCache = new Map<string, ContentPart[]>();
 
   constructor(dir: string) {
+    console.log(`LocalSessionProvider initialized with dir: ${dir}`);
     super(dir);
   }
 

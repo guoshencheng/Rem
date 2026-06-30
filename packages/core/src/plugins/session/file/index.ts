@@ -1,77 +1,22 @@
-import { randomUUID } from 'crypto';
-import { mkdir, readFile, readdir, stat, writeFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
-import type { ModelMessage } from '../../../types.js';
-import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
+import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
+import { BaseSessionProvider } from '../base.js';
 
 export interface FileSessionProviderOptions {
   dir: string;
 }
 
-interface SerializedSession {
-  sessionId: string;
-  conversation: ModelMessage[];
-  currentTurn: number;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export class FileSessionProvider implements SessionProvider {
-  private dir: string;
-
+export class FileSessionProvider extends BaseSessionProvider {
   constructor(dir: string) {
-    this.dir = dir;
-  }
-
-  private filePath(sessionId: string): string {
-    return join(this.dir, `${sessionId}.json`);
-  }
-
-  private async ensureDir(): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
+    super(dir);
   }
 
   async create(): Promise<Session> {
-    await this.ensureDir();
-    const now = new Date();
-    const session: Session = {
-      sessionId: randomUUID(),
-      conversation: [],
-      currentTurn: 0,
-      metadata: {},
-      createdAt: now,
-      updatedAt: now,
-    };
+    const session = await super.create();
     await this.write(session);
     return session;
-  }
-
-  async load(sessionId: string): Promise<Session | null> {
-    try {
-      const raw = await readFile(this.filePath(sessionId), 'utf-8');
-      const data: SerializedSession = JSON.parse(raw);
-      return {
-        sessionId: data.sessionId,
-        conversation: data.conversation ?? [],
-        currentTurn: data.currentTurn ?? 0,
-        metadata: data.metadata ?? {},
-        createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt),
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  async save(session: Session): Promise<void> {
-    await this.ensureDir();
-    const updated: Session = {
-      ...session,
-      updatedAt: new Date(),
-    };
-    await this.write(updated);
   }
 
   async list(): Promise<SessionSummary[]> {
@@ -104,18 +49,6 @@ export class FileSessionProvider implements SessionProvider {
 
     summaries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     return summaries;
-  }
-
-  private async write(session: Session): Promise<void> {
-    const data: SerializedSession = {
-      sessionId: session.sessionId,
-      conversation: session.conversation,
-      currentTurn: session.currentTurn,
-      metadata: session.metadata,
-      createdAt: session.createdAt.toISOString(),
-      updatedAt: session.updatedAt.toISOString(),
-    };
-    await writeFile(this.filePath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
   }
 }
 

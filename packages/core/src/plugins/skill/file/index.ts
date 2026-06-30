@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join, basename } from 'path';
 import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
-import { DefaultSkillCatalog } from '../../../sdk/skill-provider.js';
+import { DefaultSkillCatalog } from '../default-catalog.js';
 import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 

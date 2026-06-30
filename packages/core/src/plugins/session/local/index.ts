@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto';
-import { mkdir, readFile, writeFile, unlink } from 'fs/promises';
+import { readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
-import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
+import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
+import { BaseSessionProvider } from '../base.js';
 
 export type ContentPart =
   | { type: 'text'; text: string }
@@ -42,37 +42,15 @@ interface IndexEntry {
   messageCount: number;
 }
 
-export class LocalSessionProvider implements SessionProvider {
-  private dir: string;
+export class LocalSessionProvider extends BaseSessionProvider {
   private _msgCache = new Map<string, ServerMessage[]>();
 
   constructor(dir: string) {
-    this.dir = dir;
-  }
-
-  private sessionPath(sessionId: string): string {
-    return join(this.dir, `${sessionId}.json`);
+    super(dir);
   }
 
   private indexPath(): string {
     return join(this.dir, 'index.json');
-  }
-
-  private async ensureDir(): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
-  }
-
-  async create(): Promise<Session> {
-    await this.ensureDir();
-    const now = new Date();
-    return {
-      sessionId: randomUUID(),
-      conversation: [],
-      currentTurn: 0,
-      metadata: {},
-      createdAt: now,
-      updatedAt: now,
-    };
   }
 
   async load(sessionId: string): Promise<Session | null> {
@@ -96,9 +74,7 @@ export class LocalSessionProvider implements SessionProvider {
   }
 
   async save(session: Session): Promise<void> {
-    await this.ensureDir();
-    const updated = { ...session, updatedAt: new Date() };
-    await this.write(updated);
+    await super.save(session);
     await this.updateIndex(session);
   }
 
@@ -127,7 +103,7 @@ export class LocalSessionProvider implements SessionProvider {
     return this._msgCache.get(sessionId) ?? [];
   }
 
-  private async write(session: Session): Promise<void> {
+  protected async write(session: Session): Promise<void> {
     const data = {
       sessionId: session.sessionId,
       conversation: session.conversation,

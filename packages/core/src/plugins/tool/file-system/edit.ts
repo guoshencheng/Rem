@@ -1,4 +1,3 @@
-import { Type, type Static } from '@sinclair/typebox';
 import { constants } from 'node:fs';
 import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from 'node:fs/promises';
 import {
@@ -8,38 +7,16 @@ import {
   normalizeToLF,
   restoreLineEndings,
   stripBom,
-  type Edit,
 } from './edit-diff.js';
 import { withFileMutationQueue } from './shared/file-mutation-queue.js';
 import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
-
-const replaceEditSchema = Type.Object(
-  {
-    oldText: Type.String({
-      description:
-        'Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.',
-    }),
-    newText: Type.String({ description: 'Replacement text for this targeted edit.' }),
-  },
-  { additionalProperties: false },
-);
-
-const editSchema = Type.Object(
-  {
-    path: Type.String({ description: 'Path to the file to edit (relative or absolute)' }),
-    edits: Type.Array(replaceEditSchema, {
-      description:
-        'One or more targeted replacements. Each edit is matched against the original file, not incrementally.',
-    }),
-  },
-  { additionalProperties: false },
-);
-
-export type EditToolInput = Static<typeof editSchema>;
-
-const EDIT_MISMATCH_MESSAGE = 'Could not find the exact text in';
-const EDIT_MISMATCH_HINT_LIMIT = 800;
+import { type EditToolInput, editSchema } from './edit-schemas.js';
+import {
+  EDIT_MISMATCH_MESSAGE,
+  didEditLikelyApply,
+  appendMismatchHint,
+} from './edit-recovery.js';
 
 function prepareEditArguments(input: unknown): EditToolInput {
   if (!input || typeof input !== 'object') {
@@ -57,7 +34,7 @@ function prepareEditArguments(input: unknown): EditToolInput {
 
   if (
     typeof args.oldText === 'string' &&
-typeof args.newText === 'string'
+    typeof args.newText === 'string'
   ) {
     const edits = Array.isArray(args.edits) ? [...args.edits] : [];
     edits.push({ oldText: args.oldText, newText: args.newText });
@@ -65,42 +42,6 @@ typeof args.newText === 'string'
   }
 
   return args as EditToolInput;
-}
-
-function removeExactOccurrences(content: string, needle: string): string {
-  return needle.length > 0 ? content.split(needle).join('') : content;
-}
-
-function didEditLikelyApply(params: {
-  originalContent: string;
-  currentContent: string;
-  edits: Edit[];
-}): boolean {
-  if (params.edits.length === 0) return false;
-  const normalizedOriginal = normalizeToLF(params.originalContent);
-  const normalizedCurrent = normalizeToLF(params.currentContent);
-  if (normalizedOriginal === normalizedCurrent) return false;
-
-  let withoutInsertedNewText = normalizedCurrent;
-  for (const edit of params.edits) {
-    const normalizedNew = normalizeToLF(edit.newText);
-    if (normalizedNew.length > 0 && !normalizedCurrent.includes(normalizedNew)) return false;
-    withoutInsertedNewText = removeExactOccurrences(withoutInsertedNewText, normalizedNew);
-  }
-
-  return params.edits.every((edit) => !withoutInsertedNewText.includes(normalizeToLF(edit.oldText)));
-}
-
-function appendMismatchHint(error: Error, currentContent: string): Error {
-  const snippet =
-    currentContent.length <= EDIT_MISMATCH_HINT_LIMIT
-      ? currentContent
-      : `${currentContent.slice(0, EDIT_MISMATCH_HINT_LIMIT)}\n... (truncated)`;
-  const enhanced = new Error(`${error.message}\nCurrent file contents:\n${snippet}`, {
-    cause: error,
-  });
-  enhanced.stack = error.stack;
-  return enhanced;
 }
 
 export function createEditToolDefinition(): ToolDefinition<typeof editSchema> {

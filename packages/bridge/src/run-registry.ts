@@ -1,24 +1,32 @@
-const runs = new Map<string, AbortController>();
+const globalKey = Symbol.for('rem.run-registry');
 
-export const runRegistry = {
-  has(sessionId: string): boolean {
-    return runs.has(sessionId);
-  },
+function createRunRegistry() {
+  const runs = new Map<string, AbortController>();
 
-  register(sessionId: string, controller: AbortController): void {
-    runs.set(sessionId, controller);
-  },
+  return {
+    has(sessionId: string): boolean {
+      return runs.has(sessionId);
+    },
 
-  abort(sessionId: string): boolean {
-    const controller = runs.get(sessionId);
-    if (controller) {
-      controller.abort();
-      return true;
-    }
-    return false;
-  },
+    register(sessionId: string, controller: AbortController): void {
+      runs.set(sessionId, controller);
+    },
 
-  remove(sessionId: string): void {
-    runs.delete(sessionId);
-  },
-};
+    abort(sessionId: string): boolean {
+      const controller = runs.get(sessionId);
+      if (controller) {
+        controller.abort();
+        return true;
+      }
+      return false;
+    },
+
+    remove(sessionId: string): void {
+      runs.delete(sessionId);
+    },
+  };
+}
+
+export const runRegistry: ReturnType<typeof createRunRegistry> =
+  (globalThis as Record<symbol, ReturnType<typeof createRunRegistry>>)[globalKey]
+  ?? ((globalThis as Record<symbol, ReturnType<typeof createRunRegistry>>)[globalKey] = createRunRegistry());

@@ -22,4 +22,7 @@ export class BroadcastBus {
   }
 }
 
-export const bus = new BroadcastBus();
+const globalKey = Symbol.for('rem.broadcast-bus');
+
+export const bus: BroadcastBus = (globalThis as Record<symbol, BroadcastBus>)[globalKey]
+  ?? ((globalThis as Record<symbol, BroadcastBus>)[globalKey] = new BroadcastBus());

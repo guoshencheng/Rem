@@ -1,5 +1,5 @@
 export { parseSSEStream, parseAgentStreamEvent } from './sse.js';
-export { createSSEResponse } from './response.js';
+export { createSSEResponse, createBusSSEResponse } from './response.js';
 export type {
   RunRequest,
   SessionSummary,
@@ -7,6 +7,7 @@ export type {
   ResetRequest,
   ServerStreamEvent,
   UIMessage,
+  BusEvent,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
 export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';
@@ -20,3 +21,4 @@ export { AgentService } from './agent.js';
 export type { RunParams, RunResult, InterruptResult, ResetResult } from './agent.js';
 export { SessionService } from './sessions.js';
 export { ServiceError } from './errors.js';
+export { BroadcastBus, bus } from './broadcast-bus.js';

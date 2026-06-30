@@ -1,4 +1,5 @@
 import type { AgentStreamChunk } from 'rem-agent-core';
+import type { BusEvent } from './types.js';
 
 export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): Response {
   const encoder = new TextEncoder();
@@ -17,6 +18,44 @@ export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): 
       } finally {
         controller.close();
       }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
+
+export function createBusSSEResponse(busStream: AsyncIterable<BusEvent>): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const keepAlive = setInterval(() => {
+          controller.enqueue(encoder.encode(':heartbeat\n\n'));
+        }, 15000);
+
+        for await (const event of busStream) {
+          controller.enqueue(encoder.encode(`event: bus\ndata: ${JSON.stringify(event)}\n\n`));
+        }
+
+        clearInterval(keepAlive);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Stream error';
+        const name = err instanceof Error ? err.name : 'Error';
+        controller.enqueue(
+          encoder.encode(`event: error\ndata: ${JSON.stringify({ type: 'error', error: { name, message } })}\n\n`),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+    cancel() {
+      // stream closed by client
     },
   });
   return new Response(stream, {

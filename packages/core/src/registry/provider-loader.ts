@@ -1,5 +1,3 @@
-import { isAbsolute, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type {
   ProviderLoader,
   ProviderLoaderContext,
@@ -37,52 +35,9 @@ export class DefaultProviderLoader implements ProviderLoader {
       return mod.createProvider(options);
     }
 
-    const modulePath = this.resolveModulePath(name, kind, typeof builtinResult === 'string' ? builtinResult : undefined);
-    const mod = await this.importModule<T>(modulePath);
-
-    const options = descriptor.options ?? mod.getDefaultOptions?.(ctx);
-    return mod.createProvider(options);
-  }
-
-  private resolveModulePath(nameOrPath: string, kind: string, builtinPath?: string): string {
-    if (builtinPath) {
-      return builtinPath;
-    }
-
-    if (nameOrPath.startsWith('file://')) {
-      return fileURLToPath(nameOrPath);
-    }
-
-    if (isAbsolute(nameOrPath)) {
-      return nameOrPath;
-    }
-
-    if (nameOrPath.startsWith('./') || nameOrPath.startsWith('../')) {
-      return resolve(process.cwd(), nameOrPath);
-    }
-
     throw new Error(
-      `Unknown provider "${nameOrPath}" for kind "${kind}". ` +
-        `Use an absolute path, a relative path, or a registered builtin name.`,
-    );
-  }
-
-  private async importModule<T>(path: string): Promise<ProviderModule<T>> {
-    const mod = (await import(path)) as Record<string, unknown>;
-
-    if (typeof mod.createProvider === 'function') {
-      return mod as unknown as ProviderModule<T>;
-    }
-
-    const Constructor = mod.default;
-    if (typeof Constructor === 'function') {
-      return {
-        createProvider: (options: unknown): T => new (Constructor as new (options: unknown) => T)(options),
-      };
-    }
-
-    throw new Error(
-      `Provider module "${path}" must export a "createProvider" function or a default class.`,
+      `Provider "${name}" for kind "${kind}" is not a recognized builtin. ` +
+        `Use a ProviderReference instance or register it as a builtin.`,
     );
   }
 }

@@ -1,4 +1,5 @@
 import type { AgentStreamChunk } from 'rem-agent-core';
+import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
   RunRequest,
@@ -82,5 +83,25 @@ export class AgentRemoteService implements IAgentService {
     }
     const data = (await response.json()) as { messages?: UIMessage[] };
     return data.messages ?? [];
+  }
+
+  async *stream(): AsyncIterable<BusEvent> {
+    const response = await fetch(`${this.baseUrl}/api/agent/stream`);
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
+    }
+
+    const reader = response.body.getReader();
+    const events = parseSSEStream(reader);
+
+    for await (const event of events) {
+      if (event.event === 'bus' && event.data) {
+        try {
+          yield JSON.parse(event.data) as BusEvent;
+        } catch {
+          // skip malformed events
+        }
+      }
+    }
   }
 }

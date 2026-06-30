@@ -29,3 +29,9 @@ export interface SessionSummary {
 }
 
 export type ServerStreamEvent = AgentStreamChunk;
+
+export type BusEvent =
+  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamChunk }
+  | { workspace: string; sessionId: string; type: 'session-start' }
+  | { workspace: string; sessionId: string; type: 'session-end' }
+  | { workspace: string; sessionId: string; type: 'session-error'; error: string };

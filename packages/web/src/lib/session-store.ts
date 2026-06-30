@@ -1,8 +1,9 @@
 'use client';
 
 import { create } from 'zustand';
-import type { SessionSummary, UIMessage, AgentStreamChunk, ContentPart } from './types';
-import { reduceStreamChunk, type StreamPart } from 'rem-agent-bridge/client';
+import type { SessionSummary, UIMessage, AgentStreamChunk } from './types';
+import type { ContentPart } from 'rem-agent-bridge';
+import { reduceStreamChunk } from 'rem-agent-bridge/client';
 
 async function listSessions(q?: string): Promise<SessionSummary[]> {
   const params = q ? `?q=${encodeURIComponent(q)}` : '';
@@ -69,7 +70,7 @@ export const useSessionStore = create<{
   messages: UIMessage[];
   streaming: boolean;
   pendingContent: string | null;
-  streamParts: StreamPart[];
+  streamParts: ContentPart[];
   initialized: boolean;
   error: string | null;
   serverError: boolean;
@@ -151,17 +152,13 @@ export const useSessionStore = create<{
     const userMsg: UIMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: text,
-      toolCalls: [],
-      parts: [{ type: 'text', text } as ContentPart],
+      parts: [{ type: 'text', text }],
       status: 'done',
     };
     const assistantMsg: UIMessage = {
       id: crypto.randomUUID(),
       role: 'assistant',
-      content: '',
-      toolCalls: [],
-      parts: [] as ContentPart[],
+      parts: [],
       status: 'pending',
     };
     assistantMessageId = assistantMsg.id;
@@ -191,39 +188,30 @@ export const useSessionStore = create<{
 
       const newParts = reduceStreamChunk(s.streamParts, chunk);
 
+      const mergedParts: ContentPart[] = newParts
+        .filter((p) => p.type !== 'tool-result')
+        .map((p) => {
+          if (p.type !== 'tool-call') return p;
+          const result = newParts.find(
+            (r) => r.type === 'tool-result' && r.toolCallId === p.toolCallId,
+          );
+          if (!result || result.type !== 'tool-result') return p;
+          return {
+            ...p,
+            result: {
+              success: !result.error,
+              output: result.output ?? '',
+              error: result.error,
+              durationMs: 0,
+            },
+          } as ContentPart;
+        });
+
       const msgs = s.messages.map((m) => {
         if (m.id !== assistantMessageId) return m;
         return {
           ...m,
-          content: newParts.filter((p) => p.type === 'text').map((p) => p.content).join(''),
-          reasoning: newParts.filter((p) => p.type === 'reasoning').map((p) => p.content).join(''),
-          parts: newParts.map((p) => {
-            if (p.type === 'text') return { type: 'text', text: p.content } as ContentPart;
-            if (p.type === 'reasoning') return { type: 'reasoning', text: p.content } as ContentPart;
-            return {
-              type: 'tool-call',
-              toolCallId: p.toolCallId ?? '',
-              toolName: p.toolName ?? '',
-              arguments: (p.input as Record<string, unknown>) ?? {},
-              result: p.status ? {
-                success: p.status === 'success',
-                output: p.output ?? '',
-                error: p.error,
-                durationMs: p.duration ?? 0,
-              } : undefined,
-            } as ContentPart;
-          }),
-          toolCalls: newParts.filter((p) => p.type === 'tool').map((p) => ({
-            id: p.toolCallId ?? '',
-            name: p.toolName ?? '',
-            arguments: (p.input as Record<string, unknown>) ?? {},
-            result: p.status ? {
-              success: p.status === 'success',
-              output: p.output ?? '',
-              error: p.error,
-              durationMs: p.duration ?? 0,
-            } : undefined,
-          })),
+          parts: mergedParts,
           status: chunk.type === 'finish' ? 'done' as const : chunk.type === 'error' ? 'error' as const : 'streaming' as const,
           error: chunk.type === 'error' ? String(chunk.error) : undefined,
         };

@@ -8,8 +8,8 @@ import type { UIMessage } from '@/lib/types';
 
 export function MessageList() {
   const messages = useSessionStore((s) => s.messages);
-  const streamContent = messages.map((m) => m.content).join('');
-  const streamReasoning = messages.map((m) => m.reasoning).join('');
+  const streamContent = messages.map((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.text).join('')).join('');
+  const streamReasoning = messages.map((m) => m.parts.filter((p) => p.type === 'reasoning').map((p) => p.text).join('')).join('');
   const virtRef = useRef<VirtuosoHandle>(null);
 
   useEffect(() => {

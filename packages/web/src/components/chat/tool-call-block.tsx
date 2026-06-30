@@ -3,9 +3,16 @@
 import { useState } from 'react';
 import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ServerMessage } from 'rem-agent-bridge/client';
+import type { ContentPart } from 'rem-agent-bridge';
 
-type ToolCall = ServerMessage['toolCalls'][number];
+type ToolCall = Extract<ContentPart, { type: 'tool-call' }> & {
+  result?: {
+    success: boolean;
+    output: string;
+    error?: string;
+    durationMs: number;
+  };
+};
 
 interface ToolCallBlockProps {
   tool: ToolCall;
@@ -39,7 +46,7 @@ export function ToolCallBlock({ tool }: ToolCallBlockProps) {
           className={cn('transition-transform flex-shrink-0', open && 'rotate-90')}
         />
         <Wrench size={12} className="flex-shrink-0" />
-        <span className="font-mono truncate">{tool.name}</span>
+        <span className="font-mono truncate">{tool.toolName}</span>
         {statusIcon}
         <span className="truncate text-tx3 flex-1">{statusText}</span>
       </button>

@@ -1,10 +1,8 @@
-import type { AgentStreamChunk, ContentPart, ServerMessage, SessionSummary as CoreSessionSummary } from 'rem-agent-bridge';
+import type { AgentStreamChunk, UIMessage, SessionSummary as CoreSessionSummary } from 'rem-agent-bridge';
 
 export interface SessionSummary extends CoreSessionSummary {
   pinned?: boolean;
 }
-
-export type UIMessage = ServerMessage;
 
 export function isSSETextDelta(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'text-delta' } {
   return c.type === 'text-delta';
@@ -34,4 +32,4 @@ export function isSSEError(c: AgentStreamChunk): c is AgentStreamChunk & { type:
   return c.type === 'error';
 }
 
-export type { AgentStreamChunk, ContentPart };
+export type { AgentStreamChunk, UIMessage };

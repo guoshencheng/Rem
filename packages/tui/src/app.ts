@@ -3,60 +3,48 @@ import {
   BoxRenderable,
   TextRenderable,
   InputRenderable,
-  ScrollBoxRenderable,
-  SelectRenderable,
-  SelectRenderableEvents,
-  TextAttributes,
-  InputRenderableEvents,
 } from "@opentui/core";
 import type { KeyEvent, CliRenderer } from "@opentui/core";
-import type { AgentStreamChunk, SessionSummary } from "rem-agent-bridge";
-import { AgentRemoteService } from "rem-agent-bridge";
+import type { AgentStreamChunk, SessionSummary, IAgentService } from "rem-agent-bridge";
+import { reduceStreamChunk } from "rem-agent-bridge";
+import type { StreamPart } from "rem-agent-bridge";
 import { createReasoningBlock } from "./message/reasoning-block.js";
 import type { ReasoningPartState, ReasoningBlockHandle } from "./message/reasoning-block.js";
 import { createToolBlock } from "./message/function-tool-block.js";
 import type { ToolPartState, ToolBlockHandle } from "./message/function-tool-block.js";
-
-// ---- helpers ----
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-// ---- TUIApp ----
+import { buildUI } from "./ui-layout.js";
+import { showPicker, hidePicker, switchSession } from "./session-picker.js";
+import { handleNewSession, handleResumeCommand, generateId } from "./commands.js";
 
 export interface TUIAppOptions {
-  serverUrl: string;
+  agentService: IAgentService;
   sessionId?: string;
   maxTurns?: number;
 }
 
 export class TUIApp {
   private renderer!: CliRenderer;
-  private client: AgentRemoteService;
+  private agentService: IAgentService;
   private sessionId: string;
   private maxTurns: number;
   private currentTurn = 0;
   private running = false;
 
-  // UI refs
   private chatBox!: BoxRenderable;
   private statusText!: TextRenderable;
   private inputNode!: InputRenderable;
   private overlayBox!: BoxRenderable;
 
-  // Collapse state
   private thinkingCollapsed = true;
   private toolsCollapsed = true;
 
-  // Stream tracking
-  private streamParts = new Map<string, ToolPartState | ReasoningPartState>();
+  private _streamParts: StreamPart[] = [];
   private streamContainer: BoxRenderable | null = null;
   private streamBlocks = new Map<string, ReasoningBlockHandle | ToolBlockHandle>();
   private streamTextRefs = new Map<string, TextRenderable>();
 
   constructor(options: TUIAppOptions) {
-    this.client = new AgentRemoteService(options.serverUrl);
+    this.agentService = options.agentService;
     this.sessionId = options.sessionId ?? generateId();
     this.maxTurns = options.maxTurns ?? 60;
   }
@@ -68,7 +56,14 @@ export class TUIApp {
       targetFps: 30,
     });
 
-    this.buildUI();
+    const layout = buildUI(this.renderer);
+    this.statusText = layout.statusText;
+    this.inputNode = layout.inputNode;
+    this.overlayBox = layout.overlayBox;
+    this.chatBox = layout.chatBox;
+
+    this.bindKeys();
+    this.updateStatus();
   }
 
   start(): void {
@@ -77,63 +72,6 @@ export class TUIApp {
 
   stop(): void {
     this.renderer.destroy();
-  }
-
-  // ---- UI construction ----
-
-  private buildUI(): void {
-    // Status bar
-    this.statusText = new TextRenderable(this.renderer, {
-      content: this.buildStatusText(),
-      attributes: TextAttributes.DIM,
-    });
-
-    // Input
-    this.inputNode = new InputRenderable(this.renderer, {
-      placeholder: "Type a message...",
-      width: "100%",
-    });
-
-    // Overlay (hidden initially)
-    this.overlayBox = new BoxRenderable(this.renderer, {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      width: "100%",
-      height: "100%",
-      zIndex: 100,
-      visible: false,
-    });
-
-    // Chat area
-    this.chatBox = new BoxRenderable(this.renderer, {
-      flexDirection: "column",
-      gap: 1,
-    });
-
-    const scrollBox = new ScrollBoxRenderable(this.renderer, {
-      flexGrow: 1,
-      stickyStart: "bottom",
-    });
-    scrollBox.add(this.chatBox);
-
-    // Root layout
-    const root = new BoxRenderable(this.renderer, {
-      flexDirection: "column",
-      height: "100%",
-    });
-    root.add(scrollBox);
-    root.add(this.statusText);
-
-    const inputRow = new BoxRenderable(this.renderer, { marginTop: 1 });
-    inputRow.add(this.inputNode);
-    root.add(inputRow);
-
-    root.add(this.overlayBox);
-
-    this.renderer.root.add(root);
-
-    this.bindKeys();
   }
 
   private buildStatusText(): string {
@@ -159,17 +97,24 @@ export class TUIApp {
           block.setCollapsed(this.thinkingCollapsed);
         }
       }
+      if (key.name === "return" || key.name === "enter") {
+        const value: string = (this.inputNode as unknown as { value: string }).value ?? "";
+        const trimmed = value.trim();
+        if (trimmed) {
+          this.handleSubmit(trimmed).catch((err) => {
+            process.stderr.write(`[TUI] submit error: ${String(err)}\n`);
+          });
+        }
+      }
       if (key.name === "escape") {
         if (this.overlayBox.visible) {
-          this.hidePicker();
+          hidePicker({ overlayBox: this.overlayBox, inputNode: this.inputNode });
         } else if (this.running) {
-          this.client.interrupt(this.sessionId).catch(() => {});
+          this.agentService.interrupt(this.sessionId).catch(() => {});
         }
       }
     });
   }
-
-  // ---- messages ----
 
   private addUserText(text: string): void {
     const box = new BoxRenderable(this.renderer, { id: this.nextMsgId(), padding: 1 });
@@ -186,7 +131,6 @@ export class TUIApp {
   private _chatMsgId = 0;
 
   private clearChat(): void {
-    // Track child counts before clearing
     const count = this._chatMsgId;
     for (let i = 1; i <= count; i++) {
       this.chatBox.remove(`msg-${i}`);
@@ -199,15 +143,27 @@ export class TUIApp {
     return `msg-${this._chatMsgId}`;
   }
 
-  // ---- submit & streaming ----
-
   private async handleSubmit(text: string): Promise<void> {
     if (text === "/new") {
-      await this.handleNewSession();
+      await handleNewSession({
+        agentService: this.agentService,
+        sessionId: this.sessionId,
+        onNewSession: (id: string) => {
+          this.currentTurn = 0;
+          this.running = false;
+          this.sessionId = id;
+        },
+        onClearChat: () => this.clearChat(),
+        onUpdateStatus: () => this.updateStatus(),
+      });
       return;
     }
     if (text === "/resume") {
-      await this.handleResumeCommand();
+      await handleResumeCommand({
+        agentService: this.agentService,
+        onShowPicker: (sessions: SessionSummary[]) => this.showPicker(sessions),
+        onAddAssistantText: (text: string) => this.addAssistantText(text),
+      });
       return;
     }
 
@@ -226,18 +182,13 @@ export class TUIApp {
     this.startStreamMessage();
 
     try {
-      process.stderr.write(`[DEBUG] calling client.run(${this.sessionId}, "${text.slice(0, 20)}")\n`);
-      const stream = await this.client.run(this.sessionId, text);
-      process.stderr.write(`[DEBUG] got stream, iterating...\n`);
+      const stream = await this.agentService.run(this.sessionId, text);
       for await (const chunk of stream) {
-        process.stderr.write(`[DEBUG] chunk: ${chunk.type}\n`);
         this.handleChunk(chunk);
       }
-      process.stderr.write(`[DEBUG] stream ended\n`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[DEBUG] error: ${msg}\n`);
-      if (this.streamContainer && this.streamParts.size === 0) {
+      if (this.streamContainer && this._streamParts.length === 0) {
         this.addAssistantText(`Error: ${msg}`);
       }
       this.endStream();
@@ -246,8 +197,29 @@ export class TUIApp {
     }
   }
 
+  private showPicker(sessions: SessionSummary[]): void {
+    showPicker({
+      renderer: this.renderer,
+      overlayBox: this.overlayBox,
+      sessions,
+      onSelect: (sessionId: string) => {
+        hidePicker({ overlayBox: this.overlayBox, inputNode: this.inputNode });
+        switchSession({
+          agentService: this.agentService,
+          currentSessionId: this.sessionId,
+          onClearChat: () => this.clearChat(),
+          onUpdateStatus: () => this.updateStatus(),
+        }).catch(() => {});
+        this.sessionId = sessionId;
+        this.currentTurn = 0;
+        this.running = false;
+        this.updateStatus();
+      },
+    });
+  }
+
   private startStreamMessage(): void {
-    this.streamParts.clear();
+    this._streamParts = [];
     this.streamBlocks.clear();
     this.streamTextRefs.clear();
     this.streamContainer = new BoxRenderable(this.renderer, {
@@ -259,7 +231,7 @@ export class TUIApp {
 
   private endStream(): void {
     this.streamContainer = null;
-    this.streamParts.clear();
+    this._streamParts = [];
     this.streamBlocks.clear();
     this.streamTextRefs.clear();
   }
@@ -267,11 +239,9 @@ export class TUIApp {
   private handleChunk(chunk: AgentStreamChunk): void {
     if (!this.streamContainer) return;
 
-    switch (chunk.type) {
-      case "text-start":
-        this.streamParts.set(chunk.partId, {} as ToolPartState);
-        break;
+    this._streamParts = reduceStreamChunk(this._streamParts, chunk);
 
+    switch (chunk.type) {
       case "text-delta": {
         const existing = this.streamTextRefs.get(chunk.partId);
         if (existing) {
@@ -287,11 +257,10 @@ export class TUIApp {
       }
 
       case "reasoning-start": {
-        const part: ReasoningPartState = {
+        const rp: ReasoningPartState = {
           type: "reasoning", content: "", startTime: Date.now(),
         };
-        this.streamParts.set(chunk.partId, part);
-        const block = createReasoningBlock(this.renderer, part, this.thinkingCollapsed);
+        const block = createReasoningBlock(this.renderer, rp, this.thinkingCollapsed);
         block.container.id = `block-${chunk.partId}`;
         this.streamBlocks.set(chunk.partId, block);
         this.streamContainer.add(block.container);
@@ -299,25 +268,17 @@ export class TUIApp {
       }
 
       case "reasoning-delta": {
-        const part = this.streamParts.get(chunk.partId);
-        if (part && part.type === "reasoning") {
-          part.content += chunk.text;
-          const block = this.streamBlocks.get(chunk.partId);
-          if (block) {
-            block.setCollapsed(this.thinkingCollapsed);
-          }
+        const block = this.streamBlocks.get(chunk.partId);
+        if (block) {
+          block.setCollapsed(this.thinkingCollapsed);
         }
         break;
       }
 
       case "reasoning-finish": {
-        const part = this.streamParts.get(chunk.partId);
-        if (part && part.type === "reasoning") {
-          part.duration = Date.now() - part.startTime;
-          const block = this.streamBlocks.get(chunk.partId);
-          if (block) {
-            block.setCollapsed(this.thinkingCollapsed);
-          }
+        const block = this.streamBlocks.get(chunk.partId);
+        if (block) {
+          block.setCollapsed(this.thinkingCollapsed);
         }
         break;
       }
@@ -331,7 +292,6 @@ export class TUIApp {
           status: "pending",
           startTime: Date.now(),
         };
-        this.streamParts.set(chunk.partId, part);
         const oldBlock = this.streamBlocks.get(chunk.partId);
         if (oldBlock) {
           this.streamContainer.remove(`block-${chunk.partId}`);
@@ -344,31 +304,19 @@ export class TUIApp {
       }
 
       case "tool-result-start": {
-        const part = this.streamParts.get(chunk.partId);
-        if (part && part.type === "tool") {
-          part.status = "running";
-          const block = this.streamBlocks.get(chunk.partId);
-          if (block) block.setCollapsed(this.toolsCollapsed);
-        }
+        const block = this.streamBlocks.get(chunk.partId);
+        if (block) block.setCollapsed(this.toolsCollapsed);
         break;
       }
 
       case "tool-result": {
-        const tr = chunk as { output: string; error?: string };
-        const part = this.streamParts.get(chunk.partId);
-        if (part && part.type === "tool") {
-          part.status = tr.error ? "error" : "success";
-          part.output = tr.output;
-          part.error = tr.error;
-          part.endTime = Date.now();
-          const block = this.streamBlocks.get(chunk.partId);
-          if (block) block.setCollapsed(this.toolsCollapsed);
-        }
+        const block = this.streamBlocks.get(chunk.partId);
+        if (block) block.setCollapsed(this.toolsCollapsed);
         break;
       }
 
       case "finish": {
-        if (this.streamParts.size === 0 && chunk.output.content) {
+        if (this._streamParts.length === 0 && chunk.output.content) {
           this.addAssistantText(chunk.output.content);
         }
         this.endStream();
@@ -379,7 +327,7 @@ export class TUIApp {
 
       case "error": {
         const msg = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
-        if (this.streamParts.size === 0) {
+        if (this._streamParts.length === 0) {
           this.addAssistantText(`Error: ${msg}`);
         }
         this.endStream();
@@ -388,84 +336,5 @@ export class TUIApp {
         break;
       }
     }
-  }
-
-  // ---- commands ----
-
-  private async handleNewSession(): Promise<void> {
-    this.client.interrupt(this.sessionId).catch(() => {});
-    this.currentTurn = 0;
-    this.running = false;
-    this.sessionId = generateId();
-    this.clearChat();
-    this.updateStatus();
-  }
-
-  private async handleResumeCommand(): Promise<void> {
-    const sessions = await this.client.listSessions();
-    if (sessions.length === 0) {
-      this.addAssistantText("No sessions found.");
-      return;
-    }
-    this.showPicker(sessions);
-  }
-
-  private showPicker(sessions: SessionSummary[]): void {
-    const options = sessions.map((s) => ({
-      name: s.title
-        ? `${s.title} (${s.sessionId.slice(0, 8)})`
-        : s.sessionId.slice(0, 8),
-      description: `${s.messageCount} messages`,
-      value: s.sessionId,
-    }));
-
-    // Clear previous overlay content
-    this.overlayBox.remove("picker-content");
-    this.overlayBox.remove("picker-select");
-
-    const selectNode = new SelectRenderable(this.renderer, { id: "picker-select", options });
-    selectNode.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: { value: string } | null) => {
-      if (option) {
-        this.hidePicker();
-        this.switchSession(option.value);
-      }
-    });
-
-    const pickerBox = new BoxRenderable(this.renderer, {
-      id: "picker-content",
-      position: "absolute",
-      left: "25%",
-      top: "25%",
-      width: "50%",
-      height: "50%",
-      borderStyle: "rounded",
-      padding: 2,
-      flexDirection: "column",
-    });
-    pickerBox.add(new TextRenderable(this.renderer, {
-      content: "Select Session (Esc to cancel)",
-      fg: "#FFFF00",
-    }));
-    const selectWrapper = new BoxRenderable(this.renderer, { flexGrow: 1 });
-    selectWrapper.add(selectNode);
-    pickerBox.add(selectWrapper);
-
-    this.overlayBox.add(pickerBox);
-    this.overlayBox.visible = true;
-    selectNode.focus();
-  }
-
-  private hidePicker(): void {
-    this.overlayBox.visible = false;
-    this.inputNode.focus();
-  }
-
-  private async switchSession(sessionId: string): Promise<void> {
-    this.client.interrupt(this.sessionId).catch(() => {});
-    this.sessionId = sessionId;
-    this.currentTurn = 0;
-    this.running = false;
-    this.clearChat();
-    this.updateStatus();
   }
 }

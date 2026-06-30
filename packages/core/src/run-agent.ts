@@ -15,6 +15,7 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { TitleProvider } from './sdk/title-provider.js';
+import { generateId } from './shared/generate-id.js';
 
 export interface RunAgentParams {
   input: UserInput;
@@ -66,7 +67,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     }
 
-    const userMessage: ModelMessage = { role: 'user', content: [{ type: 'text', text: params.input.content }] };
+    const userMessage: ModelMessage = { id: generateId(), role: 'user', content: [{ type: 'text', text: params.input.content }] };
     state.addMessage(userMessage);
     await sessionProvider.save(state.session);
 

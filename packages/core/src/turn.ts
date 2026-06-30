@@ -5,6 +5,7 @@ import { AgentState } from './state.js';
 import { IterationBudget } from './budget.js';
 import type { LoopStrategy, LoopContext, LoopResult, TurnHooks } from './loop-strategy.js';
 import { AgentStreamController } from './stream/agent-stream.js';
+import { generateId } from './shared/generate-id.js';
 
 export interface TurnContext {
   input: UserInput;
@@ -46,7 +47,7 @@ export class ReactTurnRunner implements TurnRunner {
     };
     const state = new AgentState(session, ctx.budget);
 
-    const assistantMsg: ModelMessage = { role: 'assistant', content: [] };
+    const assistantMsg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
     state.addMessage(assistantMsg);
     hooks.onMessageAdded(assistantMsg);
 

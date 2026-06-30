@@ -6,6 +6,7 @@ import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
+import { generateId } from './shared/generate-id.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
 import { resolveProvider } from './llm/api-registry.js';
 import type { StreamChunk } from './llm/types.js';
@@ -140,6 +141,7 @@ export class ReactLoop implements LoopStrategy {
       for (const tc of inferResult.toolCalls) {
         const tr = toolResults.find((r: ToolResult) => r.toolCallId === tc.toolCallId);
     const toolMsg: ModelMessage = {
+      id: generateId(),
       role: 'tool',
       content: [{
         type: 'tool-result',
@@ -221,7 +223,7 @@ export class ReactLoop implements LoopStrategy {
   private getOrCreateAssistantMessage(state: AgentState): ModelMessage {
     const last = state.conversation[state.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
-    const msg: ModelMessage = { role: 'assistant', content: [] };
+    const msg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
     state.addMessage(msg);
     return msg;
   }

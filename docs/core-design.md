@@ -1,8 +1,13 @@
 # Core 层详细设计
 
-> 对应架构大纲中的 Core 层，包含 Harness、Loop、State、Events 四个模块。
+> 状态：📦 历史参考（2026-06-10 初稿，2026-06-30 标注）
 >
-> 状态：🔄 设计中（2026-06-10）
+> **本文档描述早期设计阶段的概念模型（AgentHarness、ModelClient 等）。实际实现已偏离此设计。**
+>
+> 当前实现文档见 `docs/architecture.md`（Core 层实际架构）和 `docs/module-reference.md`（模块级别参考）。
+> 重构方向见 `docs/target-architecture.md`。
+>
+> 下文保留原始设计分析（Q1-Q4 设计问题讨论）作为决策历史，但代码接口示例不代表当前实现。
 
 ---
 

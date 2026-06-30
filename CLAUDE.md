@@ -11,8 +11,10 @@
 
 ```text
 packages/
-  core/   — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
-  tui/    — rem-agent-tui：基于 core 的终端 UI 组件
+  core/    — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
+  bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService
+  web/     — rem-agent-web：Next.js 15 + React 19 聊天 UI
+  tui/     — rem-agent-tui：基于 @opentui/core 的终端 UI 组件
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
@@ -68,6 +70,9 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 | 主题 | 文件 |
 |---|---|
 | 系统架构 | `docs/architecture.md` |
+| 预期架构（重构目标） | `docs/target-architecture.md` |
+| 模块边界审查 | `docs/boundary-review.md` |
+| 模块级参考 | `docs/module-reference.md` |
 | Core 层设计 | `docs/core-design.md` |
 | Core API 与事件 | `packages/core/README.md` |
 

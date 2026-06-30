@@ -6,7 +6,6 @@ import type { SessionProvider } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type { SessionSummary, UIMessage } from './types.js';
-import { buildPartsFromContent } from './content-builder.js';
 
 export interface RunParams {
   sessionId: string;
@@ -80,15 +79,12 @@ export class AgentService implements IAgentService {
 
     return session.conversation
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => {
-        const parts = buildPartsFromContent(msg.content);
-        return {
-          id: crypto.randomUUID(),
-          role: msg.role as 'user' | 'assistant',
-          parts,
-          status: 'done' as const,
-        };
-      });
+      .map((msg) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        parts: msg.content,
+        status: 'done' as const,
+      }));
   }
 
   async listSessions(): Promise<SessionSummary[]> {

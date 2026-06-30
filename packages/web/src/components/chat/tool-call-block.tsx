@@ -5,23 +5,15 @@ import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import type { ContentPart } from 'rem-agent-bridge';
 
-type ToolCall = Extract<ContentPart, { type: 'tool-call' }> & {
-  result?: {
-    success: boolean;
-    output: string;
-    error?: string;
-    durationMs: number;
-  };
-};
-
 interface ToolCallBlockProps {
-  tool: ToolCall;
+  tool: Extract<ContentPart, { type: 'tool-call' }>;
+  result?: Extract<ContentPart, { type: 'tool-result' }>;
 }
 
-export function ToolCallBlock({ tool }: ToolCallBlockProps) {
+export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false);
-  const hasResult = !!tool.result;
-  const isError = !!tool.result?.error;
+  const hasResult = !!result;
+  const isError = !!result?.error;
   const isExecuting = !hasResult;
 
   const statusIcon = isExecuting
@@ -30,7 +22,7 @@ export function ToolCallBlock({ tool }: ToolCallBlockProps) {
       ? <XCircle size={14} className="text-err" />
       : <CheckCircle2 size={14} className="text-ok" />;
 
-  const statusText = isExecuting ? '执行中...' : isError ? '执行失败' : tool.result?.output?.slice(0, 60) ?? '完成';
+  const statusText = isExecuting ? '执行中...' : isError ? '执行失败' : result?.output?.slice(0, 60) ?? '完成';
 
   return (
     <div className="mb-2">
@@ -68,7 +60,7 @@ export function ToolCallBlock({ tool }: ToolCallBlockProps) {
                   isError ? 'text-err' : 'text-tx2',
                 )}
               >
-                {isError ? tool.result!.error : tool.result!.output}
+                {isError ? result!.error : result!.output}
               </pre>
             </>
           )}

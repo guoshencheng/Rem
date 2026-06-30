@@ -188,30 +188,11 @@ export const useSessionStore = create<{
 
       const newParts = reduceStreamChunk(s.streamParts, chunk);
 
-      const mergedParts: ContentPart[] = newParts
-        .filter((p) => p.type !== 'tool-result')
-        .map((p) => {
-          if (p.type !== 'tool-call') return p;
-          const result = newParts.find(
-            (r) => r.type === 'tool-result' && r.toolCallId === p.toolCallId,
-          );
-          if (!result || result.type !== 'tool-result') return p;
-          return {
-            ...p,
-            result: {
-              success: !result.error,
-              output: result.output ?? '',
-              error: result.error,
-              durationMs: 0,
-            },
-          } as ContentPart;
-        });
-
       const msgs = s.messages.map((m) => {
         if (m.id !== assistantMessageId) return m;
         return {
           ...m,
-          parts: mergedParts,
+          parts: newParts,
           status: chunk.type === 'finish' ? 'done' as const : chunk.type === 'error' ? 'error' as const : 'streaming' as const,
           error: chunk.type === 'error' ? String(chunk.error) : undefined,
         };

@@ -7,6 +7,7 @@ export type ContentPart =
 export type MessageContent = ContentPart[];
 
 export interface ModelMessage {
+  id: string;
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: MessageContent;
 }

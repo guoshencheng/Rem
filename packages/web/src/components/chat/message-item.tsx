@@ -91,7 +91,14 @@ export function MessageItem({ message }: MessageItemProps) {
             return <ReasoningBlock key={i} text={part.text} isStreaming={message.status === 'streaming'} />;
           }
           if (part.type === 'tool-call') {
-            return <ToolCallBlock key={i} tool={part} />;
+            const result = message.parts.find(
+              (p): p is Extract<typeof part, { type: 'tool-result' }> =>
+                p.type === 'tool-result' && p.toolCallId === part.toolCallId,
+            );
+            return <ToolCallBlock key={i} tool={part} result={result} />;
+          }
+          if (part.type === 'tool-result') {
+            return null;
           }
           if (part.type === 'text' && part.text) {
             return (

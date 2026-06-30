@@ -17,6 +17,9 @@ export function getRemAgentDir(): string {
   if (envDir) {
     return resolveTilde(envDir);
   }
+  if (process.env.NODE_ENV === 'development') {
+    return join(process.cwd(), DEFAULT_REM_AGENT_DIR_NAME)
+  }
   return join(homedir(), DEFAULT_REM_AGENT_DIR_NAME);
 }
 

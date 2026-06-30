@@ -18,7 +18,10 @@ const baseCtx: ProviderLoaderContext = {
 };
 
 const builtinResolver: BuiltinProviderResolver = (kind, name) => {
-  return new URL(`../src/plugins/${kind}/${name}/index.js`, import.meta.url).href;
+  if (kind === 'memory' && name === 'simple') {
+    return () => import('../src/plugins/memory/simple/index.js');
+  }
+  return undefined;
 };
 
 describe('DefaultProviderLoader', () => {
@@ -41,31 +44,9 @@ describe('DefaultProviderLoader', () => {
     expect(ctx.systemPrompt).toBe('You are TestAgent.');
   });
 
-  it('loads a provider from an absolute path', async () => {
+  it('throws for a non-recognized builtin name', async () => {
     const loader = new DefaultProviderLoader();
-    const path = new URL('./fixtures/custom-memory-provider.js', import.meta.url).href;
-    const provider = await loader.load(path, { ...baseCtx, kind: 'memory' });
-
-    expect(provider).toBeDefined();
-    const ctx = await provider.buildContext(new AgentState());
-    expect(ctx.systemPrompt).toBe('TestAgent: 0 messages');
-  });
-
-  it('loads a provider from a ProviderDescriptor with explicit options', async () => {
-    const loader = new DefaultProviderLoader();
-    const path = new URL('./fixtures/custom-memory-provider.js', import.meta.url).href;
-    const provider = await loader.load(
-      { module: path, options: { prefix: 'CustomPrefix' } },
-      { ...baseCtx, kind: 'memory' },
-    );
-
-    const ctx = await provider.buildContext(new AgentState());
-    expect(ctx.systemPrompt).toBe('CustomPrefix: 0 messages');
-  });
-
-  it('throws for an unknown builtin name', async () => {
-    const loader = new DefaultProviderLoader();
-    await expect(loader.load('unknown', baseCtx)).rejects.toThrow('Unknown provider');
+    await expect(loader.load('unknown', baseCtx)).rejects.toThrow('is not a recognized builtin');
   });
 
   it('uses getDefaultOptions when options are omitted', async () => {

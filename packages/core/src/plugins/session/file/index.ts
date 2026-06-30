@@ -30,6 +30,7 @@ export class FileSessionProvider extends BaseSessionProvider {
     }
 
     const summaries: SessionSummary[] = [];
+    console.log(entries, this.dir);
     for (const entry of entries) {
       if (!entry.endsWith('.json')) continue;
       const id = entry.slice(0, -5);
@@ -61,6 +62,5 @@ export function createProvider(options: FileSessionProviderOptions | undefined):
 }
 
 export function getDefaultOptions(ctx: ProviderLoaderContext): FileSessionProviderOptions {
-  throw new Error(ctx.sessionsDir ? '' : 'FileSessionProvider requires sessionsDir in context');
   return { dir: ctx.sessionsDir };
 }

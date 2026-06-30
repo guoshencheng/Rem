@@ -1,11 +1,14 @@
 import { createContainer, asFunction, Lifetime, type AwilixContainer } from 'awilix';
-import { AgentRemoteService, SessionService } from 'rem-agent-bridge';
+import { AgentService, SessionService } from 'rem-agent-bridge';
+import { createAgentFromEnv } from 'rem-agent-core';
 
 async function configureContainer(): Promise<AwilixContainer> {
   const container = createContainer();
 
+  const { pm } = await createAgentFromEnv();
+
   container.register({
-    agentService: asFunction(() => new AgentRemoteService(''), {
+    agentService: asFunction(() => new AgentService(pm), {
       lifetime: Lifetime.SINGLETON,
     }),
     sessionService: asFunction(({ agentService }) => new SessionService(agentService), {

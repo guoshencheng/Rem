@@ -7,10 +7,9 @@ import { AgentStreamController } from '../src/stream/agent-stream.js';
 
 const createMockLoop = (result: Partial<LoopResult>): LoopStrategy => {
   const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
-    const resolved = {
-      finalOutput: { content: 'done', completed: true },
-      newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
-      toolCalls: [],
+    const resolved: LoopResult = {
+      content: 'done',
+      newMessages: [],
       usage: {
         inputTokens: 1,
         outputTokens: 1,
@@ -42,11 +41,10 @@ describe('ReactTurnRunner', () => {
       budget: new IterationBudget({ maxTurns: 5 }),
     }, { onMessageAdded: vi.fn(), onToolCallRecorded: vi.fn() }, new AgentStreamController());
 
-    expect(result.output.content).toBe('done');
-    expect(result.newMessages).toHaveLength(2); // assistant + tool
+    expect(result.content).toBe('done');
+    expect(result.newMessages).toHaveLength(1); // assistant only
     expect(conversation).toHaveLength(1);
     expect(loop.iterate).toHaveBeenCalled();
-    expect(result.steps).toBe(1);
   });
 
   it('should pass hooks to loop and track added messages', async () => {
@@ -65,6 +63,7 @@ describe('ReactTurnRunner', () => {
       systemPrompt: '',
       
       budget: new IterationBudget({ maxTurns: 5 }),
+      maxSteps: 1,
     }, { onMessageAdded, onToolCallRecorded }, new AgentStreamController());
 
     expect(onMessageAdded).toHaveBeenCalledTimes(2);
@@ -72,10 +71,9 @@ describe('ReactTurnRunner', () => {
 
   it('should pass abort signal to loop strategy', async () => {
     const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, _step: number) => {
-      const resolved = {
-        finalOutput: { content: 'aborted', completed: true },
+      const resolved: LoopResult = {
+        content: 'aborted',
         newMessages: [],
-        toolCalls: [],
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
       };
       for (const msg of resolved.newMessages) {
@@ -101,8 +99,7 @@ describe('ReactTurnRunner', () => {
     }, new AgentStreamController())).rejects.toThrow('Turn aborted');
   });
 
-  it('should propagate toolCalls and usage from LoopResult to TurnResult', async () => {
-    const toolCalls = [{ toolCallId: 'tc1', toolName: 'testTool', input: { key: 'value' } }];
+  it('should propagate usage from LoopResult to TurnResult', async () => {
     const usage = {
       inputTokens: 10,
       outputTokens: 20,
@@ -111,7 +108,6 @@ describe('ReactTurnRunner', () => {
       outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
     };
     const loop = createMockLoop({
-      toolCalls,
       usage,
       newMessages: [{ role: 'tool', content: 'result' } as ModelMessage],
     });
@@ -123,25 +119,24 @@ describe('ReactTurnRunner', () => {
       systemPrompt: '',
       
       budget: new IterationBudget({ maxTurns: 5 }),
+      maxSteps: 1,
     }, {
       onMessageAdded: vi.fn(),
       onToolCallRecorded: vi.fn(),
     }, new AgentStreamController());
 
-    expect(result.toolCalls).toEqual(toolCalls);
     expect(result.usage).toEqual(usage);
   });
 
-  it('loops until completed and emits step boundaries', async () => {
+  it('loops until no newMessages and emits step boundaries', async () => {
     let callIndex = 0;
     const iterateMock = vi.fn().mockImplementation(async (_ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, step: number) => {
       callIndex++;
-      const completed = callIndex === 2;
+      const hasMore = callIndex !== 2;
       const toolMsg: ModelMessage = { role: 'tool', toolCallId: `tc${step}`, toolName: 'calc', content: '2' } as ModelMessage;
       const resolved: LoopResult = {
-        finalOutput: { content: completed ? 'done' : '', completed },
-        newMessages: completed ? [] : [toolMsg],
-        toolCalls: [],
+        content: hasMore ? '' : 'done',
+        newMessages: hasMore ? [toolMsg] : [],
         usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
       };
       for (const msg of resolved.newMessages) {
@@ -166,11 +161,10 @@ describe('ReactTurnRunner', () => {
       onToolCallRecorded: vi.fn(),
     }, controller);
 
-    expect(result.output.completed).toBe(true);
-    expect(result.steps).toBe(2);
+    expect(result.content).toBe('done');
     expect(added.length).toBe(2); // assistant + tool
 
-    controller.finish(result.output);
+    controller.finish({ content: result.content, completed: true });
     const chunks = [];
     for await (const chunk of controller.stream.fullStream) {
       chunks.push(chunk);
@@ -183,9 +177,8 @@ describe('ReactTurnRunner', () => {
 
   it('respects maxSteps', async () => {
     const iterateMock = vi.fn().mockImplementation(async () => ({
-      finalOutput: { content: '', completed: false },
-      newMessages: [],
-      toolCalls: [],
+      content: '',
+      newMessages: [{ role: 'tool', content: 'x' } as ModelMessage],
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
     }));
     const loop: LoopStrategy = { iterate: iterateMock };
@@ -204,8 +197,7 @@ describe('ReactTurnRunner', () => {
       onToolCallRecorded: vi.fn(),
     }, controller);
 
-    expect(result.steps).toBe(1);
-    expect(result.output.completed).toBe(false);
+    expect(result.content).toBe('');
     expect(iterateMock).toHaveBeenCalledTimes(1);
   });
 });

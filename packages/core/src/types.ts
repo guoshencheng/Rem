@@ -85,9 +85,7 @@ export interface ToolCallRecord {
 }
 
 export interface TurnResult {
-  output: AgentOutput;
+  content: string;
   newMessages: ModelMessage[];
-  toolCalls: { toolCallId: string; toolName: string; input: unknown }[];
   usage: LanguageModelUsage;
-  steps: number;
 }

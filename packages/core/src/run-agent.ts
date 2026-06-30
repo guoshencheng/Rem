@@ -146,7 +146,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       await events.emit('core-agent:stop', { agent: null, state });
 
       const output: AgentOutput = {
-        content: result.output.content,
+        content: result.content,
         completed: true,
       };
       controller.finish(output);

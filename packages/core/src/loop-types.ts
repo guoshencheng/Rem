@@ -1,5 +1,5 @@
 import type { AgentState } from './state.js';
-import type { AgentOutput, ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
+import type { ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
 import { IterationBudget } from './budget.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 
@@ -26,9 +26,8 @@ export interface LoopContext {
 }
 
 export interface LoopResult {
-  finalOutput: AgentOutput;
+  content: string;
   newMessages: ModelMessage[];
-  toolCalls: any[];
   usage: LanguageModelUsage;
 }
 

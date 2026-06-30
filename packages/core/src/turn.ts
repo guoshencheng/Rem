@@ -1,6 +1,6 @@
-import type { ModelMessage, LanguageModelUsage } from './types.js';
+import type { ModelMessage } from './types.js';
 import type { Session } from './session.js';
-import type { UserInput, AgentOutput, TurnResult } from './types.js';
+import type { UserInput, TurnResult } from './types.js';
 import { AgentState } from './state.js';
 import { IterationBudget } from './budget.js';
 import type { LoopStrategy, LoopContext, LoopResult, TurnHooks } from './loop-strategy.js';
@@ -64,8 +64,7 @@ export class ReactTurnRunner implements TurnRunner {
     };
 
     const allNewMessages: ModelMessage[] = [assistantMsg];
-    const allToolCalls: { toolCallId: string; toolName: string; input: unknown }[] = [];
-    let finalOutput: AgentOutput = { content: '', completed: false };
+    let content = '';
     let inputTokens = 0;
     let outputTokens = 0;
     let totalTokens = 0;
@@ -86,18 +85,16 @@ export class ReactTurnRunner implements TurnRunner {
           allNewMessages.push(msg);
         }
       }
-      allToolCalls.push(...result.toolCalls);
-      finalOutput = result.finalOutput;
+      content = result.content;
       inputTokens += result.usage.inputTokens ?? 0;
       outputTokens += result.usage.outputTokens ?? 0;
       totalTokens += result.usage.totalTokens ?? 0;
 
-      if (result.finalOutput.completed) {
+      if (result.newMessages.length === 0) {
         break;
       }
 
       if (step >= maxSteps) {
-        finalOutput = { ...finalOutput, completed: false };
         break;
       }
 
@@ -105,9 +102,8 @@ export class ReactTurnRunner implements TurnRunner {
     }
 
     return {
-      output: finalOutput,
+      content,
       newMessages: allNewMessages,
-      toolCalls: allToolCalls,
       usage: {
         inputTokens,
         outputTokens,
@@ -115,7 +111,6 @@ export class ReactTurnRunner implements TurnRunner {
         inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
         outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
       },
-      steps: step,
     };
   }
 }

@@ -29,11 +29,10 @@ describe('AgentStreamChunk types', () => {
     expect(finish.type).toBe('tool-call-finish');
   });
 
-  it('TurnResult has steps', () => {
+  it('TurnResult has content and usage', () => {
     const result: TurnResult = {
-      output: { content: '', completed: true },
+      content: 'hello',
       newMessages: [],
-      toolCalls: [],
       usage: {
         inputTokens: 0,
         outputTokens: 0,
@@ -41,8 +40,7 @@ describe('AgentStreamChunk types', () => {
         inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
         outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
       },
-      steps: 1,
     };
-    expect(result.steps).toBe(1);
+    expect(result.content).toBe('hello');
   });
 });

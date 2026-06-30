@@ -62,7 +62,7 @@ describe('ReactLoop', () => {
       workspaceRoot: '/',
     }, hooks, new AgentStreamController(), 1);
 
-    expect(result.finalOutput.content).toBe('Hello!');
+    expect(result.content).toBe('Hello!');
     expect(result.newMessages.some(m => m.role === 'assistant')).toBe(false);
     expect(hooks.onMessageAdded).not.toHaveBeenCalled();
     expect(state.conversation.some(m => m.role === 'assistant')).toBe(true);
@@ -118,7 +118,6 @@ describe('ReactLoop', () => {
       [{ toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } }],
       expect.objectContaining({ workspaceRoot: '/' }),
     );
-    expect(result.toolCalls).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'tool')).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(0);
     expect(hooks.onToolCallRecorded).toHaveBeenCalledWith(expect.objectContaining({
@@ -163,7 +162,7 @@ describe('ReactLoop', () => {
       workspaceRoot: '/',
     }, createMockHooks(), new AgentStreamController(), 1);
 
-    expect(result.finalOutput.content).toBe('Recovered!');
+    expect(result.content).toBe('Recovered!');
     expect(callCount).toBe(2);
   });
 
@@ -249,8 +248,7 @@ describe('ReactLoop', () => {
       providerConfig: { apiKey: 'key', model: 'model' },
     }, createMockHooks(), new AgentStreamController(), 1);
 
-    expect(result.finalOutput.content).toContain('model exploded');
-    expect(result.finalOutput.completed).toBe(true);
+    expect(result.content).toContain('model exploded');
     expect(result.newMessages).toHaveLength(0);
   });
 

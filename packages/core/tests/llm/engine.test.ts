@@ -1,13 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InferenceEngine } from '../../src/llm/engine.js';
-import { registerProvider, clearProviders } from '../../src/llm/api-registry.js';
+import { registerProvider, clearProviders, resolveProvider } from '../../src/llm/api-registry.js';
+
+function createStream(
+  chunks: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown }>,
+): AsyncIterable<any> {
+  return (async function* () {
+    for (const chunk of chunks) {
+      yield chunk;
+    }
+  })();
+}
 
 describe('InferenceEngine', () => {
   beforeEach(() => {
     clearProviders();
   });
 
-  it('should infer using registered provider', async () => {
+  it('should infer using raw stream', async () => {
     registerProvider('mock', {
       generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),
       stream: async function* () {
@@ -16,11 +26,13 @@ describe('InferenceEngine', () => {
       },
     });
 
+    const provider = resolveProvider('mock');
+    const rawStream = provider.stream({ model: 'model', apiKey: 'key', messages: [{ role: 'user', content: 'Hi' }] });
+
     const engine = new InferenceEngine();
     const result = await engine.infer({
-      provider: 'mock',
-      providerConfig: { apiKey: 'key', model: 'model' },
       messages: [{ role: 'user', content: 'Hi' }],
+      stream: rawStream,
     });
 
     expect(result.text).toBe('Hello');
@@ -37,24 +49,17 @@ describe('InferenceEngine', () => {
     });
 
     const onChunk = vi.fn();
+    const provider = resolveProvider('mock');
+    const rawStream = provider.stream({ model: 'model', apiKey: 'key', messages: [] });
+
     const engine = new InferenceEngine();
     await engine.infer({
-      provider: 'mock',
-      providerConfig: { apiKey: 'key', model: 'model' },
       messages: [],
+      stream: rawStream,
       onChunk,
     });
 
     expect(onChunk).toHaveBeenCalledTimes(2);
-  });
-
-  it('should throw for unknown provider', async () => {
-    const engine = new InferenceEngine();
-    await expect(engine.infer({
-      provider: 'unknown',
-      providerConfig: { apiKey: 'key', model: 'model' },
-      messages: [],
-    })).rejects.toThrow('Unknown provider');
   });
 
   it('should strip thinking tags from collected text', async () => {
@@ -66,11 +71,13 @@ describe('InferenceEngine', () => {
       },
     });
 
+    const provider = resolveProvider('mock');
+    const rawStream = provider.stream({ model: 'model', apiKey: 'key', messages: [{ role: 'user', content: 'Hi' }] });
+
     const engine = new InferenceEngine();
     const result = await engine.infer({
-      provider: 'mock',
-      providerConfig: { apiKey: 'key', model: 'model' },
       messages: [{ role: 'user', content: 'Hi' }],
+      stream: rawStream,
     });
 
     expect(result.text).toBe('Hello world');
@@ -87,11 +94,13 @@ describe('InferenceEngine', () => {
     });
 
     const chunks: Array<{ type: string; text?: string }> = [];
+    const provider = resolveProvider('mock');
+    const rawStream = provider.stream({ model: 'model', apiKey: 'key', messages: [{ role: 'user', content: 'Hi' }] });
+
     const engine = new InferenceEngine();
     await engine.infer({
-      provider: 'mock',
-      providerConfig: { apiKey: 'key', model: 'model' },
       messages: [{ role: 'user', content: 'Hi' }],
+      stream: rawStream,
       onChunk: (chunk) => {
         chunks.push(chunk);
       },
@@ -115,11 +124,13 @@ describe('InferenceEngine', () => {
     });
 
     const textChunks: string[] = [];
+    const provider = resolveProvider('mock');
+    const rawStream = provider.stream({ model: 'model', apiKey: 'key', messages: [] });
+
     const engine = new InferenceEngine();
     await engine.infer({
-      provider: 'mock',
-      providerConfig: { apiKey: 'key', model: 'model' },
       messages: [],
+      stream: rawStream,
       onChunk: (chunk) => {
         if (chunk.type === 'text') {
           textChunks.push(chunk.text);

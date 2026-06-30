@@ -1,12 +1,13 @@
 import type { AgentState } from './state.js';
 import type { EventBus } from './events.js';
-import type { AgentOutput, ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
-import type { ToolProvider, ToolCall, ToolResult, ToolContext } from './sdk/tool-provider.js';
+import type { ToolCallRecord, UserInput, ModelMessage, LanguageModelUsage } from './types.js';
+import type { ToolProvider, ToolResult, ToolContext } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
+import { resolveProvider } from './llm/api-registry.js';
 import type { StreamChunk } from './llm/types.js';
 import { AgentStreamController, type RawChunk } from './stream/agent-stream.js';
 
@@ -25,13 +26,21 @@ export class ReactLoop implements LoopStrategy {
     private skillProvider?: SkillProvider,
   ) {}
 
-  private async inferWithRetry(options: Parameters<InferenceEngine['infer']>[0]): Promise<InferenceResult> {
+  private async inferWithRetry(
+    messages: ModelMessage[],
+    createStream: () => AsyncIterable<import('./llm/types.js').StreamChunk>,
+    onChunk?: (chunk: import('./llm/types.js').StreamChunk) => void | Promise<void>,
+  ): Promise<InferenceResult> {
     const maxAttempts = 3;
     let lastError: unknown;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        return await this.inferenceEngine.infer(options);
+        return await this.inferenceEngine.infer({
+          messages,
+          stream: createStream(),
+          onChunk,
+        });
       } catch (error) {
         lastError = error;
         const category = this.errorHandler.classify(error);
@@ -69,32 +78,35 @@ export class ReactLoop implements LoopStrategy {
 
     const assistantMsg = this.getOrCreateAssistantMessage(ctx.state);
 
+    const provider = resolveProvider(ctx.provider ?? 'mock');
+    const providerConfig = ctx.providerConfig ?? { apiKey: '', model: 'default' };
+
     let inferResult: InferenceResult;
     try {
-      inferResult = await this.inferWithRetry({
-        provider: ctx.provider ?? 'mock',
-        providerConfig: ctx.providerConfig ?? { apiKey: '', model: 'default' },
-        system: systemWithSkills,
+      inferResult = await this.inferWithRetry(
         messages,
-        tools: hasTools ? tools : undefined,
-        signal: ctx.signal,
-        onChunk: (chunk) => {
+        () => provider.stream({
+          model: providerConfig.model,
+          apiKey: providerConfig.apiKey,
+          baseURL: providerConfig.baseURL,
+          system: systemWithSkills,
+          messages,
+          tools: hasTools ? tools : undefined,
+          signal: ctx.signal,
+        }),
+        (chunk) => {
           const agentChunk = this.mapToAgentStreamChunk(chunk, step);
           if (agentChunk) {
             controller.append(agentChunk);
           }
         },
-      });
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.events.emit('phase:reason:error', { agent: this, state: ctx.state, error });
       return {
-        finalOutput: {
-          content: `Error during reasoning: ${message}`,
-          completed: true,
-        },
+        content: `Error during reasoning: ${message}`,
         newMessages: [],
-        toolCalls: [],
         usage: {
           inputTokens: 0,
           outputTokens: 0,
@@ -110,7 +122,6 @@ export class ReactLoop implements LoopStrategy {
     await this.events.emit('phase:reason:after', { agent: this, state: ctx.state });
 
     const newMessages: ModelMessage[] = [];
-    const toolCalls: ToolCall[] = [];
 
     if (inferResult.toolCalls.length > 0) {
       await this.events.emit('phase:execute:before', { agent: this, state: ctx.state });
@@ -167,7 +178,6 @@ export class ReactLoop implements LoopStrategy {
           timestamp: new Date(),
         };
 
-        toolCalls.push(tc);
         hooks.onToolCallRecorded(record);
       }
 
@@ -177,20 +187,14 @@ export class ReactLoop implements LoopStrategy {
 
     await this.events.emit('turn:after', { agent: this, state: ctx.state });
 
-    const completed = inferResult.toolCalls.length === 0;
-
     let outputContent = inferResult.text;
     if (inferResult.finishReason === 'length' && !outputContent.trim()) {
       outputContent = '(Model hit output token limit. Consider increasing maxTokens.)';
     }
 
     return {
-      finalOutput: {
-        content: outputContent,
-        completed,
-      },
+      content: outputContent,
       newMessages,
-      toolCalls,
       usage: {
         inputTokens: inferResult.usage.inputTokens,
         outputTokens: inferResult.usage.outputTokens,

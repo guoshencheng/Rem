@@ -47,6 +47,8 @@ export class AgentService implements IAgentService {
       throw new ServiceError('Session is already running', 409);
     }
 
+    console.log(`[Agent] run start session=${sessionId} input="${input.slice(0, 50)}"`);
+
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
 
     const abortController = new AbortController();
@@ -66,6 +68,8 @@ export class AgentService implements IAgentService {
       [Symbol.asyncIterator]: async function* () {
         for await (const chunk of result.stream.fullStream) {
           yield chunk;
+
+          console.log(`[Agent] chunk session=${sessionId} type=${chunk.type}`);
 
           if (
             chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' ||

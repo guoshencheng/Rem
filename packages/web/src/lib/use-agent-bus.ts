@@ -24,13 +24,17 @@ export function useAgentBus(agentService: IAgentService) {
     async function consume() {
       try {
         retryDelayRef.current = 1000;
+        console.log('[useAgentBus] stream connected');
         const stream = agentService.stream();
         for await (const event of stream) {
+          console.log(`[useAgentBus] recv session=${event.sessionId} type=${event.type} listeners=${listenersRef.current.size}`);
           for (const listener of listenersRef.current) {
             listener(event);
           }
         }
-      } catch {
+        console.log('[useAgentBus] stream ended');
+      } catch (err) {
+        console.error('[useAgentBus] stream error, reconnecting...', err);
         // Stream disconnected, reconnect with backoff
         if (runningRef.current) {
           await new Promise((r) => setTimeout(r, retryDelayRef.current));

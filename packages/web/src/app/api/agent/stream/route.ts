@@ -18,9 +18,14 @@ function busToAsyncIterable(): AsyncIterable<BusEvent> {
   return {
     [Symbol.asyncIterator]: async function* () {
       try {
+        console.log('[SSE-endpoint] client connected');
+        let count = 0;
         while (true) {
           if (queue.length > 0) {
-            yield queue.shift()!;
+            const event = queue.shift()!;
+            count++;
+            console.log(`[SSE-endpoint] yield #${count} session=${event.sessionId} type=${event.type}`);
+            yield event;
           } else {
             yield await new Promise<BusEvent>((r) => { resolveNext = r; });
           }

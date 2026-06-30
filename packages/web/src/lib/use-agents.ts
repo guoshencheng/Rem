@@ -86,6 +86,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       const map = sessionMapRef.current;
       const state = map.get(event.sessionId);
 
+      console.log(`[useAgents] bus-event session=${event.sessionId} type=${event.type} hasState=${!!state}`);
+
       switch (event.type) {
         case 'session-start': {
           ensureSession(event.sessionId);
@@ -177,6 +179,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       state.status = 'loading';
       state.error = null;
       notifyChange();
+
+      console.log(`[useAgents] send session=${currentId} content="${content.slice(0, 50)}"`);
 
       try {
         await bus.send(currentId, content);

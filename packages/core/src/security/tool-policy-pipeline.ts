@@ -48,12 +48,10 @@ function applyLayer(tools: ToolDefinition[], layer: ToolPolicyConfig): ToolDefin
     const alsoAllowSet = new Set(expandToolGroups(layer.alsoAllow ?? []));
     const combined = new Set([...allowSet, ...alsoAllowSet]);
 
-    if (combined.size > 0) {
-      tools = tools.filter((tool) => {
-        const name = normalizeToolName(tool.name);
-        return combined.has(name) || combined.has('*');
-      });
-    }
+    tools = tools.filter((tool) => {
+      const name = normalizeToolName(tool.name);
+      return combined.has(name) || combined.has('*');
+    });
   }
 
   if (layer.deny && layer.deny.length > 0) {

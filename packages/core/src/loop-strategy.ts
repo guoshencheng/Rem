@@ -6,7 +6,6 @@ import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
-import { IterationBudget } from './budget.js';
 import { InferenceEngine, type InferenceResult } from './llm/engine.js';
 import type { StreamChunk } from './llm/types.js';
 import { AgentStreamController, type RawChunk } from './stream/agent-stream.js';

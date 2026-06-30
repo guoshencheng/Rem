@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StreamCollector, collectStream } from '../../src/llm/types.js';
+import { StreamCollector, collectStream } from '../../src/llm/stream-collector.js';
 import type { StreamChunk } from '../../src/llm/types.js';
 
 describe('StreamCollector', () => {

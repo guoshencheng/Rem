@@ -13,6 +13,7 @@ export type { ContentPart } from './session/local/index.js';
 export { FileSkillProvider } from './skill/file/index.js';
 export { createFileSystemTools } from './tool/file-system/index.js';
 export { InMemoryToolProvider } from './tool/in-memory/index.js';
+export { createProvider as createTitleProvider } from './title/llm/index.js';
 
 const builtinLoaders: Record<string, ProviderModuleRef> = {
   'session/in-memory': () => import('./session/in-memory/index.js') as Promise<ProviderModule<any>>,
@@ -25,6 +26,7 @@ const builtinLoaders: Record<string, ProviderModuleRef> = {
   'compressor/no-op':  () => import('./compressor/no-op/index.js') as Promise<ProviderModule<any>>,
   'error/simple':      () => import('./error/simple/index.js') as Promise<ProviderModule<any>>,
   'budget/fixed':      () => import('./budget/fixed/index.js') as Promise<ProviderModule<any>>,
+  'title/llm':         () => import('./title/llm/index.js') as Promise<ProviderModule<any>>,
 };
 
 export const resolveBuiltinLoader: (kind: string, name: string) => ProviderModuleRef | undefined = (kind, name) => {

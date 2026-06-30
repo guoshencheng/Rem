@@ -8,6 +8,7 @@ import type {
   ProviderRegistry,
 } from './sdk/provider-loader.js';
 import type { SessionProvider } from './sdk/session-provider.js';
+import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
@@ -32,6 +33,7 @@ export interface ProviderManagerConfig {
   errorHandler?: ProviderReference<ErrorHandler>;
   skillProvider?: ProviderReference<SkillProvider>;
   budgetPolicy?: ProviderReference<BudgetPolicy>;
+  titleProvider?: ProviderReference<TitleProvider>;
   toolPolicy?: ToolPolicyConfig;
   workspaceRoot?: string;
   readOnly?: boolean;
@@ -80,6 +82,7 @@ export class ProviderManager {
         errorHandler: this.config.errorHandler,
         skillProvider: this.config.skillProvider,
         budgetPolicy: this.config.budgetPolicy,
+        titleProvider: this.config.titleProvider,
       },
     });
 

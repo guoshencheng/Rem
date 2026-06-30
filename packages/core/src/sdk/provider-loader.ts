@@ -10,7 +10,8 @@ export type ProviderKind =
   | 'error'
   | 'config'
   | 'loopStrategy'
-  | 'turnRunner';
+  | 'turnRunner'
+  | 'title';
 
 export interface ProviderLoaderContext {
   kind: ProviderKind;

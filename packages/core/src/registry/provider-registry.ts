@@ -14,6 +14,7 @@ export interface ProviderRegistryConfig {
   errorHandler: ProviderReference<unknown>;
   skillProvider: ProviderReference<unknown>;
   budgetPolicy?: ProviderReference<unknown>;
+  titleProvider?: ProviderReference<unknown>;
   [key: string]: ProviderReference<unknown> | undefined;
 }
 
@@ -31,6 +32,7 @@ const KIND_TO_REFS_KEY: Partial<Record<ProviderKind, keyof ProviderRegistryConfi
   error: 'errorHandler',
   skill: 'skillProvider',
   budget: 'budgetPolicy',
+  title: 'titleProvider',
 };
 
 const DEFAULT_NAMES: Record<ProviderKind, string> = {
@@ -44,6 +46,7 @@ const DEFAULT_NAMES: Record<ProviderKind, string> = {
   config: 'default',
   loopStrategy: 'react',
   turnRunner: 'react',
+  title: 'llm',
 };
 
 export class AgentProviderRegistry implements ProviderRegistry {
@@ -66,6 +69,7 @@ export class AgentProviderRegistry implements ProviderRegistry {
     await this.resolve('error');
     await this.resolve('skill');
     await this.resolve('budget');
+    await this.resolve('title');
   }
 
   has(kind: ProviderKind): boolean {

@@ -53,8 +53,8 @@ export function MessageItem({ message }: MessageItemProps) {
 
   if (isUser) {
     return (
-      <div className="flex justify-end px-4 py-3">
-        <div className="max-w-[80%] rounded-card rounded-br-sm bg-ac text-ac-ink px-4 py-2.5 text-sm leading-relaxed">
+      <div className="flex justify-end py-3">
+        <div className="max-w-[60%] rounded-card rounded-br-sm bg-ac text-ac-ink px-4 py-2.5 text-sm leading-relaxed">
           {message.parts.map((part, i) => {
             if (part.type === 'text') {
               return (
@@ -71,10 +71,10 @@ export function MessageItem({ message }: MessageItemProps) {
   }
 
   return (
-    <div className="px-4 py-3">
+    <div className="py-3">
       <div className={cn(
-        'max-w-[85%] rounded-card rounded-bl-sm bg-card border border-bd px-4 py-2.5 text-sm leading-relaxed',
-        message.status === 'error' && 'border-err/50',
+        'text-sm leading-relaxed',
+        message.status === 'error' ? 'text-err' : 'text-tx',
       )}>
         {message.parts.map((part, i) => {
           if (part.type === 'reasoning') {
@@ -92,7 +92,7 @@ export function MessageItem({ message }: MessageItemProps) {
           }
           if (part.type === 'text' && part.text) {
             return (
-              <div key={i} className="prose prose-invert prose-sm max-w-none text-tx">
+              <div key={i} className="prose prose-invert prose-sm max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents as unknown as Components}>
                   {part.text}
                 </ReactMarkdown>

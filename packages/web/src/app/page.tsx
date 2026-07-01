@@ -44,6 +44,7 @@ export default function Home() {
           messages={currentSession.messages}
           status={currentSession.status}
           error={currentSession.error}
+          activity={currentSession.activity}
           initialized={initialized}
           onSend={send}
           onInterrupt={interrupt}

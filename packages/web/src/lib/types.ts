@@ -1,6 +1,6 @@
-import type { AgentStreamChunk, UIMessage, BusEvent } from 'rem-agent-bridge';
+import type { AgentStreamChunk, UIMessage, BusEvent, SessionActivity } from 'rem-agent-bridge';
 
-export type { AgentStreamChunk, UIMessage, BusEvent };
+export type { AgentStreamChunk, UIMessage, BusEvent, SessionActivity };
 
 export function isSSETextDelta(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'text-delta' } {
   return c.type === 'text-delta';

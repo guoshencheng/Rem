@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { IAgentService } from 'rem-agent-bridge';
+import { ServiceError, type IAgentService } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
+
+function errorResponse(err: unknown) {
+  if (err instanceof ServiceError) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  const message = err instanceof Error ? err.message : 'Internal error';
+  return NextResponse.json({ error: message }, { status: 500 });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json(sessions);
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+    return errorResponse(err);
   }
 }
 
@@ -26,6 +34,6 @@ export async function POST() {
     const result = await agentService.createSession();
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+    return errorResponse(err);
   }
 }

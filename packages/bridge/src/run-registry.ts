@@ -8,8 +8,12 @@ function createRunRegistry() {
       return runs.has(sessionId);
     },
 
-    register(sessionId: string, controller: AbortController): void {
+    register(sessionId: string, controller: AbortController): boolean {
+      if (runs.has(sessionId)) {
+        return false;
+      }
       runs.set(sessionId, controller);
+      return true;
     },
 
     abort(sessionId: string): boolean {

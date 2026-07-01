@@ -1,6 +1,5 @@
 import type { SessionProvider } from 'rem-agent-core';
-import type { SessionUpdate } from './agent-service.interface.js';
-import type { SessionSummary, UIMessage } from './types.js';
+import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import { ServiceError } from './errors.js';
 import { runRegistry } from './run-registry.js';
 

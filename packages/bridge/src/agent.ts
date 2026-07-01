@@ -4,8 +4,8 @@ import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
-import type { BusEvent, SessionSummary, UIMessage } from './types.js';
-import type { IAgentService, SessionUpdate } from './agent-service.interface.js';
+import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
 
 export interface RunParams {
@@ -42,7 +42,8 @@ export class AgentService implements IAgentService {
   /* ---- Agent lifecycle ---- */
 
   async run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>> {
-    if (runRegistry.has(sessionId)) {
+    const abortController = new AbortController();
+    if (!runRegistry.register(sessionId, abortController)) {
       throw new ServiceError('Session is already running', 409);
     }
 
@@ -50,14 +51,12 @@ export class AgentService implements IAgentService {
 
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
 
-    const abortController = new AbortController();
     const result = coreRunAgent({
       input: { content: input, timestamp: new Date() },
       sessionId,
       signal: abortController.signal,
       pm: this.providerManager,
     });
-    runRegistry.register(sessionId, abortController);
 
     let accumulatedParts: NonNullable<unknown>[] = [];
     const sessionProvider = this.sessionProvider;

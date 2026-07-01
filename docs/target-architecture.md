@@ -239,7 +239,7 @@ packages/bridge/src/
 │
 ├── stream-tap.ts        [新]         # tapFullStream
 ├── content-builder.ts   [新]         # buildPartsFromContent
-├── sessions.ts                       # SessionService
+├── agent-session.ts     [新]         # AgentSessionManager — 会话 CRUD
 │
 └── stream-reducer.ts    [新]         # reduceStreamChunk — web+tui 共享
 ```
@@ -294,13 +294,13 @@ interface IAgentService {
                                     │
            ┌────────────────────────┼────────────────────────────┐
            │                        │                            │
-  ┌────────┴────────────┐  ┌────────┴──────────────┐  ┌─────────┴─────────┐
-  │ agent-service.      │  │ agent-remote-service  │  │ sessions.ts       │
-  │ interface.ts [新]   │  │     .ts [新]          │  │ SessionService    │
-  │                     │  │                       │  └───────────────────┘
-  │   IAgentService     │  │ AgentRemoteService    │
-  │   (共同接口)         │  │ implements IAgentService│
-  └─────────┬───────────┘  └───────────┬───────────┘
+   ┌────────┴────────────┐  ┌────────┴──────────────┐
+   │ agent-service.      │  │ agent-remote-service  │
+   │ interface.ts [新]   │  │     .ts [新]          │
+   │                     │  │                       │
+   │   IAgentService     │  │ AgentRemoteService    │
+   │   (共同接口)         │  │ implements IAgentService│
+   └─────────┬───────────┘  └───────────┬───────────┘
             │                          │
             │              ┌───────────┴────────────────┐
             │              │                            │

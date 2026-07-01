@@ -15,7 +15,7 @@
 | 包 | npm 名称 | 层级 | 职责 |
 |---|---|---|---|
 | `packages/core` | `rem-agent-core` | 核心层 | Agent 生命周期、ReAct 循环、状态、事件、预算、LLM、安全、SDK 接口 |
-| `packages/bridge` | `rem-agent-bridge` | 桥接层 | HTTP client/server、SSE 编解码、AgentService、SessionService |
+| `packages/bridge` | `rem-agent-bridge` | 桥接层 | HTTP client/server、SSE 编解码、AgentService、IAgentService |
 | `packages/web` | `rem-agent-web` | 表现层 | Next.js 15 + React 19 聊天 UI，SSE 流消费，会话管理 |
 | `packages/tui` | `rem-agent-tui` | 表现层 | 基于 `@opentui/core` 的终端 UI 组件 |
 
@@ -403,8 +403,8 @@ rem/
 │   ├── bridge/                  rem-agent-bridge — 桥接层
 │   │   └── src/
 │   │       ├── client.ts            AgentClient (浏览器端 HTTP 客户端)
-│   │       ├── agent.ts             AgentService (服务端, 封装 core.runAgent)
-│   │       ├── sessions.ts          SessionService (会话元数据管理)
+│   │       ├── agent.ts             AgentService (服务端, 封装 core.runAgent + 会话管理)
+│   │       ├── agent-session.ts     AgentSessionManager (会话 CRUD，被 AgentService 使用)
 │   │       ├── sse.ts               SSE 解析 (parseSSEStream, parseAgentStreamEvent)
 │   │       ├── response.ts          createSSEResponse (流 → SSE Response)
 │   │       ├── types.ts             请求/响应类型

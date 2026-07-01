@@ -557,16 +557,18 @@ types.ts (叶子)
 - `interrupt(sessionId)` — 中断运行（调用 AbortController.abort()）
 - `getMessages(sessionId)` — 获取会话消息历史
 - `listSessions()` — 委托给 `SessionProvider.list()`
+- `createSession()` — 创建并持久化新会话
+- `updateSession(sessionId, updates)` — 更新会话元数据（title/pinned）
+- `deleteSession(sessionId)` — 删除会话
 
-**内部依赖：** errors | **Core 依赖：** `runAgent`, `AgentStreamChunk`, `ProviderManager`, `SessionProvider`, `ServerMessage`, ...
+**内部依赖：** errors, agent-session | **Core 依赖：** `runAgent`, `AgentStreamChunk`, `ProviderManager`, `SessionProvider`, `ServerMessage`, ...
 
-#### `src/sessions.ts`（48 行）— 会话元数据服务
-**导出：** `extractTitle(messages)`, `SessionService`
+#### `src/agent-session.ts` — 会话 CRUD 管理器
 
-`SessionService` — 在 `AgentService` 之上提供会话 CRUD + 内存元数据（标题、置顶）：
-- `list()`, `create()`, `getMessages(sessionId)`, `update(id, updates)`, `delete(id)`
+`AgentSessionManager` — 封装 `SessionProvider` 的会话管理逻辑，被 `AgentService` 使用：
+- `createSession()`, `listSessions()`, `getMessages(sessionId)`, `updateSession(sessionId, updates)`, `deleteSession(sessionId)`
 
-**内部依赖：** agent（仅类型）
+**内部依赖：** agent-service.interface (类型), errors, run-registry
 
 ### 2.2 Bridge 内部依赖图
 
@@ -660,8 +662,8 @@ page.tsx
 session-sidebar
   └── ./session-list → ./session-item → @/lib/session-store
 
-API routes → @/lib/container → rem-agent-bridge (AgentService, SessionService, createSSEResponse)
-                              → rem-agent-core (createProviderManager, LocalSessionProvider)
+API routes → @/lib/container → rem-agent-bridge (AgentService as IAgentService, createSSEResponse)
+                              → rem-agent-core (createProviderManager, FileSessionProvider)
 ```
 
 ---

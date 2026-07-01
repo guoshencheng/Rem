@@ -161,6 +161,10 @@ async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
 
 ```typescript
 async deleteSession(sessionId: string): Promise<void> {
+  const session = await this.sessionProvider.load(sessionId);
+  if (!session) {
+    throw new ServiceError('Session not found', 404);
+  }
   runRegistry.abort(sessionId);
   runRegistry.remove(sessionId);
   await this.sessionProvider.delete(sessionId);

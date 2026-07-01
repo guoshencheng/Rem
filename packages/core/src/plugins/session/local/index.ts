@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
-import { BaseSessionProvider } from '../base.js';
+import { BaseSessionProvider, getMetaBoolean, getMetaString } from '../base.js';
 
 import type { ContentPart } from '../../../types.js';
 
@@ -106,8 +106,8 @@ export class LocalSessionProvider extends BaseSessionProvider {
     const existing = index.findIndex((s) => s.sessionId === session.sessionId);
     const entry: IndexEntry = {
       sessionId: session.sessionId,
-      title: session.metadata.title as string | undefined,
-      pinned: session.metadata.pinned as boolean | undefined,
+      title: getMetaString(session.metadata, 'title'),
+      pinned: getMetaBoolean(session.metadata, 'pinned'),
       updatedAt: session.updatedAt.toISOString(),
       messageCount: count,
     };

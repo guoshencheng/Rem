@@ -2,7 +2,7 @@ import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
-import { BaseSessionProvider } from '../base.js';
+import { BaseSessionProvider, getMetaBoolean, getMetaString } from '../base.js';
 
 export interface FileSessionProviderOptions {
   dir: string;
@@ -38,8 +38,8 @@ export class FileSessionProvider extends BaseSessionProvider {
         const body = JSON.parse(raw) as { conversation?: unknown; metadata?: Record<string, unknown>; updatedAt?: string };
         summaries.push({
           sessionId: id,
-          title: body.metadata?.title as string | undefined,
-          pinned: body.metadata?.pinned as boolean | undefined,
+          title: getMetaString(body.metadata ?? {}, 'title'),
+          pinned: getMetaBoolean(body.metadata ?? {}, 'pinned'),
           updatedAt: body.updatedAt ? new Date(body.updatedAt) : new Date(0),
           messageCount: Array.isArray(body.conversation) ? body.conversation.length : 0,
         });

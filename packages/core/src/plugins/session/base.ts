@@ -3,6 +3,20 @@ import { mkdir, readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionProvider, SessionSummary } from '../../sdk/session-provider.js';
 
+function isNodeError(err: unknown, code: string): err is NodeJS.ErrnoException {
+  return err instanceof Error && 'code' in err && err.code === code;
+}
+
+export function getMetaString(metadata: Record<string, unknown>, key: string): string | undefined {
+  const value = metadata[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+export function getMetaBoolean(metadata: Record<string, unknown>, key: string): boolean | undefined {
+  const value = metadata[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 export abstract class BaseSessionProvider implements SessionProvider {
   protected dir: string;
 
@@ -72,11 +86,11 @@ export abstract class BaseSessionProvider implements SessionProvider {
   async delete(sessionId: string): Promise<void> {
     try {
       await unlink(this.sessionPath(sessionId));
-    } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+    } catch (err) {
+      if (isNodeError(err, 'ENOENT')) {
         return;
       }
-      throw error;
+      throw err;
     }
   }
 

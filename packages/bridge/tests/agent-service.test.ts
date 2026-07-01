@@ -72,8 +72,8 @@ describe('AgentService session management', () => {
     expect(list.some((s) => s.sessionId === summary.sessionId)).toBe(false);
   });
 
-  it('does not throw when deleting non-existent session', async () => {
-    await expect(service.deleteSession('nonexistent')).resolves.toBeUndefined();
+  it('throws 404 when deleting non-existent session', async () => {
+    await expect(service.deleteSession('nonexistent')).rejects.toThrow(/Session not found/);
   });
 
   it('returns messages for existing session', async () => {

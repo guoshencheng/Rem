@@ -4,6 +4,7 @@ import type { IAgentService } from './agent-service.interface.js';
 import type {
   RunRequest,
   SessionSummary,
+  SessionUpdate,
   InterruptRequest,
   ResetRequest,
   UIMessage,
@@ -66,6 +67,18 @@ export class AgentRemoteService implements IAgentService {
     if (!response.ok) {
       throw new Error(`Failed to reset: ${response.status}`);
     }
+  }
+
+  async createSession(): Promise<SessionSummary> {
+    throw new Error('Not implemented');
+  }
+
+  async updateSession(_sessionId: string, _updates: SessionUpdate): Promise<void> {
+    throw new Error('Not implemented');
+  }
+
+  async deleteSession(_sessionId: string): Promise<void> {
+    throw new Error('Not implemented');
   }
 
   async listSessions(): Promise<SessionSummary[]> {

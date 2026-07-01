@@ -3,6 +3,7 @@ export { createSSEResponse, createBusSSEResponse } from './response.js';
 export type {
   RunRequest,
   SessionSummary,
+  SessionUpdate,
   InterruptRequest,
   ResetRequest,
   ServerStreamEvent,

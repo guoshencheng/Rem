@@ -72,8 +72,11 @@ export abstract class BaseSessionProvider implements SessionProvider {
   async delete(sessionId: string): Promise<void> {
     try {
       await unlink(this.sessionPath(sessionId));
-    } catch {
-      // ignore: file may not exist
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        return;
+      }
+      throw error;
     }
   }
 

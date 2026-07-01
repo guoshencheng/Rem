@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Send, Square } from 'lucide-react';
+import { useState, useRef, useCallback, KeyboardEvent } from 'react';
+import { ArrowUp, Square } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface InputBoxProps {
   streaming: boolean;
@@ -11,18 +12,18 @@ interface InputBoxProps {
 }
 
 export function InputBox({ streaming, initialized, onSend, onInterrupt }: InputBoxProps) {
-  const [text, setText] = useState('');
+  const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSend = () => {
-    const trimmed = text.trim();
-    if (!trimmed || streaming || !initialized) return;
-    onSend(trimmed);
-    setText('');
+  const handleSend = useCallback(() => {
+    const text = content.trim();
+    if (!text || streaming || !initialized) return;
+    onSend(text);
+    setContent('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
+  }, [content, streaming, initialized, onSend]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -31,45 +32,61 @@ export function InputBox({ streaming, initialized, onSend, onInterrupt }: InputB
     }
   };
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [text]);
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+  };
 
-  const placeholder = !initialized ? 'Connecting...' : 'Type a message...';
+  const placeholder = initialized ? 'Message...' : 'Connecting...';
 
   return (
-    <div className="border-t border-bd px-4 py-3 bg-bg">
-      <div className="flex items-end gap-2 max-w-3xl mx-auto">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          rows={1}
-          disabled={streaming || !initialized}
-          className="flex-1 resize-none rounded-btn bg-card border border-bd2 text-tx placeholder-tx3 px-4 py-2.5 text-sm outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ maxHeight: '160px' }}
-        />
+    <div className="bg-card border border-bd rounded-2xl p-3">
+      <textarea
+        ref={textareaRef}
+        value={content}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        disabled={streaming || !initialized}
+        placeholder={placeholder}
+        rows={1}
+        className="w-full bg-transparent text-sm text-tx placeholder-tx3 outline-none resize-none min-h-[24px] max-h-[160px]"
+      />
+      <div className="flex items-center justify-between mt-3">
+        <button
+          type="button"
+          disabled={!initialized}
+          className="p-1.5 rounded-lg text-tx3 hover:bg-bd hover:text-tx disabled:opacity-50 transition-colors"
+          aria-label="Add attachment"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
         {streaming ? (
           <button
+            type="button"
             onClick={onInterrupt}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-btn bg-err text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-err text-white text-xs font-medium hover:opacity-90 transition-opacity"
           >
-            <Square size={14} fill="currentColor" />
+            <Square size={12} fill="currentColor" />
             Stop
           </button>
         ) : (
           <button
+            type="button"
             onClick={handleSend}
-            disabled={!text.trim() || !initialized}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-btn bg-ac text-ac-ink text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={!content.trim() || !initialized}
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+              content.trim() && initialized
+                ? 'bg-ac text-ac-ink hover:opacity-90'
+                : 'bg-tx3/20 text-tx3',
+            )}
+            aria-label="Send"
           >
-            <Send size={14} />
-            Send
+            <ArrowUp size={16} />
           </button>
         )}
       </div>

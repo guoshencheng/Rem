@@ -4,9 +4,10 @@ import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
-import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { BusEvent, SessionActivity, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
+import { SessionActivityTracker } from './session-activity-tracker.js';
 
 export interface RunParams {
   sessionId: string;
@@ -32,11 +33,20 @@ export class AgentService implements IAgentService {
   private sessionProvider: SessionProvider;
   private workspace: string;
   private sessionManager: AgentSessionManager;
+  private activityTracker: SessionActivityTracker;
 
   constructor(private providerManager: ProviderManager, workspace = 'default') {
     this.sessionProvider = providerManager.require<SessionProvider>('session');
     this.workspace = workspace;
     this.sessionManager = new AgentSessionManager(this.sessionProvider);
+    this.activityTracker = new SessionActivityTracker((sessionId, activity) => {
+      bus.publish({
+        workspace: this.workspace,
+        sessionId,
+        type: 'activity-change',
+        activity,
+      });
+    });
   }
 
   /* ---- Agent lifecycle ---- */
@@ -50,6 +60,7 @@ export class AgentService implements IAgentService {
     console.log(`[Agent] run start session=${sessionId} input="${input.slice(0, 50)}"`);
 
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
+    this.activityTracker.start(sessionId);
 
     let result: ReturnType<typeof coreRunAgent>;
     try {
@@ -68,12 +79,16 @@ export class AgentService implements IAgentService {
     const sessionProvider = this.sessionProvider;
     const workspace = this.workspace;
 
+    const self = this;
+
     const wrapped: AsyncIterable<AgentStreamChunk> = {
       [Symbol.asyncIterator]: async function* () {
         for await (const chunk of result.stream.fullStream) {
           yield chunk;
 
           console.log(`[Agent] chunk session=${sessionId} type=${chunk.type}`);
+
+          self.activityTracker.applyChunk(sessionId, chunk);
 
           if (
             chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' ||
@@ -120,6 +135,7 @@ export class AgentService implements IAgentService {
 
     result.output.catch(() => {}).finally(() => {
       runRegistry.remove(sessionId);
+      self.activityTracker.finish(sessionId);
     });
 
     return wrapped;
@@ -145,7 +161,11 @@ export class AgentService implements IAgentService {
   }
 
   async listSessions(): Promise<SessionSummary[]> {
-    return this.sessionManager.listSessions();
+    const list = await this.sessionManager.listSessions();
+    return list.map((s) => ({
+      ...s,
+      activity: this.activityTracker.get(s.sessionId) ?? 'idle',
+    }));
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {

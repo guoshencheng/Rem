@@ -28,11 +28,7 @@ export function ChatPanel({ messages, status, error, activity, initialized, onSe
           <span className="text-xs text-err bg-err-bg px-2 py-0.5 rounded-chip">{error}</span>
         )}
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4">
-          <MessageList messages={messages} onSend={onSend} />
-        </div>
-      </div>
+      <MessageList messages={messages} onSend={onSend} />
       <div className="max-w-3xl mx-auto w-full px-4 pb-4">
         <ActivityBar activity={activity} />
         <InputBox

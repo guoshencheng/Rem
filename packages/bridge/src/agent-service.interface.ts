@@ -1,10 +1,5 @@
 import type { AgentStreamChunk } from 'rem-agent-core';
-import type { BusEvent, SessionSummary, UIMessage } from './types.js';
-
-export interface SessionUpdate {
-  title?: string;
-  pinned?: boolean;
-}
+import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 
 export interface IAgentService {
   run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>>;

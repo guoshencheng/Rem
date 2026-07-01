@@ -51,12 +51,18 @@ export class AgentService implements IAgentService {
 
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
 
-    const result = coreRunAgent({
-      input: { content: input, timestamp: new Date() },
-      sessionId,
-      signal: abortController.signal,
-      pm: this.providerManager,
-    });
+    let result: ReturnType<typeof coreRunAgent>;
+    try {
+      result = coreRunAgent({
+        input: { content: input, timestamp: new Date() },
+        sessionId,
+        signal: abortController.signal,
+        pm: this.providerManager,
+      });
+    } catch (err) {
+      runRegistry.remove(sessionId);
+      throw err;
+    }
 
     let accumulatedParts: NonNullable<unknown>[] = [];
     const sessionProvider = this.sessionProvider;

@@ -46,4 +46,26 @@ describe('runRegistry', () => {
     runRegistry.remove('never-registered');
     expect(runRegistry.has('never-registered')).toBe(false);
   });
+
+  it('abort does not remove the entry', () => {
+    const controller = new AbortController();
+    runRegistry.register('s5', controller);
+    runRegistry.abort('s5');
+    expect(runRegistry.has('s5')).toBe(true);
+    expect(controller.signal.aborted).toBe(true);
+    runRegistry.remove('s5');
+  });
+
+  it('duplicate register does not overwrite original controller', () => {
+    const c1 = new AbortController();
+    const c2 = new AbortController();
+    runRegistry.register('s6', c1);
+    runRegistry.register('s6', c2);
+    const entry = runRegistry.has('s6');
+    expect(entry).toBe(true);
+    runRegistry.abort('s6');
+    expect(c1.signal.aborted).toBe(true);
+    expect(c2.signal.aborted).toBe(false);
+    runRegistry.remove('s6');
+  });
 });

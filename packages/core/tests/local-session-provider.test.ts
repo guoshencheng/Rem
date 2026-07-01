@@ -72,6 +72,18 @@ describe('LocalSessionProvider', () => {
     expect(list[2].sessionId).toBe(a.sessionId);
   });
 
+  it('updates index updatedAt when session is re-saved', async () => {
+    const a = await provider.create();
+    await new Promise((r) => setTimeout(r, 20));
+    const b = await provider.create();
+
+    await provider.save(a);
+
+    const list = await provider.list();
+    expect(list[0].sessionId).toBe(a.sessionId);
+    expect(list[1].sessionId).toBe(b.sessionId);
+  });
+
   it('should deserialize Date fields correctly', async () => {
     const session = await provider.create();
 

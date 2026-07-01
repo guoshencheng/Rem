@@ -21,9 +21,15 @@ export interface ResetRequest {
   sessionId: string;
 }
 
+export interface SessionUpdate {
+  title?: string;
+  pinned?: boolean;
+}
+
 export interface SessionSummary {
   sessionId: string;
   title?: string;
+  pinned?: boolean;
   updatedAt: number;
   messageCount: number;
 }

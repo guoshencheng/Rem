@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 import type { UIMessage } from 'rem-agent-bridge';
 import { ReasoningBlock } from './reasoning-block';
 import { ToolCallBlock } from './tool-call-block';
-import { ThinkingBar } from './thinking-bar';
 
 interface MessageItemProps {
   message: UIMessage;
@@ -71,21 +70,12 @@ export function MessageItem({ message }: MessageItemProps) {
     );
   }
 
-  const hasContent = message.parts.some((p) => p.type === 'text' && p.text.length > 0);
-  const hasReasoning = message.parts.some((p) => p.type === 'reasoning');
-
-  const thinkingStatus: 'pending' | 'streaming' | null =
-    message.status === 'pending' ? 'pending'
-    : (message.status === 'streaming' && !hasContent && !hasReasoning) ? 'streaming'
-    : null;
-
   return (
     <div className="px-4 py-3">
       <div className={cn(
         'max-w-[85%] rounded-card rounded-bl-sm bg-card border border-bd px-4 py-2.5 text-sm leading-relaxed',
         message.status === 'error' && 'border-err/50',
       )}>
-        {thinkingStatus && <ThinkingBar status={thinkingStatus} />}
         {message.parts.map((part, i) => {
           if (part.type === 'reasoning') {
             return <ReasoningBlock key={i} text={part.text} isStreaming={message.status === 'streaming'} />;

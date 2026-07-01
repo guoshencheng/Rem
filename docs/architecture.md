@@ -76,13 +76,15 @@
 │  │  ├─ run(sessionId, input)             ├─ run({sessionId, content})  │  │
 │  │  │   → AsyncIterable<                │   → {stream, output}        │  │
 │  │  │     AgentStreamChunk>              │   → 调用 core.runAgent()    │  │
-│  │  ├─ interrupt() / reset()             ├─ getMessages()              │  │
-│  │  └─ listSessions()                    └─ 跟踪活跃 run               │  │
+│  │  ├─ interrupt() / reset()             ├─ createSession()            │  │
+│  │  └─ listSessions()                    ├─ updateSession()            │  │
+│  │                                       ├─ deleteSession()            │  │
+│  │                                       └─ getMessages()              │  │
 │  │                                                                     │  │
-│  │  SSE 工具                            SessionService                 │  │
+│  │  SSE 工具                            AgentSessionManager            │  │
 │  │  ├─ parseSSEStream(reader)           ├─ list / create / get         │  │
 │  │  ├─ parseAgentStreamEvent(event)     ├─ update / delete             │  │
-│  │  └─ createSSEResponse(stream)        └─ 内存存储 + 元数据            │  │
+│  │  └─ createSSEResponse(stream)        └─ 委托 SessionProvider       │  │
 │  │                                                                     │  │
 │  │  errors.ts — ServiceError (HTTP 状态码错误类)                        │  │
 │  │  types.ts — RunRequest, InterruptRequest, ResetRequest,             │  │

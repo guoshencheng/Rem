@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../src/agent.js';
-import { FileSessionProvider, createAgentFromEnv } from 'rem-agent-core';
+import { FileSessionProvider, createProviderManager } from 'rem-agent-core';
 import type { ProviderManager } from 'rem-agent-core';
 
 describe('AgentService session management', () => {
@@ -14,8 +14,7 @@ describe('AgentService session management', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-test-'));
     const sessionProvider = new FileSessionProvider(dir);
-    const result = await createAgentFromEnv({ sessionProvider });
-    pm = result.pm;
+    pm = await createProviderManager({ sessionProvider });
     service = new AgentService(pm);
   });
 
@@ -53,11 +52,38 @@ describe('AgentService session management', () => {
     expect(found?.pinned).toBe(true);
   });
 
+  it('refreshes updatedAt when updating session', async () => {
+    const summary = await service.createSession();
+    const before = await service.listSessions();
+    const beforeUpdatedAt = before.find((s) => s.sessionId === summary.sessionId)!.updatedAt;
+
+    await new Promise((r) => setTimeout(r, 10));
+    await service.updateSession(summary.sessionId, { title: 'Renamed' });
+
+    const after = await service.listSessions();
+    const afterUpdatedAt = after.find((s) => s.sessionId === summary.sessionId)!.updatedAt;
+    expect(afterUpdatedAt).toBeGreaterThan(beforeUpdatedAt);
+  });
+
   it('deletes a session', async () => {
     const summary = await service.createSession();
     await service.deleteSession(summary.sessionId);
     const list = await service.listSessions();
     expect(list.some((s) => s.sessionId === summary.sessionId)).toBe(false);
+  });
+
+  it('does not throw when deleting non-existent session', async () => {
+    await expect(service.deleteSession('nonexistent')).resolves.toBeUndefined();
+  });
+
+  it('returns messages for existing session', async () => {
+    const summary = await service.createSession();
+    const messages = await service.getMessages(summary.sessionId);
+    expect(messages).toEqual([]);
+  });
+
+  it('throws 404 when getting messages for non-existent session', async () => {
+    await expect(service.getMessages('nonexistent')).rejects.toThrow(/Session not found/);
   });
 
   it('throws 404 when updating non-existent session', async () => {

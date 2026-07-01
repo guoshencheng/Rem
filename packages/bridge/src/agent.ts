@@ -1,15 +1,12 @@
-import type { AgentStreamChunk, AgentStream } from 'rem-agent-core';
+import type { AgentStreamChunk, AgentStream, AgentOutput, ProviderManager, SessionProvider } from 'rem-agent-core';
 import { runAgent as coreRunAgent } from 'rem-agent-core';
-import type { AgentOutput } from 'rem-agent-core';
-import type { ProviderManager } from 'rem-agent-core';
-import type { SessionProvider } from 'rem-agent-core';
 import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
-import type { BusEvent } from './types.js';
-import type { IAgentService } from './agent-service.interface.js';
-import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { BusEvent, SessionSummary, UIMessage } from './types.js';
+import type { IAgentService, SessionUpdate } from './agent-service.interface.js';
+import { AgentSessionManager } from './agent-session.js';
 
 export interface RunParams {
   sessionId: string;
@@ -34,20 +31,12 @@ export interface ResetResult {
 export class AgentService implements IAgentService {
   private sessionProvider: SessionProvider;
   private workspace: string;
+  private sessionManager: AgentSessionManager;
 
   constructor(private providerManager: ProviderManager, workspace = 'default') {
     this.sessionProvider = providerManager.require<SessionProvider>('session');
     this.workspace = workspace;
-  }
-
-  private toSummary(session: { sessionId: string; metadata?: Record<string, unknown>; updatedAt: Date; conversation?: unknown[] }): SessionSummary {
-    return {
-      sessionId: session.sessionId,
-      title: (session.metadata?.title as string | undefined) ?? 'New Chat',
-      pinned: session.metadata?.pinned as boolean | undefined,
-      updatedAt: session.updatedAt.getTime(),
-      messageCount: Array.isArray(session.conversation) ? session.conversation.length : 0,
-    };
+    this.sessionManager = new AgentSessionManager(this.sessionProvider);
   }
 
   /* ---- Agent lifecycle ---- */
@@ -143,62 +132,23 @@ export class AgentService implements IAgentService {
   /* ---- Message tracking ---- */
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {
-    const session = await this.sessionProvider.load(sessionId);
-    if (!session) {
-      throw new ServiceError('Session not found', 404);
-    }
-
-    return session.conversation
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        parts: msg.content ?? [],
-        status: 'done' as const,
-      }));
+    return this.sessionManager.getMessages(sessionId);
   }
 
   async createSession(): Promise<SessionSummary> {
-    const session = await this.sessionProvider.create();
-    return this.toSummary(session);
+    return this.sessionManager.createSession();
   }
 
   async listSessions(): Promise<SessionSummary[]> {
-    const summaries = await this.sessionProvider.list();
-    return summaries
-      .map((s) => ({
-        sessionId: s.sessionId,
-        title: s.title ?? 'New Chat',
-        pinned: s.pinned,
-        updatedAt: s.updatedAt.getTime(),
-        messageCount: s.messageCount,
-      }))
-      .sort((a, b) => {
-        if (a.pinned === b.pinned) {
-          return b.updatedAt - a.updatedAt;
-        }
-        return a.pinned ? -1 : 1;
-      });
+    return this.sessionManager.listSessions();
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
-    const session = await this.sessionProvider.load(sessionId);
-    if (!session) {
-      throw new ServiceError('Session not found', 404);
-    }
-    if (updates.title !== undefined) {
-      session.metadata.title = updates.title;
-    }
-    if (updates.pinned !== undefined) {
-      session.metadata.pinned = updates.pinned;
-    }
-    await this.sessionProvider.save(session);
+    return this.sessionManager.updateSession(sessionId, updates);
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    runRegistry.abort(sessionId);
-    runRegistry.remove(sessionId);
-    await this.sessionProvider.delete(sessionId);
+    return this.sessionManager.deleteSession(sessionId);
   }
 
   /* ---- Broadcast stream ---- */

@@ -69,14 +69,17 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
+  // TODO(Task 4): implement remote call to POST /api/sessions
   async createSession(): Promise<SessionSummary> {
     throw new Error('Not implemented');
   }
 
+  // TODO(Task 4): implement remote call to PATCH /api/sessions/:sessionId
   async updateSession(_sessionId: string, _updates: SessionUpdate): Promise<void> {
     throw new Error('Not implemented');
   }
 
+  // TODO(Task 4): implement remote call to DELETE /api/sessions/:sessionId
   async deleteSession(_sessionId: string): Promise<void> {
     throw new Error('Not implemented');
   }

@@ -26,12 +26,19 @@ export interface SessionUpdate {
   pinned?: boolean;
 }
 
+export type SessionActivity =
+  | 'idle'
+  | 'thinking'
+  | 'calling-function'
+  | 'outputting';
+
 export interface SessionSummary {
   sessionId: string;
   title?: string;
   pinned?: boolean;
   updatedAt: number;
   messageCount: number;
+  activity?: SessionActivity;
 }
 
 export type ServerStreamEvent = AgentStreamChunk;
@@ -40,4 +47,5 @@ export type BusEvent =
   | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamChunk }
   | { workspace: string; sessionId: string; type: 'session-start' }
   | { workspace: string; sessionId: string; type: 'session-end' }
-  | { workspace: string; sessionId: string; type: 'session-error'; error: string };
+  | { workspace: string; sessionId: string; type: 'session-error'; error: string }
+  | { workspace: string; sessionId: string; type: 'activity-change'; activity: SessionActivity };

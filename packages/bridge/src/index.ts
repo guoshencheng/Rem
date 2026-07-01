@@ -9,6 +9,7 @@ export type {
   ServerStreamEvent,
   UIMessage,
   BusEvent,
+  SessionActivity,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
 export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';

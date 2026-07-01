@@ -72,7 +72,7 @@ export class AgentRemoteService implements IAgentService {
   async createSession(): Promise<SessionSummary> {
     const response = await fetch(`${this.baseUrl}/api/sessions`, { method: 'POST' });
     if (!response.ok) {
-      throw new Error(`Failed to create session: ${response.status}`);
+      throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as SessionSummary;
   }
@@ -80,35 +80,35 @@ export class AgentRemoteService implements IAgentService {
   async listSessions(): Promise<SessionSummary[]> {
     const response = await fetch(`${this.baseUrl}/api/sessions`);
     if (!response.ok) {
-      throw new Error(`Failed to list sessions: ${response.status}`);
+      throw new Error(`Failed to list sessions: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as SessionSummary[];
   }
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`);
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`);
     if (!response.ok) {
-      throw new Error(`Failed to get messages: ${response.status}`);
+      throw new Error(`Failed to get messages: ${response.status} ${response.statusText}`);
     }
     const data = (await response.json()) as { messages?: UIMessage[] };
     return data.messages ?? [];
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`, {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
     if (!response.ok) {
-      throw new Error(`Failed to update session: ${response.status}`);
+      throw new Error(`Failed to update session: ${response.status} ${response.statusText}`);
     }
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`, { method: 'DELETE' });
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
     if (!response.ok) {
-      throw new Error(`Failed to delete session: ${response.status}`);
+      throw new Error(`Failed to delete session: ${response.status} ${response.statusText}`);
     }
   }
 

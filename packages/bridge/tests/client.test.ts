@@ -178,4 +178,31 @@ describe('AgentRemoteService session methods', () => {
     await client.deleteSession('s1');
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8321/api/sessions/s1', { method: 'DELETE' });
   });
+
+  it('throws on create session failure', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' });
+
+    const client = new AgentRemoteService('http://localhost:8321');
+    await expect(client.createSession()).rejects.toThrow(/500 Internal Server Error/);
+  });
+
+  it('throws on update session failure', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, statusText: 'Not Found' });
+
+    const client = new AgentRemoteService('http://localhost:8321');
+    await expect(client.updateSession('s1', { title: 'X' })).rejects.toThrow(/404 Not Found/);
+  });
+
+  it('throws on delete session failure', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' });
+
+    const client = new AgentRemoteService('http://localhost:8321');
+    await expect(client.deleteSession('s1')).rejects.toThrow(/403 Forbidden/);
+  });
 });

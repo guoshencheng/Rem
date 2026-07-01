@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionService, IAgentService } from 'rem-agent-bridge';
+import type { IAgentService } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
 export async function GET(request: NextRequest) {
@@ -20,8 +20,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST() {
-  const container = await getContainer();
-  const sessionService = container.resolve<SessionService>('sessionService');
-  const result = sessionService.create();
-  return NextResponse.json(result);
+  try {
+    const container = await getContainer();
+    const agentService = container.resolve<IAgentService>('agentService');
+    const result = await agentService.createSession();
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+  }
 }

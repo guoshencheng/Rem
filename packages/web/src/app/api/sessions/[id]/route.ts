@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { IAgentService, SessionService } from 'rem-agent-bridge';
+import type { IAgentService } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
+
+function errorResponse(err: unknown) {
+  const message = err instanceof Error ? err.message : 'Internal error';
+  const status = err instanceof Error && message.includes('Session not found') ? 404 : 500;
+  return NextResponse.json({ error: message }, { status });
+}
 
 export async function GET(
   _request: NextRequest,
@@ -17,7 +23,7 @@ export async function GET(
       messages,
     });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+    return errorResponse(err);
   }
 }
 
@@ -30,11 +36,11 @@ export async function PATCH(
     const body = await request.json();
     const { title, pinned } = body as { title?: string; pinned?: boolean };
     const container = await getContainer();
-    const sessionService = container.resolve<SessionService>('sessionService');
-    sessionService.update(id, { title, pinned });
+    const agentService = container.resolve<IAgentService>('agentService');
+    await agentService.updateSession(id, { title, pinned });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+    return errorResponse(err);
   }
 }
 
@@ -45,10 +51,10 @@ export async function DELETE(
   try {
     const { id } = await params;
     const container = await getContainer();
-    const sessionService = container.resolve<SessionService>('sessionService');
-    sessionService.delete(id);
+    const agentService = container.resolve<IAgentService>('agentService');
+    await agentService.deleteSession(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
+    return errorResponse(err);
   }
 }

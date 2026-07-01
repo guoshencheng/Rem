@@ -1,5 +1,5 @@
 import { createContainer, asFunction, Lifetime, type AwilixContainer } from 'awilix';
-import { AgentService, SessionService } from 'rem-agent-bridge';
+import { AgentService } from 'rem-agent-bridge';
 import { createAgentFromEnv, FileSessionProvider } from 'rem-agent-core';
 import { getDefaultSessionsDir } from 'rem-agent-core';
 
@@ -13,9 +13,6 @@ async function configureContainer(): Promise<AwilixContainer> {
 
   container.register({
     agentService: asFunction(() => new AgentService(pm), {
-      lifetime: Lifetime.SINGLETON,
-    }),
-    sessionService: asFunction(({ agentService }) => new SessionService(agentService), {
       lifetime: Lifetime.SINGLETON,
     }),
   });

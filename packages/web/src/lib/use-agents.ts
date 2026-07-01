@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { IAgentService, BusEvent } from 'rem-agent-bridge/client';
+import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
 import { useAgentBus } from './use-agent-bus';
@@ -12,6 +12,8 @@ interface SessionState {
   messages: UIMessage[];
   status: SessionStatus;
   error: string | null;
+  activity?: SessionActivity;
+  pendingToolCalls: Set<string>;
 }
 
 export interface SessionSummary {
@@ -20,6 +22,7 @@ export interface SessionSummary {
   updatedAt: number;
   messageCount: number;
   pinned?: boolean;
+  activity?: SessionActivity;
 }
 
 interface UseAgentsOptions {
@@ -50,12 +53,14 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           messages,
           status: 'idle',
           error: null,
+          pendingToolCalls: new Set(),
         });
       } catch {
         sessionMapRef.current.set(sessionId, {
           messages: [],
           status: 'idle',
           error: null,
+          pendingToolCalls: new Set(),
         });
       }
       notifyChange();
@@ -84,49 +89,78 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       if (event.workspace !== workspace) return;
 
       const map = sessionMapRef.current;
-      const state = map.get(event.sessionId);
+      let state = map.get(event.sessionId);
 
       console.log(`[useAgents] bus-event session=${event.sessionId} type=${event.type} hasState=${!!state}`);
 
       switch (event.type) {
         case 'session-start': {
-          ensureSession(event.sessionId);
-          const s = map.get(event.sessionId);
-          if (s) {
-            s.status = 'loading';
+          if (!state) {
+            ensureSession(event.sessionId);
+            state = map.get(event.sessionId);
+          }
+          if (state) {
+            state.status = 'loading';
+            state.activity = state.activity ?? 'thinking';
             notifyChange();
           }
           break;
         }
         case 'chunk': {
-          if (!state) return;
+          if (!state) {
+            ensureSession(event.sessionId);
+            state = map.get(event.sessionId);
+            if (!state) return;
+          }
           const lastMsg = state.messages[state.messages.length - 1];
-          if (!lastMsg || lastMsg.role !== 'assistant') return;
-
-          const newParts = reduceStreamChunk(lastMsg.parts, event.chunk);
-          state.messages = [
-            ...state.messages.slice(0, -1),
-            {
-              ...lastMsg,
-              parts: newParts,
-              status: event.chunk.type === 'finish' ? 'done'
-                : event.chunk.type === 'error' ? 'error'
-                : 'streaming',
-              error: event.chunk.type === 'error' ? String(event.chunk.error) : undefined,
-            },
-          ];
+          if (lastMsg && lastMsg.role === 'assistant') {
+            const newParts = reduceStreamChunk(lastMsg.parts, event.chunk);
+            state.messages = [
+              ...state.messages.slice(0, -1),
+              {
+                ...lastMsg,
+                parts: newParts,
+                status: event.chunk.type === 'finish' ? 'done'
+                  : event.chunk.type === 'error' ? 'error'
+                  : 'streaming',
+                error: event.chunk.type === 'error' ? String(event.chunk.error) : undefined,
+              },
+            ];
+          }
           state.status = event.chunk.type === 'finish' ? 'done'
             : event.chunk.type === 'error' ? 'error'
             : 'streaming';
           if (event.chunk.type === 'error') {
             state.error = String(event.chunk.error);
           }
+
+          const chunk = event.chunk;
+          if (chunk.type === 'finish' || chunk.type === 'error') {
+            state.activity = 'idle';
+            state.pendingToolCalls.clear();
+          } else if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta') {
+            state.activity = 'thinking';
+          } else if (chunk.type === 'tool-call-start' || chunk.type === 'tool-call') {
+            state.activity = 'calling-function';
+            state.pendingToolCalls.add(chunk.toolCallId);
+          } else if (chunk.type === 'tool-result-start' || chunk.type === 'tool-result' || chunk.type === 'tool-result-finish') {
+            state.pendingToolCalls.delete(chunk.toolCallId);
+            if (state.pendingToolCalls.size > 0) {
+              state.activity = 'calling-function';
+            }
+          } else if (chunk.type === 'text-start' || chunk.type === 'text-delta') {
+            if (state.pendingToolCalls.size === 0) {
+              state.activity = 'outputting';
+            }
+          }
+
           notifyChange();
           break;
         }
         case 'session-end': {
           if (!state) return;
           state.status = 'done';
+          state.activity = 'idle';
           notifyChange();
           break;
         }
@@ -134,6 +168,21 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           if (!state) return;
           state.status = 'error';
           state.error = event.error;
+          notifyChange();
+          break;
+        }
+        case 'activity-change': {
+          if (!state) {
+            ensureSession(event.sessionId);
+            state = map.get(event.sessionId);
+            if (!state) return;
+          }
+          state.activity = event.activity;
+          setSessionList((prev) =>
+            prev.map((s) =>
+              s.sessionId === event.sessionId ? { ...s, activity: event.activity } : s,
+            ),
+          );
           notifyChange();
           break;
         }
@@ -150,6 +199,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       messages: state.messages,
       status: state.status,
       error: state.error,
+      activity: state.activity,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);
@@ -178,6 +228,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       state.messages = [...state.messages, userMsg, assistantMsg];
       state.status = 'loading';
       state.error = null;
+      state.activity = 'thinking';
       notifyChange();
 
       console.log(`[useAgents] send session=${currentId} content="${content.slice(0, 50)}"`);

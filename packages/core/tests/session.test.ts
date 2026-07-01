@@ -17,13 +17,13 @@ describe('InMemorySessionProvider', () => {
   it('should load an existing session', async () => {
     const provider = new InMemorySessionProvider();
     const created = await provider.create();
-    created.conversation.push({ role: 'user', content: 'hello' } as ModelMessage);
+    created.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }] } as ModelMessage);
     await provider.save(created);
 
     const loaded = await provider.load(created.sessionId);
     expect(loaded).not.toBeNull();
     expect(loaded!.conversation).toHaveLength(1);
-    expect(loaded!.conversation[0].content).toBe('hello');
+    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'hello' }]);
   });
 
   it('should return null for unknown session id', async () => {
@@ -51,11 +51,11 @@ describe('InMemorySessionProvider', () => {
     const c = await provider.create();
 
     a.metadata.title = 'Alpha';
-    a.conversation.push({ role: 'user', content: 'hi' } as ModelMessage);
+    a.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
     await provider.save(a);
 
-    b.conversation.push({ role: 'user', content: 'hello' } as ModelMessage);
-    b.conversation.push({ role: 'assistant', content: 'hi' } as ModelMessage);
+    b.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }] } as ModelMessage);
+    b.conversation.push({ id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
     await provider.save(b);
 
     await new Promise(r => setTimeout(r, 10));

@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { FileSessionProvider } from '../src/plugins/session/file/index.js';
+import { LocalSessionProvider } from '../src/plugins/session/local/index.js';
 import type { ModelMessage } from '../src/types.js';
 
-describe('FileSessionProvider', () => {
+describe('LocalSessionProvider', () => {
   let dir: string;
-  let provider: FileSessionProvider;
+  let provider: LocalSessionProvider;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'file-session-test-'));
-    provider = new FileSessionProvider(dir);
+    dir = await mkdtemp(join(tmpdir(), 'local-session-test-'));
+    provider = new LocalSessionProvider(dir);
   });
 
   afterEach(async () => {
@@ -89,18 +89,21 @@ describe('FileSessionProvider', () => {
 
   it('should auto-create directory on create', async () => {
     const subDir = join(dir, 'nested', 'sessions');
-    const nestedProvider = new FileSessionProvider(subDir);
+    const nestedProvider = new LocalSessionProvider(subDir);
     const session = await nestedProvider.create();
 
     const loaded = await nestedProvider.load(session.sessionId);
     expect(loaded).not.toBeNull();
   });
 
-  it('should delete a session file', async () => {
+  it('should delete a session file and remove from index', async () => {
     const session = await provider.create();
+    await provider.save(session);
     await provider.delete(session.sessionId);
     const loaded = await provider.load(session.sessionId);
     expect(loaded).toBeNull();
+    const list = await provider.list();
+    expect(list.find((s) => s.sessionId === session.sessionId)).toBeUndefined();
   });
 
   it('should not throw when deleting non-existent session', async () => {

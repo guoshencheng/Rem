@@ -10,7 +10,6 @@ export interface FileSessionProviderOptions {
 
 export class FileSessionProvider extends BaseSessionProvider {
   constructor(dir: string) {
-    console.log(`FileSessionProvider initialized with dir: ${dir}`);
     super(dir);
   }
 
@@ -30,7 +29,6 @@ export class FileSessionProvider extends BaseSessionProvider {
     }
 
     const summaries: SessionSummary[] = [];
-    console.log(entries, this.dir);
     for (const entry of entries) {
       if (!entry.endsWith('.json')) continue;
       const id = entry.slice(0, -5);

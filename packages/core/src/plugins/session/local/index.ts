@@ -1,4 +1,4 @@
-import { readFile, writeFile, unlink } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
@@ -22,12 +22,18 @@ export class LocalSessionProvider extends BaseSessionProvider {
   private _msgCache = new Map<string, ContentPart[]>();
 
   constructor(dir: string) {
-    console.log(`LocalSessionProvider initialized with dir: ${dir}`);
     super(dir);
   }
 
   private indexPath(): string {
     return join(this.dir, 'index.json');
+  }
+
+  async create(): Promise<Session> {
+    const session = await super.create();
+    await this.write(session);
+    await this.updateIndex(session);
+    return session;
   }
 
   async load(sessionId: string): Promise<Session | null> {
@@ -69,7 +75,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
 
   async delete(sessionId: string): Promise<void> {
     this._msgCache.delete(sessionId);
-    try { await unlink(this.sessionPath(sessionId)); } catch { /* ignore */ }
+    await super.delete(sessionId);
     await this.removeFromIndex(sessionId);
   }
 

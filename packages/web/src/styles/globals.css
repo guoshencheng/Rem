@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'github-markdown-css/github-markdown-dark.css';
 
 @variant dark (&:is(.dark *));
 
@@ -49,6 +50,10 @@
 @utility scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-bd2) transparent;
+}
+
+.markdown-body {
+  background-color: transparent !important;
 }
 
 /* highlight.js theme override — dark theme compatible with our palette */

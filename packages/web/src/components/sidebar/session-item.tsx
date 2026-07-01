@@ -4,6 +4,20 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { MoreHorizontal, Pin, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SessionSummary } from '@/lib/use-agents';
+import type { SessionActivity } from 'rem-agent-bridge';
+
+function activityDot(activity?: SessionActivity) {
+  switch (activity) {
+    case 'thinking':
+      return <span className="w-1.5 h-1.5 rounded-full bg-ac animate-pulse flex-shrink-0" />;
+    case 'calling-function':
+      return <span className="w-1.5 h-1.5 rounded-full bg-warn flex-shrink-0" />;
+    case 'outputting':
+      return <span className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" />;
+    default:
+      return <span className="w-1.5 h-1.5 rounded-full bg-tx3/50 flex-shrink-0" />;
+  }
+}
 
 interface SessionItemProps {
   session: SessionSummary;
@@ -75,6 +89,7 @@ export function SessionItem({ session, isActive, onSwitch, onDelete }: SessionIt
       )}
       onClick={() => onSwitch(session.sessionId)}
     >
+      {activityDot(session.activity)}
       {editing ? (
         <input
           ref={inputRef}

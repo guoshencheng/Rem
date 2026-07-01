@@ -13,6 +13,7 @@ export interface LocalSessionProviderOptions {
 interface IndexEntry {
   sessionId: string;
   title?: string;
+  pinned?: boolean;
   updatedAt: string;
   messageCount: number;
 }
@@ -60,6 +61,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
     return index.map((s) => ({
       sessionId: s.sessionId,
       title: s.title,
+      pinned: s.pinned,
       updatedAt: new Date(s.updatedAt),
       messageCount: s.messageCount,
     }));
@@ -99,6 +101,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
     const entry: IndexEntry = {
       sessionId: session.sessionId,
       title: session.metadata.title as string | undefined,
+      pinned: session.metadata.pinned as boolean | undefined,
       updatedAt: session.updatedAt.toISOString(),
       messageCount: count,
     };

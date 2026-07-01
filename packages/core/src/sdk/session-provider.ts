@@ -6,5 +6,6 @@ export interface SessionProvider {
   create(): Promise<Session>;
   load(sessionId: string): Promise<Session | null>;
   save(session: Session): Promise<void>;
+  delete(sessionId: string): Promise<void>;
   list(): Promise<SessionSummary[]>;
 }

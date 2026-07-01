@@ -41,6 +41,7 @@ export class FileSessionProvider extends BaseSessionProvider {
         summaries.push({
           sessionId: id,
           title: body.metadata?.title as string | undefined,
+          pinned: body.metadata?.pinned as boolean | undefined,
           updatedAt: body.updatedAt ? new Date(body.updatedAt) : new Date(0),
           messageCount: Array.isArray(body.conversation) ? body.conversation.length : 0,
         });

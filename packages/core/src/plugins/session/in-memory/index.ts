@@ -39,12 +39,16 @@ export class InMemorySessionProvider implements SessionProvider {
       result.push({
         sessionId: session.sessionId,
         title: session.metadata.title as string | undefined,
+        pinned: session.metadata.pinned as boolean | undefined,
         updatedAt: session.updatedAt,
         messageCount: session.conversation.length,
       });
     }
     result.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     return result;
+  }
+  async delete(sessionId: string): Promise<void> {
+    this.sessions.delete(sessionId);
   }
 }
 

@@ -13,6 +13,7 @@ export interface Session {
 export interface SessionSummary {
   sessionId: string;
   title?: string;
+  pinned?: boolean;
   updatedAt: Date;
   messageCount: number;
 }

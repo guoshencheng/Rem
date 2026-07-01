@@ -95,4 +95,28 @@ describe('FileSessionProvider', () => {
     const loaded = await nestedProvider.load(session.sessionId);
     expect(loaded).not.toBeNull();
   });
+
+  it('should delete a session file', async () => {
+    const session = await provider.create();
+    await provider.delete(session.sessionId);
+    const loaded = await provider.load(session.sessionId);
+    expect(loaded).toBeNull();
+  });
+
+  it('should list pinned metadata', async () => {
+    const a = await provider.create();
+    a.metadata.title = 'Pinned';
+    a.metadata.pinned = true;
+    await provider.save(a);
+
+    const b = await provider.create();
+    b.metadata.title = 'Normal';
+    await provider.save(b);
+
+    const list = await provider.list();
+    const summaryA = list.find((s) => s.sessionId === a.sessionId);
+    const summaryB = list.find((s) => s.sessionId === b.sessionId);
+    expect(summaryA?.pinned).toBe(true);
+    expect(summaryB?.pinned).toBeUndefined();
+  });
 });

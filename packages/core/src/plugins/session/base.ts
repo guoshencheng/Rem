@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionProvider, SessionSummary } from '../../sdk/session-provider.js';
 
@@ -67,6 +67,14 @@ export abstract class BaseSessionProvider implements SessionProvider {
       updatedAt: session.updatedAt.toISOString(),
     };
     await writeFile(this.sessionPath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
+  }
+
+  async delete(sessionId: string): Promise<void> {
+    try {
+      await unlink(this.sessionPath(sessionId));
+    } catch {
+      // ignore: file may not exist
+    }
   }
 
   abstract list(): Promise<SessionSummary[]>;

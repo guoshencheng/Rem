@@ -70,4 +70,30 @@ describe('InMemorySessionProvider', () => {
     expect(list.some(s => s.title === 'Alpha')).toBe(true);
     expect(list.some(s => s.messageCount === 2)).toBe(true);
   });
+
+  it('should delete a session', async () => {
+    const provider = new InMemorySessionProvider();
+    const session = await provider.create();
+    await provider.delete(session.sessionId);
+    const loaded = await provider.load(session.sessionId);
+    expect(loaded).toBeNull();
+  });
+
+  it('should list pinned metadata', async () => {
+    const provider = new InMemorySessionProvider();
+    const a = await provider.create();
+    a.metadata.title = 'A';
+    a.metadata.pinned = true;
+    await provider.save(a);
+
+    const b = await provider.create();
+    b.metadata.title = 'B';
+    await provider.save(b);
+
+    const list = await provider.list();
+    const summaryA = list.find((s) => s.sessionId === a.sessionId);
+    const summaryB = list.find((s) => s.sessionId === b.sessionId);
+    expect(summaryA?.pinned).toBe(true);
+    expect(summaryB?.pinned).toBeUndefined();
+  });
 });

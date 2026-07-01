@@ -7,16 +7,6 @@ function isNodeError(err: unknown, code: string): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err && err.code === code;
 }
 
-export function getMetaString(metadata: Record<string, unknown>, key: string): string | undefined {
-  const value = metadata[key];
-  return typeof value === 'string' ? value : undefined;
-}
-
-export function getMetaBoolean(metadata: Record<string, unknown>, key: string): boolean | undefined {
-  const value = metadata[key];
-  return typeof value === 'boolean' ? value : undefined;
-}
-
 export abstract class BaseSessionProvider implements SessionProvider {
   protected dir: string;
 
@@ -62,13 +52,18 @@ export abstract class BaseSessionProvider implements SessionProvider {
     }
   }
 
-  async save(session: Session): Promise<void> {
+  protected async persist(session: Session): Promise<Session> {
     await this.ensureDir();
     const updated: Session = {
       ...session,
       updatedAt: new Date(),
     };
     await this.write(updated);
+    return updated;
+  }
+
+  async save(session: Session): Promise<void> {
+    await this.persist(session);
   }
 
   protected async write(session: Session): Promise<void> {

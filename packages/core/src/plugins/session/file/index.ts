@@ -2,7 +2,8 @@ import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
-import { BaseSessionProvider, getMetaBoolean, getMetaString } from '../base.js';
+import { BaseSessionProvider } from '../base.js';
+import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 export interface FileSessionProviderOptions {
   dir: string;

@@ -2,7 +2,8 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
-import { BaseSessionProvider, getMetaBoolean, getMetaString } from '../base.js';
+import { BaseSessionProvider } from '../base.js';
+import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 import type { ContentPart } from '../../../types.js';
 
@@ -19,7 +20,7 @@ interface IndexEntry {
 }
 
 export class LocalSessionProvider extends BaseSessionProvider {
-  private _msgCache = new Map<string, ContentPart[]>();
+  private msgCache = new Map<string, ContentPart[]>();
 
   constructor(dir: string) {
     super(dir);
@@ -41,7 +42,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
       const raw = await readFile(this.sessionPath(sessionId), 'utf-8');
       const data = JSON.parse(raw);
       if (Array.isArray(data.messages)) {
-        this._msgCache.set(sessionId, data.messages);
+        this.msgCache.set(sessionId, data.messages);
       }
       return {
         sessionId: data.sessionId,
@@ -57,8 +58,8 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async save(session: Session): Promise<void> {
-    await super.save(session);
-    await this.updateIndex(session);
+    const updated = await this.persist(session);
+    await this.updateIndex(updated);
   }
 
   async list(): Promise<SessionSummary[]> {
@@ -74,24 +75,24 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async delete(sessionId: string): Promise<void> {
-    this._msgCache.delete(sessionId);
+    this.msgCache.delete(sessionId);
     await super.delete(sessionId);
     await this.removeFromIndex(sessionId);
   }
 
   cueMessages(sessionId: string, messages: ContentPart[]): void {
-    this._msgCache.set(sessionId, messages);
+    this.msgCache.set(sessionId, messages);
   }
 
   pullMessages(sessionId: string): ContentPart[] {
-    return this._msgCache.get(sessionId) ?? [];
+    return this.msgCache.get(sessionId) ?? [];
   }
 
   protected async write(session: Session): Promise<void> {
     const data = {
       sessionId: session.sessionId,
       conversation: session.conversation,
-      messages: this._msgCache.get(session.sessionId) ?? [],
+      messages: this.msgCache.get(session.sessionId) ?? [],
       currentTurn: session.currentTurn,
       metadata: session.metadata,
       createdAt: session.createdAt.toISOString(),

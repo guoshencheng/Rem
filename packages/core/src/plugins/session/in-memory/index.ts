@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { ModelMessage } from '../../../types.js';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 
-import { getMetaBoolean, getMetaString } from '../base.js';
+import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 export class InMemorySessionProvider implements SessionProvider {
   private sessions = new Map<string, Session>();

@@ -69,19 +69,12 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
-  // TODO(Task 4): implement remote call to POST /api/sessions
   async createSession(): Promise<SessionSummary> {
-    throw new Error('Not implemented');
-  }
-
-  // TODO(Task 4): implement remote call to PATCH /api/sessions/:sessionId
-  async updateSession(_sessionId: string, _updates: SessionUpdate): Promise<void> {
-    throw new Error('Not implemented');
-  }
-
-  // TODO(Task 4): implement remote call to DELETE /api/sessions/:sessionId
-  async deleteSession(_sessionId: string): Promise<void> {
-    throw new Error('Not implemented');
+    const response = await fetch(`${this.baseUrl}/api/sessions`, { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Failed to create session: ${response.status}`);
+    }
+    return (await response.json()) as SessionSummary;
   }
 
   async listSessions(): Promise<SessionSummary[]> {
@@ -99,6 +92,24 @@ export class AgentRemoteService implements IAgentService {
     }
     const data = (await response.json()) as { messages?: UIMessage[] };
     return data.messages ?? [];
+  }
+
+  async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update session: ${response.status}`);
+    }
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${sessionId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error(`Failed to delete session: ${response.status}`);
+    }
   }
 
   async *stream(): AsyncIterable<BusEvent> {

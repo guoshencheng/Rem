@@ -4,7 +4,8 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../src/agent.js';
 import { FileSessionProvider, createProviderManager } from 'rem-agent-core';
-import type { ProviderManager } from 'rem-agent-core';
+import type { ProviderManager, SessionProvider } from 'rem-agent-core';
+import type { ModelMessage } from 'rem-agent-core';
 
 describe('AgentService session management', () => {
   let dir: string;
@@ -88,5 +89,31 @@ describe('AgentService session management', () => {
 
   it('throws 404 when updating non-existent session', async () => {
     await expect(service.updateSession('nonexistent', { title: 'X' })).rejects.toThrow(/Session not found/);
+  });
+
+  it('merges tool-result parts into assistant messages', async () => {
+    const summary = await service.createSession();
+    const sessionProvider = pm.require<SessionProvider>('session');
+    const session = await sessionProvider.load(summary.sessionId);
+    if (!session) throw new Error('Session not found');
+
+    const assistantMsg: ModelMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: [{ type: 'tool-call', toolCallId: 'tc1', toolName: 'ls', arguments: { path: '.' } }],
+    };
+    const toolMsg: ModelMessage = {
+      id: 't1',
+      role: 'tool',
+      content: [{ type: 'tool-result', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' }],
+    };
+    session.conversation.push(assistantMsg, toolMsg);
+    await sessionProvider.save(session);
+
+    const messages = await service.getMessages(summary.sessionId);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].parts).toHaveLength(2);
+    expect(messages[0].parts[0]).toEqual({ type: 'tool-call', toolCallId: 'tc1', toolName: 'ls', arguments: { path: '.' } });
+    expect(messages[0].parts[1]).toEqual({ type: 'tool-result', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' });
   });
 });

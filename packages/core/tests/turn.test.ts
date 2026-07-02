@@ -175,6 +175,44 @@ describe('ReactTurnRunner', () => {
     expect(chunks.some(c => c.type === 'step-finish' && c.step === 2)).toBe(true);
   });
 
+  it('includes the final assistant message when loop creates one in a later step', async () => {
+    const iterateMock = vi.fn().mockImplementation(async (ctx: LoopContext, hooks: TurnHooks, _controller: AgentStreamController, step: number) => {
+      const hasMore = step === 1;
+      if (hasMore) {
+        const toolMsg: ModelMessage = { id: 't1', role: 'tool', content: '2' };
+        hooks.onMessageAdded(toolMsg);
+        return {
+          content: '',
+          newMessages: [toolMsg],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
+        };
+      }
+      const finalAssistant: ModelMessage = { id: 'a2', role: 'assistant', content: [{ type: 'text', text: 'Done' }] };
+      ctx.state.addMessage(finalAssistant);
+      return {
+        content: 'Done',
+        newMessages: [],
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined }, outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined } },
+      };
+    });
+    const loop: LoopStrategy = { iterate: iterateMock };
+    const runner = new ReactTurnRunner(loop);
+
+    const result = await runner.run({
+      input: { content: 'hi' },
+      conversation: [],
+      systemPrompt: '',
+      budget: new IterationBudget({ maxTurns: 5 }),
+      maxSteps: 50,
+    }, {
+      onMessageAdded: vi.fn(),
+      onToolCallRecorded: vi.fn(),
+    }, new AgentStreamController());
+
+    expect(result.content).toBe('Done');
+    expect(result.newMessages.some(m => m.id === 'a2' && m.role === 'assistant')).toBe(true);
+  });
+
   it('respects maxSteps', async () => {
     const iterateMock = vi.fn().mockImplementation(async () => ({
       content: '',
@@ -189,7 +227,6 @@ describe('ReactTurnRunner', () => {
       input: { content: 'hi' },
       conversation: [],
       systemPrompt: '',
-      
       budget: new IterationBudget({ maxTurns: 5 }),
       maxSteps: 1,
     }, {

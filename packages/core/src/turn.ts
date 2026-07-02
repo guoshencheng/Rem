@@ -102,6 +102,17 @@ export class ReactTurnRunner implements TurnRunner {
       step++;
     }
 
+    const lastMsg = state.conversation[state.conversation.length - 1];
+    if (
+      lastMsg &&
+      lastMsg.role === 'assistant' &&
+      lastMsg !== assistantMsg &&
+      lastMsg.content.length > 0 &&
+      !allNewMessages.includes(lastMsg)
+    ) {
+      allNewMessages.push(lastMsg);
+    }
+
     return {
       content,
       newMessages: allNewMessages,

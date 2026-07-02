@@ -24,7 +24,7 @@ export function convertAssistantContent(content: MessageContent): OpenAI.Chat.Ch
       type: 'function' as const,
       function: {
         name: part.toolName,
-        arguments: JSON.stringify(part.input),
+        arguments: JSON.stringify(part.arguments),
       },
     }));
 

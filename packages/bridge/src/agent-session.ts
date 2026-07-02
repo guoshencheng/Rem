@@ -1,4 +1,4 @@
-import type { SessionProvider } from 'rem-agent-core';
+import type { SessionProvider, ContentPart } from 'rem-agent-core';
 import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import { ServiceError } from './errors.js';
 import { runRegistry } from './run-registry.js';
@@ -35,14 +35,37 @@ export class AgentSessionManager {
       throw new ServiceError('Session not found', 404);
     }
 
+    const toolResults = new Map<string, ContentPart>();
+    for (const msg of session.conversation) {
+      if (msg.role !== 'tool') continue;
+      for (const part of msg.content ?? []) {
+        if (part.type === 'tool-result') {
+          toolResults.set(part.toolCallId, part);
+        }
+      }
+    }
+
     return session.conversation
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        parts: msg.content ?? [],
-        status: 'done' as const,
-      }));
+      .map((msg) => {
+        const parts = (msg.content ?? []) as ContentPart[];
+        const mergedParts: ContentPart[] = [];
+        for (const part of parts) {
+          mergedParts.push(part);
+          if (part.type === 'tool-call') {
+            const result = toolResults.get(part.toolCallId);
+            if (result) {
+              mergedParts.push(result);
+            }
+          }
+        }
+        return {
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          parts: mergedParts,
+          status: 'done' as const,
+        };
+      });
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {

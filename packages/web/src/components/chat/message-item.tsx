@@ -29,7 +29,9 @@ export function MessageItem({ message }: MessageItemProps) {
   }
 
   return (
-    <div className="py-3">
+    <div className="py-3" style={{
+      padding: 0,
+    }}>
       <div className={cn(
         'text-sm leading-relaxed',
         message.status === 'error' ? 'text-err' : 'text-tx',

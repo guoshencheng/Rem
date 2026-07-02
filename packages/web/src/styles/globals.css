@@ -53,6 +53,7 @@
 }
 
 .markdown-body {
+  margin-bottom: calc(var(--spacing) * 2) !important;
   background-color: transparent !important;
 }
 

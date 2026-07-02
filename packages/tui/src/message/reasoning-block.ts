@@ -35,8 +35,8 @@ export function createReasoningBlock(
 
   function update() {
     const base = part.duration != null
-      ? `think for ${(part.duration / 1000).toFixed(1)}s`
-      : "thinking";
+      ? "thought"
+      : "thinking...";
     if (collapsed) {
       const prev = previewText(part.content);
       label.content = `${base}${prev ? `: ${prev}` : ""} > (ctrl+o)`;

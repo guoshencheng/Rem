@@ -4,9 +4,11 @@ import { useRef, useEffect, useCallback } from 'react';
 import type { IAgentService, BusEvent } from 'rem-agent-bridge/client';
 
 type Listener = (event: BusEvent) => void;
+type ReconnectListener = () => void;
 
 export function useAgentBus(agentService: IAgentService) {
   const listenersRef = useRef<Set<Listener>>(new Set());
+  const reconnectListenersRef = useRef<Set<ReconnectListener>>(new Set());
   const runningRef = useRef(false);
   const retryDelayRef = useRef(1000);
 
@@ -15,6 +17,23 @@ export function useAgentBus(agentService: IAgentService) {
     return () => {
       listenersRef.current.delete(listener);
     };
+  }, []);
+
+  const onReconnect = useCallback((listener: ReconnectListener): (() => void) => {
+    reconnectListenersRef.current.add(listener);
+    return () => {
+      reconnectListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const notifyReconnect = useCallback(() => {
+    for (const listener of reconnectListenersRef.current) {
+      try {
+        listener();
+      } catch {
+        // ignore listener errors
+      }
+    }
   }, []);
 
   const connect = useCallback(() => {
@@ -39,13 +58,14 @@ export function useAgentBus(agentService: IAgentService) {
         if (runningRef.current) {
           await new Promise((r) => setTimeout(r, retryDelayRef.current));
           retryDelayRef.current = Math.min(retryDelayRef.current * 2, 15000);
+          notifyReconnect();
           consume();
         }
       }
     }
 
     consume();
-  }, [agentService]);
+  }, [agentService, notifyReconnect]);
 
   const disconnect = useCallback(() => {
     runningRef.current = false;
@@ -70,5 +90,5 @@ export function useAgentBus(agentService: IAgentService) {
     [agentService],
   );
 
-  return { onEvent, send, interrupt };
+  return { onEvent, onReconnect, send, interrupt };
 }

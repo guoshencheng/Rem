@@ -44,6 +44,24 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     setVersion((v) => v + 1);
   }, []);
 
+  const refreshSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const messages = await agentService.getMessages(sessionId);
+        const state = sessionMapRef.current.get(sessionId);
+        if (!state) return;
+        state.messages = messages.map((msg) => ({
+          ...msg,
+          status: 'done' as const,
+        }));
+        notifyChange();
+      } catch {
+        // ignore refresh errors
+      }
+    },
+    [agentService, notifyChange],
+  );
+
   const ensureSession = useCallback(
     async (sessionId: string) => {
       if (sessionMapRef.current.has(sessionId)) return;
@@ -85,7 +103,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
   // Subscribe to bus events
   useEffect(() => {
-    return bus.onEvent((event: BusEvent) => {
+    const unsubEvent = bus.onEvent((event: BusEvent) => {
       if (event.workspace !== workspace) return;
 
       const map = sessionMapRef.current;
@@ -188,7 +206,19 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         }
       }
     });
-  }, [workspace, bus, ensureSession, notifyChange]);
+
+    const unsubReconnect = bus.onReconnect(() => {
+      // SSE reconnected; refresh known sessions to recover any missed events
+      for (const sessionId of sessionMapRef.current.keys()) {
+        refreshSession(sessionId);
+      }
+    });
+
+    return () => {
+      unsubEvent();
+      unsubReconnect();
+    };
+  }, [workspace, bus, ensureSession, notifyChange, refreshSession]);
 
   const currentSession = useMemo(() => {
     if (!currentId) return null;

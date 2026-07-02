@@ -31,7 +31,7 @@ export function ReasoningBlock({ text, isStreaming }: ReasoningBlockProps) {
           className={cn('transition-transform flex-shrink-0', open && 'rotate-90')}
         />
         <Sparkles size={12} className="flex-shrink-0" />
-        <span>Thinking</span>
+        <span>{isStreaming ? 'Thinking...' : 'Thought'}</span>
         {isStreaming && <Loader2 size={10} className="animate-spin ml-auto" />}
       </button>
 

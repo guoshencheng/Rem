@@ -23,6 +23,7 @@ export interface LoopContext {
   workspaceRoot: string;
   readOnly?: boolean;
   agentName?: string;
+  sessionId?: string;
 }
 
 export interface LoopResult {

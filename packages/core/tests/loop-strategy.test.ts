@@ -116,7 +116,8 @@ describe('ReactLoop', () => {
 
     expect(mocks.toolProvider.execute).toHaveBeenCalledWith(
       [{ toolCallId: 'tc1', toolName: 'echo', input: { msg: 'hi' } }],
-      expect.objectContaining({ workspaceRoot: '/' }),
+      expect.objectContaining({ workspaceRoot: '/', sessionId: state.sessionId }),
+      expect.objectContaining({ emit: expect.any(Function) }),
     );
     expect(result.newMessages.filter(m => m.role === 'tool')).toHaveLength(1);
     expect(result.newMessages.filter(m => m.role === 'assistant')).toHaveLength(0);

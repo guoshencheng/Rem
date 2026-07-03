@@ -1,6 +1,7 @@
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../../../sdk/tool-provider.js';
+import type { ApprovalChunkEmitter } from '../../../security/approval-orchestrator.js';
 import type { ToolSchema, ToolSet } from '../../../llm/types.js';
 
 export class InMemoryToolProvider implements ToolProvider {
@@ -33,7 +34,7 @@ export class InMemoryToolProvider implements ToolProvider {
     return result;
   }
 
-  async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
+  async execute(calls: ToolCall[], ctx: ToolContext, _emit?: ApprovalChunkEmitter): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
     for (const call of calls) {
       const registered = this.tools.get(call.toolName);

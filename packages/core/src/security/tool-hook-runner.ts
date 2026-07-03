@@ -1,24 +1,22 @@
 import type { ToolHook, ToolHookContext, ToolHookResult } from '../sdk/tool-hook.js';
-import type { ApprovalDecision, ApprovalManager, ApprovalRequestHandle } from './approval-manager.js';
+import type { ApprovalOrchestrator, ApprovalChunkEmitter } from './approval-orchestrator.js';
 
 export interface ToolHookRunnerOptions {
   hooks?: ToolHook[];
-  approvalManager: ApprovalManager;
+  approvalOrchestrator?: ApprovalOrchestrator;
 }
 
 export interface ToolHookRunOutcome {
   blocked?: { reason: string };
   approved?: boolean;
   params?: unknown;
-  approvalId?: string;
 }
 
 export class ToolHookRunner {
   constructor(private options: ToolHookRunnerOptions) {}
 
-  async run(ctx: ToolHookContext): Promise<ToolHookRunOutcome> {
+  async run(ctx: ToolHookContext, emit?: ApprovalChunkEmitter): Promise<ToolHookRunOutcome> {
     let currentParams = ctx.input;
-    let lastApprovalId: string | undefined;
 
     for (const hook of this.options.hooks ?? []) {
       const result = await hook({ ...ctx, input: currentParams });
@@ -29,9 +27,16 @@ export class ToolHookRunner {
       }
 
       if (result.requireApproval) {
-        const handle = this.requestApproval(ctx, result.requireApproval);
-        lastApprovalId = handle.request.approvalId;
-        const decision = await handle.waitForDecision();
+        const orchestrator = this.options.approvalOrchestrator;
+        if (!orchestrator) {
+          return { blocked: { reason: 'Approval orchestrator not available' } };
+        }
+
+        const decision = await orchestrator.requestApproval(
+          ctx,
+          result.requireApproval,
+          emit ?? { emit: () => {} },
+        );
 
         if (result.requireApproval.onDecision && decision !== null) {
           result.requireApproval.onDecision(decision);
@@ -49,10 +54,7 @@ export class ToolHookRunner {
           if (result.requireApproval.description) {
             reason += `: ${result.requireApproval.description}`;
           }
-          return {
-            blocked: { reason },
-            approvalId: lastApprovalId,
-          };
+          return { blocked: { reason } };
         }
       }
 
@@ -61,24 +63,6 @@ export class ToolHookRunner {
       }
     }
 
-    return { approved: true, params: currentParams, approvalId: lastApprovalId };
-  }
-
-  private requestApproval(
-    ctx: ToolHookContext,
-    requirement: NonNullable<ToolHookResult['requireApproval']>,
-  ): ApprovalRequestHandle {
-    return this.options.approvalManager.create(
-      {
-        toolName: ctx.toolName,
-        toolCallId: ctx.toolCallId,
-        title: requirement.title,
-        description: requirement.description,
-        severity: requirement.severity,
-        allowedDecisions: requirement.allowedDecisions,
-        timeoutMs: requirement.timeoutMs,
-      },
-      requirement.timeoutMs,
-    );
+    return { approved: true, params: currentParams };
   }
 }

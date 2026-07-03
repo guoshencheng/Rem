@@ -16,28 +16,35 @@ export class AgentStreamController {
   private currentPart?: { type: string; partId: string };
   private lastStep = 0;
 
-  append(chunk: RawChunk): void {
+  append(chunk: RawChunk | AgentStreamChunk): void {
     if (this.finished) return;
-    this.lastStep = chunk.step;
 
-    if (chunk.type === 'text-delta') {
-      this.ensurePartOpen('text', chunk.step);
-      this.enqueue({ type: 'text-delta', step: chunk.step, partId: this.currentPart!.partId, text: chunk.text });
-    } else if (chunk.type === 'reasoning-delta') {
-      this.ensurePartOpen('reasoning', chunk.step);
-      this.enqueue({ type: 'reasoning-delta', step: chunk.step, partId: this.currentPart!.partId, text: chunk.text });
-    } else if (chunk.type === 'tool-call') {
-      this.closeCurrentPart(chunk.step);
-      const partId = chunk.toolCallId;
-      this.enqueue({ type: 'tool-call-start', step: chunk.step, partId, toolCallId: chunk.toolCallId, toolName: chunk.toolName });
-      this.enqueue({ type: 'tool-call', step: chunk.step, partId, toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input });
-      this.enqueue({ type: 'tool-call-finish', step: chunk.step, partId, toolCallId: chunk.toolCallId, toolName: chunk.toolName });
-    } else if (chunk.type === 'tool-result') {
-      this.closeCurrentPart(chunk.step);
-      const partId = chunk.toolCallId;
-      this.enqueue({ type: 'tool-result-start', step: chunk.step, partId, toolCallId: chunk.toolCallId });
-      this.enqueue({ type: 'tool-result', step: chunk.step, partId, toolCallId: chunk.toolCallId, output: chunk.output, error: chunk.error });
-      this.enqueue({ type: 'tool-result-finish', step: chunk.step, partId, toolCallId: chunk.toolCallId });
+    if (chunk.type === 'approval-request' || chunk.type === 'approval-resolved') {
+      this.enqueue(chunk);
+      return;
+    }
+
+    const rawChunk = chunk as RawChunk;
+    this.lastStep = rawChunk.step;
+
+    if (rawChunk.type === 'text-delta') {
+      this.ensurePartOpen('text', rawChunk.step);
+      this.enqueue({ type: 'text-delta', step: rawChunk.step, partId: this.currentPart!.partId, text: rawChunk.text });
+    } else if (rawChunk.type === 'reasoning-delta') {
+      this.ensurePartOpen('reasoning', rawChunk.step);
+      this.enqueue({ type: 'reasoning-delta', step: rawChunk.step, partId: this.currentPart!.partId, text: rawChunk.text });
+    } else if (rawChunk.type === 'tool-call') {
+      this.closeCurrentPart(rawChunk.step);
+      const partId = rawChunk.toolCallId;
+      this.enqueue({ type: 'tool-call-start', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId, toolName: rawChunk.toolName });
+      this.enqueue({ type: 'tool-call', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId, toolName: rawChunk.toolName, input: rawChunk.input });
+      this.enqueue({ type: 'tool-call-finish', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId, toolName: rawChunk.toolName });
+    } else if (rawChunk.type === 'tool-result') {
+      this.closeCurrentPart(rawChunk.step);
+      const partId = rawChunk.toolCallId;
+      this.enqueue({ type: 'tool-result-start', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId });
+      this.enqueue({ type: 'tool-result', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId, output: rawChunk.output, error: rawChunk.error });
+      this.enqueue({ type: 'tool-result-finish', step: rawChunk.step, partId, toolCallId: rawChunk.toolCallId });
     }
   }
 

@@ -4,6 +4,7 @@ import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall,
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
 import type { ToolHook } from '../sdk/tool-hook.js';
 import type { ToolSchema, ToolSet } from '../llm/types.js';
+import type { ApprovalOrchestrator, ApprovalChunkEmitter } from '../security/approval-orchestrator.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
 import { ApprovalManager } from '../security/approval-manager.js';
 import { ToolHookRunner } from '../security/tool-hook-runner.js';
@@ -15,6 +16,7 @@ export interface AgentToolRegistryOptions {
   autoApproveDangerous?: boolean;
   policy?: ToolPolicyConfig;
   hooks?: ToolHook[];
+  approvalOrchestrator?: ApprovalOrchestrator;
 }
 
 export class AgentToolRegistry implements ToolProvider {
@@ -30,12 +32,14 @@ export class AgentToolRegistry implements ToolProvider {
   private readOnly: boolean;
   private policy: ToolPolicyConfig;
   private approvalManager = new ApprovalManager();
+  private approvalOrchestrator?: ApprovalOrchestrator;
   private hookRunner: ToolHookRunner;
 
   constructor(options: AgentToolRegistryOptions) {
     this.workspaceRoot = options.workspaceRoot;
     this.readOnly = options.readOnly ?? false;
     this.policy = options.policy ?? {};
+    this.approvalOrchestrator = options.approvalOrchestrator;
 
     const hooks: ToolHook[] = [];
     if (!options.autoApproveDangerous) {
@@ -45,7 +49,7 @@ export class AgentToolRegistry implements ToolProvider {
 
     this.hookRunner = new ToolHookRunner({
       hooks,
-      approvalManager: this.approvalManager,
+      approvalOrchestrator: this.approvalOrchestrator,
     });
   }
 
@@ -79,7 +83,7 @@ export class AgentToolRegistry implements ToolProvider {
     return result;
   }
 
-  async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
+  async execute(calls: ToolCall[], ctx: ToolContext, emit?: ApprovalChunkEmitter): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
     for (const call of calls) {
       const registered = this.tools.get(call.toolName);
@@ -105,12 +109,15 @@ export class AgentToolRegistry implements ToolProvider {
         continue;
       }
 
-      const hookOutcome = await this.hookRunner.run({
-        ...ctx,
-        toolName: call.toolName,
-        toolCallId: call.toolCallId,
-        input: call.input,
-      });
+      const hookOutcome = await this.hookRunner.run(
+        {
+          ...ctx,
+          toolName: call.toolName,
+          toolCallId: call.toolCallId,
+          input: call.input,
+        },
+        emit,
+      );
 
       if (hookOutcome.blocked) {
         results.push({

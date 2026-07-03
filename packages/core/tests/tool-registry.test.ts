@@ -1,8 +1,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import { AgentToolRegistry } from '../src/registry/tool-registry.js';
+import { ApprovalManager } from '../src/security/approval-manager.js';
+import { ApprovalOrchestrator } from '../src/security/approval-orchestrator.js';
+import type { AgentRuntimeState, AgentStateProvider } from '../src/sdk/agent-state-provider.js';
 
 const echoSchema = Type.Object({ msg: Type.String() }, { additionalProperties: false });
+
+function createStateProvider(): AgentStateProvider {
+  const states = new Map<string, AgentRuntimeState>();
+  return {
+    getState: async (sessionId) => states.get(sessionId) ?? { pendingApprovals: [] },
+    setState: async (sessionId, state) => {
+      states.set(sessionId, state);
+    },
+  };
+}
+
+function createApprovalOrchestrator() {
+  return new ApprovalOrchestrator(createStateProvider(), new ApprovalManager());
+}
 
 function createRegistry(options?: { readOnly?: boolean; policy?: { allow?: string[]; deny?: string[] } }) {
   return new AgentToolRegistry({
@@ -108,7 +125,11 @@ describe('AgentToolRegistry', () => {
   });
 
   it('runs dangerous-tool hook for dangerous tools', async () => {
-    const registry = createRegistry();
+    const orchestrator = createApprovalOrchestrator();
+    const registry = new AgentToolRegistry({
+      workspaceRoot: '/workspace',
+      approvalOrchestrator: orchestrator,
+    });
     registry.register(
       { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
       async () => ({ output: 'ok' }),
@@ -116,23 +137,27 @@ describe('AgentToolRegistry', () => {
 
     const executePromise = registry.execute(
       [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
-      { cwd: '/workspace', workspaceRoot: '/workspace' },
+      { cwd: '/workspace', workspaceRoot: '/workspace', sessionId: 'session-1' },
     );
 
     // Wait one tick so the hook creates the pending approval
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const pending = registry.getApprovalManager().listPending();
+    const pending = await orchestrator.listPending('session-1');
     expect(pending).toHaveLength(1);
     expect(pending[0]?.toolName).toBe('write');
 
-    registry.getApprovalManager().resolve(pending[0].approvalId, 'allow-once');
+    orchestrator.resolveApproval(pending[0].approvalId, 'allow-once');
     const results = await executePromise;
 
     expect(results[0].output).toBe('ok');
   });
 
   it('blocks dangerous tools when approval is denied', async () => {
-    const registry = createRegistry();
+    const orchestrator = createApprovalOrchestrator();
+    const registry = new AgentToolRegistry({
+      workspaceRoot: '/workspace',
+      approvalOrchestrator: orchestrator,
+    });
     registry.register(
       { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
       async () => ({ output: 'ok' }),
@@ -140,15 +165,30 @@ describe('AgentToolRegistry', () => {
 
     const executePromise = registry.execute(
       [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
-      { cwd: '/workspace', workspaceRoot: '/workspace' },
+      { cwd: '/workspace', workspaceRoot: '/workspace', sessionId: 'session-1' },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const pending = registry.getApprovalManager().listPending();
-    registry.getApprovalManager().resolve(pending[0].approvalId, 'deny');
+    const pending = await orchestrator.listPending('session-1');
+    orchestrator.resolveApproval(pending[0].approvalId, 'deny');
     const results = await executePromise;
 
     expect(results[0].error).toContain('denied');
+  });
+
+  it('blocks dangerous tools when approval orchestrator is unavailable', async () => {
+    const registry = createRegistry();
+    registry.register(
+      { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
+      async () => ({ output: 'ok' }),
+    );
+
+    const results = await registry.execute(
+      [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
+      { cwd: '/workspace', workspaceRoot: '/workspace', sessionId: 'session-1' },
+    );
+
+    expect(results[0].error).toContain('Approval orchestrator not available');
   });
 
   it('blocks tools when a custom hook blocks', async () => {

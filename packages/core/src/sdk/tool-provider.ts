@@ -1,5 +1,6 @@
 import type { Static, TObject } from '@sinclair/typebox';
 import type { ToolSet } from '../llm/types.js';
+import type { ApprovalChunkEmitter } from '../security/approval-orchestrator.js';
 
 export interface ToolContext {
   cwd: string;
@@ -46,5 +47,5 @@ export interface ToolResult {
 export interface ToolProvider {
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void;
   getToolSet(): ToolSet;
-  execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]>;
+  execute(calls: ToolCall[], ctx: ToolContext, emit?: ApprovalChunkEmitter): Promise<ToolResult[]>;
 }

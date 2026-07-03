@@ -10,12 +10,14 @@ import { ApprovalOrchestrator } from '../src/security/approval-orchestrator.js';
 import { ApprovalManager } from '../src/security/approval-manager.js';
 import { InMemoryAgentStateProvider } from '../src/plugins/state/in-memory/index.js';
 import { SimpleErrorHandler } from '../src/plugins/error/simple/index.js';
+import { SimpleMemoryProvider } from '../src/plugins/memory/simple/index.js';
+import { NoOpCompressor } from '../src/plugins/compressor/no-op/index.js';
 import { registerProvider, clearProviders } from '../src/llm/api-registry.js';
 
 const echoSchema = Type.Object({ msg: Type.String() }, { additionalProperties: false });
-const sessionId = 'approval-e2e-session';
+const sessionId = 'approval-loop-integration-session';
 
-describe('dangerous tool approval end-to-end', () => {
+describe('dangerous tool approval loop integration', () => {
   beforeEach(() => {
     clearProviders();
   });
@@ -46,22 +48,11 @@ describe('dangerous tool approval end-to-end', () => {
       async ({ msg }) => ({ output: `echo:${msg}` }),
     );
 
-    const memoryProvider = {
-      buildContext: vi.fn().mockResolvedValue({
-        systemPrompt: 'You are test',
-        messages: [],
-      }),
-    };
-    const compressor = {
-      shouldCompress: vi.fn().mockReturnValue(false),
-      compress: vi.fn().mockImplementation(async (msgs: any[]) => msgs),
-    };
-
     const loop = new ReactLoop(
       new EventBus(),
       registry,
-      memoryProvider as any,
-      compressor as any,
+      new SimpleMemoryProvider('test'),
+      new NoOpCompressor(),
       new SimpleErrorHandler(),
     );
 

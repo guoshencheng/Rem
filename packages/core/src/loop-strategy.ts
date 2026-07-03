@@ -135,6 +135,7 @@ export class ReactLoop implements LoopStrategy {
         signal: ctx.signal,
         agentName: ctx.agentName,
         readOnly: ctx.readOnly,
+        sessionId: ctx.state.sessionId,
       };
       const toolResults = await this.toolProvider.execute(inferResult.toolCalls, toolCtx);
 

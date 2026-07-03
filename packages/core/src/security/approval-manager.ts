@@ -15,7 +15,7 @@ interface PendingEntry {
   timer: NodeJS.Timeout;
 }
 
-const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
+export const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
 
 export class ApprovalManager {
   private pending = new Map<string, PendingEntry>();

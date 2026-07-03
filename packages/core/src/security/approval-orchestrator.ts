@@ -1,7 +1,7 @@
 import type { AgentStateProvider, ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import type { ToolHookContext } from '../sdk/tool-hook.js';
-import { generateId } from '../shared/generate-id.js';
 import type { AgentStreamChunk } from '../types.js';
+import { ApprovalManager, DEFAULT_APPROVAL_TIMEOUT_MS } from './approval-manager.js';
 
 export interface ApprovalRequirement {
   title: string;
@@ -15,18 +15,14 @@ export interface ApprovalChunkEmitter {
   emit(chunk: AgentStreamChunk): void;
 }
 
-const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
-
 export class ApprovalOrchestrator {
   private approvalToSession = new Map<string, string>();
   private emitters = new Map<string, ApprovalChunkEmitter>();
 
-  constructor(private stateProvider: AgentStateProvider) {}
-
-  private cleanup(approvalId: string): void {
-    this.approvalToSession.delete(approvalId);
-    this.emitters.delete(approvalId);
-  }
+  constructor(
+    private stateProvider: AgentStateProvider,
+    private approvalManager: ApprovalManager,
+  ) {}
 
   async requestApproval(
     ctx: ToolHookContext,
@@ -38,77 +34,36 @@ export class ApprovalOrchestrator {
       throw new Error('sessionId is required for approval');
     }
 
-    const approvalId = `approval:${generateId()}`;
-    const request: ApprovalRequest = {
-      approvalId,
-      sessionId,
-      toolName: ctx.toolName,
-      toolCallId: ctx.toolCallId,
-      title: requirement.title,
-      description: requirement.description,
-      severity: requirement.severity,
-      allowedDecisions: requirement.allowedDecisions,
-      timeoutMs: requirement.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
-    };
+    const handle = this.approvalManager.create(
+      {
+        sessionId,
+        toolName: ctx.toolName,
+        toolCallId: ctx.toolCallId,
+        title: requirement.title,
+        description: requirement.description,
+        severity: requirement.severity,
+        allowedDecisions: requirement.allowedDecisions,
+      },
+      requirement.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
+    );
+
+    const request = handle.request;
+
+    this.approvalToSession.set(request.approvalId, sessionId);
+    this.emitters.set(request.approvalId, emit);
 
     const state = await this.stateProvider.getState(sessionId);
     await this.stateProvider.setState(sessionId, {
       pendingApprovals: [...state.pendingApprovals, request],
     });
 
-    this.approvalToSession.set(approvalId, sessionId);
-    this.emitters.set(approvalId, emit);
-
     emit.emit({ type: 'approval-request', sessionId, request });
 
-    return new Promise<ApprovalDecision | null>((resolve) => {
-      let settled = false;
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          this.stateProvider.resolveApproval(approvalId, null);
-          resolve(null);
-          this.cleanup(approvalId);
-        }
-      }, request.timeoutMs);
-
-      this.stateProvider.registerPendingApproval(approvalId, (decision) => {
-        if (settled) {
-          clearTimeout(timer);
-          return;
-        }
-        settled = true;
-        clearTimeout(timer);
-        resolve(decision);
-        this.cleanup(approvalId);
-      });
-    });
+    return this.awaitDecision(request.approvalId, handle, ctx.signal);
   }
 
-  async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
-    const sessionId = this.approvalToSession.get(approvalId);
-    const emit = this.emitters.get(approvalId);
-    if (!sessionId) {
-      return false;
-    }
-
-    const success = this.stateProvider.resolveApproval(approvalId, decision);
-    if (!success) {
-      return false;
-    }
-
-    const state = await this.stateProvider.getState(sessionId);
-    await this.stateProvider.setState(sessionId, {
-      pendingApprovals: state.pendingApprovals.filter((r) => r.approvalId !== approvalId),
-    });
-
-    if (emit) {
-      emit.emit({ type: 'approval-resolved', sessionId, approvalId, decision });
-    }
-
-    this.cleanup(approvalId);
-    return true;
+  resolveApproval(approvalId: string, decision: ApprovalDecision): boolean {
+    return this.approvalManager.resolve(approvalId, decision);
   }
 
   async listPending(sessionId?: string): Promise<ApprovalRequest[]> {
@@ -117,5 +72,85 @@ export class ApprovalOrchestrator {
     }
     const state = await this.stateProvider.getState(sessionId);
     return state.pendingApprovals;
+  }
+
+  private async awaitDecision(
+    approvalId: string,
+    handle: { waitForDecision(): Promise<ApprovalDecision | null> },
+    signal?: AbortSignal,
+  ): Promise<ApprovalDecision | null> {
+    try {
+      const decision = signal
+        ? await this.raceWithSignal(handle, signal, approvalId)
+        : await handle.waitForDecision();
+      await this.finalize(approvalId, decision);
+      return decision;
+    } catch (err) {
+      await this.finalize(approvalId, null);
+      throw err;
+    }
+  }
+
+  private raceWithSignal(
+    handle: { waitForDecision(): Promise<ApprovalDecision | null> },
+    signal: AbortSignal,
+    approvalId: string,
+  ): Promise<ApprovalDecision | null> {
+    const wait = handle.waitForDecision();
+    wait.catch(() => {});
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        cleanup();
+        this.approvalManager.cancel(approvalId);
+        reject(new Error('Approval aborted'));
+      };
+
+      const cleanup = () => {
+        signal.removeEventListener('abort', onAbort);
+      };
+
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true });
+
+      wait.then(
+        (decision) => {
+          cleanup();
+          resolve(decision);
+        },
+        (err) => {
+          cleanup();
+          reject(err);
+        },
+      );
+    });
+  }
+
+  private async finalize(approvalId: string, decision: ApprovalDecision | null): Promise<void> {
+    const sessionId = this.approvalToSession.get(approvalId);
+    if (!sessionId) {
+      return;
+    }
+
+    const state = await this.stateProvider.getState(sessionId);
+    await this.stateProvider.setState(sessionId, {
+      pendingApprovals: state.pendingApprovals.filter((r) => r.approvalId !== approvalId),
+    });
+
+    const emit = this.emitters.get(approvalId);
+    if (emit) {
+      emit.emit({ type: 'approval-resolved', sessionId, approvalId, decision });
+    }
+
+    this.cleanup(approvalId);
+  }
+
+  private cleanup(approvalId: string): void {
+    this.approvalToSession.delete(approvalId);
+    this.emitters.delete(approvalId);
   }
 }

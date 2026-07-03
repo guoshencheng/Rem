@@ -7,6 +7,7 @@ export interface ToolContext {
   signal?: AbortSignal;
   agentName?: string;
   readOnly?: boolean;
+  sessionId?: string;
 }
 
 export interface ToolDefinition<T extends TObject = TObject> {

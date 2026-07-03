@@ -14,6 +14,8 @@ export * from './stream/agent-stream.js';
 export * from './sdk/index.js';
 export * from './plugins/index.js';
 export * from './registry/tool-registry.js';
+export * from './security/approval-orchestrator.js';
+export * from './security/approval-manager.js';
 export * from './registry/provider-loader.js';
 export * from './registry/provider-registry.js';
 export * from './llm/types.js';

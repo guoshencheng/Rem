@@ -7,6 +7,7 @@ import { ApprovalOrchestrator } from './security/approval-orchestrator.js';
 import { ApprovalManager } from './security/approval-manager.js';
 import { InMemoryAgentStateProvider } from './plugins/state/in-memory/index.js';
 import type {
+  ProviderKind,
   ProviderReference,
   ProviderRegistry,
 } from './sdk/provider-loader.js';
@@ -96,6 +97,7 @@ export class ProviderManager {
     });
 
     await registry.initialize();
+    registry.register('approval', approvalOrchestrator);
     this.registry = registry;
     this.initialized = true;
   }
@@ -142,7 +144,15 @@ export class ProviderManager {
   }
 
   require<T>(kind: string): T {
-    return this.registry.require(kind as any) as T;
+    return this.registry.require(kind as ProviderKind) as T;
+  }
+
+  register<T>(kind: string, provider: T): void {
+    this.registry.register(kind as ProviderKind, provider);
+  }
+
+  getApprovalOrchestrator(): ApprovalOrchestrator {
+    return this.require<ApprovalOrchestrator>('approval');
   }
 }
 

@@ -12,7 +12,9 @@ export type ProviderKind =
   | 'config'
   | 'loopStrategy'
   | 'turnRunner'
-  | 'title';
+  | 'title'
+  | 'approval'
+  | 'state';
 
 export interface ProviderLoaderContext {
   kind: ProviderKind;
@@ -52,4 +54,5 @@ export interface ProviderRegistry {
   has(kind: ProviderKind): boolean;
   get<T>(kind: ProviderKind): T | undefined;
   require<T>(kind: ProviderKind): T;
+  register<T>(kind: ProviderKind, provider: T): void;
 }

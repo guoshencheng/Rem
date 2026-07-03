@@ -1,13 +1,15 @@
 import type { AgentStreamChunk, AgentStream, AgentOutput, ProviderManager, SessionProvider } from 'rem-agent-core';
-import { runAgent as coreRunAgent } from 'rem-agent-core';
+import { runAgent as coreRunAgent, ApprovalOrchestrator } from 'rem-agent-core';
 import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
 import type { BusEvent, SessionActivity, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
+import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import { AgentSessionManager } from './agent-session.js';
 import { SessionActivityTracker } from './session-activity-tracker.js';
+import { BridgeAgentStateProvider } from './agent-state-provider.js';
 
 export interface RunParams {
   sessionId: string;
@@ -34,6 +36,7 @@ export class AgentService implements IAgentService {
   private workspace: string;
   private sessionManager: AgentSessionManager;
   private activityTracker: SessionActivityTracker;
+  private approvalOrchestrator: ApprovalOrchestrator;
 
   constructor(private providerManager: ProviderManager, workspace = 'default') {
     this.sessionProvider = providerManager.require<SessionProvider>('session');
@@ -47,6 +50,12 @@ export class AgentService implements IAgentService {
         activity,
       });
     });
+
+    const existingOrchestrator = this.providerManager.getApprovalOrchestrator();
+    const stateProvider = new BridgeAgentStateProvider();
+    this.approvalOrchestrator = new ApprovalOrchestrator(stateProvider, existingOrchestrator.approvalManager);
+    this.providerManager.register('approval', this.approvalOrchestrator);
+    this.providerManager.register('state', stateProvider);
   }
 
   /* ---- Agent lifecycle ---- */
@@ -174,6 +183,16 @@ export class AgentService implements IAgentService {
 
   async deleteSession(sessionId: string): Promise<void> {
     return this.sessionManager.deleteSession(sessionId);
+  }
+
+  /* ---- Approval ---- */
+
+  async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
+    return this.approvalOrchestrator.listPending(sessionId);
+  }
+
+  async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+    return this.approvalOrchestrator.resolveApproval(approvalId, decision);
   }
 
   /* ---- Broadcast stream ---- */

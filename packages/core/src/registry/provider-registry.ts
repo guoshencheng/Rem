@@ -35,7 +35,7 @@ const KIND_TO_REFS_KEY: Partial<Record<ProviderKind, keyof ProviderRegistryConfi
   title: 'titleProvider',
 };
 
-const DEFAULT_NAMES: Record<ProviderKind, string> = {
+const DEFAULT_NAMES: Partial<Record<ProviderKind, string>> = {
   tool: 'file-system',
   memory: 'simple',
   skill: 'file',
@@ -94,6 +94,10 @@ export class AgentProviderRegistry implements ProviderRegistry {
       throw new Error(`Provider "${kind}" is not registered`);
     }
     return provider;
+  }
+
+  register<T>(kind: ProviderKind, provider: T): void {
+    this.providers.set(kind, provider);
   }
 
   private async resolve(kind: ProviderKind): Promise<void> {

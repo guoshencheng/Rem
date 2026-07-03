@@ -28,6 +28,7 @@ export interface SessionUpdate {
 
 export type SessionActivity =
   | 'idle'
+  | 'pending'
   | 'thinking'
   | 'calling-function'
   | 'outputting';

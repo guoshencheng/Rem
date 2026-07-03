@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Wrench, PenLine } from 'lucide-react';
+import { Loader2, Wrench, PenLine, Hourglass } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SessionActivity } from 'rem-agent-bridge';
 
@@ -9,6 +9,11 @@ interface ActivityBarProps {
 }
 
 const config: Record<Exclude<SessionActivity, 'idle'>, { label: string; icon: React.ReactNode; color: string }> = {
+  pending: {
+    label: 'Pending...',
+    icon: <Hourglass size={14} />,
+    color: 'text-tx3',
+  },
   thinking: {
     label: 'Thinking...',
     icon: <Loader2 size={14} className="animate-spin" />,

@@ -119,7 +119,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           }
           if (state) {
             state.status = 'loading';
-            state.activity = state.activity ?? 'thinking';
+            state.activity = state.activity ?? 'pending';
             notifyChange();
           }
           break;
@@ -258,7 +258,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       state.messages = [...state.messages, userMsg, assistantMsg];
       state.status = 'loading';
       state.error = null;
-      state.activity = 'thinking';
+      state.activity = 'pending';
       notifyChange();
 
       console.log(`[useAgents] send session=${currentId} content="${content.slice(0, 50)}"`);

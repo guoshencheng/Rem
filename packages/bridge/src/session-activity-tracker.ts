@@ -15,7 +15,7 @@ export class SessionActivityTracker {
   constructor(private onChange: ActivityChangeListener) {}
 
   start(sessionId: string): void {
-    this.set(sessionId, 'thinking');
+    this.set(sessionId, 'pending');
   }
 
   finish(sessionId: string): void {

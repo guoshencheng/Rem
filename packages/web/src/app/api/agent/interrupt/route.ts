@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ServiceError, type IAgentService } from 'rem-agent-bridge';
-import { createSSEResponse } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
 function errorResponse(err: unknown) {
@@ -14,21 +13,20 @@ function errorResponse(err: unknown) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sessionId, content } = body as {
-      sessionId: string;
-      content?: string;
-    };
+    const { sessionId } = body as { sessionId: string };
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: 'sessionId is required' },
+        { status: 400 },
+      );
+    }
 
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
+    await agentService.interrupt(sessionId);
 
-    if (!content || !sessionId) {
-      return NextResponse.json({ error: 'sessionId and content are required' }, { status: 400 });
-    }
-
-    const stream = await agentService.run(sessionId, content);
-
-    return createSSEResponse(stream);
+    return NextResponse.json({ sessionId, interrupted: true });
   } catch (err) {
     return errorResponse(err);
   }

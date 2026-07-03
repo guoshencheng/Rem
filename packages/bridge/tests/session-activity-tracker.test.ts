@@ -3,12 +3,12 @@ import type { AgentStreamChunk } from 'rem-agent-core';
 import { SessionActivityTracker } from '../src/session-activity-tracker.js';
 
 describe('SessionActivityTracker', () => {
-  it('starts as thinking', () => {
+  it('starts as pending', () => {
     const listener = vi.fn();
     const tracker = new SessionActivityTracker(listener);
     tracker.start('s1');
-    expect(tracker.get('s1')).toBe('thinking');
-    expect(listener).toHaveBeenCalledWith('s1', 'thinking');
+    expect(tracker.get('s1')).toBe('pending');
+    expect(listener).toHaveBeenCalledWith('s1', 'pending');
   });
 
   it('transitions to outputting on text chunks', () => {

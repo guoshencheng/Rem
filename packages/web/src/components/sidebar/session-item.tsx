@@ -8,6 +8,8 @@ import type { SessionActivity } from 'rem-agent-bridge';
 
 function activityDot(activity?: SessionActivity) {
   switch (activity) {
+    case 'pending':
+      return <span className="w-1.5 h-1.5 rounded-full bg-tx3 animate-pulse flex-shrink-0" />;
     case 'thinking':
       return <span className="w-1.5 h-1.5 rounded-full bg-ac animate-pulse flex-shrink-0" />;
     case 'calling-function':

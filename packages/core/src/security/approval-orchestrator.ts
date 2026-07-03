@@ -23,6 +23,11 @@ export class ApprovalOrchestrator {
 
   constructor(private stateProvider: AgentStateProvider) {}
 
+  private cleanup(approvalId: string): void {
+    this.approvalToSession.delete(approvalId);
+    this.emitters.delete(approvalId);
+  }
+
   async requestApproval(
     ctx: ToolHookContext,
     requirement: ApprovalRequirement,
@@ -57,14 +62,26 @@ export class ApprovalOrchestrator {
     emit.emit({ type: 'approval-request', sessionId, request });
 
     return new Promise<ApprovalDecision | null>((resolve) => {
+      let settled = false;
+
       const timer = setTimeout(() => {
-        this.stateProvider.resolveApproval(approvalId, null);
-        resolve(null);
+        if (!settled) {
+          settled = true;
+          this.stateProvider.resolveApproval(approvalId, null);
+          resolve(null);
+          this.cleanup(approvalId);
+        }
       }, request.timeoutMs);
 
       this.stateProvider.registerPendingApproval(approvalId, (decision) => {
+        if (settled) {
+          clearTimeout(timer);
+          return;
+        }
+        settled = true;
         clearTimeout(timer);
         resolve(decision);
+        this.cleanup(approvalId);
       });
     });
   }
@@ -90,8 +107,7 @@ export class ApprovalOrchestrator {
       emit.emit({ type: 'approval-resolved', sessionId, approvalId, decision });
     }
 
-    this.approvalToSession.delete(approvalId);
-    this.emitters.delete(approvalId);
+    this.cleanup(approvalId);
     return true;
   }
 

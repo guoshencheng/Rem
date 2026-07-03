@@ -1,17 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import type { ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 
-export type ApprovalDecision = 'allow-once' | 'allow-always' | 'deny';
-
-export interface ApprovalRequest {
-  approvalId: string;
-  toolName: string;
-  toolCallId?: string;
-  title: string;
-  description?: string;
-  severity?: 'info' | 'warning' | 'critical';
-  allowedDecisions: ApprovalDecision[];
-  timeoutMs?: number;
-}
+export type { ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 
 export interface ApprovalRequestHandle {
   request: ApprovalRequest;

@@ -10,6 +10,7 @@ import { createExecToolDefinition, createExecToolExecutor } from './exec.js';
 export interface FileSystemToolsOptions {
   workspaceRoot: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   toolPolicy?: ToolPolicyLike;
 }
 
@@ -17,6 +18,7 @@ export function createFileSystemTools(options: FileSystemToolsOptions): AgentToo
   const registry = new AgentToolRegistry({
     workspaceRoot: options.workspaceRoot,
     readOnly: options.readOnly,
+    autoApproveDangerous: options.autoApproveDangerous,
     policy: options.toolPolicy,
   });
 

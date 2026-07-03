@@ -12,6 +12,7 @@ import { createDangerousToolHook } from '../security/tool-hooks/dangerous-tool-h
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   policy?: ToolPolicyConfig;
   hooks?: ToolHook[];
 }
@@ -35,8 +36,15 @@ export class AgentToolRegistry implements ToolProvider {
     this.workspaceRoot = options.workspaceRoot;
     this.readOnly = options.readOnly ?? false;
     this.policy = options.policy ?? {};
+
+    const hooks: ToolHook[] = [];
+    if (!options.autoApproveDangerous) {
+      hooks.push(createDangerousToolHook(this.tools));
+    }
+    hooks.push(...(options.hooks ?? []));
+
     this.hookRunner = new ToolHookRunner({
-      hooks: [createDangerousToolHook(this.tools), ...(options.hooks ?? [])],
+      hooks,
       approvalManager: this.approvalManager,
     });
   }

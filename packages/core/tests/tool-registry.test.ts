@@ -88,6 +88,25 @@ describe('AgentToolRegistry', () => {
     expect(tools.write).toBeUndefined();
   });
 
+  it('auto-approves dangerous tools when autoApproveDangerous is enabled', async () => {
+    const registry = new AgentToolRegistry({
+      workspaceRoot: '/workspace',
+      autoApproveDangerous: true,
+    });
+    registry.register(
+      { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
+      async () => ({ output: 'ok' }),
+    );
+
+    const results = await registry.execute(
+      [{ toolCallId: 'tc1', toolName: 'write', input: { msg: 'x' } }],
+      { cwd: '/workspace', workspaceRoot: '/workspace' },
+    );
+
+    expect(results[0].output).toBe('ok');
+    expect(registry.getApprovalManager().listPending()).toHaveLength(0);
+  });
+
   it('runs dangerous-tool hook for dangerous tools', async () => {
     const registry = createRegistry();
     registry.register(

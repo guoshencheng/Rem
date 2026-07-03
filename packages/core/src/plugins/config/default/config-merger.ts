@@ -8,6 +8,7 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (typeof file.maxTurns === 'number') merged.maxTurns = file.maxTurns;
   if (typeof file.workspaceRoot === 'string') merged.workspaceRoot = file.workspaceRoot;
   if (typeof file.readOnly === 'boolean') merged.readOnly = file.readOnly;
+  if (typeof file.autoApproveDangerous === 'boolean') merged.autoApproveDangerous = file.autoApproveDangerous;
   if (typeof file.sessionsDir === 'string') merged.sessionsDir = file.sessionsDir;
   if (typeof file.skillsDir === 'string') merged.skillsDir = file.skillsDir;
   const toolPolicy = pickToolPolicy(file.toolPolicy);
@@ -26,6 +27,7 @@ export function mergeEnvConfig(base: AgentConfig, env: NodeJS.ProcessEnv): Agent
   if (env.REM_AGENT_MAX_TURNS) merged.maxTurns = parseInt(env.REM_AGENT_MAX_TURNS, 10);
   if (env.REM_AGENT_WORKSPACE_ROOT) merged.workspaceRoot = env.REM_AGENT_WORKSPACE_ROOT;
   if (env.REM_AGENT_READ_ONLY) merged.readOnly = env.REM_AGENT_READ_ONLY === 'true';
+  if (env.REM_AGENT_AUTO_APPROVE_DANGEROUS) merged.autoApproveDangerous = env.REM_AGENT_AUTO_APPROVE_DANGEROUS === 'true';
   if (env.REM_AGENT_SESSIONS_DIR) merged.sessionsDir = env.REM_AGENT_SESSIONS_DIR;
   if (env.REM_AGENT_SKILLS_DIR) merged.skillsDir = env.REM_AGENT_SKILLS_DIR;
   if (env.REM_AGENT_ACTIVE_MODEL) merged.activeModel = env.REM_AGENT_ACTIVE_MODEL;
@@ -38,6 +40,7 @@ export function applyBehaviorDefaults(config: AgentConfig): Required<AgentBehavi
     maxTurns: config.maxTurns ?? 60,
     workspaceRoot: config.workspaceRoot ?? process.cwd(),
     readOnly: config.readOnly ?? false,
+    autoApproveDangerous: config.autoApproveDangerous ?? false,
     sessionsDir: config.sessionsDir ?? getDefaultSessionsDir(),
     skillsDir: config.skillsDir ?? getDefaultSkillsDir(),
   };

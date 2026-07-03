@@ -37,6 +37,7 @@ export interface ProviderManagerConfig {
   toolPolicy?: ToolPolicyConfig;
   workspaceRoot?: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   skillsDir?: string;
   sessionsDir?: string;
 }
@@ -69,6 +70,7 @@ export class ProviderManager {
         agentName: behavior.name,
         workspaceRoot: this.config.workspaceRoot ?? behavior.workspaceRoot,
         readOnly: this.config.readOnly ?? behavior.readOnly ?? false,
+        autoApproveDangerous: this.config.autoApproveDangerous ?? behavior.autoApproveDangerous ?? false,
         skillsDir: this.config.skillsDir ?? behavior.skillsDir ?? getDefaultSkillsDir(),
         sessionsDir: this.config.sessionsDir ?? behavior.sessionsDir ?? getDefaultSessionsDir(),
         maxTurns: behavior.maxTurns,

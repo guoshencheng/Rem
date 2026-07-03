@@ -20,6 +20,7 @@ export interface CreateAgentOptions {
   configPath?: string;
   workspaceRoot?: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   toolPolicy?: ToolPolicyConfig;
 }
 
@@ -62,6 +63,7 @@ export async function createAgentFromEnv(options?: CreateAgentOptions) {
     skillProvider: options?.skillProvider ?? 'file',
     workspaceRoot: options?.workspaceRoot ?? behavior?.workspaceRoot ?? process.cwd(),
     readOnly: options?.readOnly ?? behavior?.readOnly ?? false,
+    autoApproveDangerous: options?.autoApproveDangerous ?? behavior?.autoApproveDangerous ?? false,
     toolPolicy: options?.toolPolicy ?? configProvider?.getToolConfig?.().policy,
   });
 

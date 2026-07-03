@@ -17,6 +17,7 @@ export interface AgentBehaviorConfig {
   maxTurns?: number;
   workspaceRoot?: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   sessionsDir?: string;
   skillsDir?: string;
 }

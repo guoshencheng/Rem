@@ -18,6 +18,7 @@ export interface ProviderLoaderContext {
   agentName: string;
   workspaceRoot: string;
   readOnly?: boolean;
+  autoApproveDangerous?: boolean;
   skillsDir: string;
   sessionsDir: string;
   maxTurns: number;

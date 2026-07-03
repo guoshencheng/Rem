@@ -8,7 +8,7 @@ async function configureContainer(): Promise<AwilixContainer> {
 
   const sessionsDir = process.env.REM_AGENT_SESSIONS_DIR ?? getDefaultSessionsDir();
   const sessionProvider = new FileSessionProvider(sessionsDir);
-  const { pm } = await createAgentFromEnv({ sessionProvider });
+  const { pm } = await createAgentFromEnv({ sessionProvider, autoApproveDangerous: true });
   console.log('[Container] LLM config:', { model: pm.getModelConfig().model, provider: pm.provider, hasApiKey: !!pm.providerConfig.apiKey, baseURL: pm.providerConfig.baseURL });
 
   container.register({

@@ -12,8 +12,6 @@ function createStateProvider(): AgentStateProvider {
     setState: async (sessionId, state) => {
       states.set(sessionId, state);
     },
-    registerPendingApproval: () => {},
-    resolveApproval: () => false,
   };
 }
 
@@ -158,6 +156,36 @@ describe('ApprovalOrchestrator', () => {
     expect(emitter.chunks[1]).toEqual({
       type: 'approval-resolved',
       sessionId: 'session-4',
+      approvalId: expect.stringMatching(/^approval:/),
+      decision: null,
+    });
+  });
+
+  it('rejects and emits approval-resolved when aborted while waiting', async () => {
+    const stateProvider = createStateProvider();
+    const approvalManager = new ApprovalManager();
+    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const emitter = createEmitter();
+    const controller = new AbortController();
+    const ctx = createContext('session-5', 'write-file', controller.signal);
+
+    const promise = orchestrator.requestApproval(
+      ctx,
+      { title: 'Write file', allowedDecisions: ['allow-once', 'deny'] },
+      emitter,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    controller.abort();
+
+    await expect(promise).rejects.toThrow('Approval aborted');
+
+    const state = await stateProvider.getState('session-5');
+    expect(state.pendingApprovals).toHaveLength(0);
+    expect(emitter.chunks).toHaveLength(2);
+    expect(emitter.chunks[1]).toEqual({
+      type: 'approval-resolved',
+      sessionId: 'session-5',
       approvalId: expect.stringMatching(/^approval:/),
       decision: null,
     });

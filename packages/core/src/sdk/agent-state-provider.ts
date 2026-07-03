@@ -19,6 +19,4 @@ export interface AgentRuntimeState {
 export interface AgentStateProvider {
   getState(sessionId: string): Promise<AgentRuntimeState>;
   setState(sessionId: string, state: AgentRuntimeState): Promise<void>;
-  registerPendingApproval(approvalId: string, resolver: (decision: ApprovalDecision | null) => void): void;
-  resolveApproval(approvalId: string, decision: ApprovalDecision | null): boolean;
 }

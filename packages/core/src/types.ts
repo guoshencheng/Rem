@@ -1,3 +1,5 @@
+import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
+
 export type ContentPart =
   | { type: 'text';        text: string }
   | { type: 'reasoning';   text: string }
@@ -54,7 +56,9 @@ export type AgentStreamChunk =
   | { type: 'tool-result-finish'; step: number; partId: string; toolCallId: string }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: Error }
-  | { type: 'session-title'; title: string };
+  | { type: 'session-title'; title: string }
+  | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
+  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null };
 
 export interface AgentStreamStepResult {
   step: number;

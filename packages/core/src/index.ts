@@ -12,7 +12,6 @@ export { createProviderManager } from './provider-manager.js';
 export * from './run-agent.js';
 export * from './stream/agent-stream.js';
 export * from './sdk/index.js';
-export type { ApprovalRequest, ApprovalDecision, AgentRuntimeState, AgentStateProvider } from './sdk/agent-state-provider.js';
 export * from './plugins/index.js';
 export * from './registry/tool-registry.js';
 export * from './registry/provider-loader.js';

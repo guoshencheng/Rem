@@ -136,17 +136,19 @@ export class ApprovalOrchestrator {
       return;
     }
 
-    const state = await this.stateProvider.getState(sessionId);
-    await this.stateProvider.setState(sessionId, {
-      pendingApprovals: state.pendingApprovals.filter((r) => r.approvalId !== approvalId),
-    });
+    try {
+      const state = await this.stateProvider.getState(sessionId);
+      await this.stateProvider.setState(sessionId, {
+        pendingApprovals: state.pendingApprovals.filter((r) => r.approvalId !== approvalId),
+      });
 
-    const emit = this.emitters.get(approvalId);
-    if (emit) {
-      emit.emit({ type: 'approval-resolved', sessionId, approvalId, decision });
+      const emit = this.emitters.get(approvalId);
+      if (emit) {
+        emit.emit({ type: 'approval-resolved', sessionId, approvalId, decision });
+      }
+    } finally {
+      this.cleanup(approvalId);
     }
-
-    this.cleanup(approvalId);
   }
 
   private cleanup(approvalId: string): void {

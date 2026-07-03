@@ -141,19 +141,19 @@ export class ReactLoop implements LoopStrategy {
 
       for (const tc of inferResult.toolCalls) {
         const tr = toolResults.find((r: ToolResult) => r.toolCallId === tc.toolCallId);
-    const toolMsg: ModelMessage = {
-      id: generateId(),
-      role: 'tool',
-      content: [{
-        type: 'tool-result',
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        output: tr?.error ?? tr?.output ?? '',
-      }],
-    };
+        const toolMsg: ModelMessage = {
+          id: generateId(),
+          role: 'tool',
+          content: [{
+            type: 'tool-result',
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName,
+            output: tr?.error ?? tr?.output ?? '',
+          }],
+        };
 
-    ctx.state.addMessage(toolMsg);
-    newMessages.push(toolMsg);
+        ctx.state.addMessage(toolMsg);
+        newMessages.push(toolMsg);
         hooks.onMessageAdded(toolMsg);
 
         controller.append({

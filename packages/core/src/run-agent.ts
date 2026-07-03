@@ -132,6 +132,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           workspaceRoot: behavior.workspaceRoot,
           readOnly: behavior.readOnly,
           agentName: behavior.name,
+          sessionId: params.sessionId,
         },
         createTurnHooks(state),
         controller,

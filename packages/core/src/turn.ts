@@ -23,6 +23,7 @@ export interface TurnContext {
   workspaceRoot: string;
   readOnly?: boolean;
   agentName?: string;
+  sessionId?: string;
 }
 
 export interface TurnRunner {
@@ -62,6 +63,7 @@ export class ReactTurnRunner implements TurnRunner {
       workspaceRoot: ctx.workspaceRoot,
       readOnly: ctx.readOnly,
       agentName: ctx.agentName,
+      sessionId: ctx.sessionId,
     };
 
     const allNewMessages: ModelMessage[] = [assistantMsg];

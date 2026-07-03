@@ -237,4 +237,25 @@ describe('ReactTurnRunner', () => {
     expect(result.content).toBe('');
     expect(iterateMock).toHaveBeenCalledTimes(1);
   });
+
+  it('passes sessionId into loop context', async () => {
+    const loop = createMockLoop({});
+    const runner = new ReactTurnRunner(loop);
+
+    await runner.run({
+      input: { content: 'hi' },
+      conversation: [],
+      systemPrompt: '',
+      budget: new IterationBudget({ maxTurns: 5 }),
+      workspaceRoot: '/tmp',
+      sessionId: 'session-abc',
+    }, { onMessageAdded: vi.fn(), onToolCallRecorded: vi.fn() }, new AgentStreamController());
+
+    expect(loop.iterate).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-abc' }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Number),
+    );
+  });
 });

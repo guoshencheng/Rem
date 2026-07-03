@@ -3,6 +3,9 @@ import { AgentProviderRegistry } from './registry/provider-registry.js';
 import { DefaultProviderLoader } from './registry/provider-loader.js';
 import { resolveBuiltinLoader } from './plugins/index.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
+import { ApprovalOrchestrator } from './security/approval-orchestrator.js';
+import { ApprovalManager } from './security/approval-manager.js';
+import { InMemoryAgentStateProvider } from './plugins/state/in-memory/index.js';
 import type {
   ProviderReference,
   ProviderRegistry,
@@ -62,6 +65,9 @@ export class ProviderManager {
     const behavior = this.configProvider.getBehaviorConfig();
     const toolCfg = this.configProvider.getToolConfig();
 
+    const stateProvider = new InMemoryAgentStateProvider();
+    const approvalOrchestrator = new ApprovalOrchestrator(stateProvider, new ApprovalManager());
+
     const loader = new DefaultProviderLoader(resolveBuiltinLoader);
     const registry = new AgentProviderRegistry({
       loader,
@@ -71,6 +77,7 @@ export class ProviderManager {
         workspaceRoot: this.config.workspaceRoot ?? behavior.workspaceRoot,
         readOnly: this.config.readOnly ?? behavior.readOnly ?? false,
         autoApproveDangerous: this.config.autoApproveDangerous ?? behavior.autoApproveDangerous ?? false,
+        approvalOrchestrator,
         skillsDir: this.config.skillsDir ?? behavior.skillsDir ?? getDefaultSkillsDir(),
         sessionsDir: this.config.sessionsDir ?? behavior.sessionsDir ?? getDefaultSessionsDir(),
         maxTurns: behavior.maxTurns,

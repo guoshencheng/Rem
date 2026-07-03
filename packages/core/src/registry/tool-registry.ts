@@ -4,9 +4,8 @@ import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall,
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
 import type { ToolHook } from '../sdk/tool-hook.js';
 import type { ToolSchema, ToolSet } from '../llm/types.js';
-import type { ApprovalOrchestrator, ApprovalChunkEmitter } from '../security/approval-orchestrator.js';
+import type { ApprovalOrchestrator, ApprovalChunkEmitter } from '../sdk/approval-orchestrator.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
-import { ApprovalManager } from '../security/approval-manager.js';
 import { ToolHookRunner } from '../security/tool-hook-runner.js';
 import { createDangerousToolHook } from '../security/tool-hooks/dangerous-tool-hook.js';
 
@@ -31,7 +30,6 @@ export class AgentToolRegistry implements ToolProvider {
   private workspaceRoot: string;
   private readOnly: boolean;
   private policy: ToolPolicyConfig;
-  private approvalManager = new ApprovalManager();
   private approvalOrchestrator?: ApprovalOrchestrator;
   private hookRunner: ToolHookRunner;
 
@@ -51,10 +49,6 @@ export class AgentToolRegistry implements ToolProvider {
       hooks,
       approvalOrchestrator: this.approvalOrchestrator,
     });
-  }
-
-  getApprovalManager(): ApprovalManager {
-    return this.approvalManager;
   }
 
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void {

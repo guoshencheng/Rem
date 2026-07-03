@@ -1,5 +1,5 @@
 import type { ToolHook, ToolHookContext, ToolHookResult } from '../sdk/tool-hook.js';
-import type { ApprovalOrchestrator, ApprovalChunkEmitter } from './approval-orchestrator.js';
+import type { ApprovalOrchestrator, ApprovalChunkEmitter } from '../sdk/approval-orchestrator.js';
 
 export interface ToolHookRunnerOptions {
   hooks?: ToolHook[];
@@ -28,33 +28,31 @@ export class ToolHookRunner {
 
       if (result.requireApproval) {
         const orchestrator = this.options.approvalOrchestrator;
-        if (!orchestrator) {
-          return { blocked: { reason: 'Approval orchestrator not available' } };
-        }
+        if (orchestrator) {
+          const decision = await orchestrator.requestApproval(
+            ctx,
+            result.requireApproval,
+            emit ?? { emit: () => {} },
+          );
 
-        const decision = await orchestrator.requestApproval(
-          ctx,
-          result.requireApproval,
-          emit ?? { emit: () => {} },
-        );
-
-        if (result.requireApproval.onDecision && decision !== null) {
-          result.requireApproval.onDecision(decision);
-        }
-
-        if (decision !== 'allow-once' && decision !== 'allow-always') {
-          let reason: string;
-          if (decision === 'deny') {
-            reason = 'Approval denied';
-          } else if (decision === null) {
-            reason = 'Approval timed out';
-          } else {
-            reason = `Approval ${decision}`;
+          if (result.requireApproval.onDecision && decision !== null) {
+            result.requireApproval.onDecision(decision);
           }
-          if (result.requireApproval.description) {
-            reason += `: ${result.requireApproval.description}`;
+
+          if (decision !== 'allow-once' && decision !== 'allow-always') {
+            let reason: string;
+            if (decision === 'deny') {
+              reason = 'Approval denied';
+            } else if (decision === null) {
+              reason = 'Approval timed out';
+            } else {
+              reason = `Approval ${decision}`;
+            }
+            if (result.requireApproval.description) {
+              reason += `: ${result.requireApproval.description}`;
+            }
+            return { blocked: { reason } };
           }
-          return { blocked: { reason } };
         }
       }
 

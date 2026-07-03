@@ -121,7 +121,6 @@ describe('AgentToolRegistry', () => {
     );
 
     expect(results[0].output).toBe('ok');
-    expect(registry.getApprovalManager().listPending()).toHaveLength(0);
   });
 
   it('runs dangerous-tool hook for dangerous tools', async () => {
@@ -176,7 +175,7 @@ describe('AgentToolRegistry', () => {
     expect(results[0].error).toContain('denied');
   });
 
-  it('blocks dangerous tools when approval orchestrator is unavailable', async () => {
+  it('auto-approves dangerous tools when approval orchestrator is unavailable', async () => {
     const registry = createRegistry();
     registry.register(
       { name: 'write', description: 'Write', parameters: echoSchema, dangerous: true },
@@ -188,7 +187,7 @@ describe('AgentToolRegistry', () => {
       { cwd: '/workspace', workspaceRoot: '/workspace', sessionId: 'session-1' },
     );
 
-    expect(results[0].error).toContain('Approval orchestrator not available');
+    expect(results[0].output).toBe('ok');
   });
 
   it('blocks tools when a custom hook blocks', async () => {

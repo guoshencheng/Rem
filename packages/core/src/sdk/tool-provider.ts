@@ -1,6 +1,6 @@
 import type { Static, TObject } from '@sinclair/typebox';
 import type { ToolSet } from '../llm/types.js';
-import type { ApprovalChunkEmitter } from '../security/approval-orchestrator.js';
+import type { ApprovalChunkEmitter } from './approval-orchestrator.js';
 
 export interface ToolContext {
   cwd: string;

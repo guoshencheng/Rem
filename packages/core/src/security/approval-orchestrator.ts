@@ -1,21 +1,13 @@
 import type { AgentStateProvider, ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import type { ToolHookContext } from '../sdk/tool-hook.js';
-import type { AgentStreamChunk } from '../types.js';
+import type {
+  ApprovalChunkEmitter,
+  ApprovalRequirement,
+  ApprovalOrchestrator as IApprovalOrchestrator,
+} from '../sdk/approval-orchestrator.js';
 import { ApprovalManager, DEFAULT_APPROVAL_TIMEOUT_MS } from './approval-manager.js';
 
-export interface ApprovalRequirement {
-  title: string;
-  description?: string;
-  severity?: 'info' | 'warning' | 'critical';
-  allowedDecisions: ApprovalDecision[];
-  timeoutMs?: number;
-}
-
-export interface ApprovalChunkEmitter {
-  emit(chunk: AgentStreamChunk): void;
-}
-
-export class ApprovalOrchestrator {
+export class ApprovalOrchestrator implements IApprovalOrchestrator {
   private approvalToSession = new Map<string, string>();
   private emitters = new Map<string, ApprovalChunkEmitter>();
 

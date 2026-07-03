@@ -4,6 +4,7 @@ import { MessageList } from './message-list';
 import { InputBox } from './input-box';
 import { ActivityBar } from './activity-bar';
 import type { UIMessage, SessionActivity } from '@/lib/types';
+import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -12,12 +13,14 @@ interface ChatPanelProps {
   status: SessionStatus;
   error: string | null;
   activity?: SessionActivity;
+  pendingApprovals?: ApprovalRequest[];
   initialized: boolean;
   onSend(content: string): void;
   onInterrupt(): void;
+  onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
 }
 
-export function ChatPanel({ messages, status, error, activity, initialized, onSend, onInterrupt }: ChatPanelProps) {
+export function ChatPanel({ messages, status, error, activity, pendingApprovals, initialized, onSend, onInterrupt, onResolveApproval }: ChatPanelProps) {
   const streaming = status === 'streaming' || status === 'loading';
 
   return (
@@ -34,6 +37,8 @@ export function ChatPanel({ messages, status, error, activity, initialized, onSe
         <InputBox
           streaming={streaming}
           initialized={initialized}
+          pendingApprovals={pendingApprovals}
+          onResolveApproval={onResolveApproval}
           onSend={onSend}
           onInterrupt={onInterrupt}
         />

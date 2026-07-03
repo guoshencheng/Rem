@@ -17,6 +17,7 @@ export default function Home() {
     deleteSession,
     send,
     interrupt,
+    resolveApproval,
     initialized,
   } = useAgents(agentService);
 
@@ -45,9 +46,11 @@ export default function Home() {
           status={currentSession.status}
           error={currentSession.error}
           activity={currentSession.activity}
+          pendingApprovals={currentSession.pendingApprovals}
           initialized={initialized}
           onSend={send}
           onInterrupt={interrupt}
+          onResolveApproval={resolveApproval}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center text-tx3 text-sm">

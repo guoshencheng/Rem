@@ -29,3 +29,11 @@ export function isSSEFinish(c: AgentStreamChunk): c is AgentStreamChunk & { type
 export function isSSEError(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'error' } {
   return c.type === 'error';
 }
+
+export function isSSEApprovalRequest(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'approval-request' } {
+  return c.type === 'approval-request';
+}
+
+export function isSSEApprovalResolved(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'approval-resolved' } {
+  return c.type === 'approval-resolved';
+}

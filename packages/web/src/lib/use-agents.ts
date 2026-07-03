@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
@@ -14,6 +15,7 @@ interface SessionState {
   error: string | null;
   activity?: SessionActivity;
   pendingToolCalls: Set<string>;
+  pendingApprovals: ApprovalRequest[];
 }
 
 export interface SessionSummary {
@@ -66,12 +68,16 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     async (sessionId: string) => {
       if (sessionMapRef.current.has(sessionId)) return;
       try {
-        const messages = await agentService.getMessages(sessionId);
+        const [messages, pendingApprovals] = await Promise.all([
+          agentService.getMessages(sessionId),
+          agentService.listPendingApprovals(sessionId).catch(() => [] as ApprovalRequest[]),
+        ]);
         sessionMapRef.current.set(sessionId, {
           messages,
           status: 'idle',
           error: null,
           pendingToolCalls: new Set(),
+          pendingApprovals,
         });
       } catch {
         sessionMapRef.current.set(sessionId, {
@@ -79,6 +85,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           status: 'idle',
           error: null,
           pendingToolCalls: new Set(),
+          pendingApprovals: [],
         });
       }
       notifyChange();
@@ -153,7 +160,15 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           }
 
           const chunk = event.chunk;
-          if (chunk.type === 'finish' || chunk.type === 'error') {
+          if (chunk.type === 'approval-request') {
+            if (!state.pendingApprovals.some((r) => r.approvalId === chunk.request.approvalId)) {
+              state.pendingApprovals.push(chunk.request);
+            }
+          } else if (chunk.type === 'approval-resolved') {
+            state.pendingApprovals = state.pendingApprovals.filter(
+              (r) => r.approvalId !== chunk.approvalId,
+            );
+          } else if (chunk.type === 'finish' || chunk.type === 'error') {
             state.activity = 'idle';
             state.pendingToolCalls.clear();
           } else if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta') {
@@ -230,6 +245,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       status: state.status,
       error: state.error,
       activity: state.activity,
+      pendingApprovals: state.pendingApprovals,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);
@@ -329,6 +345,17 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     [currentId, notifyChange],
   );
 
+  const resolveApproval = useCallback(
+    async (approvalId: string, decision: ApprovalDecision) => {
+      try {
+        await agentService.resolveApproval(approvalId, decision);
+      } catch {
+        // silent fail; resolved chunks will update state if successful
+      }
+    },
+    [agentService],
+  );
+
   return {
     currentSession,
     sessions: sessionList,
@@ -337,6 +364,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     deleteSession,
     send,
     interrupt,
+    resolveApproval,
     initialized,
   };
 }

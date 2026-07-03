@@ -78,7 +78,12 @@ export function useAgentBus(agentService: IAgentService) {
 
   const send = useCallback(
     async (sessionId: string, content: string) => {
-      await agentService.run(sessionId, content);
+      const stream = await agentService.run(sessionId, content);
+      // Consume the run stream so the server does not block on SSE backpressure.
+      // Chunks are also published on the broadcast bus, which drives the UI.
+      for await (const _chunk of stream) {
+        // no-op: handled via bus events
+      }
     },
     [agentService],
   );

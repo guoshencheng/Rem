@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamChunk, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 
 export interface IAgentService {
@@ -11,4 +11,6 @@ export interface IAgentService {
   updateSession(sessionId: string, updates: SessionUpdate): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
   stream(): AsyncIterable<BusEvent>;
+  listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]>;
+  resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean>;
 }

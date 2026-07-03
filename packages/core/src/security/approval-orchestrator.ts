@@ -13,12 +13,8 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
 
   constructor(
     private stateProvider: AgentStateProvider,
-    private _approvalManager: ApprovalManager,
+    private approvalManager: ApprovalManager,
   ) {}
-
-  get approvalManager(): ApprovalManager {
-    return this._approvalManager;
-  }
 
   async requestApproval(
     ctx: ToolHookContext,
@@ -30,7 +26,7 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
       throw new Error('sessionId is required for approval');
     }
 
-    const handle = this._approvalManager.create(
+    const handle = this.approvalManager.create(
       {
         sessionId,
         toolName: ctx.toolName,
@@ -59,7 +55,7 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
   }
 
   resolveApproval(approvalId: string, decision: ApprovalDecision): boolean {
-    return this._approvalManager.resolve(approvalId, decision);
+    return this.approvalManager.resolve(approvalId, decision);
   }
 
   async listPending(sessionId?: string): Promise<ApprovalRequest[]> {
@@ -98,7 +94,7 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
     return new Promise((resolve, reject) => {
       const onAbort = () => {
         cleanup();
-        this._approvalManager.cancel(approvalId);
+        this.approvalManager.cancel(approvalId);
         reject(new Error('Approval aborted'));
       };
 

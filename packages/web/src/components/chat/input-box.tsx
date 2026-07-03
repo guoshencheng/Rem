@@ -2,16 +2,20 @@
 
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
+import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import { cn } from '@/lib/utils';
+import { ApprovalBar } from './approval-bar';
 
 interface InputBoxProps {
   streaming: boolean;
   initialized: boolean;
+  pendingApprovals?: ApprovalRequest[];
+  onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
   onSend(content: string): void;
   onInterrupt(): void;
 }
 
-export function InputBox({ streaming, initialized, onSend, onInterrupt }: InputBoxProps) {
+export function InputBox({ streaming, initialized, pendingApprovals, onResolveApproval, onSend, onInterrupt }: InputBoxProps) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -42,6 +46,7 @@ export function InputBox({ streaming, initialized, onSend, onInterrupt }: InputB
 
   return (
     <div className="bg-card border border-bd rounded-2xl p-3">
+      <ApprovalBar approvals={pendingApprovals ?? []} onResolve={onResolveApproval} />
       <textarea
         ref={textareaRef}
         value={content}

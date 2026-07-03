@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamChunk, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
@@ -110,6 +110,26 @@ export class AgentRemoteService implements IAgentService {
     if (!response.ok) {
       throw new Error(`Failed to delete session: ${response.status} ${response.statusText}`);
     }
+  }
+
+  async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
+    const response = await fetch(`${this.baseUrl}/api/approvals?sessionId=${encodeURIComponent(sessionId)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to list pending approvals: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as ApprovalRequest[];
+  }
+
+  async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+    const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to resolve approval: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as boolean;
   }
 
   async *stream(): AsyncIterable<BusEvent> {

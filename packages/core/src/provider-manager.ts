@@ -26,6 +26,7 @@ import type {
 import type { ProviderConfig } from './llm/types.js';
 import { getDefaultSkillsDir, getDefaultSessionsDir } from './config/paths.js';
 import type { ToolPolicyConfig } from './sdk/tool-policy.js';
+import type { AgentStateProvider } from './sdk/agent-state-provider.js';
 
 export interface ProviderManagerConfig {
   configPath?: string;
@@ -39,6 +40,7 @@ export interface ProviderManagerConfig {
   budgetPolicy?: ProviderReference<BudgetPolicy>;
   titleProvider?: ProviderReference<TitleProvider>;
   toolPolicy?: ToolPolicyConfig;
+  agentStateProvider?: AgentStateProvider;
   workspaceRoot?: string;
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
@@ -66,7 +68,7 @@ export class ProviderManager {
     const behavior = this.configProvider.getBehaviorConfig();
     const toolCfg = this.configProvider.getToolConfig();
 
-    const stateProvider = new InMemoryAgentStateProvider();
+    const stateProvider = this.config.agentStateProvider ?? new InMemoryAgentStateProvider();
     const approvalOrchestrator = new ApprovalOrchestrator(stateProvider, new ApprovalManager());
 
     const loader = new DefaultProviderLoader(resolveBuiltinLoader);

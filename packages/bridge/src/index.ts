@@ -21,6 +21,7 @@ export { AgentRemoteService } from './agent-remote-service.js';
 
 export { AgentService } from './agent.js';
 export type { RunParams, RunResult, InterruptResult, ResetResult } from './agent.js';
+export { BridgeAgentStateProvider } from './agent-state-provider.js';
 export { ServiceError } from './errors.js';
 export { BroadcastBus, bus } from './broadcast-bus.js';
 export { runRegistry } from './run-registry.js';

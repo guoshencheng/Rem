@@ -90,9 +90,11 @@ export class AgentService implements IAgentService {
           });
 
           if (chunk.type === 'finish') {
+            streamingSnapshots.clear(sessionId);
             bus.publish({ workspace, sessionId, type: 'session-end' });
           }
           if (chunk.type === 'error') {
+            streamingSnapshots.clear(sessionId);
             bus.publish({
               workspace,
               sessionId,

@@ -7,6 +7,8 @@ import type { BusEvent, SessionActivity, SessionSummary, SessionUpdate, UIMessag
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
 import { SessionActivityTracker } from './session-activity-tracker.js';
+import { streamingSnapshots } from './streaming-snapshots.js';
+import { reduceStreamChunk } from './stream-reducer.js';
 
 export class AgentService implements IAgentService {
   private sessionProvider: SessionProvider;
@@ -67,6 +69,19 @@ export class AgentService implements IAgentService {
 
           self.activityTracker.applyChunk(sessionId, chunk);
 
+          if (chunk.type === 'message-start') {
+            streamingSnapshots.start(sessionId, chunk.messageId);
+          } else if (isContentChunk(chunk)) {
+            const entry = streamingSnapshots.get(sessionId);
+            if (entry) {
+              try {
+                streamingSnapshots.update(sessionId, reduceStreamChunk(entry.parts, chunk));
+              } catch {
+                // snapshot best-effort
+              }
+            }
+          }
+
           bus.publish({
             workspace,
             sessionId,
@@ -91,6 +106,7 @@ export class AgentService implements IAgentService {
 
     result.output.catch(() => {}).finally(() => {
       runRegistry.remove(sessionId);
+      streamingSnapshots.clear(sessionId);
       self.activityTracker.finish(sessionId);
     });
 
@@ -145,8 +161,8 @@ export class AgentService implements IAgentService {
   /* ---- Broadcast stream ---- */
 
   async *stream(): AsyncIterable<BusEvent> {
-    let resolveNext: ((event: BusEvent) => void) | null = null;
     const queue: BusEvent[] = [];
+    let resolveNext: ((event: BusEvent) => void) | null = null;
 
     const unsub = bus.subscribe((event) => {
       if (event.workspace !== this.workspace) return;
@@ -159,6 +175,26 @@ export class AgentService implements IAgentService {
     });
 
     try {
+      // Push current snapshots to this new subscriber.
+      // subscribe() above and this read happen synchronously with no await between,
+      // so no chunk can be processed in between: snapshot + queued chunks are gap-free.
+      const snapshotEvents: BusEvent[] = [];
+      for (const sessionId of streamingSnapshots.runningSessionIds()) {
+        const entry = streamingSnapshots.get(sessionId);
+        if (entry && entry.parts.length > 0) {
+          snapshotEvents.push({
+            workspace: this.workspace,
+            sessionId,
+            type: 'snapshot',
+            messageId: entry.messageId,
+            parts: entry.parts,
+          });
+        }
+      }
+      for (const ev of snapshotEvents) {
+        yield ev;
+      }
+
       while (true) {
         if (queue.length > 0) {
           yield queue.shift()!;
@@ -170,4 +206,11 @@ export class AgentService implements IAgentService {
       unsub();
     }
   }
+}
+
+function isContentChunk(chunk: AgentStreamChunk): boolean {
+  return chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' ||
+    chunk.type === 'tool-call' || chunk.type === 'tool-result' ||
+    chunk.type === 'text-start' || chunk.type === 'reasoning-start' ||
+    chunk.type === 'tool-call-start' || chunk.type === 'tool-result-start';
 }

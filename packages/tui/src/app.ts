@@ -182,10 +182,12 @@ export class TUIApp {
     this.startStreamMessage();
 
     try {
-      const stream = await this.agentService.run(this.sessionId, text);
-      for await (const chunk of stream) {
-        this.handleChunk(chunk);
-      }
+      await this.agentService.run(this.sessionId, text);
+      // TODO(server-driven-run): tui 尚未迁移到 bus，流式渲染暂时失效。
+      // 后续应订阅 AgentService.stream() 并按 BusEvent 渲染（含 message-start/snapshot/chunk）。
+      this.endStream();
+      this.running = false;
+      this.updateStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (this.streamContainer && this._streamParts.length === 0) {

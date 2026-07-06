@@ -91,7 +91,7 @@ describe('AgentStreamController', () => {
       chunks.push(chunk);
     }
 
-    const ms = chunks.find(c => c.type === 'message-start') as { type: 'message-start'; step: number; messageId: string } | undefined;
+    const ms = chunks.find(c => c.type === 'message-start') as Extract<AgentStreamChunk, { type: 'message-start' }> | undefined;
     expect(ms).toBeDefined();
     expect(ms!.messageId).toBe('msg-1');
     expect(ms!.step).toBe(1);

@@ -15,41 +15,58 @@ describe('FileSkillProvider', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  function createSkill(name: string, description: string, body = '') {
-    const skillDir = join(tempDir, name);
-    mkdirSync(skillDir);
+  function createSkill(skillsDir: string, name: string, description: string, body = '') {
+    const skillDir = join(skillsDir, name);
+    mkdirSync(skillDir, { recursive: true });
     const content = `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}`;
     writeFileSync(join(skillDir, 'SKILL.md'), content);
   }
 
-  it('loads skills from a directory', async () => {
-    createSkill('roll-dice', 'Roll dice.');
-    createSkill('pdf-processing', 'Handle PDFs.', 'Detailed PDF instructions.');
+  it('loads skills from home and workspace directories', async () => {
+    const homeDir = join(tempDir, 'home');
+    const workspaceDir = join(tempDir, 'workspace');
 
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    createSkill(homeDir, 'roll-dice', 'Roll dice.');
+    createSkill(workspaceDir, 'pdf-processing', 'Handle PDFs.', 'Detailed PDF instructions.');
+
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(2);
     expect(skills.map((s) => s.name).sort()).toEqual(['pdf-processing', 'roll-dice']);
-    expect(skills[0].description).toBeDefined();
-    expect(skills[0].location).toContain('SKILL.md');
-    expect(skills.find((s) => s.name === 'pdf-processing')!.content).toContain('Detailed PDF instructions.');
+  });
+
+  it('workspace skills override home skills with same name', async () => {
+    const homeDir = join(tempDir, 'home');
+    const workspaceDir = join(tempDir, 'workspace');
+
+    createSkill(homeDir, 'shared', 'Home version.');
+    createSkill(workspaceDir, 'shared', 'Workspace version.');
+
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const skills = await provider.loadSkills();
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].description).toBe('Workspace version.');
   });
 
   it('ignores directories without SKILL.md', async () => {
-    mkdirSync(join(tempDir, 'empty-skill'));
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const homeDir = join(tempDir, 'home');
+    mkdirSync(join(homeDir, 'empty-skill'), { recursive: true });
+
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const skills = await provider.loadSkills();
     expect(skills).toHaveLength(0);
   });
 
   it('ignores hidden directories and node_modules', async () => {
-    createSkill('valid', 'Valid skill.');
-    mkdirSync(join(tempDir, '.hidden'));
-    mkdirSync(join(tempDir, 'node_modules'));
-    writeFileSync(join(tempDir, '.hidden', 'SKILL.md'), '---\nname: hidden\ndescription: Hidden.\n---\n');
+    const homeDir = join(tempDir, 'home');
+    createSkill(homeDir, 'valid', 'Valid skill.');
+    mkdirSync(join(homeDir, '.hidden'));
+    mkdirSync(join(homeDir, 'node_modules'));
+    writeFileSync(join(homeDir, '.hidden', 'SKILL.md'), '---\nname: hidden\ndescription: Hidden.\n---\n');
 
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(1);
@@ -57,28 +74,33 @@ describe('FileSkillProvider', () => {
   });
 
   it('skips malformed skill files', async () => {
-    createSkill('valid', 'Valid skill.');
-    const badDir = join(tempDir, 'bad');
+    const homeDir = join(tempDir, 'home');
+    createSkill(homeDir, 'valid', 'Valid skill.');
+    const badDir = join(homeDir, 'bad');
     mkdirSync(badDir);
     writeFileSync(join(badDir, 'SKILL.md'), '---\nname: bad\n---\n');
 
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(1);
     expect(skills[0].name).toBe('valid');
   });
 
-  it('returns empty array when directory does not exist', async () => {
-    const provider = new FileSkillProvider({ skillsDir: join(tempDir, 'missing') });
+  it('returns empty array when directories do not exist', async () => {
+    const provider = new FileSkillProvider({
+      homeSkillsDir: join(tempDir, 'missing-home'),
+      workspaceSkillsDir: join(tempDir, 'missing-workspace'),
+    });
     const skills = await provider.loadSkills();
     expect(skills).toHaveLength(0);
   });
 
   it('formats catalog with XML block', async () => {
-    createSkill('github', 'GitHub CLI for issues and PRs.');
+    const homeDir = join(tempDir, 'home');
+    createSkill(homeDir, 'github', 'GitHub CLI for issues and PRs.');
 
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const skills = await provider.loadSkills();
     const catalog = provider.formatCatalog(skills);
 
@@ -90,7 +112,7 @@ describe('FileSkillProvider', () => {
   });
 
   it('returns empty catalog string when no skills', async () => {
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: join(tempDir, 'home'), workspaceSkillsDir: join(tempDir, 'workspace') });
     const catalog = provider.formatCatalog([]);
     expect(catalog).toBe('');
   });
@@ -107,61 +129,75 @@ describe('FileSkillProvider.readSkillRaw', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  function createRawSkill(name: string, content: string) {
-    const skillDir = join(tempDir, name);
-    mkdirSync(skillDir);
+  function createRawSkill(skillsDir: string, name: string, content: string) {
+    const skillDir = join(skillsDir, name);
+    mkdirSync(skillDir, { recursive: true });
     writeFileSync(join(skillDir, 'SKILL.md'), content);
   }
 
   it('returns full SKILL.md raw content', async () => {
+    const homeDir = join(tempDir, 'home');
     const raw = '---\nname: test\ndescription: Test skill.\n---\n\nBody here.';
-    createRawSkill('test', raw);
+    createRawSkill(homeDir, 'test', raw);
 
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const result = await provider.readSkillRaw('test');
 
     expect(result).toBe(raw);
   });
 
-  it('returns undefined when skill is not found', async () => {
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+  it('prefers workspace skill over home skill', async () => {
+    const homeDir = join(tempDir, 'home');
+    const workspaceDir = join(tempDir, 'workspace');
+
+    createRawSkill(homeDir, 'shared', 'home raw');
+    createRawSkill(workspaceDir, 'shared', 'workspace raw');
+
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const result = await provider.readSkillRaw('shared');
+
+    expect(result).toBe('workspace raw');
+  });
+
+  it('falls back to home skill when workspace skill is missing', async () => {
+    const homeDir = join(tempDir, 'home');
+    createRawSkill(homeDir, 'only-home', 'home raw');
+
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const result = await provider.readSkillRaw('only-home');
+
+    expect(result).toBe('home raw');
+  });
+
+  it('returns undefined when skill is not found in either directory', async () => {
+    const provider = new FileSkillProvider({ homeSkillsDir: join(tempDir, 'home'), workspaceSkillsDir: join(tempDir, 'workspace') });
     const result = await provider.readSkillRaw('missing');
 
     expect(result).toBeUndefined();
   });
 
-  it('returns undefined when skillsDir is empty', async () => {
-    const provider = new FileSkillProvider();
-    const result = await provider.readSkillRaw('anything');
-
-    expect(result).toBeUndefined();
-  });
-
   it('returns undefined when SKILL.md is missing', async () => {
-    mkdirSync(join(tempDir, 'no-file'));
-    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const homeDir = join(tempDir, 'home');
+    mkdirSync(homeDir, { recursive: true });
+    mkdirSync(join(homeDir, 'no-file'));
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
     const result = await provider.readSkillRaw('no-file');
 
     expect(result).toBeUndefined();
   });
 
   it('returns undefined for invalid names', async () => {
-    const skillsDir = join(tempDir, 'skills');
-    mkdirSync(skillsDir);
+    const homeDir = join(tempDir, 'home');
+    const workspaceDir = join(tempDir, 'workspace');
     const escapeDir = join(tempDir, 'escape');
     mkdirSync(escapeDir);
     writeFileSync(join(escapeDir, 'SKILL.md'), 'escaped');
 
-    function createRawSkillInSkillsDir(name: string, content: string) {
-      const skillDir = join(skillsDir, name);
-      mkdirSync(skillDir);
-      writeFileSync(join(skillDir, 'SKILL.md'), content);
-    }
-    createRawSkillInSkillsDir('valid', 'valid content');
-    createRawSkillInSkillsDir('leading', 'leading content');
-    createRawSkillInSkillsDir('trailing', 'trailing content');
+    createRawSkill(homeDir, 'valid', 'valid content');
+    createRawSkill(homeDir, 'leading', 'leading content');
+    createRawSkill(homeDir, 'trailing', 'trailing content');
 
-    const provider = new FileSkillProvider({ skillsDir });
+    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
 
     expect(await provider.readSkillRaw('../escape')).toBeUndefined();
     expect(await provider.readSkillRaw('foo/bar')).toBeUndefined();

@@ -1,4 +1,4 @@
-import type { AgentStreamChunk, AgentStream, AgentOutput, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
+import type { AgentStreamChunk, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import { runAgent as coreRunAgent } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
@@ -7,26 +7,6 @@ import type { BusEvent, SessionActivity, SessionSummary, SessionUpdate, UIMessag
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
 import { SessionActivityTracker } from './session-activity-tracker.js';
-
-export interface RunParams {
-  sessionId: string;
-  content: string;
-}
-
-export interface RunResult {
-  stream: AgentStream;
-  output: Promise<AgentOutput>;
-}
-
-export interface InterruptResult {
-  sessionId: string;
-  interrupted: boolean;
-}
-
-export interface ResetResult {
-  sessionId: string;
-  reset: boolean;
-}
 
 export class AgentService implements IAgentService {
   private sessionProvider: SessionProvider;

@@ -158,6 +158,8 @@ describe('FileSkillProvider.readSkillRaw', () => {
       writeFileSync(join(skillDir, 'SKILL.md'), content);
     }
     createRawSkillInSkillsDir('valid', 'valid content');
+    createRawSkillInSkillsDir('leading', 'leading content');
+    createRawSkillInSkillsDir('trailing', 'trailing content');
 
     const provider = new FileSkillProvider({ skillsDir });
 
@@ -171,5 +173,7 @@ describe('FileSkillProvider.readSkillRaw', () => {
     expect(await provider.readSkillRaw('')).toBeUndefined();
     expect(await provider.readSkillRaw('   ')).toBeUndefined();
     expect(await provider.readSkillRaw('valid')).toBe('valid content');
+    expect(await provider.readSkillRaw('leading')).toBe('leading content');
+    expect(await provider.readSkillRaw('trailing')).toBe('trailing content');
   });
 });

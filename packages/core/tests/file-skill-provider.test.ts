@@ -144,4 +144,32 @@ describe('FileSkillProvider.readSkillRaw', () => {
 
     expect(result).toBeUndefined();
   });
+
+  it('returns undefined for invalid names', async () => {
+    const skillsDir = join(tempDir, 'skills');
+    mkdirSync(skillsDir);
+    const escapeDir = join(tempDir, 'escape');
+    mkdirSync(escapeDir);
+    writeFileSync(join(escapeDir, 'SKILL.md'), 'escaped');
+
+    function createRawSkillInSkillsDir(name: string, content: string) {
+      const skillDir = join(skillsDir, name);
+      mkdirSync(skillDir);
+      writeFileSync(join(skillDir, 'SKILL.md'), content);
+    }
+    createRawSkillInSkillsDir('valid', 'valid content');
+
+    const provider = new FileSkillProvider({ skillsDir });
+
+    expect(await provider.readSkillRaw('../escape')).toBeUndefined();
+    expect(await provider.readSkillRaw('foo/bar')).toBeUndefined();
+    expect(await provider.readSkillRaw('foo\\bar')).toBeUndefined();
+    expect(await provider.readSkillRaw('.')).toBeUndefined();
+    expect(await provider.readSkillRaw(' leading')).toBeUndefined();
+    expect(await provider.readSkillRaw('trailing ')).toBeUndefined();
+    expect(await provider.readSkillRaw('name\0hidden')).toBeUndefined();
+    expect(await provider.readSkillRaw('')).toBeUndefined();
+    expect(await provider.readSkillRaw('   ')).toBeUndefined();
+    expect(await provider.readSkillRaw('valid')).toBe('valid content');
+  });
 });

@@ -67,11 +67,16 @@ export class FileSkillProvider implements SkillProvider {
   }
 
   async readSkillRaw(name: string): Promise<string | undefined> {
+    const trimmed = name.trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+      return undefined;
+    }
+
     if (this.skillsDir === '') {
       return undefined;
     }
 
-    const skillDir = join(this.skillsDir, name);
+    const skillDir = join(this.skillsDir, trimmed);
     const skillFile = join(skillDir, 'SKILL.md');
 
     try {

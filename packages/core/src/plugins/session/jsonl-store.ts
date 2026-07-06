@@ -32,7 +32,11 @@ export class JsonlSessionStore {
 
   async save(session: Session): Promise<void> {
     await this.ensureDir();
-    const count = this.counts.get(session.sessionId) ?? 0;
+    if (!this.counts.has(session.sessionId)) {
+      const existing = await this.readMessages(session.sessionId);
+      this.counts.set(session.sessionId, existing?.length ?? 0);
+    }
+    const count = this.counts.get(session.sessionId)!;
     const newMessages = session.conversation.slice(count);
     if (newMessages.length > 0) {
       const lines = newMessages.map((m) => JSON.stringify(m)).join('\n') + '\n';

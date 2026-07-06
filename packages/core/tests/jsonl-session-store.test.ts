@@ -69,6 +69,24 @@ describe('JsonlSessionStore', () => {
     expect(loaded!.conversation).toHaveLength(2);
   });
 
+  it('does not duplicate messages when saving after loading from disk', async () => {
+    const session = makeSession('s1', [textMessage('m1', 'first')]);
+    await store.save(session);
+
+    const freshStore = new JsonlSessionStore(dir);
+    const loaded = await freshStore.load('s1');
+    expect(loaded).not.toBeNull();
+
+    loaded!.conversation.push(textMessage('m2', 'second'));
+    await freshStore.save(loaded!);
+
+    const raw = await readFile(join(dir, 's1.jsonl'), 'utf-8');
+    const lines = raw.trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]).id).toBe('m1');
+    expect(JSON.parse(lines[1]).id).toBe('m2');
+  });
+
   it('delete removes both jsonl and meta files', async () => {
     const session = makeSession('s1', [textMessage('m1', 'hi')]);
     await store.save(session);

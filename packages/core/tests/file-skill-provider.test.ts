@@ -95,3 +95,53 @@ describe('FileSkillProvider', () => {
     expect(catalog).toBe('');
   });
 });
+
+describe('FileSkillProvider.readSkillRaw', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'rem-agent-skill-raw-'));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function createRawSkill(name: string, content: string) {
+    const skillDir = join(tempDir, name);
+    mkdirSync(skillDir);
+    writeFileSync(join(skillDir, 'SKILL.md'), content);
+  }
+
+  it('returns full SKILL.md raw content', async () => {
+    const raw = '---\nname: test\ndescription: Test skill.\n---\n\nBody here.';
+    createRawSkill('test', raw);
+
+    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const result = await provider.readSkillRaw('test');
+
+    expect(result).toBe(raw);
+  });
+
+  it('returns undefined when skill is not found', async () => {
+    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const result = await provider.readSkillRaw('missing');
+
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined when skillsDir is empty', async () => {
+    const provider = new FileSkillProvider();
+    const result = await provider.readSkillRaw('anything');
+
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined when SKILL.md is missing', async () => {
+    mkdirSync(join(tempDir, 'no-file'));
+    const provider = new FileSkillProvider({ skillsDir: tempDir });
+    const result = await provider.readSkillRaw('no-file');
+
+    expect(result).toBeUndefined();
+  });
+});

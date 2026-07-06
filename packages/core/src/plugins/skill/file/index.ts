@@ -65,6 +65,30 @@ export class FileSkillProvider implements SkillProvider {
   formatCatalog(skills: Skill[]): string {
     return this.catalog.format(skills);
   }
+
+  async readSkillRaw(name: string): Promise<string | undefined> {
+    if (this.skillsDir === '') {
+      return undefined;
+    }
+
+    const skillDir = join(this.skillsDir, name);
+    const skillFile = join(skillDir, 'SKILL.md');
+
+    try {
+      const entryStat = await stat(skillDir);
+      if (!entryStat.isDirectory()) {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+
+    try {
+      return await readFile(skillFile, 'utf-8');
+    } catch {
+      return undefined;
+    }
+  }
 }
 
 export function createProvider(options?: Partial<FileSkillProviderOptions>): FileSkillProvider {

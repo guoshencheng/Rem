@@ -171,6 +171,21 @@ describe('JsonlSessionStore', () => {
     expect(loaded!.updatedAt).toEqual(new Date('2026-06-15T00:00:00Z'));
   });
 
+  it('returns null when jsonl is corrupted', async () => {
+    await store.save({
+      sessionId: 's1',
+      conversation: [{ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage],
+      currentTurn: 0,
+      metadata: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    // corrupt the jsonl file
+    await writeFile(join(dir, 's1.jsonl'), '{invalid json}\n', 'utf-8');
+    const loaded = await store.load('s1');
+    expect(loaded).toBeNull();
+  });
+
   it('writeMeta uses temp file and rename, leaving no tmp file behind', async () => {
     const session = makeSession('s1', [textMessage('m1', 'hi')]);
     await store.save(session);

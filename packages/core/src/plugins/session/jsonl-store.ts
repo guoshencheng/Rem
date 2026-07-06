@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, appendFile, unlink, readdir, rename } from 'fs/promises';
+import { mkdir, readFile, writeFile, appendFile, unlink, readdir, rename, access } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
 import type { ModelMessage } from '../../types.js';
@@ -11,6 +11,15 @@ export class JsonlSessionStore {
   private jsonlPath(id: string): string { return join(this.dir, `${id}.jsonl`); }
   private metaPath(id: string): string { return join(this.dir, `${id}.meta.json`); }
 
+  private async jsonlExists(sessionId: string): Promise<boolean> {
+    try {
+      await access(this.jsonlPath(sessionId));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async ensureDir(): Promise<void> {
     await mkdir(this.dir, { recursive: true });
   }
@@ -18,7 +27,8 @@ export class JsonlSessionStore {
   async load(sessionId: string): Promise<Session | null> {
     const conversation = await this.readMessages(sessionId);
     const meta = await this.readMeta(sessionId);
-    if (!conversation && !meta) return null;
+    if (conversation === null && (await this.jsonlExists(sessionId))) return null;
+    if (conversation === null && !meta) return null;
     this.counts.set(sessionId, conversation?.length ?? 0);
     return {
       sessionId,

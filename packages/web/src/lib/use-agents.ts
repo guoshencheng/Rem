@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
-import type { IAgentService, BusEvent, SessionActivity, AgentStreamChunk } from 'rem-agent-bridge/client';
+import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
 import { useAgentBus } from './use-agent-bus';
@@ -300,6 +300,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     handleEventRef.current = handleEvent;
 
     const unsubReconnect = bus.onReconnect(() => {
+      // SSE reconnected; refresh known sessions to recover any missed events
       for (const sessionId of sessionMapRef.current.keys()) {
         refreshSession(sessionId);
       }
@@ -400,6 +401,9 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       try {
         await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
         sessionMapRef.current.delete(id);
+        currentMsgIdRef.current.delete(id);
+        pendingEventsRef.current.delete(id);
+        loadingRef.current.delete(id);
         setSessionList((prev) => {
           const remaining = prev.filter((s) => s.sessionId !== id);
           if (currentId === id) {

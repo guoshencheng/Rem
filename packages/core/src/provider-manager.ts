@@ -129,7 +129,7 @@ export class ProviderManager {
 
     toolProvider.register(
       createReadSkillToolDefinition(),
-      createReadSkillToolExecutor(skillProvider),
+      createReadSkillToolExecutor(() => this.registry.require<SkillProvider>('skill')),
     );
   }
 

@@ -14,7 +14,7 @@ describe('read_skill tool', () => {
   it('returns raw markdown when skill exists', async () => {
     const raw = '---\nname: foo\n---\n\nbar';
     const provider = createFakeSkillProvider({ foo: raw });
-    const executor = createReadSkillToolExecutor(() => provider);
+    const executor = createReadSkillToolExecutor(provider);
 
     const result = await executor({ name: 'foo' }, { cwd: '/', workspaceRoot: '/' });
 
@@ -23,7 +23,7 @@ describe('read_skill tool', () => {
 
   it('throws when skill is not found', async () => {
     const provider = createFakeSkillProvider({});
-    const executor = createReadSkillToolExecutor(() => provider);
+    const executor = createReadSkillToolExecutor(provider);
 
     await expect(
       executor({ name: 'missing' }, { cwd: '/', workspaceRoot: '/' }),

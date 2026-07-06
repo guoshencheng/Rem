@@ -22,10 +22,9 @@ export function createReadSkillToolDefinition(): ToolDefinition<typeof readSkill
 }
 
 export function createReadSkillToolExecutor(
-  getSkillProvider: () => SkillProvider,
+  skillProvider: SkillProvider,
 ): ToolExecutor<typeof readSkillSchema> {
   return async (input: ReadSkillToolInput, _ctx: ToolContext) => {
-    const skillProvider = getSkillProvider();
     const raw = await skillProvider.readSkillRaw(input.name);
 
     if (raw === undefined) {

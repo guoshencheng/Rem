@@ -118,20 +118,19 @@ export class ProviderManager {
   }
 
   private registerSkillReadTool(): void {
-    try {
-      const toolProvider = this.registry.require<ToolProvider>('tool');
-      const skillProvider = this.registry.require<SkillProvider>('skill');
+    const toolProvider = this.registry.get<ToolProvider>('tool');
+    const skillProvider = this.registry.get<SkillProvider>('skill');
 
-      toolProvider.register(
-        createReadSkillToolDefinition(),
-        createReadSkillToolExecutor(() => skillProvider),
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      // Debug log only; builtin tool registration should not block agent startup.
+    if (!toolProvider || !skillProvider) {
       // eslint-disable-next-line no-console
-      console.debug(`[ProviderManager] skipped read_skill registration: ${message}`);
+      console.debug('[ProviderManager] skipped read_skill registration: tool or skill provider not available');
+      return;
     }
+
+    toolProvider.register(
+      createReadSkillToolDefinition(),
+      createReadSkillToolExecutor(skillProvider),
+    );
   }
 
   getConfigProvider(): ConfigProvider {

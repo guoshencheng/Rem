@@ -1,10 +1,9 @@
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 import { BaseSessionProvider } from '../base.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
-
 import type { ContentPart } from '../../../types.js';
 
 export interface LocalSessionProviderOptions {
@@ -21,49 +20,50 @@ interface IndexEntry {
 
 export class LocalSessionProvider extends BaseSessionProvider {
   private msgCache = new Map<string, ContentPart[]>();
+  private dir: string;
 
   constructor(dir: string) {
     super(dir);
+    this.dir = dir;
   }
 
   private indexPath(): string {
     return join(this.dir, 'index.json');
   }
 
+  private msgPath(sessionId: string): string {
+    return join(this.dir, `${sessionId}.msg.json`);
+  }
+
   async create(): Promise<Session> {
     const session = await super.create();
-    await this.write(session);
     await this.updateIndex(session);
     return session;
   }
 
   async load(sessionId: string): Promise<Session | null> {
+    const session = await this.store.load(sessionId);
+    if (!session) return null;
     try {
-      const raw = await readFile(this.sessionPath(sessionId), 'utf-8');
+      const raw = await readFile(this.msgPath(sessionId), 'utf-8');
       const data = JSON.parse(raw);
-      if (Array.isArray(data.messages)) {
-        this.msgCache.set(sessionId, data.messages);
+      if (Array.isArray(data)) {
+        this.msgCache.set(sessionId, data);
       }
-      return {
-        sessionId: data.sessionId,
-        conversation: data.conversation ?? [],
-        currentTurn: data.currentTurn ?? 0,
-        metadata: data.metadata ?? {},
-        createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt),
-      };
     } catch {
-      return null;
+      // msg cache is optional
     }
+    return session;
   }
 
   async save(session: Session): Promise<void> {
-    const updated = await this.persist(session);
-    await this.updateIndex(updated);
+    session.updatedAt = new Date();
+    await this.store.save(session);
+    await this.writeMsgCache(session.sessionId);
+    await this.updateIndex(session);
   }
 
   async list(): Promise<SessionSummary[]> {
-    await this.ensureDir();
     const index = await this.readIndex();
     return index.map((s) => ({
       sessionId: s.sessionId,
@@ -76,7 +76,8 @@ export class LocalSessionProvider extends BaseSessionProvider {
 
   async delete(sessionId: string): Promise<void> {
     this.msgCache.delete(sessionId);
-    await super.delete(sessionId);
+    await this.store.delete(sessionId);
+    await this.unlinkQuiet(this.msgPath(sessionId));
     await this.removeFromIndex(sessionId);
   }
 
@@ -88,17 +89,10 @@ export class LocalSessionProvider extends BaseSessionProvider {
     return this.msgCache.get(sessionId) ?? [];
   }
 
-  protected async write(session: Session): Promise<void> {
-    const data = {
-      sessionId: session.sessionId,
-      conversation: session.conversation,
-      messages: this.msgCache.get(session.sessionId) ?? [],
-      currentTurn: session.currentTurn,
-      metadata: session.metadata,
-      createdAt: session.createdAt.toISOString(),
-      updatedAt: session.updatedAt.toISOString(),
-    };
-    await writeFile(this.sessionPath(session.sessionId), JSON.stringify(data, null, 2), 'utf-8');
+  private async writeMsgCache(sessionId: string): Promise<void> {
+    const messages = this.msgCache.get(sessionId);
+    if (!messages) return;
+    await writeFile(this.msgPath(sessionId), JSON.stringify(messages, null, 2), 'utf-8');
   }
 
   private async updateIndex(session: Session): Promise<void> {
@@ -137,6 +131,14 @@ export class LocalSessionProvider extends BaseSessionProvider {
 
   private async writeIndex(index: IndexEntry[]): Promise<void> {
     await writeFile(this.indexPath(), JSON.stringify(index, null, 2), 'utf-8');
+  }
+
+  private async unlinkQuiet(path: string): Promise<void> {
+    try {
+      await unlink(path);
+    } catch {
+      // ignore
+    }
   }
 }
 

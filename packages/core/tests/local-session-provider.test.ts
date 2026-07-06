@@ -138,4 +138,15 @@ describe('LocalSessionProvider', () => {
     expect(summaryA?.pinned).toBe(true);
     expect(summaryB?.pinned).toBeUndefined();
   });
+
+  it('does not duplicate conversation when msgCache exists', async () => {
+    const session = await provider.create();
+    session.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
+    provider.cueMessages(session.sessionId, [{ type: 'text', text: 'streaming' }]);
+    await provider.save(session);
+
+    const loaded = await provider.load(session.sessionId);
+    expect(loaded!.conversation).toHaveLength(1);
+    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'hi' }]);
+  });
 });

@@ -340,15 +340,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         parts: [{ type: 'text', text: content }],
         status: 'done',
       };
-      const assistantMsg: UIMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        parts: [],
-        status: 'pending',
-      };
-      currentMsgIdRef.current.set(currentId, assistantMsg.id);
 
-      state.messages = [...state.messages, userMsg, assistantMsg];
+      state.messages = [...state.messages, userMsg];
       state.status = 'loading';
       state.error = null;
       state.activity = 'pending';

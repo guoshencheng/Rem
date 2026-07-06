@@ -32,7 +32,7 @@ export class AgentService implements IAgentService {
 
   /* ---- Agent lifecycle ---- */
 
-  async run(sessionId: string, input: string): Promise<AsyncIterable<AgentStreamChunk>> {
+  async run(sessionId: string, input: string): Promise<void> {
     const abortController = new AbortController();
     if (!runRegistry.register(sessionId, abortController)) {
       throw new ServiceError('Session is already running', 409);
@@ -53,66 +53,56 @@ export class AgentService implements IAgentService {
       });
     } catch (err) {
       runRegistry.remove(sessionId);
+      this.activityTracker.finish(sessionId);
       throw err;
     }
 
+    // Background self-driven consumption: independent of any client connection.
+    void this.drive(sessionId, result);
+  }
+
+  private async drive(sessionId: string, result: ReturnType<typeof coreRunAgent>): Promise<void> {
     const workspace = this.workspace;
+    console.log(`[resume] driver start session=${sessionId}`);
+    try {
+      for await (const chunk of result.stream.fullStream) {
+        this.activityTracker.applyChunk(sessionId, chunk);
 
-    const self = this;
-
-    const wrapped: AsyncIterable<AgentStreamChunk> = {
-      [Symbol.asyncIterator]: async function* () {
-        for await (const chunk of result.stream.fullStream) {
-          yield chunk;
-
-          console.log(`[Agent] chunk session=${sessionId} type=${chunk.type}`);
-
-          self.activityTracker.applyChunk(sessionId, chunk);
-
-          if (chunk.type === 'message-start') {
-            streamingSnapshots.start(sessionId, chunk.messageId);
-          } else if (isContentChunk(chunk)) {
-            const entry = streamingSnapshots.get(sessionId);
-            if (entry) {
-              try {
-                streamingSnapshots.update(sessionId, reduceStreamChunk(entry.parts, chunk));
-              } catch {
-                // snapshot best-effort
-              }
+        if (chunk.type === 'message-start') {
+          streamingSnapshots.start(sessionId, chunk.messageId);
+          console.log(`[resume] snapshot start session=${sessionId} messageId=${chunk.messageId}`);
+        } else if (isContentChunk(chunk)) {
+          const entry = streamingSnapshots.get(sessionId);
+          if (entry) {
+            try {
+              streamingSnapshots.update(sessionId, reduceStreamChunk(entry.parts, chunk));
+            } catch {
+              // snapshot best-effort
             }
           }
-
-          bus.publish({
-            workspace,
-            sessionId,
-            type: 'chunk',
-            chunk,
-          });
-
-          if (chunk.type === 'finish') {
-            streamingSnapshots.clear(sessionId);
-            bus.publish({ workspace, sessionId, type: 'session-end' });
-          }
-          if (chunk.type === 'error') {
-            streamingSnapshots.clear(sessionId);
-            bus.publish({
-              workspace,
-              sessionId,
-              type: 'session-error',
-              error: String(chunk.error),
-            });
-          }
         }
-      },
-    };
 
-    result.output.catch(() => {}).finally(() => {
+        bus.publish({ workspace, sessionId, type: 'chunk', chunk });
+
+        if (chunk.type === 'finish') {
+          streamingSnapshots.clear(sessionId);
+          bus.publish({ workspace, sessionId, type: 'session-end' });
+        }
+        if (chunk.type === 'error') {
+          streamingSnapshots.clear(sessionId);
+          bus.publish({ workspace, sessionId, type: 'session-error', error: String(chunk.error) });
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`[resume] driver error session=${sessionId} error=${message}`);
+      bus.publish({ workspace, sessionId, type: 'session-error', error: message });
+    } finally {
+      console.log(`[resume] driver end session=${sessionId}`);
       runRegistry.remove(sessionId);
       streamingSnapshots.clear(sessionId);
-      self.activityTracker.finish(sessionId);
-    });
-
-    return wrapped;
+      this.activityTracker.finish(sessionId);
+    }
   }
 
   async interrupt(sessionId: string): Promise<void> {
@@ -180,8 +170,10 @@ export class AgentService implements IAgentService {
       // Push current snapshots to this new subscriber.
       // subscribe() above and this read happen synchronously with no await between,
       // so no chunk can be processed in between: snapshot + queued chunks are gap-free.
+      const runningIds = streamingSnapshots.runningSessionIds();
+      console.log(`[resume] new stream subscriber workspace=${this.workspace} runningSessions=[${runningIds.join(',')}]`);
       const snapshotEvents: BusEvent[] = [];
-      for (const sessionId of streamingSnapshots.runningSessionIds()) {
+      for (const sessionId of runningIds) {
         const entry = streamingSnapshots.get(sessionId);
         if (entry && entry.parts.length > 0) {
           snapshotEvents.push({
@@ -191,9 +183,13 @@ export class AgentService implements IAgentService {
             messageId: entry.messageId,
             parts: entry.parts,
           });
+        } else {
+          console.log(`[resume] skip snapshot push session=${sessionId} reason=${entry ? 'emptyParts' : 'noEntry'}`);
         }
       }
       for (const ev of snapshotEvents) {
+        const snap = ev as Extract<BusEvent, { type: 'snapshot' }>;
+        console.log(`[resume] push snapshot session=${snap.sessionId} messageId=${snap.messageId} parts=${snap.parts.length}`);
         yield ev;
       }
 

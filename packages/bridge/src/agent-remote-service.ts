@@ -1,50 +1,28 @@
-import type { AgentStreamChunk, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
-  RunRequest,
   SessionSummary,
   SessionUpdate,
   InterruptRequest,
   ResetRequest,
   UIMessage,
 } from './types.js';
-import { parseSSEStream, parseAgentStreamEvent } from './sse.js';
+import { parseSSEStream } from './sse.js';
 
 export class AgentRemoteService implements IAgentService {
   constructor(private baseUrl: string) {}
 
-  async run(
-    sessionId: string,
-    input: string,
-  ): Promise<AsyncIterable<AgentStreamChunk>> {
+  async run(sessionId: string, input: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/api/agent/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+      body: JSON.stringify({ sessionId, content: input }),
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error(
-        `Failed to start run: ${response.status} ${response.statusText}`,
-      );
+    if (!response.ok) {
+      throw new Error(`Agent run failed: ${response.status}`);
     }
-
-    const reader = response.body.getReader();
-    const events = parseSSEStream(reader);
-
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        for await (const event of events) {
-          if (
-            event.event === 'chunk' ||
-            event.event === 'error'
-          ) {
-            yield parseAgentStreamEvent(event);
-          }
-        }
-      },
-    };
   }
 
   async interrupt(sessionId: string): Promise<void> {

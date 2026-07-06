@@ -6,48 +6,28 @@ describe('AgentRemoteService', () => {
     vi.restoreAllMocks();
   });
 
-  it('requests run and consumes stream', async () => {
+  it('requests run as a command and resolves void', async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock as any;
-
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      body: {
-        getReader: () => {
-          const encoder = new TextEncoder();
-          let done = false;
-          return {
-            read: async () => {
-              if (done) return { done: true, value: undefined };
-              done = true;
-              return {
-                done: false,
-                value: encoder.encode(
-                  'event: chunk\n' +
-                    'data: {"type":"text-start","step":1,"partId":"p1"}\n\n' +
-                    'event: chunk\n' +
-                    'data: {"type":"text-delta","step":1,"partId":"p1","text":"hi"}\n\n' +
-                    'event: chunk\n' +
-                    'data: {"type":"finish","output":{"content":"hi","completed":true}}\n\n',
-                ),
-              };
-            },
-          };
-        },
-      },
-    });
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
 
     const client = new AgentRemoteService('http://localhost:8321');
-    const stream = await client.run('s1', 'hello');
-    const chunks: any[] = [];
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-    }
+    const res = await client.run('s1', 'hello');
 
-    expect(chunks).toHaveLength(3);
-    expect(chunks[0].type).toBe('text-start');
-    expect(chunks[1].type).toBe('text-delta');
-    expect(chunks[2].type).toBe('finish');
+    expect(res).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8321/api/agent/run',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('throws when run response is not ok', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
+
+    const client = new AgentRemoteService('http://localhost:8321');
+    await expect(client.run('s1', 'hello')).rejects.toThrow(/500/);
   });
 });
 

@@ -19,7 +19,6 @@ export interface AgentBehaviorConfig {
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
   sessionsDir?: string;
-  skillsDir?: string;
 }
 
 export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {

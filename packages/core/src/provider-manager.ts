@@ -28,7 +28,7 @@ import type {
   ResolvedModelConfig,
 } from './sdk/config-provider.js';
 import type { ProviderConfig } from './llm/types.js';
-import { getDefaultSkillsDir, getDefaultSessionsDir } from './config/paths.js';
+import { getDefaultSessionsDir } from './config/paths.js';
 import type { ToolPolicyConfig } from './sdk/tool-policy.js';
 import type { AgentStateProvider } from './sdk/agent-state-provider.js';
 
@@ -48,7 +48,6 @@ export interface ProviderManagerConfig {
   workspaceRoot?: string;
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
-  skillsDir?: string;
   sessionsDir?: string;
 }
 
@@ -85,7 +84,6 @@ export class ProviderManager {
         readOnly: this.config.readOnly ?? behavior.readOnly ?? false,
         autoApproveDangerous: this.config.autoApproveDangerous ?? behavior.autoApproveDangerous ?? false,
         approvalOrchestrator,
-        skillsDir: this.config.skillsDir ?? behavior.skillsDir ?? getDefaultSkillsDir(),
         sessionsDir: this.config.sessionsDir ?? behavior.sessionsDir ?? getDefaultSessionsDir(),
         maxTurns: behavior.maxTurns,
         toolPolicy: this.config.toolPolicy ?? toolCfg.policy,

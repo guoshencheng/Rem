@@ -23,7 +23,6 @@ function createMockConfigProvider(): ConfigProvider {
         workspaceRoot: process.cwd(),
         readOnly: false,
         autoApproveDangerous: false,
-        skillsDir: '/tmp/skills',
         sessionsDir: '/tmp/sessions',
       };
     },

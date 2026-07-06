@@ -4,6 +4,9 @@ import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
 import { DefaultSkillCatalog } from '../default-catalog.js';
 import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
+import { getDefaultSkillsDir } from '../../../config/paths.js';
+
+const REM_AGENT_SKILLS_DIR = 'REM_AGENT_SKILLS_DIR';
 
 export interface FileSkillProviderOptions {
   skillsDir: string;
@@ -14,7 +17,7 @@ export class FileSkillProvider implements SkillProvider {
   private catalog = new DefaultSkillCatalog();
 
   constructor(options?: Partial<FileSkillProviderOptions>) {
-    this.skillsDir = options?.skillsDir ?? '';
+    this.skillsDir = options?.skillsDir ?? resolveDefaultSkillsDir();
   }
 
   async loadSkills(): Promise<Skill[]> {
@@ -99,6 +102,14 @@ export function createProvider(options?: Partial<FileSkillProviderOptions>): Fil
   return new FileSkillProvider(options);
 }
 
-export function getDefaultOptions(ctx: ProviderLoaderContext): Partial<FileSkillProviderOptions> {
-  return { skillsDir: ctx.skillsDir };
+export function getDefaultOptions(_ctx: ProviderLoaderContext): Partial<FileSkillProviderOptions> {
+  return { skillsDir: resolveDefaultSkillsDir() };
+}
+
+function resolveDefaultSkillsDir(): string {
+  const envDir = process.env[REM_AGENT_SKILLS_DIR];
+  if (envDir) {
+    return envDir;
+  }
+  return getDefaultSkillsDir();
 }

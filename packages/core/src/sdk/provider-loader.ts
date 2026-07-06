@@ -23,7 +23,6 @@ export interface ProviderLoaderContext {
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
   approvalOrchestrator?: ApprovalOrchestrator;
-  skillsDir: string;
   sessionsDir: string;
   maxTurns: number;
   toolPolicy?: ToolPolicyConfig;

@@ -12,7 +12,6 @@ const baseCtx: ProviderLoaderContext = {
   agentName: 'TestAgent',
   workspaceRoot: '/tmp',
   readOnly: false,
-  skillsDir: '/tmp/skills',
   sessionsDir: '/tmp/sessions',
   maxTurns: 10,
 };

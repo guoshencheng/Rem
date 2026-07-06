@@ -4,7 +4,7 @@ import type { ProviderManager } from '../src/provider-manager.js';
 describe('runAgent', () => {
   it('returns a stream and output promise', async () => {
     const mockPm = {
-      getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', skillsDir: '/tmp/.skills' }),
+      getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions' }),
       getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
       getConfigProvider: () => ({}),
       get: () => null,

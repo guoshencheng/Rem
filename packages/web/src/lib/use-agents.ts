@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
-import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
+import type { IAgentService, BusEvent, SessionActivity, AgentStreamChunk } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
 import { useAgentBus } from './use-agent-bus';
@@ -40,7 +40,10 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
   const [initialized, setInitialized] = useState(false);
   const sessionMapRef = useRef<Map<string, SessionState>>(new Map());
   const [version, setVersion] = useState(0);
-  const assistantMsgIdRef = useRef<Map<string, string>>(new Map());
+  const currentMsgIdRef = useRef<Map<string, string>>(new Map());
+  const pendingEventsRef = useRef<Map<string, BusEvent[]>>(new Map());
+  const loadingRef = useRef<Set<string>>(new Set());
+  const handleEventRef = useRef<(event: BusEvent) => void>(() => {});
 
   const notifyChange = useCallback(() => {
     setVersion((v) => v + 1);
@@ -49,13 +52,17 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
   const refreshSession = useCallback(
     async (sessionId: string) => {
       try {
-        const messages = await agentService.getMessages(sessionId);
+        const persisted = await agentService.getMessages(sessionId);
         const state = sessionMapRef.current.get(sessionId);
         if (!state) return;
-        state.messages = messages.map((msg) => ({
-          ...msg,
-          status: 'done' as const,
-        }));
+        const persistedIds = new Set(persisted.map((m) => m.id));
+        const streamingTail = state.messages.filter(
+          (m) => m.status === 'streaming' && !persistedIds.has(m.id),
+        );
+        state.messages = [
+          ...persisted.map((m) => ({ ...m, status: 'done' as const })),
+          ...streamingTail,
+        ];
         notifyChange();
       } catch {
         // ignore refresh errors
@@ -93,6 +100,53 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     [agentService, notifyChange],
   );
 
+  const ensureAssistantMessage = useCallback(
+    (state: SessionState, messageId: string) => {
+      const existing = state.messages.find((m) => m.id === messageId);
+      if (existing) {
+        if (existing.status !== 'streaming') {
+          state.messages = state.messages.map((m) =>
+            m.id === messageId ? { ...m, status: 'streaming' as const } : m,
+          );
+        }
+        return;
+      }
+      state.messages = [
+        ...state.messages,
+        {
+          id: messageId,
+          role: 'assistant',
+          parts: [],
+          status: 'streaming',
+        },
+      ];
+    },
+    [],
+  );
+
+  const bufferEvent = useCallback(
+    (event: BusEvent) => {
+      const buf = pendingEventsRef.current.get(event.sessionId) ?? [];
+      buf.push(event);
+      pendingEventsRef.current.set(event.sessionId, buf);
+      if (!loadingRef.current.has(event.sessionId)) {
+        loadingRef.current.add(event.sessionId);
+        ensureSession(event.sessionId)
+          .then(() => {
+            loadingRef.current.delete(event.sessionId);
+            const pending = pendingEventsRef.current.get(event.sessionId) ?? [];
+            pendingEventsRef.current.delete(event.sessionId);
+            for (const e of pending) handleEventRef.current(e);
+          })
+          .catch(() => {
+            loadingRef.current.delete(event.sessionId);
+            pendingEventsRef.current.delete(event.sessionId);
+          });
+      }
+    },
+    [ensureSession],
+  );
+
   // Init: load session list
   useEffect(() => {
     agentService.listSessions().then((list) => {
@@ -110,7 +164,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
   // Subscribe to bus events
   useEffect(() => {
-    const unsubEvent = bus.onEvent((event: BusEvent) => {
+    const handleEvent = (event: BusEvent) => {
       if (event.workspace !== workspace) return;
 
       const map = sessionMapRef.current;
@@ -121,45 +175,66 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       switch (event.type) {
         case 'session-start': {
           if (!state) {
-            ensureSession(event.sessionId);
-            state = map.get(event.sessionId);
+            bufferEvent(event);
+            return;
           }
-          if (state) {
-            state.status = 'loading';
-            state.activity = state.activity ?? 'pending';
-            notifyChange();
+          state.status = 'loading';
+          state.activity = state.activity ?? 'pending';
+          notifyChange();
+          break;
+        }
+        case 'snapshot': {
+          if (!state) {
+            bufferEvent(event);
+            return;
           }
+          ensureAssistantMessage(state, event.messageId);
+          state.messages = state.messages.map((m) =>
+            m.id === event.messageId && m.status === 'streaming'
+              ? { ...m, parts: event.parts }
+              : m,
+          );
+          notifyChange();
           break;
         }
         case 'chunk': {
           if (!state) {
-            ensureSession(event.sessionId);
-            state = map.get(event.sessionId);
-            if (!state) return;
-          }
-          const lastMsg = state.messages[state.messages.length - 1];
-          if (lastMsg && lastMsg.role === 'assistant') {
-            const newParts = reduceStreamChunk(lastMsg.parts, event.chunk);
-            state.messages = [
-              ...state.messages.slice(0, -1),
-              {
-                ...lastMsg,
-                parts: newParts,
-                status: event.chunk.type === 'finish' ? 'done'
-                  : event.chunk.type === 'error' ? 'error'
-                  : 'streaming',
-                error: event.chunk.type === 'error' ? String(event.chunk.error) : undefined,
-              },
-            ];
-          }
-          state.status = event.chunk.type === 'finish' ? 'done'
-            : event.chunk.type === 'error' ? 'error'
-            : 'streaming';
-          if (event.chunk.type === 'error') {
-            state.error = String(event.chunk.error);
+            bufferEvent(event);
+            return;
           }
 
           const chunk = event.chunk;
+
+          if (chunk.type === 'message-start') {
+            ensureAssistantMessage(state, chunk.messageId);
+            currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
+          }
+
+          const msgId = currentMsgIdRef.current.get(event.sessionId);
+          if (msgId) {
+            state.messages = state.messages.map((m) => {
+              if (m.id === msgId && m.status === 'streaming') {
+                const newParts = reduceStreamChunk(m.parts, chunk);
+                return {
+                  ...m,
+                  parts: newParts,
+                  status: chunk.type === 'finish' ? 'done'
+                    : chunk.type === 'error' ? 'error'
+                    : 'streaming',
+                  error: chunk.type === 'error' ? String(chunk.error) : undefined,
+                };
+              }
+              return m;
+            });
+          }
+
+          state.status = chunk.type === 'finish' ? 'done'
+            : chunk.type === 'error' ? 'error'
+            : 'streaming';
+          if (chunk.type === 'error') {
+            state.error = String(chunk.error);
+          }
+
           if (chunk.type === 'approval-request') {
             if (!state.pendingApprovals.some((r) => r.approvalId === chunk.request.approvalId)) {
               state.pendingApprovals.push(chunk.request);
@@ -206,9 +281,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         }
         case 'activity-change': {
           if (!state) {
-            ensureSession(event.sessionId);
-            state = map.get(event.sessionId);
-            if (!state) return;
+            bufferEvent(event);
+            return;
           }
           state.activity = event.activity;
           setSessionList((prev) =>
@@ -220,20 +294,23 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           break;
         }
       }
-    });
+    };
+
+    handleEventRef.current = handleEvent;
 
     const unsubReconnect = bus.onReconnect(() => {
-      // SSE reconnected; refresh known sessions to recover any missed events
       for (const sessionId of sessionMapRef.current.keys()) {
         refreshSession(sessionId);
       }
     });
 
+    const unsubEvent = bus.onEvent(handleEvent);
+
     return () => {
       unsubEvent();
       unsubReconnect();
     };
-  }, [workspace, bus, ensureSession, notifyChange, refreshSession]);
+  }, [workspace, bus, ensureSession, notifyChange, refreshSession, bufferEvent, ensureAssistantMessage]);
 
   const currentSession = useMemo(() => {
     if (!currentId) return null;
@@ -269,7 +346,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         parts: [],
         status: 'pending',
       };
-      assistantMsgIdRef.current.set(currentId, assistantMsg.id);
+      currentMsgIdRef.current.set(currentId, assistantMsg.id);
 
       state.messages = [...state.messages, userMsg, assistantMsg];
       state.status = 'loading';

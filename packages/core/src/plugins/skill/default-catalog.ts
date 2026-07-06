@@ -1,5 +1,11 @@
 import type { Skill, SkillCatalog } from '../../sdk/skill-provider.js';
 
+const SKILL_GUIDANCE = `The following skills provide specialized instructions for specific tasks.
+When a task matches a skill's description, call the \`read_skill\` tool with the skill name
+to load its full SKILL.md. Then follow the instructions inside the skill; if the skill
+references additional files or commands, use the appropriate tools to gather more
+information or execute actions.`;
+
 export class DefaultSkillCatalog implements SkillCatalog {
   format(skills: Skill[]): string {
     if (skills.length === 0) {
@@ -14,9 +20,8 @@ export class DefaultSkillCatalog implements SkillCatalog {
       .join('\n');
 
     return [
-      'The following skills provide specialized instructions for specific tasks.',
-      'When a task matches a skill\'s description, use your file-read tool to load',
-      'the SKILL.md at the listed location before proceeding.',
+      SKILL_GUIDANCE,
+      '',
       '<available_skills>',
       skillBlocks,
       '</available_skills>',

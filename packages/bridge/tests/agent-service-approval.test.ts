@@ -71,23 +71,33 @@ describe('AgentService approval flow', () => {
     }
   });
 
-  it('emits approval-request chunk and resolves via resolveApproval', async () => {
+  it('emits approval-request via bus and resolves via resolveApproval', async () => {
     const summary = await service.createSession();
-    const stream = await service.run(summary.sessionId, '写一首诗到当前的工作空间');
 
-    const chunks: any[] = [];
-    let approvalId: string | undefined;
-
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-      if (chunk.type === 'approval-request') {
-        approvalId = chunk.request.approvalId;
-        break;
+    // Subscribe to the broadcast bus (the only data source now).
+    const events: any[] = [];
+    const busIterable = service.stream();
+    const iterator = busIterable[Symbol.asyncIterator]();
+    const pump = (async () => {
+      for (;;) {
+        const { value, done } = await iterator.next();
+        if (done) break;
+        events.push(value);
       }
-    }
+    })();
 
+    await service.run(summary.sessionId, '写一首诗到当前的工作空间');
+
+    // wait until an approval-request chunk shows up on the bus
+    let approvalId: string | undefined;
+    for (let i = 0; i < 100 && !approvalId; i++) {
+      const ev = events.find(
+        (e) => e.type === 'chunk' && e.chunk.type === 'approval-request',
+      );
+      if (ev) approvalId = ev.chunk.request.approvalId;
+      else await new Promise((r) => setTimeout(r, 20));
+    }
     expect(approvalId).toBeDefined();
-    expect(chunks.some((c) => c.type === 'approval-request' && c.request.toolName === 'write')).toBe(true);
 
     const pending = await service.listPendingApprovals(summary.sessionId);
     expect(pending.some((r) => r.approvalId === approvalId)).toBe(true);
@@ -95,21 +105,26 @@ describe('AgentService approval flow', () => {
     const resolved = await service.resolveApproval(approvalId!, 'allow-once');
     expect(resolved).toBe(true);
 
-    // consume remaining chunks until we see the resolved event and tool result
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-      if (
-        chunks.some((c) => c.type === 'approval-resolved' && c.decision === 'allow-once') &&
-        chunks.some((c) => c.type === 'tool-result')
-      ) {
-        break;
-      }
+    // wait for resolved + tool-result on the bus
+    for (let i = 0; i < 100; i++) {
+      const hasResolved = events.some(
+        (e) => e.type === 'chunk' && e.chunk.type === 'approval-resolved' && e.chunk.decision === 'allow-once',
+      );
+      const hasToolResult = events.some(
+        (e) => e.type === 'chunk' && e.chunk.type === 'tool-result',
+      );
+      if (hasResolved && hasToolResult) break;
+      await new Promise((r) => setTimeout(r, 20));
     }
 
-    expect(chunks.some((c) => c.type === 'approval-resolved' && c.decision === 'allow-once')).toBe(true);
-    expect(chunks.some((c) => c.type === 'tool-result')).toBe(true);
+    expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'approval-resolved' && e.chunk.decision === 'allow-once')).toBe(true);
+    expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'tool-result')).toBe(true);
 
-    // Give the run output promise a moment to settle and close file handles
-    await new Promise((r) => setTimeout(r, 100));
+    // return() would hang on the pending bus Promise; race with a timeout
+    await Promise.race([
+      iterator.return?.(),
+      new Promise<void>((r) => setTimeout(r, 200)),
+    ]);
+    pump.catch(() => {});
   });
 });

@@ -134,12 +134,14 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           agentName: behavior.name,
           sessionId: params.sessionId,
         },
-        createTurnHooks(state),
+        createTurnHooks(state, sessionProvider),
         controller,
       );
 
       for (const msg of result.newMessages) {
-        state.addMessage(msg);
+        if (!state.conversation.includes(msg)) {
+          state.addMessage(msg);
+        }
       }
 
       state.currentTurn++;
@@ -167,11 +169,19 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
   return { stream, output: outputPromise };
 }
 
-function createTurnHooks(state: AgentState): TurnHooks {
+function createTurnHooks(state: AgentState, sessionProvider: SessionProvider): TurnHooks {
   return {
     onMessageAdded: () => {},
     onToolCallRecorded: (record) => {
       state.session.metadata.lastToolCall = record;
+    },
+    onStepFinish: async (messages) => {
+      for (const msg of messages) {
+        if (!state.conversation.includes(msg)) {
+          state.addMessage(msg);
+        }
+      }
+      await sessionProvider.save(state.session);
     },
   };
 }

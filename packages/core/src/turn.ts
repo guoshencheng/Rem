@@ -93,6 +93,8 @@ export class ReactTurnRunner implements TurnRunner {
       outputTokens += result.usage.outputTokens ?? 0;
       totalTokens += result.usage.totalTokens ?? 0;
 
+      await hooks.onStepFinish?.(allNewMessages);
+
       if (result.newMessages.length === 0) {
         break;
       }

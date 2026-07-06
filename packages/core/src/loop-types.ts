@@ -6,6 +6,7 @@ import { AgentStreamController } from './stream/agent-stream.js';
 export interface TurnHooks {
   onMessageAdded(msg: ModelMessage): void;
   onToolCallRecorded(record: ToolCallRecord): void;
+  onStepFinish?(messages: ModelMessage[]): void | Promise<void>;
 }
 
 export interface LoopContext {

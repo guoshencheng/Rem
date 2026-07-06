@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ServiceError, type IAgentService } from 'rem-agent-bridge';
-import { createSSEResponse } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
 
 function errorResponse(err: unknown) {
@@ -26,9 +25,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'sessionId and content are required' }, { status: 400 });
     }
 
-    const stream = await agentService.run(sessionId, content);
+    // Fire-and-forget command: the server drives the run in the background and
+    // broadcasts progress over the bus (/api/agent/stream). No stream returned here.
+    await agentService.run(sessionId, content);
 
-    return createSSEResponse(stream);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return errorResponse(err);
   }

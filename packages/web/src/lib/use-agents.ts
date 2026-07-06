@@ -9,6 +9,13 @@ import { useAgentBus } from './use-agent-bus';
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
+function isContentChunkType(type: string): boolean {
+  return type === 'text-delta' || type === 'reasoning-delta' ||
+    type === 'tool-call' || type === 'tool-result' ||
+    type === 'text-start' || type === 'reasoning-start' ||
+    type === 'tool-call-start' || type === 'tool-result-start';
+}
+
 interface SessionState {
   messages: UIMessage[];
   status: SessionStatus;
@@ -185,9 +192,11 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         }
         case 'snapshot': {
           if (!state) {
+            console.log(`[resume] snapshot event but no state, buffering session=${event.sessionId} messageId=${event.messageId}`);
             bufferEvent(event);
             return;
           }
+          console.log(`[resume] apply snapshot session=${event.sessionId} messageId=${event.messageId} parts=${event.parts.length}`);
           ensureAssistantMessage(state, event.messageId);
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
@@ -207,12 +216,17 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           const chunk = event.chunk;
 
           if (chunk.type === 'message-start') {
+            console.log(`[resume] message-start chunk session=${event.sessionId} messageId=${chunk.messageId}`);
             ensureAssistantMessage(state, chunk.messageId);
             currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
           }
 
           const msgId = currentMsgIdRef.current.get(event.sessionId);
           if (msgId) {
+            const target = state.messages.find((m) => m.id === msgId);
+            if (chunk.type !== 'message-start' && (!target || target.status !== 'streaming')) {
+              console.log(`[resume] chunk not appended session=${event.sessionId} type=${chunk.type} msgId=${msgId} targetStatus=${target?.status ?? 'missing'}`);
+            }
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
                 const newParts = reduceStreamChunk(m.parts, chunk);
@@ -227,6 +241,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
               }
               return m;
             });
+          } else if (chunk.type !== 'message-start' && isContentChunkType(chunk.type)) {
+            console.log(`[resume] DROP content chunk (no currentMsgId) session=${event.sessionId} type=${chunk.type}`);
           }
 
           state.status = chunk.type === 'finish' ? 'done'

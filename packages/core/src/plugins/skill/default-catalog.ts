@@ -11,7 +11,6 @@ export class DefaultSkillCatalog implements SkillCatalog {
     if (skills.length === 0) {
       return '';
     }
-
     const skillBlocks = skills
       .map(
         (skill) =>

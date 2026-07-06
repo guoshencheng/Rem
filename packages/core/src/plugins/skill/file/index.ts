@@ -6,7 +6,7 @@ import { DefaultSkillCatalog } from '../default-catalog.js';
 import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
-const AGENT_DIR_NAME = '.agent';
+const AGENT_DIR_NAME = '.agents';
 const SKILLS_DIR_NAME = 'skills';
 
 export interface FileSkillProviderOptions {

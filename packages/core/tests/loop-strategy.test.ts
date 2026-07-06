@@ -290,4 +290,54 @@ describe('ReactLoop', () => {
     expect(skillProvider.loadSkills).toHaveBeenCalled();
     expect(mocks.memoryProvider.buildContext).toHaveBeenCalled();
   });
+
+  it('emits message-start when creating a new assistant message (last msg is tool)', async () => {
+    const mocks = createMockProviders();
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ id: 'u1', role: 'user', content: [{ type: 'text', text: 'hi' }] });
+    state.addMessage({ id: 't1', role: 'tool', content: [{ type: 'tool-result', toolCallId: 'c1', toolName: 'x', output: 'ok' }] });
+    const events = new EventBus();
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const hooks = createMockHooks();
+    const controller = new AgentStreamController();
+
+    await loop.iterate({
+      state,
+      systemPrompt: 'You are helpful',
+      budget: state.budget,
+      workspaceRoot: '/',
+      provider: 'mock',
+    }, hooks, controller, 2);
+
+    controller.finish({ content: '', completed: true });
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) chunks.push(chunk);
+    const ms = chunks.filter(c => c.type === 'message-start');
+    expect(ms).toHaveLength(1);
+    expect((ms[0] as { type: 'message-start'; step: number }).step).toBe(2);
+  });
+
+  it('does not emit message-start when reusing an existing assistant message', async () => {
+    const mocks = createMockProviders();
+    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
+    state.addMessage({ id: 'a1', role: 'assistant', content: [] });
+    const events = new EventBus();
+    const loop = new ReactLoop(events, mocks.toolProvider, mocks.memoryProvider, mocks.compressor, mocks.errorHandler);
+    const hooks = createMockHooks();
+    const controller = new AgentStreamController();
+
+    await loop.iterate({
+      state,
+      systemPrompt: 'You are helpful',
+      budget: state.budget,
+      workspaceRoot: '/',
+      provider: 'mock',
+    }, hooks, controller, 1);
+
+    controller.finish({ content: '', completed: true });
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) chunks.push(chunk);
+    const ms = chunks.filter(c => c.type === 'message-start');
+    expect(ms).toHaveLength(0);
+  });
 });

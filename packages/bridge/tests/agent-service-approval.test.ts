@@ -60,7 +60,15 @@ describe('AgentService approval flow', () => {
   });
 
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    for (let i = 0; i < 5; i++) {
+      try {
+        await rm(dir, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (i === 4) throw err;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
   });
 
   it('emits approval-request chunk and resolves via resolveApproval', async () => {
@@ -100,5 +108,8 @@ describe('AgentService approval flow', () => {
 
     expect(chunks.some((c) => c.type === 'approval-resolved' && c.decision === 'allow-once')).toBe(true);
     expect(chunks.some((c) => c.type === 'tool-result')).toBe(true);
+
+    // Give the run output promise a moment to settle and close file handles
+    await new Promise((r) => setTimeout(r, 100));
   });
 });

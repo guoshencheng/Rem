@@ -52,6 +52,7 @@ export class AgentService implements IAgentService {
         pm: this.providerManager,
       });
     } catch (err) {
+      bus.publish({ workspace: this.workspace, sessionId, type: 'session-error', error: err instanceof Error ? err.message : String(err) });
       runRegistry.remove(sessionId);
       this.activityTracker.finish(sessionId);
       throw err;
@@ -64,7 +65,8 @@ export class AgentService implements IAgentService {
   private async drive(sessionId: string, result: ReturnType<typeof coreRunAgent>): Promise<void> {
     const workspace = this.workspace;
     console.log(`[resume] driver start session=${sessionId}`);
-    try {
+
+    const consume = (async () => {
       for await (const chunk of result.stream.fullStream) {
         this.activityTracker.applyChunk(sessionId, chunk);
 
@@ -93,9 +95,19 @@ export class AgentService implements IAgentService {
           bus.publish({ workspace, sessionId, type: 'session-error', error: String(chunk.error) });
         }
       }
+    })();
+
+    const outputGuard = result.output.then(
+      () => new Promise<never>(() => {}),
+      (err) => { throw err instanceof Error ? err : new Error(String(err)); },
+    );
+
+    try {
+      await Promise.race([consume, outputGuard]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.log(`[resume] driver error session=${sessionId} error=${message}`);
+      streamingSnapshots.clear(sessionId);
       bus.publish({ workspace, sessionId, type: 'session-error', error: message });
     } finally {
       console.log(`[resume] driver end session=${sessionId}`);

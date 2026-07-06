@@ -77,7 +77,9 @@ describe('AgentService.run background driver', () => {
 
     await service.run(summary.sessionId, 'hi');
 
-    await new Promise((r) => setTimeout(r, 500));
+    for (let i = 0; i < 100 && runRegistry.has(summary.sessionId); i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
     stop();
 
     const types = events.map((e) => e.type);

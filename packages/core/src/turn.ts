@@ -51,6 +51,7 @@ export class ReactTurnRunner implements TurnRunner {
     const assistantMsg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
     state.addMessage(assistantMsg);
     hooks.onMessageAdded(assistantMsg);
+    controller.messageStart(assistantMsg.id, 1);
 
     const loopCtx: LoopContext = {
       input: ctx.input,

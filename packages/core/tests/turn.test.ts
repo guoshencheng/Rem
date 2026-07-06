@@ -213,6 +213,31 @@ describe('ReactTurnRunner', () => {
     expect(result.newMessages.some(m => m.id === 'a2' && m.role === 'assistant')).toBe(true);
   });
 
+  it('emits message-start for the first assistant message', async () => {
+    const loop = createMockLoop({});
+    const runner = new ReactTurnRunner(loop);
+    const controller = new AgentStreamController();
+
+    const result = await runner.run({
+      input: { content: 'hi' },
+      conversation: [],
+      systemPrompt: '',
+      budget: new IterationBudget({ maxTurns: 5 }),
+    }, { onMessageAdded: vi.fn(), onToolCallRecorded: vi.fn() }, controller);
+
+    controller.finish({ content: result.content, completed: true });
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    const messageStarts = chunks.filter(c => c.type === 'message-start');
+    expect(messageStarts).toHaveLength(1);
+    const ms = messageStarts[0] as Extract<import('../src/types.js').AgentStreamChunk, { type: 'message-start' }>;
+    expect(ms.messageId).toBeDefined();
+    expect(typeof ms.messageId).toBe('string');
+  });
+
   it('respects maxSteps', async () => {
     const iterateMock = vi.fn().mockImplementation(async () => ({
       content: '',

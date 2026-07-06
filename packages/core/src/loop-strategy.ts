@@ -77,7 +77,7 @@ export class ReactLoop implements LoopStrategy {
     const tools = this.toolProvider.getToolSet();
     const hasTools = Object.keys(tools).length > 0;
 
-    const assistantMsg = this.getOrCreateAssistantMessage(ctx.state);
+    const assistantMsg = this.getOrCreateAssistantMessage(ctx.state, controller, step);
 
     const provider = resolveProvider(ctx.provider ?? 'mock');
     const providerConfig = ctx.providerConfig ?? { apiKey: '', model: 'default' };
@@ -223,11 +223,12 @@ export class ReactLoop implements LoopStrategy {
     return null;
   }
 
-  private getOrCreateAssistantMessage(state: AgentState): ModelMessage {
+  private getOrCreateAssistantMessage(state: AgentState, controller: AgentStreamController, step: number): ModelMessage {
     const last = state.conversation[state.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
     const msg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
     state.addMessage(msg);
+    controller.messageStart(msg.id, step);
     return msg;
   }
 

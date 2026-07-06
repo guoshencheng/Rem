@@ -12,4 +12,5 @@ export interface SkillCatalog {
 export interface SkillProvider {
   loadSkills(): Promise<Skill[]>;
   formatCatalog(skills: Skill[]): string;
+  readSkillRaw(name: string): Promise<string | undefined>;
 }

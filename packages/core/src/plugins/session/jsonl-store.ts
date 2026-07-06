@@ -70,7 +70,7 @@ export class JsonlSessionStore {
       summaries.push({
         sessionId: id,
         title: typeof meta.metadata?.title === 'string' ? meta.metadata.title : undefined,
-        pinned: meta.metadata?.pinned === true,
+        pinned: meta.metadata?.pinned === true ? true : undefined,
         updatedAt: meta.updatedAt,
         messageCount: conversation?.length ?? 0,
       });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createProviderManager } from '../src/provider-manager.js';
+import type { ToolProvider } from '../src/sdk/tool-provider.js';
 
 describe('ProviderManager', () => {
   it('creates a new instance via factory function', async () => {
@@ -24,5 +25,15 @@ describe('ProviderManager', () => {
 
     const model = pm.getModelConfig();
     expect(model.provider).toBe('openai');
+  });
+
+  it('registers read_skill builtin tool after init', async () => {
+    const pm = await createProviderManager();
+    const toolProvider = pm.require<ToolProvider>('tool');
+    const toolSet = toolProvider.getToolSet();
+
+    expect(toolSet).toHaveProperty('read_skill');
+    expect(toolSet.read_skill.description).toContain('SKILL.md');
+    expect(toolSet.read_skill.parameters.properties).toHaveProperty('name');
   });
 });

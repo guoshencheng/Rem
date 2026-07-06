@@ -6,6 +6,10 @@ import { registerBuiltInProviders } from './llm/providers/index.js';
 import { ApprovalOrchestrator } from './security/approval-orchestrator.js';
 import { ApprovalManager } from './security/approval-manager.js';
 import { InMemoryAgentStateProvider } from './plugins/state/in-memory/index.js';
+import {
+  createReadSkillToolDefinition,
+  createReadSkillToolExecutor,
+} from './plugins/tool/builtin/skill-read.js';
 import type {
   ProviderKind,
   ProviderReference,
@@ -101,6 +105,7 @@ export class ProviderManager {
     await registry.initialize();
     registry.register('approval', approvalOrchestrator);
     this.registry = registry;
+    this.registerSkillReadTool();
     this.initialized = true;
   }
 
@@ -110,6 +115,23 @@ export class ProviderManager {
     });
     await provider.init();
     return provider;
+  }
+
+  private registerSkillReadTool(): void {
+    try {
+      const toolProvider = this.registry.require<ToolProvider>('tool');
+      const skillProvider = this.registry.require<SkillProvider>('skill');
+
+      toolProvider.register(
+        createReadSkillToolDefinition(),
+        createReadSkillToolExecutor(() => skillProvider),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Debug log only; builtin tool registration should not block agent startup.
+      // eslint-disable-next-line no-console
+      console.debug(`[ProviderManager] skipped read_skill registration: ${message}`);
+    }
   }
 
   getConfigProvider(): ConfigProvider {

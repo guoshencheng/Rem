@@ -21,14 +21,13 @@ describe('read_skill tool', () => {
     expect(result.output).toBe(raw);
   });
 
-  it('returns error when skill is not found', async () => {
+  it('throws when skill is not found', async () => {
     const provider = createFakeSkillProvider({});
     const executor = createReadSkillToolExecutor(() => provider);
 
-    const result = await executor({ name: 'missing' }, { cwd: '/', workspaceRoot: '/' });
-
-    expect(result.error).toContain('not found');
-    expect(result.output).toBe('');
+    await expect(
+      executor({ name: 'missing' }, { cwd: '/', workspaceRoot: '/' }),
+    ).rejects.toThrow('not found');
   });
 
   it('exposes correct tool definition', () => {

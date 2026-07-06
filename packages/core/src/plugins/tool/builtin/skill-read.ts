@@ -29,10 +29,7 @@ export function createReadSkillToolExecutor(
     const raw = await skillProvider.readSkillRaw(input.name);
 
     if (raw === undefined) {
-      return {
-        output: '',
-        error: `Skill "${input.name}" not found`,
-      };
+      throw new Error(`Skill "${input.name}" not found`);
     }
 
     return { output: raw };

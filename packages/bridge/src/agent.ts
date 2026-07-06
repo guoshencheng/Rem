@@ -1,6 +1,5 @@
 import type { AgentStreamChunk, AgentStream, AgentOutput, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import { runAgent as coreRunAgent } from 'rem-agent-core';
-import { reduceStreamChunk } from './stream-reducer.js';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
@@ -75,8 +74,6 @@ export class AgentService implements IAgentService {
       throw err;
     }
 
-    let accumulatedParts: NonNullable<unknown>[] = [];
-    const sessionProvider = this.sessionProvider;
     const workspace = this.workspace;
 
     const self = this;
@@ -89,27 +86,6 @@ export class AgentService implements IAgentService {
           console.log(`[Agent] chunk session=${sessionId} type=${chunk.type}`);
 
           self.activityTracker.applyChunk(sessionId, chunk);
-
-          if (
-            chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' ||
-            chunk.type === 'tool-call' || chunk.type === 'tool-result' ||
-            chunk.type === 'text-start' || chunk.type === 'reasoning-start' ||
-            chunk.type === 'tool-call-start' || chunk.type === 'tool-result-start'
-          ) {
-            try {
-              accumulatedParts = reduceStreamChunk(accumulatedParts as Parameters<typeof reduceStreamChunk>[0], chunk);
-              const session = await sessionProvider.load(sessionId);
-              if (session) {
-                const lastMsg = session.conversation[session.conversation.length - 1];
-                if (lastMsg && lastMsg.role === 'assistant') {
-                  lastMsg.content = accumulatedParts as typeof lastMsg.content;
-                  await sessionProvider.save(session);
-                }
-              }
-            } catch {
-              // persistence is best-effort during streaming
-            }
-          }
 
           bus.publish({
             workspace,

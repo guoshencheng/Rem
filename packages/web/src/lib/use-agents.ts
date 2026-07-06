@@ -189,6 +189,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
             return;
           }
           ensureAssistantMessage(state, event.messageId);
+          currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
             m.id === event.messageId && m.status === 'streaming'
               ? { ...m, parts: event.parts }

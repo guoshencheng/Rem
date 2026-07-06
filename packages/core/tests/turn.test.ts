@@ -236,6 +236,8 @@ describe('ReactTurnRunner', () => {
     const ms = messageStarts[0] as Extract<import('../src/types.js').AgentStreamChunk, { type: 'message-start' }>;
     expect(ms.messageId).toBeDefined();
     expect(typeof ms.messageId).toBe('string');
+    const assistant = result.newMessages.find(m => m.role === 'assistant');
+    expect(ms.messageId).toBe(assistant!.id);
   });
 
   it('respects maxSteps', async () => {

@@ -43,6 +43,7 @@ export class JsonlSessionStore {
       await appendFile(this.jsonlPath(session.sessionId), lines, 'utf-8');
       this.counts.set(session.sessionId, session.conversation.length);
     }
+    session.updatedAt = new Date();
     await this.writeMeta(session);
   }
 
@@ -125,7 +126,7 @@ export class JsonlSessionStore {
       currentTurn: session.currentTurn,
       metadata: session.metadata,
       createdAt: session.createdAt.toISOString(),
-      updatedAt: new Date().toISOString(),
+      updatedAt: session.updatedAt.toISOString(),
     };
     const tmpPath = `${this.metaPath(session.sessionId)}.tmp`;
     await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');

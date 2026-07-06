@@ -57,7 +57,6 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async save(session: Session): Promise<void> {
-    session.updatedAt = new Date();
     await this.store.save(session);
     await this.writeMsgCache(session.sessionId);
     await this.updateIndex(session);

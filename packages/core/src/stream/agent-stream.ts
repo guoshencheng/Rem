@@ -72,6 +72,12 @@ export class AgentStreamController {
     this.enqueue({ type: 'session-title', title });
   }
 
+  messageStart(messageId: string, step: number): void {
+    if (this.finished) return;
+    this.lastStep = step;
+    this.enqueue({ type: 'message-start', step, messageId });
+  }
+
   stepStart(step: number): void {
     if (this.finished) return;
     this.lastStep = step;

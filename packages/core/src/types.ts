@@ -42,6 +42,7 @@ export interface AgentOutput {
 export type AgentStreamChunk =
   | { type: 'step-start'; step: number }
   | { type: 'step-finish'; step: number }
+  | { type: 'message-start'; step: number; messageId: string }
   | { type: 'text-start'; step: number; partId: string }
   | { type: 'text-delta'; step: number; partId: string; text: string }
   | { type: 'text-finish'; step: number; partId: string }

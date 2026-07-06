@@ -80,6 +80,24 @@ describe('AgentStreamController', () => {
     expect(await controller.stream.text).toBe('hello world');
   });
 
+  it('emits message-start with messageId', async () => {
+    const controller = new AgentStreamController();
+    controller.messageStart('msg-1', 1);
+    controller.append({ type: 'text-delta', step: 1, text: 'hi' });
+    controller.finish({ content: 'done', completed: true });
+
+    const chunks = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    const ms = chunks.find(c => c.type === 'message-start') as { type: 'message-start'; step: number; messageId: string } | undefined;
+    expect(ms).toBeDefined();
+    expect(ms!.messageId).toBe('msg-1');
+    expect(ms!.step).toBe(1);
+    expect(chunks[0].type).toBe('message-start');
+  });
+
   it('closes open parts on finish', async () => {
     const controller = new AgentStreamController();
     controller.append({ type: 'text-delta', step: 1, text: 'hi' });

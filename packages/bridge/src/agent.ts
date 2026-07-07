@@ -1,4 +1,4 @@
-import type { AgentStreamChunk, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest, AgentLiveProvider } from 'rem-agent-core';
+import type { AgentStreamChunk, SessionProvider, ApprovalDecision, ApprovalRequest, AgentLiveProvider, AgentContext } from 'rem-agent-core';
 import { runAgent as coreRunAgent, ApprovalRegistry } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
@@ -12,13 +12,17 @@ import { reduceStreamChunk } from './stream-reducer.js';
 
 export class AgentService implements IAgentService {
   private sessionProvider: SessionProvider;
+  private agentLiveProvider: AgentLiveProvider;
+  private ctx: AgentContext;
   private workspace: string;
   private sessionManager: AgentSessionManager;
   private activityTracker: SessionActivityTracker;
   private approvalRegistry = new ApprovalRegistry();
 
-  constructor(private providerManager: ProviderManager, workspace = 'default') {
-    this.sessionProvider = providerManager.require<SessionProvider>('session');
+  constructor(ctx: AgentContext, workspace = 'default') {
+    this.ctx = ctx;
+    this.sessionProvider = ctx.sessionProvider;
+    this.agentLiveProvider = ctx.agentLiveProvider;
     this.workspace = workspace;
     this.sessionManager = new AgentSessionManager(this.sessionProvider);
     this.activityTracker = new SessionActivityTracker((sessionId, activity) => {
@@ -48,7 +52,7 @@ export class AgentService implements IAgentService {
         input: { content: input, timestamp: new Date() },
         sessionId,
         signal: abortController.signal,
-        pm: this.providerManager,
+        ctx: this.ctx,
         approvalRegistry: this.approvalRegistry,
       });
     } catch (err) {
@@ -151,9 +155,7 @@ export class AgentService implements IAgentService {
   /* ---- Approval ---- */
 
   async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
-    const liveProvider = this.providerManager.get<AgentLiveProvider>('state');
-    if (!liveProvider) return [];
-    const liveState = await liveProvider.get(sessionId);
+    const liveState = await this.agentLiveProvider.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 

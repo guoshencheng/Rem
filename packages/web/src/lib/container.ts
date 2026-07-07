@@ -1,23 +1,24 @@
 import { createContainer, asFunction, Lifetime, type AwilixContainer } from 'awilix';
-import { AgentService, BridgeAgentStateProvider } from 'rem-agent-bridge';
-import { createAgentFromEnv, FileSessionProvider } from 'rem-agent-core';
-import { getDefaultSessionsDir } from 'rem-agent-core';
+import { AgentService } from 'rem-agent-bridge';
+import { createAgentFromEnv } from 'rem-agent-core';
 
 const GLOBAL_CONTAINER_KEY = '__REM_AGENT_CONTAINER__';
 
 async function configureContainer(): Promise<AwilixContainer> {
   const container = createContainer();
 
-  const sessionsDir = process.env.REM_AGENT_SESSIONS_DIR ?? getDefaultSessionsDir();
-  const sessionProvider = new FileSessionProvider(sessionsDir);
-  const { pm } = await createAgentFromEnv({
-    sessionProvider,
-    agentStateProvider: new BridgeAgentStateProvider(),
+  const ctx = await createAgentFromEnv({
+    workspaceRoot: process.cwd(),
   });
-  console.log('[Container] LLM config:', { model: pm.getModelConfig().model, provider: pm.provider, hasApiKey: !!pm.providerConfig.apiKey, baseURL: pm.providerConfig.baseURL });
+  console.log('[Container] LLM config:', {
+    model: ctx.configProvider.getModelConfig().model,
+    provider: ctx.configProvider.getModelConfig().provider,
+    hasApiKey: !!ctx.configProvider.getModelConfig().apiKey,
+    baseURL: ctx.configProvider.getModelConfig().baseURL,
+  });
 
   container.register({
-    agentService: asFunction(() => new AgentService(pm), {
+    agentService: asFunction(() => new AgentService(ctx), {
       lifetime: Lifetime.SINGLETON,
     }),
   });

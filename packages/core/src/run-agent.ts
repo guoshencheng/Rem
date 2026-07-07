@@ -75,7 +75,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const compressor = ctx.compressor;
       const loopStrategy = ctx.loopStrategy;
       const toolProvider = ctx.toolProvider;
+      const mcpProviders = ctx.mcpProviders;
       const skillProvider = ctx.skillProvider;
+      const toolComposer = ctx.toolComposer;
       const errorHandler = ctx.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
       const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
@@ -91,6 +93,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         if (catalog) systemWithSkills = `${system}\n\n${catalog}`;
       } catch { /* best-effort */ }
 
+      const effectiveToolProvider = toolComposer.compose({
+        toolProvider,
+        mcpProviders,
+        skillProvider,
+      });
+
       const loopCtx: LoopContext = {
         liveState,
         messages: msgs,
@@ -101,12 +109,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           {
             provider: modelConfig.provider, model: modelConfig.model, apiKey: modelConfig.apiKey,
             baseURL: modelConfig.baseURL, system: systemWithSkills, messages: msgs,
-            tools: toolProvider.getToolSet(), signal: params.signal, errorHandler,
+            tools: effectiveToolProvider.getToolSet(), signal: params.signal, errorHandler,
           },
           (chunk) => controller.emit(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider, addMessage, appendContent,
+          toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
           liveProvider: ctx.agentLiveProvider,
           registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,

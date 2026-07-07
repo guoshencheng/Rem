@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { AgentStreamChunk, TurnResult } from '../src/types.js';
+import type { McpServerConfig, McpConnectionState } from '../src/mcp/types.js';
 
 describe('AgentStreamChunk types', () => {
   it('supports text part boundaries', () => {
@@ -42,5 +43,31 @@ describe('AgentStreamChunk types', () => {
       },
     };
     expect(result.content).toBe('hello');
+  });
+});
+
+describe('MCP types', () => {
+  it('accepts valid stdio config', () => {
+    const cfg: McpServerConfig = {
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+      env: { KEY: 'value' },
+    };
+    expect(cfg.transport).toBe('stdio');
+  });
+
+  it('accepts valid sse config', () => {
+    const cfg: McpServerConfig = {
+      transport: 'sse',
+      url: 'http://localhost:3001/sse',
+      prefix: 'remote',
+    };
+    expect(cfg.transport).toBe('sse');
+  });
+
+  it('connection state can be error', () => {
+    const state: McpConnectionState = { status: 'error', error: 'failed' };
+    expect(state.status).toBe('error');
   });
 });

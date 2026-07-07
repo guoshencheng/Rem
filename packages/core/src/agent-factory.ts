@@ -13,11 +13,7 @@ import { SimpleErrorHandler } from './plugins/error/simple/index.js';
 import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
-import { CompositeToolProvider } from './mcp/composite-tool-provider.js';
-import {
-  createReadSkillToolDefinition,
-  createReadSkillToolExecutor,
-} from './plugins/tool/builtin/skill-read.js';
+import { DefaultToolComposer } from './tool-composer.js';
 import type { AgentContext } from './agent-context.js';
 
 export interface CreateAgentOptions {
@@ -34,13 +30,9 @@ export interface CreateAgentOptions {
 export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext> {
   registerBuiltInProviders();
 
-  // 0. 创建 AgentPaths（集中管理所有路径约定）
   const paths = createDefaultAgentPaths();
-
-  // 0.1 配置调试日志
   configureDebugLog(paths.debugLogFile);
 
-  // 1. ConfigProvider（注入 paths）
   const configProvider = new DefaultConfigProvider({
     paths,
     configPath: options?.configPath,
@@ -55,7 +47,6 @@ export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<
   });
   await configProvider.init();
 
-  // 2. 显式创建所有 Provider
   const sessionProvider = new InMemorySessionProvider();
   const agentLiveProvider = new InMemoryAgentLiveProvider();
   const toolProvider = createFileSystemTools(configProvider);
@@ -67,27 +58,21 @@ export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<
   const titleProvider = new LLMTitleProvider(configProvider);
   const loopStrategy = new ReactLoop();
 
-  // 3. MCP
   const mcpConfig = configProvider.getMcpConfig();
   const mcpManager = new McpConnectionManager();
   const mcpProviders = await mcpManager.connectAll(mcpConfig);
-  const effectiveToolProvider = mcpProviders.length > 0
-    ? new CompositeToolProvider(toolProvider, mcpProviders)
-    : toolProvider;
 
-  // 4. read_skill
-  effectiveToolProvider.register(
-    createReadSkillToolDefinition(),
-    createReadSkillToolExecutor(() => skillProvider),
-  );
+  const toolComposer = new DefaultToolComposer();
 
   return {
     configProvider,
     sessionProvider,
     agentLiveProvider,
-    toolProvider: effectiveToolProvider,
-    contextProvider,
+    toolProvider,        // 原始本地 tools
+    mcpProviders,        // 连接成功的 MCP providers
     skillProvider,
+    toolComposer,
+    contextProvider,
     budgetPolicy,
     compressor,
     errorHandler,

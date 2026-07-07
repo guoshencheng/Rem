@@ -66,8 +66,9 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
 
       if (decision !== 'allow-once') {
         const errMsg = decision === null ? 'approval timed out' : 'denied';
-        emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg } as ProviderChunk);
-        results.push({ toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg });
+        const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg };
+        emitToolResult(tc, denied, session, emit);
+        results.push(denied);
         continue;
       }
     }

@@ -79,7 +79,3 @@ export class ReactLoop implements LoopStrategy {
     };
   }
 }
-
-export function createProvider(): ReactLoop {
-  return new ReactLoop();
-}

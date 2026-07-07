@@ -55,7 +55,3 @@ export class InMemoryToolProvider implements ToolProvider {
     return results;
   }
 }
-
-export function createProvider(): InMemoryToolProvider {
-  return new InMemoryToolProvider();
-}

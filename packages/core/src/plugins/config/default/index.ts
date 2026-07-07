@@ -139,7 +139,3 @@ export class DefaultConfigProvider implements ConfigProvider {
     return this.env[defaultEnv] ?? '';
   }
 }
-
-export function createProvider(options: DefaultConfigProviderOptions = {}): DefaultConfigProvider {
-  return new DefaultConfigProvider(options);
-}

@@ -66,7 +66,3 @@ export class InMemorySessionProvider implements SessionProvider {
     this.sessions.delete(sessionId);
   }
 }
-
-export function createProvider(): InMemorySessionProvider {
-  return new InMemorySessionProvider();
-}

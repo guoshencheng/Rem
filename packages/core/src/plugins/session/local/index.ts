@@ -1,14 +1,9 @@
 import { readFile, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
-import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 import { BaseSessionProvider } from '../base.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
 import type { ContentPart } from '../../../types.js';
-
-export interface LocalSessionProviderOptions {
-  dir: string;
-}
 
 interface IndexEntry {
   sessionId: string;
@@ -139,15 +134,4 @@ export class LocalSessionProvider extends BaseSessionProvider {
       // ignore
     }
   }
-}
-
-export function createProvider(options: LocalSessionProviderOptions | undefined): LocalSessionProvider {
-  if (!options?.dir) {
-    throw new Error('LocalSessionProvider requires dir');
-  }
-  return new LocalSessionProvider(options.dir);
-}
-
-export function getDefaultOptions(ctx: ProviderLoaderContext): LocalSessionProviderOptions {
-  return { dir: ctx.sessionsDir };
 }

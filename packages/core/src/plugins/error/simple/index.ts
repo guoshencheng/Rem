@@ -25,7 +25,3 @@ export class SimpleErrorHandler implements ErrorHandler {
     return undefined;
   }
 }
-
-export function createProvider(): SimpleErrorHandler {
-  return new SimpleErrorHandler();
-}

@@ -6,14 +6,22 @@ import { DefaultConfigProvider } from '../src/plugins/config/default/index.js';
 
 describe('DefaultConfigProvider', () => {
   let tempDir: string;
+  let savedRemHome: string | undefined;
 
   beforeEach(async () => {
     tempDir = join(tmpdir(), `rem-config-test-${Date.now()}`);
     await mkdir(tempDir, { recursive: true });
+    savedRemHome = process.env.REM_AGENT_HOME;
+    process.env.REM_AGENT_HOME = tempDir;
   });
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    if (savedRemHome !== undefined) {
+      process.env.REM_AGENT_HOME = savedRemHome;
+    } else {
+      delete process.env.REM_AGENT_HOME;
+    }
   });
 
   it('applies defaults when nothing is provided', async () => {

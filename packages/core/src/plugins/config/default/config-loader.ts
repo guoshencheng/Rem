@@ -24,9 +24,9 @@ export function resolveConfigPath(
     join(cwd, 'rem-agent.config.json'),
     join(cwd, 'rem-agent.config.yaml'),
     join(cwd, 'rem-agent.config.yml'),
-    join(getRemAgentDir(), 'rem-agent.config.json'),
-    join(getRemAgentDir(), 'rem-agent.config.yaml'),
-    join(getRemAgentDir(), 'rem-agent.config.yml'),
+    join(getRemAgentDir(), 'config.json'),
+    join(getRemAgentDir(), 'config.yaml'),
+    join(getRemAgentDir(), 'config.yml'),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;

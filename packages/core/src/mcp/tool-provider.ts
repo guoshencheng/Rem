@@ -174,6 +174,10 @@ export class McpToolProvider implements ToolProvider {
     return results;
   }
 
+  async close(): Promise<void> {
+    await this.client.close();
+  }
+
   register<T extends TObject>(_def: ToolDefinition<T>, _executor: ToolExecutor<T>): void {
     throw new Error('Cannot manually register tools on McpToolProvider');
   }

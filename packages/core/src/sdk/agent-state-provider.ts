@@ -26,6 +26,8 @@ export interface AgentRuntimeState {
 
 export interface AgentLiveProvider {
   get(sessionId: string): Promise<AgentLiveState | undefined>;
+  /** 获取或创建：不存在时自动创建并保存，保证始终返回有效状态 */
+  getOrCreate(sessionId: string): Promise<AgentLiveState>;
   set(sessionId: string, state: AgentLiveState): Promise<void>;
 }
 

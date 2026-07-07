@@ -40,8 +40,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       };
 
       // 持久化待审批状态
-      let liveState = await liveProvider.get(params.sessionId);
-      if (!liveState) liveState = new (await import('../state.js')).AgentLiveState();
+      const liveState = await liveProvider.getOrCreate(params.sessionId);
       liveState.pendingApprovals.push(request);
       await liveProvider.set(params.sessionId, liveState);
 
@@ -52,11 +51,9 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       const decision = await registry.wait(approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
 
       // 清理持久化状态
-      liveState = await liveProvider.get(params.sessionId);
-      if (liveState) {
-        liveState.pendingApprovals = liveState.pendingApprovals.filter(r => r.approvalId !== approvalId);
-        await liveProvider.set(params.sessionId, liveState);
-      }
+      const resolvedState = await liveProvider.getOrCreate(params.sessionId);
+      resolvedState.pendingApprovals = resolvedState.pendingApprovals.filter(r => r.approvalId !== approvalId);
+      await liveProvider.set(params.sessionId, resolvedState);
 
       // 通知前端审批结果
       emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as any);

@@ -8,6 +8,7 @@ import type {
   ResolvedModelConfig,
 } from '../../../sdk/config-provider.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
+import type { AgentPaths } from '../../../config/paths.js';
 import { resolveConfigPath, loadConfigFile } from './config-loader.js';
 import { resolveTemplate, resolveOptionalTemplate, pickToolPolicy } from './config-parser.js';
 import { mergeFileConfig, mergeEnvConfig, applyBehaviorDefaults } from './config-merger.js';
@@ -21,21 +22,32 @@ export interface DefaultConfigProviderOptions {
   configPath?: string;
   overrides?: AgentConfig;
   env?: NodeJS.ProcessEnv;
+  paths?: AgentPaths;
 }
 
 export class DefaultConfigProvider implements ConfigProvider {
   private raw?: AgentConfig;
   private env: NodeJS.ProcessEnv;
+  private _paths?: AgentPaths;
 
   constructor(private options: DefaultConfigProviderOptions = {}) {
     this.env = options.env ?? process.env;
+    this._paths = options.paths;
+  }
+
+  private async resolvePaths(): Promise<AgentPaths> {
+    if (this._paths) return this._paths;
+    const { createDefaultAgentPaths } = await import('../../../config/paths.js');
+    this._paths = createDefaultAgentPaths({ env: this.env });
+    return this._paths;
   }
 
   async init(): Promise<void> {
     const cwd = this.options.cwd ?? process.cwd();
     let config: AgentConfig = {};
 
-    const configPath = resolveConfigPath(this.options.configPath, cwd);
+    const paths = await this.resolvePaths();
+    const configPath = resolveConfigPath(this.options.configPath, cwd, paths);
     if (configPath) {
       const file = await loadConfigFile(configPath);
       config = mergeFileConfig(config, file);
@@ -102,7 +114,10 @@ export class DefaultConfigProvider implements ConfigProvider {
   }
 
   getBehaviorConfig(): Required<AgentBehaviorConfig> {
-    return applyBehaviorDefaults(this.getRawConfig());
+    if (!this._paths) {
+      throw new Error('DefaultConfigProvider must be initialized before reading behavior config');
+    }
+    return applyBehaviorDefaults(this.getRawConfig(), this._paths.sessionsDir);
   }
 
   getMcpConfig(): Record<string, McpServerConfig> {

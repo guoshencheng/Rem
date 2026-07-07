@@ -1,5 +1,4 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
-import { getDefaultSessionsDir } from '../../../config/paths.js';
 import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
@@ -34,13 +33,16 @@ export function mergeEnvConfig(base: AgentConfig, env: NodeJS.ProcessEnv): Agent
   return merged;
 }
 
-export function applyBehaviorDefaults(config: AgentConfig): Required<AgentBehaviorConfig> {
+export function applyBehaviorDefaults(
+  config: AgentConfig,
+  sessionsDir: string,
+): Required<AgentBehaviorConfig> {
   return {
     name: config.name ?? 'Rem Agent',
     maxTurns: config.maxTurns ?? 60,
     workspaceRoot: config.workspaceRoot ?? process.cwd(),
     readOnly: config.readOnly ?? false,
     autoApproveDangerous: config.autoApproveDangerous ?? false,
-    sessionsDir: config.sessionsDir ?? getDefaultSessionsDir(),
+    sessionsDir: config.sessionsDir ?? sessionsDir,
   };
 }

@@ -1,7 +1,7 @@
 import type { AgentLiveState } from './state.js';
 
 export type AgentEvent =
-  | 'core-agent:init' | 'core-agent:start' | 'core-agent:stop' | 'core-agent:error'
+  | 'agent:state-change'
   | 'turn:before' | 'turn:after'
   | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after' | 'phase:reason:error'
   | 'phase:execute:before' | 'phase:execute:after'
@@ -13,6 +13,8 @@ export type AgentEvent =
 export interface EventContext {
   agent: unknown;
   liveState: AgentLiveState;
+  prevStatus?: string;
+  currentStatus?: string;
   turn?: unknown;
   turnResult?: unknown;
   toolCall?: unknown;

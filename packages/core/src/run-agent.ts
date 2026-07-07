@@ -48,11 +48,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       await sessionProvider.save(session);
     }
 
-    const liveState = new AgentLiveState();
-    liveState.start();
-
     const events = new EventBus();
-    await events.emit('core-agent:start', { agent: null, liveState });
+    const liveState = new AgentLiveState(undefined, events);
+    liveState.start();
 
     const budgetPolicy = pm.get<BudgetPolicy>('budget') ?? {
       checkTurn: () => true,
@@ -64,7 +62,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       liveState.finish();
       const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
       controller.finish(output);
-      await events.emit('core-agent:stop', { agent: null, liveState });
       return output;
     }
 
@@ -121,17 +118,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       session.currentTurn++;
       liveState.finish();
       await sessionProvider.save(session);
-      await events.emit('core-agent:stop', { agent: null, liveState });
 
       const output: AgentOutput = { content: result.content, completed: true };
       controller.finish(output);
       return output;
     } catch (error) {
-      liveState.fail();
+      liveState.fail(error);
       const message = error instanceof Error ? error.message : String(error);
       const output: AgentOutput = { content: `Error: ${message}`, completed: true };
       controller.finish(output);
-      await events.emit('core-agent:error', { agent: null, liveState, error });
       await sessionProvider.save(session);
       return output;
     }

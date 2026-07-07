@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createReadSkillToolDefinition, createReadSkillToolExecutor } from '../src/plugins/tool/builtin/skill-read.js';
+import { createReadSkillToolDefinition, createReadSkillToolExecutor, createReadSkillTool } from '../src/plugins/tool/builtin/skill-read.js';
 import type { SkillProvider } from '../src/sdk/skill-provider.js';
 
 function createFakeSkillProvider(rawByName: Record<string, string>): SkillProvider {
@@ -37,5 +37,14 @@ describe('read_skill tool', () => {
     expect(def.description).toContain('SKILL.md');
     expect(def.parameters.properties).toHaveProperty('name');
     expect(def.parameters.required).toContain('name');
+  });
+
+  it('createReadSkillTool bundles definition and executor', async () => {
+    const provider = createFakeSkillProvider({ foo: '---\nname: foo\n---\nbar' });
+    const { definition, executor } = createReadSkillTool(provider);
+
+    expect(definition.name).toBe('read_skill');
+    const result = await executor({ name: 'foo' }, { cwd: '/', workspaceRoot: '/' });
+    expect(result.output).toBe('---\nname: foo\n---\nbar');
   });
 });

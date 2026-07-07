@@ -35,3 +35,13 @@ export function createReadSkillToolExecutor(
     return { output: raw };
   };
 }
+
+export function createReadSkillTool(skillProvider: SkillProvider): {
+  definition: ToolDefinition<typeof readSkillSchema>;
+  executor: ToolExecutor<typeof readSkillSchema>;
+} {
+  return {
+    definition: createReadSkillToolDefinition(),
+    executor: createReadSkillToolExecutor(() => skillProvider),
+  };
+}

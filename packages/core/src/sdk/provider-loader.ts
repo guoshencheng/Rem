@@ -16,8 +16,7 @@ export type ProviderKind =
   | 'title'
   | 'approval'
   | 'state'
-  | 'reason'
-  | 'execute';
+  | 'reason';
 
 export interface ProviderLoaderContext {
   kind: ProviderKind;

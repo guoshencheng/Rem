@@ -10,7 +10,6 @@ import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
 import type { ReasonProvider, ReasonOutput } from './sdk/reason-provider.js';
-import type { ExecuteProvider } from './sdk/execute-provider.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import type { ProviderManager } from './provider-manager.js';
@@ -84,7 +83,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const loopStrategy = pm.require<LoopStrategy>('loopStrategy');
       const toolProvider = pm.require<ToolProvider>('tool');
       const reasonProvider = pm.require<ReasonProvider>('reason');
-      const executeProvider = pm.require<ExecuteProvider>('execute');
       const skillProvider = pm.get<SkillProvider>('skill');
 
       const { system, messages } = await contextProvider.build(session, behavior.name);
@@ -127,18 +125,42 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       };
 
       const executeCallback = async (toolCalls: ToolCall[]): Promise<ToolResult[]> => {
-        return executeProvider.execute(
-          toolCalls,
-          {
-            cwd: behavior.workspaceRoot,
-            workspaceRoot: behavior.workspaceRoot,
-            signal: params.signal,
-            agentName: behavior.name,
-            readOnly: behavior.readOnly,
-            sessionId: params.sessionId,
-          },
-          (chunk) => controller.emit(chunk),
-        );
+        const results = await toolProvider.execute(toolCalls, {
+          cwd: behavior.workspaceRoot,
+          workspaceRoot: behavior.workspaceRoot,
+          signal: params.signal,
+          agentName: behavior.name,
+          readOnly: behavior.readOnly,
+          sessionId: params.sessionId,
+        }, {
+          emit: (chunk) => controller.emit(chunk),
+        });
+
+        for (const tc of toolCalls) {
+          const tr = results.find(r => r.toolCallId === tc.toolCallId);
+          const output = tr?.error ?? tr?.output ?? '';
+
+          controller.emit({
+            type: 'tool-result' as any,
+            step: 0,
+            toolCallId: tc.toolCallId,
+            output,
+            error: tr?.error,
+          });
+
+          session.conversation.push({
+            id: generateId(),
+            role: 'tool',
+            content: [{
+              type: 'tool-result',
+              toolCallId: tc.toolCallId,
+              toolName: tc.toolName,
+              output,
+            }],
+          });
+        }
+
+        return results;
       };
 
       const loopCtx: LoopContext = {

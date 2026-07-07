@@ -28,7 +28,6 @@ const builtinLoaders: Record<string, ProviderModuleRef> = {
   'budget/fixed':      () => import('./budget/fixed/index.js') as Promise<ProviderModule<any>>,
   'title/llm':         () => import('./title/llm/index.js') as Promise<ProviderModule<any>>,
   'reason/default':    () => import('./reason/default/index.js') as Promise<ProviderModule<any>>,
-  'execute/default':   () => import('./execute/default/index.js') as Promise<ProviderModule<any>>,
   'loopStrategy/react': () => import('./loop/react/index.js') as Promise<ProviderModule<any>>,
 };
 

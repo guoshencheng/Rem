@@ -5,18 +5,13 @@ import { AgentLiveState } from '../../../../src/state.js';
 
 describe('ReactLoop', () => {
   it('stops when reason returns no tool calls', async () => {
-    const reasonProvider = {
-      reason: vi.fn(async (_params, _ctx, emit) => {
-        await emit({ type: 'text-delta', step: 1, text: 'hello' });
-        return {
-          text: 'hello',
-          toolCalls: [],
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-          finishReason: 'stop',
-        };
-      }),
-    };
-    const executeProvider = { execute: vi.fn() };
+    const reason = vi.fn(async () => ({
+      text: 'hello',
+      toolCalls: [],
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      finishReason: 'stop',
+    }));
+    const execute = vi.fn();
 
     const session = {
       sessionId: 's1',
@@ -27,44 +22,37 @@ describe('ReactLoop', () => {
       updatedAt: new Date(),
     };
     const liveState = new AgentLiveState();
-    const chunks: unknown[] = [];
 
-    const loop = new ReactLoop({ reasonProvider, executeProvider });
+    const loop = new ReactLoop();
     const ctx: LoopContext = {
       session,
       liveState,
       system: 'You are Rem.',
       messages: [],
-      emit: (c) => { chunks.push(c); },
-      provider: 'openai',
+      reason,
+      execute: execute as any,
+      emit: () => {},
+      provider: 'openai', // still needed for backward compat in some paths
       modelConfig: { model: 'gpt-4o-mini', apiKey: 'test' },
-    };
+    } as any;
 
     const result = await loop.run(ctx);
 
     expect(result.content).toBe('hello');
-    expect(reasonProvider.reason).toHaveBeenCalledTimes(1);
-    expect(executeProvider.execute).not.toHaveBeenCalled();
+    expect(reason).toHaveBeenCalledTimes(1);
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('calls execute when reason returns tool calls', async () => {
-    const reasonProvider = {
-      reason: vi.fn(async (_params, _ctx, emit) => {
-        await emit({ type: 'tool-call', step: 1, toolCallId: 'tc-1', toolName: 'echo', input: {} });
-        return {
-          text: '',
-          toolCalls: [{ toolCallId: 'tc-1', toolName: 'echo', input: {} }],
-          usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
-          finishReason: 'tool_calls',
-        };
-      }),
-    };
-    const executeProvider = {
-      execute: vi.fn(async (_calls, _ctx, emit) => {
-        await emit({ type: 'tool-result', step: 1, toolCallId: 'tc-1', output: 'echoed' });
-        return [{ toolCallId: 'tc-1', toolName: 'echo', output: 'echoed' }];
-      }),
-    };
+    const reason = vi.fn(async () => ({
+      text: '',
+      toolCalls: [{ toolCallId: 'tc-1', toolName: 'echo', input: {} }],
+      usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
+      finishReason: 'tool_calls',
+    }));
+    const execute = vi.fn(async () => [
+      { toolCallId: 'tc-1', toolName: 'echo', output: 'echoed' },
+    ]);
 
     const session = {
       sessionId: 's1',
@@ -75,24 +63,24 @@ describe('ReactLoop', () => {
       updatedAt: new Date(),
     };
     const liveState = new AgentLiveState();
-    const loop = new ReactLoop({ reasonProvider, executeProvider });
+    const loop = new ReactLoop();
     const ctx: LoopContext = {
       session,
       liveState,
       system: 'You are Rem.',
       messages: [],
+      reason,
+      execute,
       emit: () => {},
       provider: 'openai',
       modelConfig: { model: 'gpt-4o-mini', apiKey: 'test' },
-    };
+    } as any;
 
     await loop.run(ctx);
 
-    expect(executeProvider.execute).toHaveBeenCalledWith(
-      [{ toolCallId: 'tc-1', toolName: 'echo', input: {} }],
-      expect.any(Object),
-      expect.any(Function),
-    );
+    expect(execute).toHaveBeenCalledWith([
+      { toolCallId: 'tc-1', toolName: 'echo', input: {} },
+    ]);
     expect(session.conversation.length).toBeGreaterThan(0);
   });
 });

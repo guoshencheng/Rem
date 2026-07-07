@@ -2,13 +2,16 @@ import type { UserInput, AgentOutput, AgentStream, ModelMessage } from './types.
 import { AgentLiveState } from './state.js';
 import { EventBus } from './events.js';
 import type { Session } from './session.js';
-import type { LoopStrategy } from './sdk/loop-strategy.js';
+import type { LoopStrategy, LoopContext } from './sdk/loop-strategy.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { ContextProvider } from './sdk/context-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { TitleProvider } from './sdk/title-provider.js';
-import type { ToolProvider } from './sdk/tool-provider.js';
+import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js';
+import type { ReasonProvider, ReasonOutput } from './sdk/reason-provider.js';
+import type { ExecuteProvider } from './sdk/execute-provider.js';
+import type { SkillProvider } from './sdk/skill-provider.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import type { ProviderManager } from './provider-manager.js';
 import { generateId } from './shared/generate-id.js';
@@ -80,6 +83,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const compressor = pm.require<ContextCompressor>('compressor');
       const loopStrategy = pm.require<LoopStrategy>('loopStrategy');
       const toolProvider = pm.require<ToolProvider>('tool');
+      const reasonProvider = pm.require<ReasonProvider>('reason');
+      const executeProvider = pm.require<ExecuteProvider>('execute');
+      const skillProvider = pm.get<SkillProvider>('skill');
 
       const { system, messages } = await contextProvider.build(session, behavior.name);
 
@@ -88,12 +94,60 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         contextMessages = await compressor.compress(messages);
       }
 
-      const result = await loopStrategy.run({
+      // 注入 skills 到 system prompt
+      let systemWithSkills = system;
+      if (skillProvider) {
+        try {
+          const skills = await skillProvider.loadSkills();
+          const catalog = skillProvider.formatCatalog(skills);
+          if (catalog) {
+            systemWithSkills = `${system}\n\n${catalog}`;
+          }
+        } catch {
+          // skill loading is best-effort
+        }
+      }
+
+      // ---- 准备 LoopContext 回调 ----
+
+      const reasonCallback = async (): Promise<ReasonOutput> => {
+        return reasonProvider.reason(
+          {
+            provider: modelConfig.provider,
+            model: modelConfig.model,
+            apiKey: modelConfig.apiKey,
+            baseURL: modelConfig.baseURL,
+            system: systemWithSkills,
+            messages: contextMessages,
+            tools: toolProvider.getToolSet(),
+          },
+          { signal: params.signal, sessionId: params.sessionId },
+          (chunk) => controller.emit(chunk),
+        );
+      };
+
+      const executeCallback = async (toolCalls: ToolCall[]): Promise<ToolResult[]> => {
+        return executeProvider.execute(
+          toolCalls,
+          {
+            cwd: behavior.workspaceRoot,
+            workspaceRoot: behavior.workspaceRoot,
+            signal: params.signal,
+            agentName: behavior.name,
+            readOnly: behavior.readOnly,
+            sessionId: params.sessionId,
+          },
+          (chunk) => controller.emit(chunk),
+        );
+      };
+
+      const loopCtx: LoopContext = {
         session,
         liveState,
-        system,
+        system: systemWithSkills,
         messages: contextMessages,
-        tools: toolProvider.getToolSet(),
+        reason: reasonCallback,
+        execute: executeCallback,
         emit: (chunk) => controller.emit(chunk),
         signal: params.signal,
         maxSteps: behavior.maxTurns,
@@ -101,13 +155,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         readOnly: behavior.readOnly,
         agentName: behavior.name,
         sessionId: params.sessionId,
-        provider: modelConfig.provider,
-        modelConfig: {
-          model: modelConfig.model,
-          apiKey: modelConfig.apiKey,
-          baseURL: modelConfig.baseURL,
-        },
-      });
+      };
+
+      const result = await loopStrategy.run(loopCtx);
 
       for (const msg of result.newMessages) {
         if (!session.conversation.includes(msg)) {

@@ -5,22 +5,13 @@ import type {
   LoopResult,
   LoopStrategy,
 } from '../../../sdk/loop-strategy.js';
-import type { ReasonProvider } from '../../../sdk/reason-provider.js';
-import type { ExecuteProvider } from '../../../sdk/execute-provider.js';
 import { generateId } from '../../../shared/generate-id.js';
 import type { LanguageModelUsage } from '../../../types.js';
 import type { ProviderChunk } from '../../../types.js';
 
-export interface ReactLoopOptions {
-  reasonProvider: ReasonProvider;
-  executeProvider: ExecuteProvider;
-}
-
 const DEFAULT_MAX_STEPS = 50;
 
 export class ReactLoop implements LoopStrategy {
-  constructor(private options: ReactLoopOptions) {}
-
   async run(ctx: LoopContext): Promise<LoopResult> {
     const session = ctx.session;
     const newMessages: ModelMessage[] = [];
@@ -41,19 +32,7 @@ export class ReactLoop implements LoopStrategy {
 
       ctx.emit({ type: 'step-start', step });
 
-      const reasonResult = await this.options.reasonProvider.reason(
-        {
-          provider: ctx.provider,
-          model: ctx.modelConfig.model,
-          apiKey: ctx.modelConfig.apiKey,
-          baseURL: ctx.modelConfig.baseURL,
-          system: ctx.system,
-          messages: ctx.messages,
-          tools: ctx.tools,
-        },
-        { signal: ctx.signal, sessionId: ctx.sessionId },
-        (chunk) => this.emit(ctx, chunk, step),
-      );
+      const reasonResult = await ctx.reason();
 
       this.appendToAssistantMessage(assistantMsg, reasonResult);
       content = reasonResult.text;
@@ -64,18 +43,8 @@ export class ReactLoop implements LoopStrategy {
         break;
       }
 
-      await this.options.executeProvider.execute(
-        reasonResult.toolCalls,
-        {
-          cwd: ctx.workspaceRoot,
-          workspaceRoot: ctx.workspaceRoot,
-          signal: ctx.signal,
-          agentName: ctx.agentName,
-          readOnly: ctx.readOnly,
-          sessionId: ctx.sessionId ?? session.sessionId,
-        },
-        (chunk) => this.emit(ctx, chunk, step),
-      );
+      // 执行工具（审批在 ExecuteProvider 内部处理）
+      await ctx.execute(reasonResult.toolCalls);
 
       ctx.emit({ type: 'step-finish', step });
 
@@ -110,18 +79,9 @@ export class ReactLoop implements LoopStrategy {
     }
   }
 
-  private emit(ctx: LoopContext, chunk: ProviderChunk, step: number): void {
-    if ('step' in chunk && typeof (chunk as { step?: number }).step === 'number') {
-      (chunk as { step: number }).step = step;
-    }
-    void ctx.emit(chunk);
-  }
-
   private zeroUsage(): LanguageModelUsage {
     return {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
+      inputTokens: 0, outputTokens: 0, totalTokens: 0,
       inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
       outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
     };
@@ -138,6 +98,6 @@ export class ReactLoop implements LoopStrategy {
   }
 }
 
-export function createProvider(options: ReactLoopOptions): ReactLoop {
-  return new ReactLoop(options);
+export function createProvider(): ReactLoop {
+  return new ReactLoop();
 }

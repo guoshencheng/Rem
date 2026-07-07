@@ -406,3 +406,21 @@ interface CoreAgentConfig {
 | `compress:after` | (reserved) | `agent`, `state` |
 
 Events marked **(reserved)** are defined in the type system but not yet emitted by the current `AgentLoop` implementation; they are reserved for future ReAct phase expansion.
+
+## MCP Client
+
+Configure external MCP servers in `rem-agent.config.json`:
+
+```json
+{
+  "mcpServers": {
+    "fs": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+    }
+  }
+}
+```
+
+MCP tools are prefixed with the server key, e.g. `fs__read_file`, and require approval by default.

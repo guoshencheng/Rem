@@ -2,6 +2,7 @@ import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 
 export interface IAgentService {
+  init(): Promise<void>;
   run(sessionId: string, input: string): Promise<void>;
   interrupt(sessionId: string): Promise<void>;
   reset(sessionId: string): Promise<void>;

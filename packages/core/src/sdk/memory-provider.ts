@@ -1,5 +1,5 @@
 import type { ModelMessage } from '../types.js';
-import type { AgentState } from '../state.js';
+import type { Session } from '../session.js';
 import type { ContextProvider } from './context-provider.js';
 
 /** @deprecated Use ContextProvider instead */
@@ -10,5 +10,5 @@ export interface MemoryContext {
 
 /** @deprecated Use ContextProvider instead */
 export interface MemoryProvider extends ContextProvider {
-  buildContext(state: AgentState): Promise<MemoryContext>;
+  buildContext(session: Session, agentName: string): Promise<MemoryContext>;
 }

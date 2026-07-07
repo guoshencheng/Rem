@@ -1,7 +1,7 @@
 import type { ModelMessage } from '../types.js';
-import type { AgentState } from '../state.js';
+import type { Session } from '../session.js';
 
 export interface ContextCompressor {
-  shouldCompress(state: AgentState): boolean;
+  shouldCompress(session: Session): boolean;
   compress(messages: ModelMessage[]): Promise<ModelMessage[]>;
 }

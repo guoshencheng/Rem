@@ -1,6 +1,7 @@
 import type { UserInput, AgentOutput, AgentStream, ModelMessage } from './types.js';
-import { AgentState } from './state.js';
+import { AgentLiveState } from './state.js';
 import { EventBus } from './events.js';
+import type { Session } from './session.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { ContextProvider } from './sdk/context-provider.js';
@@ -35,16 +36,23 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
     const sessionProvider = pm.require<SessionProvider>('session');
     let session = await sessionProvider.load(params.sessionId);
-
-    const state = new AgentState(session ?? undefined);
-    state.session.sessionId = session?.sessionId ?? params.sessionId;
     if (!session) {
-      await sessionProvider.save(state.session);
+      session = {
+        sessionId: params.sessionId,
+        conversation: [],
+        currentTurn: 0,
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await sessionProvider.save(session);
     }
 
-    state.status = 'running';
+    const liveState = new AgentLiveState();
+    liveState.start();
+
     const events = new EventBus();
-    await events.emit('core-agent:start', { agent: null, state });
+    await events.emit('core-agent:start', { agent: null, liveState });
 
     const budgetPolicy = pm.get<BudgetPolicy>('budget') ?? {
       checkTurn: () => true,
@@ -52,11 +60,11 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     };
 
     const startTime = Date.now();
-    if (!budgetPolicy.checkTurn(state) || !budgetPolicy.checkTimeout(startTime)) {
-      state.status = 'idle';
+    if (!budgetPolicy.checkTurn(liveState) || !budgetPolicy.checkTimeout(startTime)) {
+      liveState.finish();
       const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
       controller.finish(output);
-      await events.emit('core-agent:stop', { agent: null, state });
+      await events.emit('core-agent:stop', { agent: null, liveState });
       return output;
     }
 
@@ -65,10 +73,10 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       role: 'user',
       content: [{ type: 'text', text: params.input.content }],
     };
-    state.addMessage(userMessage);
-    await sessionProvider.save(state.session);
+    session.conversation.push(userMessage);
+    await sessionProvider.save(session);
 
-    forkTitleGeneration(state, pm, controller, sessionProvider);
+    forkTitleGeneration(session, pm, controller, sessionProvider);
 
     try {
       const contextProvider = pm.require<ContextProvider>('context');
@@ -76,19 +84,19 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const loopStrategy = pm.require<LoopStrategy>('loopStrategy');
       const toolProvider = pm.require<ToolProvider>('tool');
 
-      const { system, messages } = await contextProvider.build(state);
+      const { system, messages } = await contextProvider.build(session, behavior.name);
 
       let contextMessages = messages;
-      if (compressor.shouldCompress(state)) {
+      if (compressor.shouldCompress(session)) {
         contextMessages = await compressor.compress(messages);
       }
 
       const result = await loopStrategy.run({
-        state,
+        session,
+        liveState,
         system,
         messages: contextMessages,
         tools: toolProvider.getToolSet(),
-        budget: state.budget,
         emit: (chunk) => controller.emit(chunk),
         signal: params.signal,
         maxSteps: behavior.maxTurns,
@@ -105,26 +113,26 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       });
 
       for (const msg of result.newMessages) {
-        if (!state.conversation.includes(msg)) {
-          state.addMessage(msg);
+        if (!session.conversation.includes(msg)) {
+          session.conversation.push(msg);
         }
       }
 
-      state.currentTurn++;
-      state.status = 'idle';
-      await sessionProvider.save(state.session);
-      await events.emit('core-agent:stop', { agent: null, state });
+      session.currentTurn++;
+      liveState.finish();
+      await sessionProvider.save(session);
+      await events.emit('core-agent:stop', { agent: null, liveState });
 
       const output: AgentOutput = { content: result.content, completed: true };
       controller.finish(output);
       return output;
     } catch (error) {
-      state.status = 'error';
+      liveState.fail();
       const message = error instanceof Error ? error.message : String(error);
       const output: AgentOutput = { content: `Error: ${message}`, completed: true };
       controller.finish(output);
-      await events.emit('core-agent:error', { agent: null, state, error });
-      await sessionProvider.save(state.session);
+      await events.emit('core-agent:error', { agent: null, liveState, error });
+      await sessionProvider.save(session);
       return output;
     }
   })();
@@ -133,19 +141,19 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 }
 
 function forkTitleGeneration(
-  state: AgentState,
+  session: Session,
   pm: ProviderManager,
   controller: AgentStreamController,
   sessionProvider: SessionProvider,
 ): void {
   const titleProvider = pm.get<TitleProvider>('title');
   const modelConfig = pm.getModelConfig();
-  if (!titleProvider || state.session.metadata.title) return;
+  if (!titleProvider || session.metadata.title) return;
 
   (async () => {
     try {
       const title = await titleProvider.generateTitle(
-        state.session.conversation,
+        session.conversation,
         {
           provider: modelConfig.provider,
           providerConfig: {
@@ -156,9 +164,9 @@ function forkTitleGeneration(
         },
       );
       if (title) {
-        state.session.metadata.title = title;
+        session.metadata.title = title;
         controller.pushTitle(title);
-        await sessionProvider.save(state.session);
+        await sessionProvider.save(session);
       }
     } catch {
       // title generation is best-effort

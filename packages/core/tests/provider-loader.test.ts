@@ -5,7 +5,7 @@ import type {
   BuiltinProviderResolver,
 } from '../src/sdk/provider-loader.js';
 import type { MemoryProvider } from '../src/sdk/memory-provider.js';
-import { AgentState } from '../src/state.js';
+import type { Session } from '../src/session.js';
 
 const baseCtx: ProviderLoaderContext = {
   kind: 'memory',
@@ -23,6 +23,17 @@ const builtinResolver: BuiltinProviderResolver = (kind, name) => {
   return undefined;
 };
 
+function makeSession(): Session {
+  return {
+    sessionId: 's1',
+    conversation: [],
+    currentTurn: 0,
+    metadata: {},
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
 describe('DefaultProviderLoader', () => {
   it('returns an existing instance as-is', async () => {
     const loader = new DefaultProviderLoader();
@@ -39,7 +50,7 @@ describe('DefaultProviderLoader', () => {
     const provider = await loader.load('simple', baseCtx);
 
     expect(provider).toBeDefined();
-    const ctx = await provider.buildContext(new AgentState());
+    const ctx = await provider.buildContext(makeSession(), 'TestAgent');
     expect(ctx.systemPrompt).toBe('You are TestAgent.');
   });
 
@@ -55,7 +66,7 @@ describe('DefaultProviderLoader', () => {
       { ...baseCtx, agentName: 'DefaultAgent' },
     );
 
-    const ctx = await provider.buildContext(new AgentState());
+    const ctx = await provider.buildContext(makeSession(), 'DefaultAgent');
     expect(ctx.systemPrompt).toBe('You are DefaultAgent.');
   });
 });

@@ -1,4 +1,4 @@
-import type { AgentState } from '../state.js';
+import type { AgentLiveState } from '../state.js';
 
 export interface BudgetStatus {
   turnsRemaining: number;
@@ -8,8 +8,8 @@ export interface BudgetStatus {
 }
 
 export interface BudgetPolicy {
-  checkTurn(state: AgentState): boolean;
+  checkTurn(liveState: AgentLiveState): boolean;
   checkTimeout(startTime: number): boolean;
-  shouldCircuitBreak(state: AgentState): boolean;
-  getStatus(state: AgentState): BudgetStatus;
+  shouldCircuitBreak(liveState: AgentLiveState): boolean;
+  getStatus(liveState: AgentLiveState): BudgetStatus;
 }

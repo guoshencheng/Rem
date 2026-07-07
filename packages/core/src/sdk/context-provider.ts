@@ -1,6 +1,6 @@
 import type { ModelMessage } from '../types.js';
-import type { AgentState } from '../state.js';
+import type { Session } from '../session.js';
 
 export interface ContextProvider {
-  build(state: AgentState): Promise<{ system: string; messages: ModelMessage[] }>;
+  build(session: Session, agentName: string): Promise<{ system: string; messages: ModelMessage[] }>;
 }

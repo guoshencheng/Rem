@@ -1,5 +1,5 @@
 import type { BudgetPolicy, BudgetStatus } from '../../../sdk/budget-policy.js';
-import type { AgentState } from '../../../state.js';
+import type { AgentLiveState } from '../../../state.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
 export interface FixedBudgetConfig {
@@ -16,8 +16,8 @@ export class FixedBudgetPolicy implements BudgetPolicy {
     this.timeoutMs = config.timeoutMs ?? 300_000;
   }
 
-  checkTurn(state: AgentState): boolean {
-    return state.currentTurn < this.maxTurns;
+  checkTurn(liveState: AgentLiveState): boolean {
+    return liveState.budget.hasBudget();
   }
 
   checkTimeout(startTime: number): boolean {
@@ -28,14 +28,14 @@ export class FixedBudgetPolicy implements BudgetPolicy {
     return false;
   }
 
-  getStatus(state: AgentState): BudgetStatus {
-    const turnsRemaining = Math.max(0, this.maxTurns - state.currentTurn);
-    const atRisk = turnsRemaining <= 3;
+  getStatus(liveState: AgentLiveState): BudgetStatus {
+    const budgetStatus = liveState.budget.getStatus();
+    const atRisk = budgetStatus.turnsRemaining <= 3;
     return {
-      turnsRemaining,
-      consecutiveErrors: 0,
+      turnsRemaining: budgetStatus.turnsRemaining,
+      consecutiveErrors: budgetStatus.consecutiveErrors,
       atRisk,
-      reason: turnsRemaining === 0 ? 'max_turns exceeded' : undefined,
+      reason: budgetStatus.turnsRemaining === 0 ? 'max_turns exceeded' : undefined,
     };
   }
 }

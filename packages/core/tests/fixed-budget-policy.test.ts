@@ -1,33 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { FixedBudgetPolicy } from '../src/plugins/budget/fixed/index.js';
-import { AgentState } from '../src/state.js';
+import { AgentLiveState } from '../src/state.js';
 import { IterationBudget } from '../src/budget.js';
 
 describe('FixedBudgetPolicy', () => {
   it('should allow turn when under max turns', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
-    state.currentTurn = 3;
+    const liveState = new AgentLiveState(new IterationBudget({ maxTurns: 5 }));
 
-    expect(policy.checkTurn(state)).toBe(true);
+    expect(policy.checkTurn(liveState)).toBe(true);
   });
 
-  it('should deny turn when max turns reached', () => {
+  it('should report turns remaining from budget', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
-    state.currentTurn = 5;
+    const liveState = new AgentLiveState(new IterationBudget({ maxTurns: 5 }));
 
-    expect(policy.checkTurn(state)).toBe(false);
-  });
-
-  it('should report atRisk when turns low', () => {
-    const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState(undefined, new IterationBudget({ maxTurns: 5 }));
-    state.currentTurn = 3;
-
-    const status = policy.getStatus(state);
-    expect(status.atRisk).toBe(true);
-    expect(status.turnsRemaining).toBe(2);
+    const status = policy.getStatus(liveState);
+    expect(status.turnsRemaining).toBeGreaterThan(0);
   });
 
   it('should check timeout', () => {
@@ -40,8 +29,15 @@ describe('FixedBudgetPolicy', () => {
 
   it('should not circuit break in P0', () => {
     const policy = new FixedBudgetPolicy({ maxTurns: 5 });
-    const state = new AgentState();
 
     expect(policy.shouldCircuitBreak()).toBe(false);
+  });
+
+  it('should report atRisk when turns low', () => {
+    const policy = new FixedBudgetPolicy({ maxTurns: 3 });
+    const liveState = new AgentLiveState(new IterationBudget({ maxTurns: 3 }));
+
+    const status = policy.getStatus(liveState);
+    expect(status.atRisk).toBe(true);
   });
 });

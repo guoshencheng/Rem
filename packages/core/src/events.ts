@@ -1,4 +1,4 @@
-import type { AgentState } from './state.js';
+import type { AgentLiveState } from './state.js';
 
 export type AgentEvent =
   | 'core-agent:init' | 'core-agent:start' | 'core-agent:stop' | 'core-agent:error'
@@ -12,7 +12,7 @@ export type AgentEvent =
 
 export interface EventContext {
   agent: unknown;
-  state: AgentState;
+  liveState: AgentLiveState;
   turn?: unknown;
   turnResult?: unknown;
   toolCall?: unknown;

@@ -1,5 +1,5 @@
+import type { Session } from '../../../session.js';
 import type { ModelMessage } from '../../../types.js';
-import type { AgentState } from '../../../state.js';
 import type {
   LoopContext,
   LoopResult,
@@ -22,12 +22,12 @@ export class ReactLoop implements LoopStrategy {
   constructor(private options: ReactLoopOptions) {}
 
   async run(ctx: LoopContext): Promise<LoopResult> {
-    const state = ctx.state;
+    const session = ctx.session;
     const newMessages: ModelMessage[] = [];
     let content = '';
     let usage = this.zeroUsage();
 
-    const assistantMsg = this.createAssistantMessage(state);
+    const assistantMsg = this.createAssistantMessage(session);
     newMessages.push(assistantMsg);
     ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.id });
 
@@ -72,25 +72,25 @@ export class ReactLoop implements LoopStrategy {
           signal: ctx.signal,
           agentName: ctx.agentName,
           readOnly: ctx.readOnly,
-          sessionId: ctx.sessionId ?? ctx.state.sessionId,
+          sessionId: ctx.sessionId ?? session.sessionId,
         },
         (chunk) => this.emit(ctx, chunk, step),
       );
 
       ctx.emit({ type: 'step-finish', step });
 
-      ctx.messages = [...state.conversation];
+      ctx.messages = [...session.conversation];
       step++;
     }
 
     return { content, newMessages, usage };
   }
 
-  private createAssistantMessage(state: AgentState): ModelMessage {
-    const last = state.conversation[state.conversation.length - 1];
+  private createAssistantMessage(session: Session): ModelMessage {
+    const last = session.conversation[session.conversation.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
     const msg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
-    state.addMessage(msg);
+    session.conversation.push(msg);
     return msg;
   }
 

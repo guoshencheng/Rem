@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ReactLoop } from '../../../../src/plugins/loop/react/index.js';
 import type { LoopContext } from '../../../../src/sdk/loop-strategy.js';
-import { AgentState } from '../../../../src/state.js';
-import { IterationBudget } from '../../../../src/budget.js';
+import { AgentLiveState } from '../../../../src/state.js';
 
 describe('ReactLoop', () => {
   it('stops when reason returns no tool calls', async () => {
@@ -27,16 +26,15 @@ describe('ReactLoop', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const state = new AgentState(session);
+    const liveState = new AgentLiveState();
     const chunks: unknown[] = [];
 
     const loop = new ReactLoop({ reasonProvider, executeProvider });
     const ctx: LoopContext = {
-      state,
+      session,
+      liveState,
       system: 'You are Rem.',
       messages: [],
-      budget: new IterationBudget({}),
-      workspaceRoot: '/',
       emit: (c) => { chunks.push(c); },
       provider: 'openai',
       modelConfig: { model: 'gpt-4o-mini', apiKey: 'test' },
@@ -76,14 +74,13 @@ describe('ReactLoop', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const state = new AgentState(session);
+    const liveState = new AgentLiveState();
     const loop = new ReactLoop({ reasonProvider, executeProvider });
     const ctx: LoopContext = {
-      state,
+      session,
+      liveState,
       system: 'You are Rem.',
       messages: [],
-      budget: new IterationBudget({}),
-      workspaceRoot: '/',
       emit: () => {},
       provider: 'openai',
       modelConfig: { model: 'gpt-4o-mini', apiKey: 'test' },
@@ -96,6 +93,6 @@ describe('ReactLoop', () => {
       expect.any(Object),
       expect.any(Function),
     );
-    expect(state.conversation.length).toBeGreaterThan(0);
+    expect(session.conversation.length).toBeGreaterThan(0);
   });
 });

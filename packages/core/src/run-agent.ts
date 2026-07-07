@@ -12,7 +12,7 @@ import type { ToolProvider, ToolCall, ToolResult } from './sdk/tool-provider.js'
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import { AgentStreamController } from './stream/agent-stream.js';
-import type { ProviderManager } from './provider-manager.js';
+import type { AgentContext } from './agent-context.js';
 import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
@@ -23,8 +23,7 @@ export interface RunAgentParams {
   input: UserInput;
   sessionId: string;
   signal?: AbortSignal;
-  pm: ProviderManager;
-  /** 审批等待/决议注册表（AgentService 传入） */
+  ctx: AgentContext;
   approvalRegistry?: ApprovalRegistry;
 }
 
@@ -38,11 +37,11 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
   const stream = controller.stream;
 
   const outputPromise = (async (): Promise<AgentOutput> => {
-    const pm = params.pm;
-    const behavior = pm.getBehaviorConfig();
-    const modelConfig = pm.getModelConfig();
+    const ctx = params.ctx;
+    const behavior = ctx.configProvider.getBehaviorConfig();
+    const modelConfig = ctx.configProvider.getModelConfig();
 
-    const sessionProvider = pm.require<SessionProvider>('session');
+    const sessionProvider = ctx.sessionProvider;
     let session = await sessionProvider.load(params.sessionId);
     if (!session) {
       session = {
@@ -56,8 +55,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     const liveState = new AgentLiveState(undefined, events);
     liveState.start();
 
-    const budgetPolicy = pm.get<BudgetPolicy>('budget') ?? { checkTurn: () => true, checkTimeout: () => true };
-    if (!budgetPolicy.checkTurn(liveState) || !budgetPolicy.checkTimeout(Date.now())) {
+    if (!ctx.budgetPolicy.checkTurn(liveState) || !ctx.budgetPolicy.checkTimeout(Date.now())) {
       liveState.finish();
       const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
       controller.finish(output);
@@ -70,15 +68,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     } as ModelMessage);
     await sessionProvider.save(session);
 
-    forkTitleGeneration(session, pm, controller, sessionProvider);
+    forkTitleGeneration(session, ctx.titleProvider, controller, sessionProvider);
 
     try {
-      const contextProvider = pm.require<ContextProvider>('context');
-      const compressor = pm.require<ContextCompressor>('compressor');
-      const loopStrategy = pm.require<LoopStrategy>('loopStrategy');
-      const toolProvider = pm.require<ToolProvider>('tool');
-      const skillProvider = pm.get<SkillProvider>('skill');
-      const errorHandler = pm.require<ErrorHandler>('error');
+      const contextProvider = ctx.contextProvider;
+      const compressor = ctx.compressor;
+      const loopStrategy = ctx.loopStrategy;
+      const toolProvider = ctx.toolProvider;
+      const skillProvider = ctx.skillProvider;
+      const errorHandler = ctx.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
       const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
 
@@ -87,13 +85,11 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
 
       let systemWithSkills = system;
-      if (skillProvider) {
-        try {
-          const skills = await skillProvider.loadSkills();
-          const catalog = skillProvider.formatCatalog(skills);
-          if (catalog) systemWithSkills = `${system}\n\n${catalog}`;
-        } catch { /* best-effort */ }
-      }
+      try {
+        const skills = await skillProvider.loadSkills();
+        const catalog = skillProvider.formatCatalog(skills);
+        if (catalog) systemWithSkills = `${system}\n\n${catalog}`;
+      } catch { /* best-effort */ }
 
       const loopCtx: LoopContext = {
         liveState,
@@ -111,7 +107,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider, addMessage, appendContent,
-          liveProvider: pm.get<AgentLiveProvider>('state'),
+          liveProvider: ctx.agentLiveProvider,
           registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
@@ -146,18 +142,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 }
 
 function forkTitleGeneration(
-  session: Session, pm: ProviderManager,
-  controller: AgentStreamController, sessionProvider: SessionProvider,
+  session: Session,
+  titleProvider: TitleProvider,
+  controller: AgentStreamController,
+  sessionProvider: SessionProvider,
 ): void {
-  const titleProvider = pm.get<TitleProvider>('title');
-  const modelConfig = pm.getModelConfig();
-  if (!titleProvider || session.metadata.title) return;
+  if (session.metadata.title) return;
   (async () => {
     try {
-      const title = await titleProvider.generateTitle(session.conversation, {
-        provider: modelConfig.provider,
-        providerConfig: { model: modelConfig.model, apiKey: modelConfig.apiKey, baseURL: modelConfig.baseURL },
-      });
+      const title = await titleProvider.generateTitle(session.conversation);
       if (title) { session.metadata.title = title; controller.pushTitle(title); await sessionProvider.save(session); }
     } catch { /* best-effort */ }
   })();

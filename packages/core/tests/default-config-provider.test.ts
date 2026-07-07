@@ -3,29 +3,27 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DefaultConfigProvider } from '../src/plugins/config/default/index.js';
+import { createDefaultAgentPaths } from '../src/config/paths.js';
 
 describe('DefaultConfigProvider', () => {
   let tempDir: string;
-  let savedRemHome: string | undefined;
 
   beforeEach(async () => {
     tempDir = join(tmpdir(), `rem-config-test-${Date.now()}`);
     await mkdir(tempDir, { recursive: true });
-    savedRemHome = process.env.REM_AGENT_HOME;
-    process.env.REM_AGENT_HOME = tempDir;
   });
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
-    if (savedRemHome !== undefined) {
-      process.env.REM_AGENT_HOME = savedRemHome;
-    } else {
-      delete process.env.REM_AGENT_HOME;
-    }
   });
 
+  function makePaths() {
+    return createDefaultAgentPaths({ agentDir: tempDir });
+  }
+
   it('applies defaults when nothing is provided', async () => {
-    const provider = new DefaultConfigProvider({ cwd: tempDir, env: {} });
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
     await provider.init();
     const behavior = provider.getBehaviorConfig();
     const model = provider.getModelConfig();
@@ -40,7 +38,8 @@ describe('DefaultConfigProvider', () => {
       join(tempDir, 'rem-agent.config.json'),
       JSON.stringify({ name: 'File Agent', maxTurns: 30, readOnly: true }),
     );
-    const provider = new DefaultConfigProvider({ cwd: tempDir, env: {} });
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
     await provider.init();
     expect(provider.getBehaviorConfig().name).toBe('File Agent');
     expect(provider.getBehaviorConfig().maxTurns).toBe(30);
@@ -49,7 +48,9 @@ describe('DefaultConfigProvider', () => {
 
   it('env overrides file', async () => {
     await writeFile(join(tempDir, 'rem-agent.config.json'), JSON.stringify({ name: 'File Agent' }));
+    const paths = makePaths();
     const provider = new DefaultConfigProvider({
+      paths,
       cwd: tempDir,
       env: { REM_AGENT_NAME: 'Env Agent' },
     });
@@ -58,7 +59,9 @@ describe('DefaultConfigProvider', () => {
   });
 
   it('inline overrides beat env', async () => {
+    const paths = makePaths();
     const provider = new DefaultConfigProvider({
+      paths,
       cwd: tempDir,
       env: { REM_AGENT_NAME: 'Env Agent' },
       overrides: { name: 'Inline Agent' },
@@ -72,7 +75,8 @@ describe('DefaultConfigProvider', () => {
       join(tempDir, 'rem-agent.config.json'),
       JSON.stringify({ toolPolicy: { profile: 'coding', allow: ['read'] } }),
     );
-    const provider = new DefaultConfigProvider({ cwd: tempDir, env: {} });
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
     await provider.init();
     expect(provider.getToolConfig().policy).toEqual({ profile: 'coding', allow: ['read'] });
   });
@@ -92,7 +96,9 @@ describe('DefaultConfigProvider', () => {
         },
       }),
     );
+    const paths = makePaths();
     const provider = new DefaultConfigProvider({
+      paths,
       cwd: tempDir,
       env: { MCP_KEY: 'secret' },
     });
@@ -107,7 +113,8 @@ describe('DefaultConfigProvider', () => {
   });
 
   it('returns empty mcp config when none provided', async () => {
-    const provider = new DefaultConfigProvider({ cwd: tempDir, env: {} });
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
     await provider.init();
     expect(provider.getMcpConfig()).toEqual({});
   });

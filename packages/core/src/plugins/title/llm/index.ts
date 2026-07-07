@@ -1,4 +1,5 @@
 import type { TitleProvider } from '../../../sdk/title-provider.js';
+import type { ConfigProvider } from '../../../sdk/config-provider.js';
 import type { ModelMessage } from '../../../types.js';
 import { InferenceEngine } from '../../../llm/engine.js';
 import { resolveProvider } from '../../../llm/api-registry.js';
@@ -49,23 +50,28 @@ Your output must be:
 </examples>`;
 
 export class LLMTitleProvider implements TitleProvider {
-  async generateTitle(
-    conversation: ModelMessage[],
-    config: { provider: string; providerConfig: { model: string; apiKey: string; baseURL?: string } },
-  ): Promise<string | undefined> {
+  private configProvider: ConfigProvider;
+
+  constructor(configProvider: ConfigProvider) {
+    this.configProvider = configProvider;
+  }
+
+  async generateTitle(conversation: ModelMessage[]): Promise<string | undefined> {
     const userMessages = conversation.filter(m => m.role === 'user');
     if (userMessages.length === 0) return undefined;
+
+    const modelConfig = this.configProvider.getModelConfig();
 
     const messages = userMessages.map(m => ({
       role: m.role,
       content: [{ type: 'text', text: m.content.filter(p => p.type === 'text').map(p => p.text).join(' ') || JSON.stringify(m.content) }],
     })) as ModelMessage[];
 
-    const provider = resolveProvider(config.provider);
+    const provider = resolveProvider(modelConfig.provider);
     const rawStream = provider.stream({
-      model: config.providerConfig.model,
-      apiKey: config.providerConfig.apiKey,
-      baseURL: config.providerConfig.baseURL,
+      model: modelConfig.model,
+      apiKey: modelConfig.apiKey,
+      baseURL: modelConfig.baseURL,
       system: TITLE_SYSTEM_PROMPT,
       messages,
       maxTokens: 50,
@@ -74,18 +80,11 @@ export class LLMTitleProvider implements TitleProvider {
 
     const engine = new InferenceEngine();
     try {
-      const result = await engine.infer({
-        messages,
-        stream: rawStream,
-      });
+      const result = await engine.infer({ messages, stream: rawStream });
       const title = result.text.trim().slice(0, 50);
       return title || undefined;
     } catch {
       return undefined;
     }
   }
-}
-
-export function createProvider(options: unknown): LLMTitleProvider {
-  return new LLMTitleProvider();
 }

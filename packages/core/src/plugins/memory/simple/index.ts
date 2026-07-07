@@ -2,14 +2,14 @@ import type { ContextProvider } from '../../../sdk/context-provider.js';
 import type { MemoryProvider, MemoryContext } from '../../../sdk/memory-provider.js';
 import type { ModelMessage } from '../../../types.js';
 import type { Session } from '../../../session.js';
-import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
-
-export interface SimpleContextProviderOptions {
-  agentName: string;
-}
+import type { ConfigProvider } from '../../../sdk/config-provider.js';
 
 export class SimpleContextProvider implements ContextProvider, MemoryProvider {
-  constructor(private agentName: string) {}
+  private agentName: string;
+
+  constructor(configProvider: ConfigProvider) {
+    this.agentName = configProvider.getBehaviorConfig().name;
+  }
 
   async build(session: Session, _agentName: string): Promise<{ system: string; messages: ModelMessage[] }> {
     const ctx = await this.buildContext(session, _agentName);
@@ -25,11 +25,3 @@ export class SimpleContextProvider implements ContextProvider, MemoryProvider {
 }
 
 export { SimpleContextProvider as SimpleMemoryProvider };
-
-export function createProvider(options: SimpleContextProviderOptions | undefined): SimpleContextProvider {
-  return new SimpleContextProvider(options?.agentName ?? 'Rem Agent');
-}
-
-export function getDefaultOptions(ctx: ProviderLoaderContext): SimpleContextProviderOptions {
-  return { agentName: ctx.agentName };
-}

@@ -2,26 +2,22 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
+import type { ConfigProvider } from '../../../sdk/config-provider.js';
 import { DefaultSkillCatalog } from '../default-catalog.js';
 import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
-import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
 const AGENT_DIR_NAME = '.agents';
 const SKILLS_DIR_NAME = 'skills';
-
-export interface FileSkillProviderOptions {
-  homeSkillsDir?: string;
-  workspaceSkillsDir?: string;
-}
 
 export class FileSkillProvider implements SkillProvider {
   private homeSkillsDir: string;
   private workspaceSkillsDir: string;
   private catalog = new DefaultSkillCatalog();
 
-  constructor(options?: Partial<FileSkillProviderOptions>) {
-    this.homeSkillsDir = options?.homeSkillsDir ?? resolveHomeSkillsDir();
-    this.workspaceSkillsDir = options?.workspaceSkillsDir ?? resolveWorkspaceSkillsDir(process.cwd());
+  constructor(configProvider: ConfigProvider) {
+    const workspaceRoot = configProvider.getBehaviorConfig().workspaceRoot;
+    this.homeSkillsDir = resolveHomeSkillsDir();
+    this.workspaceSkillsDir = resolveWorkspaceSkillsDir(workspaceRoot);
   }
 
   async loadSkills(): Promise<Skill[]> {
@@ -124,17 +120,6 @@ export class FileSkillProvider implements SkillProvider {
       return undefined;
     }
   }
-}
-
-export function createProvider(options?: Partial<FileSkillProviderOptions>): FileSkillProvider {
-  return new FileSkillProvider(options);
-}
-
-export function getDefaultOptions(ctx: ProviderLoaderContext): Partial<FileSkillProviderOptions> {
-  return {
-    homeSkillsDir: resolveHomeSkillsDir(),
-    workspaceSkillsDir: resolveWorkspaceSkillsDir(ctx.workspaceRoot),
-  };
 }
 
 function resolveHomeSkillsDir(): string {

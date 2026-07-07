@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { McpToolProvider } from '../../src/mcp/tool-provider.js';
-import { ApprovalManager } from '../../src/security/approval-manager.js';
-import { ApprovalOrchestrator } from '../../src/security/approval-orchestrator.js';
-import type { AgentLiveProvider } from '../../src/sdk/agent-state-provider.js';
-import { AgentLiveState } from '../../src/state.js';
 
 function createMockClient() {
   return {
@@ -13,23 +9,11 @@ function createMockClient() {
         originalName: 'read_file',
         prefixedName: '',
         description: 'Read a file',
-        inputSchema: {
-          type: 'object',
-          properties: { path: { type: 'string' } },
-          required: ['path'],
-        },
+        inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
       },
     ]),
     callTool: vi.fn().mockResolvedValue('content'),
     close: vi.fn(),
-  };
-}
-
-function createLiveProvider(): AgentLiveProvider {
-  const store = new Map<string, AgentLiveState>();
-  return {
-    get: async (sessionId) => store.get(sessionId),
-    set: async (sessionId, state) => { store.set(sessionId, state); },
   };
 }
 
@@ -84,50 +68,11 @@ describe('McpToolProvider', () => {
     const provider = new McpToolProvider(mockClient as any, { name: 'fs', prefix: 'fs' });
     await provider.loadTools();
 
+    expect(provider.isDangerous('fs__read_file')).toBe(true);
+    expect(provider.isDangerous('unknown')).toBe(false);
+
     const definitions = provider.getToolDefinitions();
     expect(definitions[0].dangerous).toBe(true);
     expect(definitions[0].category).toBe('mcp');
-  });
-
-  it('runs dangerous-tool hook for approval', async () => {
-    const orchestrator = new ApprovalOrchestrator(createLiveProvider(), new ApprovalManager());
-    const mockClient = createMockClient();
-    const provider = new McpToolProvider(mockClient as any, { name: 'fs', prefix: 'fs' }, orchestrator);
-    await provider.loadTools();
-
-    const executePromise = provider.execute(
-      [{ toolCallId: 'tc1', toolName: 'fs__read_file', input: { path: '/tmp/foo' } }],
-      { cwd: '/', workspaceRoot: '/', sessionId: 'session-1' },
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const pending = await orchestrator.listPending('session-1');
-    expect(pending).toHaveLength(1);
-    expect(pending[0]?.toolName).toBe('fs__read_file');
-
-    orchestrator.resolveApproval(pending[0].approvalId, 'allow-once');
-    const results = await executePromise;
-
-    expect(results[0].output).toBe('content');
-  });
-
-  it('blocks tool when approval is denied', async () => {
-    const orchestrator = new ApprovalOrchestrator(createLiveProvider(), new ApprovalManager());
-    const mockClient = createMockClient();
-    const provider = new McpToolProvider(mockClient as any, { name: 'fs', prefix: 'fs' }, orchestrator);
-    await provider.loadTools();
-
-    const executePromise = provider.execute(
-      [{ toolCallId: 'tc1', toolName: 'fs__read_file', input: { path: '/tmp/foo' } }],
-      { cwd: '/', workspaceRoot: '/', sessionId: 'session-1' },
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const pending = await orchestrator.listPending('session-1');
-    orchestrator.resolveApproval(pending[0].approvalId, 'deny');
-    const results = await executePromise;
-
-    expect(results[0].error).toContain('denied');
-    expect(mockClient.callTool).not.toHaveBeenCalled();
   });
 });

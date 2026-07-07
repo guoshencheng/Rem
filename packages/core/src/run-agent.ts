@@ -203,24 +203,57 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         );
       };
 
+      const approvalOrchestrator = pm.getApprovalOrchestrator();
+
       const executeCallback = async (toolCalls: ToolCall[]): Promise<ToolResult[]> => {
-        const results = await toolProvider.execute(toolCalls, {
-          cwd: behavior.workspaceRoot,
-          workspaceRoot: behavior.workspaceRoot,
-          signal: params.signal,
-          agentName: behavior.name,
-          readOnly: behavior.readOnly,
-          sessionId: params.sessionId,
-        }, {
-          emit: (chunk) => controller.emit(chunk),
-        });
+        const results: ToolResult[] = [];
 
         for (const tc of toolCalls) {
-          const tr = results.find(r => r.toolCallId === tc.toolCallId);
-          const output = tr?.error ?? tr?.output ?? '';
+          const dangerous = toolProvider.isDangerous(tc.toolName);
+
+          // 审批：runAgent 显式编排
+          if (dangerous) {
+            const decision = await approvalOrchestrator.requestApproval(
+              {
+                sessionId: params.sessionId,
+                toolName: tc.toolName,
+                toolCallId: tc.toolCallId,
+                cwd: behavior.workspaceRoot,
+                workspaceRoot: behavior.workspaceRoot,
+                signal: params.signal,
+                input: tc.input,
+              } as any,
+              {
+                title: `Run ${tc.toolName}`,
+                allowedDecisions: ['allow-once', 'deny'],
+              },
+              { emit: (chunk) => controller.emit(chunk) },
+            );
+
+            if (decision !== 'allow-once') {
+              const errMsg = 'denied';
+              controller.emit({
+                type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg,
+              } as ProviderChunk);
+              results.push({ toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg });
+              continue;
+            }
+          }
+
+          // 执行工具
+          const [result] = await toolProvider.execute([tc], {
+            cwd: behavior.workspaceRoot,
+            workspaceRoot: behavior.workspaceRoot,
+            signal: params.signal,
+            agentName: behavior.name,
+            readOnly: behavior.readOnly,
+            sessionId: params.sessionId,
+          });
+          results.push(result);
+
+          const output = result.error ?? result.output ?? '';
           controller.emit({
-            type: 'tool-result',
-            step: 0, toolCallId: tc.toolCallId, output, error: tr?.error,
+            type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error,
           } as ProviderChunk);
 
           session.conversation.push({

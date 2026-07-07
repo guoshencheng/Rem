@@ -2,22 +2,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { McpServerConfig, McpConnectionState } from './types.js';
-import type { ApprovalOrchestrator } from '../sdk/approval-orchestrator.js';
 import { McpClient } from './client.js';
 import { McpToolProvider } from './tool-provider.js';
-
-export interface McpConnectionManagerOptions {
-  approvalOrchestrator?: ApprovalOrchestrator;
-}
 
 export class McpConnectionManager {
   private states = new Map<string, McpConnectionState>();
   private providers: McpToolProvider[] = [];
-  private options: McpConnectionManagerOptions;
-
-  constructor(options: McpConnectionManagerOptions = {}) {
-    this.options = options;
-  }
 
   async connectAll(configs: Record<string, McpServerConfig>): Promise<McpToolProvider[]> {
     this.providers = [];
@@ -34,11 +24,7 @@ export class McpConnectionManager {
         const client = this.createClient(name, config);
         await client.connect();
 
-        const provider = new McpToolProvider(
-          client,
-          { name, prefix },
-          this.options.approvalOrchestrator,
-        );
+        const provider = new McpToolProvider(client, { name, prefix });
         await provider.loadTools();
 
         this.providers.push(provider);

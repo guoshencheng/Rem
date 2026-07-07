@@ -1,4 +1,3 @@
-import type { ApprovalOrchestrator } from '../../../sdk/approval-orchestrator.js';
 import { AgentToolRegistry } from '../../../registry/tool-registry.js';
 import type { ToolPolicyLike } from '../../../sdk/tool-policy.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
@@ -11,8 +10,6 @@ import { createExecToolDefinition, createExecToolExecutor } from './exec.js';
 export interface FileSystemToolsOptions {
   workspaceRoot: string;
   readOnly?: boolean;
-  autoApproveDangerous?: boolean;
-  approvalOrchestrator?: ApprovalOrchestrator;
   toolPolicy?: ToolPolicyLike;
 }
 
@@ -20,8 +17,6 @@ export function createFileSystemTools(options: FileSystemToolsOptions): AgentToo
   const registry = new AgentToolRegistry({
     workspaceRoot: options.workspaceRoot,
     readOnly: options.readOnly,
-    autoApproveDangerous: options.autoApproveDangerous,
-    approvalOrchestrator: options.approvalOrchestrator,
     policy: options.toolPolicy,
   });
 
@@ -38,9 +33,7 @@ export function createFileSystemTools(options: FileSystemToolsOptions): AgentToo
 }
 
 export function createProvider(options: FileSystemToolsOptions | undefined): AgentToolRegistry {
-  if (!options?.workspaceRoot) {
-    throw new Error('FileSystemTools requires workspaceRoot');
-  }
+  if (!options?.workspaceRoot) throw new Error('FileSystemTools requires workspaceRoot');
   return createFileSystemTools(options);
 }
 
@@ -48,8 +41,6 @@ export function getDefaultOptions(ctx: ProviderLoaderContext): FileSystemToolsOp
   return {
     workspaceRoot: ctx.workspaceRoot,
     readOnly: ctx.readOnly,
-    autoApproveDangerous: ctx.autoApproveDangerous,
-    approvalOrchestrator: ctx.approvalOrchestrator,
     toolPolicy: ctx.toolPolicy,
   };
 }

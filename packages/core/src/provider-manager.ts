@@ -92,8 +92,6 @@ export class ProviderManager {
         agentName: behavior.name,
         workspaceRoot: this.config.workspaceRoot ?? behavior.workspaceRoot,
         readOnly: this.config.readOnly ?? behavior.readOnly ?? false,
-        autoApproveDangerous: this.config.autoApproveDangerous ?? behavior.autoApproveDangerous ?? false,
-        approvalOrchestrator,
         sessionsDir: this.config.sessionsDir ?? behavior.sessionsDir ?? getDefaultSessionsDir(),
         maxTurns: behavior.maxTurns,
         toolPolicy: this.config.toolPolicy ?? toolCfg.policy,
@@ -127,7 +125,7 @@ export class ProviderManager {
   ): Promise<void> {
     const toolProvider = registry.require<ToolProvider>('tool');
     const mcpConfig = this.configProvider.getMcpConfig();
-    const mcpManager = new McpConnectionManager({ approvalOrchestrator });
+    const mcpManager = new McpConnectionManager();
     const mcpProviders = await mcpManager.connectAll(mcpConfig);
 
     if (mcpProviders.length > 0) {

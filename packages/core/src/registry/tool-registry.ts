@@ -2,20 +2,13 @@ import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
-import type { ToolHook } from '../sdk/tool-hook.js';
 import type { ToolSchema, ToolSet } from '../llm/types.js';
-import type { ApprovalOrchestrator, ApprovalChunkEmitter } from '../sdk/approval-orchestrator.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
-import { ToolHookRunner } from '../security/tool-hook-runner.js';
-import { createDangerousToolHook } from '../security/tool-hooks/dangerous-tool-hook.js';
 
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;
   readOnly?: boolean;
-  autoApproveDangerous?: boolean;
   policy?: ToolPolicyConfig;
-  hooks?: ToolHook[];
-  approvalOrchestrator?: ApprovalOrchestrator;
 }
 
 export class AgentToolRegistry implements ToolProvider {
@@ -30,25 +23,11 @@ export class AgentToolRegistry implements ToolProvider {
   private workspaceRoot: string;
   private readOnly: boolean;
   private policy: ToolPolicyConfig;
-  private approvalOrchestrator?: ApprovalOrchestrator;
-  private hookRunner: ToolHookRunner;
 
   constructor(options: AgentToolRegistryOptions) {
     this.workspaceRoot = options.workspaceRoot;
     this.readOnly = options.readOnly ?? false;
     this.policy = options.policy ?? {};
-    this.approvalOrchestrator = options.approvalOrchestrator;
-
-    const hooks: ToolHook[] = [];
-    if (!options.autoApproveDangerous) {
-      hooks.push(createDangerousToolHook(this.tools));
-    }
-    hooks.push(...(options.hooks ?? []));
-
-    this.hookRunner = new ToolHookRunner({
-      hooks,
-      approvalOrchestrator: this.approvalOrchestrator,
-    });
   }
 
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void {
@@ -77,7 +56,11 @@ export class AgentToolRegistry implements ToolProvider {
     return result;
   }
 
-  async execute(calls: ToolCall[], ctx: ToolContext, emit?: ApprovalChunkEmitter): Promise<ToolResult[]> {
+  isDangerous(toolName: string): boolean {
+    return this.tools.get(toolName)?.def.dangerous === true;
+  }
+
+  async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
     for (const call of calls) {
       const registered = this.tools.get(call.toolName);
@@ -103,30 +86,8 @@ export class AgentToolRegistry implements ToolProvider {
         continue;
       }
 
-      const hookOutcome = await this.hookRunner.run(
-        {
-          ...ctx,
-          toolName: call.toolName,
-          toolCallId: call.toolCallId,
-          input: call.input,
-        },
-        emit,
-      );
-
-      if (hookOutcome.blocked) {
-        results.push({
-          toolCallId: call.toolCallId,
-          toolName: call.toolName,
-          output: '',
-          error: hookOutcome.blocked.reason,
-          details: { audit: { approved: false } },
-        });
-        continue;
-      }
-
       try {
-        const executeParams = (hookOutcome.params ?? call.input) as never;
-        const { output, details } = await registered.executor(executeParams, ctx);
+        const { output, details } = await registered.executor(call.input as never, ctx);
         results.push({
           toolCallId: call.toolCallId,
           toolName: call.toolName,

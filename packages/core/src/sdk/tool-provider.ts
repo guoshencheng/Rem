@@ -1,6 +1,5 @@
 import type { Static, TObject } from '@sinclair/typebox';
 import type { ToolSet } from '../llm/types.js';
-import type { ApprovalChunkEmitter } from './approval-orchestrator.js';
 
 export interface ToolContext {
   cwd: string;
@@ -47,5 +46,8 @@ export interface ToolResult {
 export interface ToolProvider {
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void;
   getToolSet(): ToolSet;
-  execute(calls: ToolCall[], ctx: ToolContext, emit?: ApprovalChunkEmitter): Promise<ToolResult[]>;
+  /** 纯执行，不含审批。审批由 runAgent 在调用前通过 isDangerous 判断。 */
+  execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]>;
+  /** 查询工具是否危险（runAgent 用于决定是否触发审批） */
+  isDangerous(toolName: string): boolean;
 }

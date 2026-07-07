@@ -1,13 +1,7 @@
 import type { TObject } from '@sinclair/typebox';
 import type {
-  ToolCall,
-  ToolContext,
-  ToolDefinition,
-  ToolExecutor,
-  ToolProvider,
-  ToolResult,
+  ToolCall, ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolResult,
 } from '../sdk/tool-provider.js';
-import type { ApprovalChunkEmitter } from '../sdk/approval-orchestrator.js';
 import type { ToolSet } from '../llm/types.js';
 
 export class CompositeToolProvider implements ToolProvider {
@@ -39,7 +33,12 @@ export class CompositeToolProvider implements ToolProvider {
     return result;
   }
 
-  async execute(calls: ToolCall[], ctx: ToolContext, emit?: ApprovalChunkEmitter): Promise<ToolResult[]> {
+  isDangerous(toolName: string): boolean {
+    const owner = this.ownership.get(toolName) ?? this.primary;
+    return owner.isDangerous(toolName);
+  }
+
+  async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
     const grouped = new Map<ToolProvider, ToolCall[]>();
 
     for (const call of calls) {
@@ -51,7 +50,7 @@ export class CompositeToolProvider implements ToolProvider {
 
     const results: ToolResult[] = [];
     for (const [provider, providerCalls] of grouped) {
-      const providerResults = await provider.execute(providerCalls, ctx, emit);
+      const providerResults = await provider.execute(providerCalls, ctx);
       results.push(...providerResults);
     }
     return results;

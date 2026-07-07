@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { ModelMessage } from '../../../types.js';
+import type { ModelMessage, ContentPart } from '../../../types.js';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 
 import { getMetaBoolean, getMetaString } from '../metadata.js';
@@ -25,6 +25,18 @@ export class InMemorySessionProvider implements SessionProvider {
     const stored = this.sessions.get(sessionId);
     if (!stored) return null;
     return structuredClone(stored);
+  }
+
+  addMessage(session: Session, role: 'assistant' | 'tool'): ModelMessage {
+    const msg: ModelMessage = { id: randomUUID(), role, content: [] };
+    session.conversation.push(msg);
+    void this.save(session).catch(() => {});
+    return msg;
+  }
+
+  appendContent(session: Session, msg: ModelMessage, part: ContentPart): void {
+    msg.content.push(part);
+    void this.save(session).catch(() => {});
   }
 
   async save(session: Session): Promise<void> {

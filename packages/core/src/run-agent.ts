@@ -79,17 +79,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolProvider = pm.require<ToolProvider>('tool');
       const skillProvider = pm.get<SkillProvider>('skill');
       const errorHandler = pm.require<ErrorHandler>('error');
-      const addMessage = (role: 'assistant' | 'tool'): ModelMessage => {
-        const msg: ModelMessage = { id: generateId(), role, content: [] as any };
-        session.conversation.push(msg);
-        sessionProvider.save(session).catch(() => {});
-        return msg;
-      };
-
-      const appendContent = (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => {
-        msg.content.push(part as any);
-        sessionProvider.save(session).catch(() => {});
-      };
+      const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
+      const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
 
       const { system, messages } = await contextProvider.build(session, behavior.name);
 

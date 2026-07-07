@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { McpToolProvider } from '../../src/mcp/tool-provider.js';
 import { ApprovalManager } from '../../src/security/approval-manager.js';
 import { ApprovalOrchestrator } from '../../src/security/approval-orchestrator.js';
-import type { AgentRuntimeState, AgentStateProvider } from '../../src/sdk/agent-state-provider.js';
+import type { AgentLiveProvider } from '../../src/sdk/agent-state-provider.js';
+import { AgentLiveState } from '../../src/state.js';
 
 function createMockClient() {
   return {
@@ -24,13 +25,11 @@ function createMockClient() {
   };
 }
 
-function createStateProvider(): AgentStateProvider {
-  const states = new Map<string, AgentRuntimeState>();
+function createLiveProvider(): AgentLiveProvider {
+  const store = new Map<string, AgentLiveState>();
   return {
-    getState: async (sessionId) => states.get(sessionId) ?? { pendingApprovals: [] },
-    setState: async (sessionId, state) => {
-      states.set(sessionId, state);
-    },
+    get: async (sessionId) => store.get(sessionId),
+    set: async (sessionId, state) => { store.set(sessionId, state); },
   };
 }
 
@@ -91,7 +90,7 @@ describe('McpToolProvider', () => {
   });
 
   it('runs dangerous-tool hook for approval', async () => {
-    const orchestrator = new ApprovalOrchestrator(createStateProvider(), new ApprovalManager());
+    const orchestrator = new ApprovalOrchestrator(createLiveProvider(), new ApprovalManager());
     const mockClient = createMockClient();
     const provider = new McpToolProvider(mockClient as any, { name: 'fs', prefix: 'fs' }, orchestrator);
     await provider.loadTools();
@@ -113,7 +112,7 @@ describe('McpToolProvider', () => {
   });
 
   it('blocks tool when approval is denied', async () => {
-    const orchestrator = new ApprovalOrchestrator(createStateProvider(), new ApprovalManager());
+    const orchestrator = new ApprovalOrchestrator(createLiveProvider(), new ApprovalManager());
     const mockClient = createMockClient();
     const provider = new McpToolProvider(mockClient as any, { name: 'fs', prefix: 'fs' }, orchestrator);
     await provider.loadTools();

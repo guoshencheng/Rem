@@ -1,4 +1,4 @@
-import type { AgentStateProvider, ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
+import type { AgentLiveProvider, ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import type { ToolHookContext } from '../sdk/tool-hook.js';
 import type {
   ApprovalChunkEmitter,
@@ -6,13 +6,14 @@ import type {
   ApprovalOrchestrator as IApprovalOrchestrator,
 } from '../sdk/approval-orchestrator.js';
 import { ApprovalManager, DEFAULT_APPROVAL_TIMEOUT_MS } from './approval-manager.js';
+import { AgentLiveState } from '../state.js';
 
 export class ApprovalOrchestrator implements IApprovalOrchestrator {
   private approvalToSession = new Map<string, string>();
   private emitters = new Map<string, ApprovalChunkEmitter>();
 
   constructor(
-    private stateProvider: AgentStateProvider,
+    private liveProvider: AgentLiveProvider,
     private approvalManager: ApprovalManager,
   ) {}
 
@@ -44,10 +45,12 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
     this.approvalToSession.set(request.approvalId, sessionId);
     this.emitters.set(request.approvalId, emit);
 
-    const state = await this.stateProvider.getState(sessionId);
-    await this.stateProvider.setState(sessionId, {
-      pendingApprovals: [...state.pendingApprovals, request],
-    });
+    let liveState = await this.liveProvider.get(sessionId);
+    if (!liveState) {
+      liveState = new AgentLiveState();
+    }
+    liveState.pendingApprovals = [...liveState.pendingApprovals, request];
+    await this.liveProvider.set(sessionId, liveState);
 
     emit.emit({ type: 'approval-request', sessionId, request });
 
@@ -59,11 +62,9 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
   }
 
   async listPending(sessionId?: string): Promise<ApprovalRequest[]> {
-    if (!sessionId) {
-      return [];
-    }
-    const state = await this.stateProvider.getState(sessionId);
-    return state.pendingApprovals;
+    if (!sessionId) return [];
+    const liveState = await this.liveProvider.get(sessionId);
+    return liveState?.pendingApprovals ?? [];
   }
 
   private async awaitDecision(
@@ -129,10 +130,11 @@ export class ApprovalOrchestrator implements IApprovalOrchestrator {
     }
 
     try {
-      const state = await this.stateProvider.getState(sessionId);
-      await this.stateProvider.setState(sessionId, {
-        pendingApprovals: state.pendingApprovals.filter((r) => r.approvalId !== approvalId),
-      });
+      const liveState = await this.liveProvider.get(sessionId);
+      if (liveState) {
+        liveState.pendingApprovals = liveState.pendingApprovals.filter((r) => r.approvalId !== approvalId);
+        await this.liveProvider.set(sessionId, liveState);
+      }
 
       const emit = this.emitters.get(approvalId);
       if (emit) {

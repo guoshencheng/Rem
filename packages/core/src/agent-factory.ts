@@ -5,7 +5,7 @@ import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { ProviderReference } from './sdk/provider-loader.js';
 import type { ToolPolicyConfig } from './sdk/tool-policy.js';
-import type { AgentStateProvider } from './sdk/agent-state-provider.js';
+import type { AgentLiveProvider } from './sdk/agent-state-provider.js';
 import { createProviderManager } from './provider-manager.js';
 
 export interface CreateAgentOptions {
@@ -23,7 +23,9 @@ export interface CreateAgentOptions {
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
   toolPolicy?: ToolPolicyConfig;
-  agentStateProvider?: AgentStateProvider;
+  /** @deprecated Use agentLiveProvider instead */
+  agentStateProvider?: AgentLiveProvider;
+  agentLiveProvider?: AgentLiveProvider;
 }
 
 export async function createAgentFromEnv(options?: CreateAgentOptions) {
@@ -67,7 +69,7 @@ export async function createAgentFromEnv(options?: CreateAgentOptions) {
     readOnly: options?.readOnly ?? behavior?.readOnly ?? false,
     autoApproveDangerous: options?.autoApproveDangerous ?? behavior?.autoApproveDangerous ?? false,
     toolPolicy: options?.toolPolicy ?? configProvider?.getToolConfig?.().policy,
-    agentStateProvider: options?.agentStateProvider,
+    agentLiveProvider: options?.agentLiveProvider ?? options?.agentStateProvider,
   });
 
   return { pm, name, maxTurns, provider, providerConfig };

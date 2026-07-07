@@ -3,22 +3,21 @@ import { Type } from '@sinclair/typebox';
 import { AgentToolRegistry } from '../src/registry/tool-registry.js';
 import { ApprovalManager } from '../src/security/approval-manager.js';
 import { ApprovalOrchestrator } from '../src/security/approval-orchestrator.js';
-import type { AgentRuntimeState, AgentStateProvider } from '../src/sdk/agent-state-provider.js';
+import type { AgentLiveProvider } from '../src/sdk/agent-state-provider.js';
+import { AgentLiveState } from '../src/state.js';
 
 const echoSchema = Type.Object({ msg: Type.String() }, { additionalProperties: false });
 
-function createStateProvider(): AgentStateProvider {
-  const states = new Map<string, AgentRuntimeState>();
+function createLiveProvider(): AgentLiveProvider {
+  const store = new Map<string, AgentLiveState>();
   return {
-    getState: async (sessionId) => states.get(sessionId) ?? { pendingApprovals: [] },
-    setState: async (sessionId, state) => {
-      states.set(sessionId, state);
-    },
+    get: async (sessionId) => store.get(sessionId),
+    set: async (sessionId, state) => { store.set(sessionId, state); },
   };
 }
 
 function createApprovalOrchestrator() {
-  return new ApprovalOrchestrator(createStateProvider(), new ApprovalManager());
+  return new ApprovalOrchestrator(createLiveProvider(), new ApprovalManager());
 }
 
 function createRegistry(options?: { readOnly?: boolean; policy?: { allow?: string[]; deny?: string[] } }) {

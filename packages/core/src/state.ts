@@ -1,6 +1,7 @@
 import { IterationBudget } from './budget.js';
-import type { AgentStatus } from './types.js';
+import type { AgentStatus, ContentPart } from './types.js';
 import type { EventBus } from './events.js';
+import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 
 /**
  * 跨请求存活的 Agent 运行时状态。
@@ -12,6 +13,12 @@ export class AgentLiveState {
   private _budget: IterationBudget;
   private _maxTurns: number;
   private _events?: EventBus;
+
+  /** 待处理的审批请求 */
+  pendingApprovals: ApprovalRequest[] = [];
+
+  /** 当前会话的流式快照（用于重连） */
+  streamingSnapshot?: ContentPart[];
 
   get status(): AgentStatus { return this._status; }
 

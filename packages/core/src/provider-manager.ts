@@ -5,7 +5,7 @@ import { resolveBuiltinLoader } from './plugins/index.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { ApprovalOrchestrator } from './security/approval-orchestrator.js';
 import { ApprovalManager } from './security/approval-manager.js';
-import { InMemoryAgentStateProvider } from './plugins/state/in-memory/index.js';
+import { InMemoryAgentLiveProvider } from './plugins/state/in-memory/index.js';
 import {
   createReadSkillToolDefinition,
   createReadSkillToolExecutor,
@@ -36,7 +36,7 @@ import type {
 import type { ProviderConfig } from './llm/types.js';
 import { getDefaultSessionsDir } from './config/paths.js';
 import type { ToolPolicyConfig } from './sdk/tool-policy.js';
-import type { AgentStateProvider } from './sdk/agent-state-provider.js';
+import type { AgentLiveProvider } from './sdk/agent-state-provider.js';
 
 export interface ProviderManagerConfig {
   configPath?: string;
@@ -55,7 +55,9 @@ export interface ProviderManagerConfig {
   reasonProvider?: ProviderReference<ReasonProvider>;
   executeProvider?: ProviderReference<ExecuteProvider>;
   toolPolicy?: ToolPolicyConfig;
-  agentStateProvider?: AgentStateProvider;
+  /** @deprecated Use agentLiveProvider instead */
+  agentStateProvider?: AgentLiveProvider;
+  agentLiveProvider?: AgentLiveProvider;
   workspaceRoot?: string;
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
@@ -83,8 +85,8 @@ export class ProviderManager {
     const behavior = this.configProvider.getBehaviorConfig();
     const toolCfg = this.configProvider.getToolConfig();
 
-    const stateProvider = this.config.agentStateProvider ?? new InMemoryAgentStateProvider();
-    const approvalOrchestrator = new ApprovalOrchestrator(stateProvider, new ApprovalManager());
+    const liveProvider = this.config.agentLiveProvider ?? this.config.agentStateProvider ?? new InMemoryAgentLiveProvider();
+    const approvalOrchestrator = new ApprovalOrchestrator(liveProvider, new ApprovalManager());
 
     const loader = new DefaultProviderLoader(resolveBuiltinLoader);
     const registry = new AgentProviderRegistry({

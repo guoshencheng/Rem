@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import type { AgentStateProvider, AgentRuntimeState, ApprovalDecision } from '../src/sdk/agent-state-provider.js';
+import type { ApprovalDecision } from '../src/sdk/agent-state-provider.js';
+import type { AgentLiveProvider } from '../src/sdk/agent-state-provider.js';
 import type { ToolHookContext } from '../src/sdk/tool-hook.js';
 import type { AgentStreamChunk } from '../src/types.js';
+import { AgentLiveState } from '../src/state.js';
 import { ApprovalManager } from '../src/security/approval-manager.js';
 import { ApprovalOrchestrator } from '../src/security/approval-orchestrator.js';
 
-function createStateProvider(): AgentStateProvider {
-  const states = new Map<string, AgentRuntimeState>();
+function createLiveProvider(): AgentLiveProvider {
+  const store = new Map<string, AgentLiveState>();
   return {
-    getState: async (sessionId) => states.get(sessionId) ?? { pendingApprovals: [] },
-    setState: async (sessionId, state) => {
-      states.set(sessionId, state);
-    },
+    get: async (sessionId) => store.get(sessionId),
+    set: async (sessionId, state) => { store.set(sessionId, state); },
   };
 }
 
@@ -37,9 +37,9 @@ function createContext(sessionId: string, toolName: string, signal?: AbortSignal
 
 describe('ApprovalOrchestrator', () => {
   it('emits approval-request chunk and persists pending approval', async () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
     const emitter = createEmitter();
     const ctx = createContext('session-1', 'write-file');
 
@@ -58,7 +58,7 @@ describe('ApprovalOrchestrator', () => {
     const decision = await promise;
     expect(decision).toBe('allow-once');
 
-    const state = await stateProvider.getState('session-1');
+    const state = await liveProvider.get('session-1');
     expect(state.pendingApprovals).toHaveLength(0);
     expect(emitter.chunks).toHaveLength(2);
     expect(emitter.chunks[0]).toEqual({
@@ -70,9 +70,9 @@ describe('ApprovalOrchestrator', () => {
   });
 
   it('resolveApproval removes pending approval and emits approval-resolved', async () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
     const emitter = createEmitter();
     const ctx = createContext('session-2', 'delete-file');
 
@@ -88,7 +88,7 @@ describe('ApprovalOrchestrator', () => {
     orchestrator.resolveApproval(approvalId, 'deny');
     const decision = await promise;
 
-    const afterState = await stateProvider.getState('session-2');
+    const afterState = await liveProvider.get('session-2');
     expect(decision).toBe('deny');
     expect(afterState.pendingApprovals).toHaveLength(0);
     expect(emitter.chunks).toHaveLength(2);
@@ -101,9 +101,9 @@ describe('ApprovalOrchestrator', () => {
   });
 
   it('timeout removes pending approval and emits approval-resolved with null', async () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
     const emitter = createEmitter();
     const ctx = createContext('session-3', 'exec');
 
@@ -113,7 +113,7 @@ describe('ApprovalOrchestrator', () => {
       emitter,
     );
 
-    const state = await stateProvider.getState('session-3');
+    const state = await liveProvider.get('session-3');
     expect(decision).toBeNull();
     expect(state.pendingApprovals).toHaveLength(0);
     expect(emitter.chunks).toHaveLength(2);
@@ -126,17 +126,17 @@ describe('ApprovalOrchestrator', () => {
   });
 
   it('returns false when resolving unknown approvalId', () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
 
     expect(orchestrator.resolveApproval('approval:unknown', 'allow-once')).toBe(false);
   });
 
   it('rejects promptly when the abort signal is already aborted', async () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
     const emitter = createEmitter();
     const controller = new AbortController();
     controller.abort();
@@ -150,7 +150,7 @@ describe('ApprovalOrchestrator', () => {
       ),
     ).rejects.toThrow('Approval aborted');
 
-    const state = await stateProvider.getState('session-4');
+    const state = await liveProvider.get('session-4');
     expect(state.pendingApprovals).toHaveLength(0);
     expect(emitter.chunks).toHaveLength(2);
     expect(emitter.chunks[1]).toEqual({
@@ -162,9 +162,9 @@ describe('ApprovalOrchestrator', () => {
   });
 
   it('rejects and emits approval-resolved when aborted while waiting', async () => {
-    const stateProvider = createStateProvider();
+    const liveProvider = createLiveProvider();
     const approvalManager = new ApprovalManager();
-    const orchestrator = new ApprovalOrchestrator(stateProvider, approvalManager);
+    const orchestrator = new ApprovalOrchestrator(liveProvider, approvalManager);
     const emitter = createEmitter();
     const controller = new AbortController();
     const ctx = createContext('session-5', 'write-file', controller.signal);
@@ -180,7 +180,7 @@ describe('ApprovalOrchestrator', () => {
 
     await expect(promise).rejects.toThrow('Approval aborted');
 
-    const state = await stateProvider.getState('session-5');
+    const state = await liveProvider.get('session-5');
     expect(state.pendingApprovals).toHaveLength(0);
     expect(emitter.chunks).toHaveLength(2);
     expect(emitter.chunks[1]).toEqual({

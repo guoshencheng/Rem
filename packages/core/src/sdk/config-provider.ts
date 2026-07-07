@@ -1,4 +1,5 @@
 import type { ToolPolicyConfig } from './tool-policy.js';
+import type { McpServerConfig } from '../mcp/types.js';
 
 export interface AgentModelConfig {
   provider: string;
@@ -26,6 +27,7 @@ export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {
   activeModel?: string;
   model?: AgentModelConfig;
   toolPolicy?: ToolPolicyConfig;
+  mcpServers?: Record<string, McpServerConfig>;
 }
 
 export interface ResolvedModelConfig {
@@ -44,4 +46,5 @@ export interface ConfigProvider {
   getModelConfig(modelId?: string): ResolvedModelConfig;
   getToolConfig(): AgentToolConfig;
   getBehaviorConfig(): Required<AgentBehaviorConfig>;
+  getMcpConfig(): Record<string, McpServerConfig>;
 }

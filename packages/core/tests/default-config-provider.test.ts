@@ -69,8 +69,38 @@ describe('DefaultConfigProvider', () => {
     expect(provider.getToolConfig().policy).toEqual({ profile: 'coding', allow: ['read'] });
   });
 
-  it('throws if getConfig is called before init', () => {
+  it('parses mcpServers from JSON config and resolves env vars', async () => {
+    await writeFile(
+      join(tempDir, 'rem-agent.config.json'),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            transport: 'stdio',
+            command: 'npx',
+            args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+            env: { KEY: '${MCP_KEY}' },
+          },
+          remote: { transport: 'sse', url: 'http://localhost:3001/sse', prefix: 'remote' },
+        },
+      }),
+    );
+    const provider = new DefaultConfigProvider({
+      cwd: tempDir,
+      env: { MCP_KEY: 'secret' },
+    });
+    await provider.init();
+
+    const mcp = provider.getMcpConfig();
+    expect(mcp.fs.transport).toBe('stdio');
+    expect((mcp.fs as any).command).toBe('npx');
+    expect((mcp.fs as any).env.KEY).toBe('secret');
+    expect(mcp.remote.transport).toBe('sse');
+    expect((mcp.remote as any).prefix).toBe('remote');
+  });
+
+  it('returns empty mcp config when none provided', async () => {
     const provider = new DefaultConfigProvider({ cwd: tempDir, env: {} });
-    expect(() => provider.getConfig()).toThrow('must be initialized');
+    await provider.init();
+    expect(provider.getMcpConfig()).toEqual({});
   });
 });

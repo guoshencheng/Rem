@@ -7,6 +7,7 @@ import type {
   ResolvedAgentConfig,
   ResolvedModelConfig,
 } from '../../../sdk/config-provider.js';
+import type { McpServerConfig } from '../../../mcp/types.js';
 import { resolveConfigPath, loadConfigFile } from './config-loader.js';
 import { resolveTemplate, resolveOptionalTemplate, pickToolPolicy } from './config-parser.js';
 import { mergeFileConfig, mergeEnvConfig, applyBehaviorDefaults } from './config-merger.js';
@@ -102,6 +103,28 @@ export class DefaultConfigProvider implements ConfigProvider {
 
   getBehaviorConfig(): Required<AgentBehaviorConfig> {
     return applyBehaviorDefaults(this.getRawConfig());
+  }
+
+  getMcpConfig(): Record<string, McpServerConfig> {
+    const cfg = this.getRawConfig();
+    const servers = cfg.mcpServers ?? {};
+    const resolved: Record<string, McpServerConfig> = {};
+    for (const [key, config] of Object.entries(servers)) {
+      resolved[key] = this.resolveMcpServerConfig(config);
+    }
+    return resolved;
+  }
+
+  private resolveMcpServerConfig(config: McpServerConfig): McpServerConfig {
+    const resolved: McpServerConfig = { ...config } as any;
+    if (config.env) {
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(config.env)) {
+        env[k] = resolveTemplate(v, this.env);
+      }
+      (resolved as any).env = env;
+    }
+    return resolved;
   }
 
   private resolveApiKey(model: AgentModelConfig): string {

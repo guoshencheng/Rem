@@ -1,6 +1,6 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
 import { getDefaultSessionsDir } from '../../../config/paths.js';
-import { pickToolPolicy, pickModels, pickModelConfig } from './config-parser.js';
+import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
   const merged: AgentConfig = { ...base };
@@ -17,6 +17,8 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   const singleModel = pickModelConfig(file.model);
   if (singleModel) merged.model = singleModel;
   if (typeof file.activeModel === 'string') merged.activeModel = file.activeModel;
+  const mcpServers = pickMcpConfig(file.mcpServers);
+  if (mcpServers) merged.mcpServers = mcpServers;
   return merged;
 }
 

@@ -4,6 +4,7 @@ import type { ToolPolicyConfig } from './tool-policy.js';
 export type ProviderKind =
   | 'tool'
   | 'memory'
+  | 'context'
   | 'skill'
   | 'session'
   | 'compressor'
@@ -14,7 +15,9 @@ export type ProviderKind =
   | 'turnRunner'
   | 'title'
   | 'approval'
-  | 'state';
+  | 'state'
+  | 'reason'
+  | 'execute';
 
 export interface ProviderLoaderContext {
   kind: ProviderKind;

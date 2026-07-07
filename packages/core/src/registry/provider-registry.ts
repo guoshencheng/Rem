@@ -10,11 +10,15 @@ export interface ProviderRegistryConfig {
   sessionProvider: ProviderReference<unknown>;
   toolProvider: ProviderReference<unknown>;
   memoryProvider: ProviderReference<unknown>;
+  contextProvider: ProviderReference<unknown>;
   compressor: ProviderReference<unknown>;
   errorHandler: ProviderReference<unknown>;
   skillProvider: ProviderReference<unknown>;
   budgetPolicy?: ProviderReference<unknown>;
   titleProvider?: ProviderReference<unknown>;
+  loopStrategy: ProviderReference<unknown>;
+  reasonProvider: ProviderReference<unknown>;
+  executeProvider: ProviderReference<unknown>;
   [key: string]: ProviderReference<unknown> | undefined;
 }
 
@@ -28,16 +32,21 @@ const KIND_TO_REFS_KEY: Partial<Record<ProviderKind, keyof ProviderRegistryConfi
   session: 'sessionProvider',
   tool: 'toolProvider',
   memory: 'memoryProvider',
+  context: 'contextProvider',
   compressor: 'compressor',
   error: 'errorHandler',
   skill: 'skillProvider',
   budget: 'budgetPolicy',
   title: 'titleProvider',
+  loopStrategy: 'loopStrategy',
+  reason: 'reasonProvider',
+  execute: 'executeProvider',
 };
 
 const DEFAULT_NAMES: Partial<Record<ProviderKind, string>> = {
   tool: 'file-system',
   memory: 'simple',
+  context: 'simple',
   skill: 'file',
   session: 'in-memory',
   compressor: 'no-op',
@@ -47,6 +56,8 @@ const DEFAULT_NAMES: Partial<Record<ProviderKind, string>> = {
   loopStrategy: 'react',
   turnRunner: 'react',
   title: 'llm',
+  reason: 'default',
+  execute: 'default',
 };
 
 export class AgentProviderRegistry implements ProviderRegistry {
@@ -65,11 +76,15 @@ export class AgentProviderRegistry implements ProviderRegistry {
     await this.resolve('session');
     await this.resolve('tool');
     await this.resolve('memory');
+    await this.resolve('context');
     await this.resolve('compressor');
     await this.resolve('error');
     await this.resolve('skill');
     await this.resolve('budget');
     await this.resolve('title');
+    await this.resolve('loopStrategy');
+    await this.resolve('reason');
+    await this.resolve('execute');
   }
 
   has(kind: ProviderKind): boolean {

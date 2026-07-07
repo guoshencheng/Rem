@@ -21,9 +21,13 @@ import type { SessionProvider } from './sdk/session-provider.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import type { MemoryProvider } from './sdk/memory-provider.js';
+import type { ContextProvider } from './sdk/context-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
+import type { LoopStrategy } from './sdk/loop-strategy.js';
+import type { ReasonProvider } from './sdk/reason-provider.js';
+import type { ExecuteProvider } from './sdk/execute-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type {
   ConfigProvider,
@@ -39,12 +43,17 @@ export interface ProviderManagerConfig {
   configProvider?: ConfigProvider;
   sessionProvider?: SessionProvider;
   toolProvider?: ProviderReference<ToolProvider>;
+  /** @deprecated Use contextProvider instead */
   memoryProvider?: ProviderReference<MemoryProvider>;
+  contextProvider?: ProviderReference<ContextProvider>;
   compressor?: ProviderReference<ContextCompressor>;
   errorHandler?: ProviderReference<ErrorHandler>;
   skillProvider?: ProviderReference<SkillProvider>;
   budgetPolicy?: ProviderReference<BudgetPolicy>;
   titleProvider?: ProviderReference<TitleProvider>;
+  loopStrategy?: ProviderReference<LoopStrategy>;
+  reasonProvider?: ProviderReference<ReasonProvider>;
+  executeProvider?: ProviderReference<ExecuteProvider>;
   toolPolicy?: ToolPolicyConfig;
   agentStateProvider?: AgentStateProvider;
   workspaceRoot?: string;
@@ -94,12 +103,15 @@ export class ProviderManager {
       refs: {
         sessionProvider: this.config.sessionProvider,
         toolProvider: this.config.toolProvider,
-        memoryProvider: this.config.memoryProvider,
+        contextProvider: this.config.contextProvider ?? this.config.memoryProvider ?? 'simple',
         compressor: this.config.compressor,
         errorHandler: this.config.errorHandler,
         skillProvider: this.config.skillProvider,
         budgetPolicy: this.config.budgetPolicy,
         titleProvider: this.config.titleProvider,
+        loopStrategy: this.config.loopStrategy ?? 'react',
+        reasonProvider: this.config.reasonProvider ?? 'default',
+        executeProvider: this.config.executeProvider ?? 'default',
       },
     });
 

@@ -1,4 +1,6 @@
+import type { ContextProvider } from '../../../sdk/context-provider.js';
 import type { MemoryProvider, MemoryContext } from '../../../sdk/memory-provider.js';
+import type { ModelMessage } from '../../../types.js';
 import type { AgentState } from '../../../state.js';
 import type { ProviderLoaderContext } from '../../../sdk/provider-loader.js';
 
@@ -6,8 +8,13 @@ export interface SimpleMemoryProviderOptions {
   agentName: string;
 }
 
-export class SimpleMemoryProvider implements MemoryProvider {
+export class SimpleMemoryProvider implements ContextProvider, MemoryProvider {
   constructor(private agentName: string) {}
+
+  async build(state: AgentState): Promise<{ system: string; messages: ModelMessage[] }> {
+    const ctx = await this.buildContext(state);
+    return { system: ctx.systemPrompt, messages: ctx.messages };
+  }
 
   async buildContext(state: AgentState): Promise<MemoryContext> {
     return {

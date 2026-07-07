@@ -3,6 +3,33 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { FileSkillProvider } from '../src/plugins/skill/file/index.js';
+import type { ConfigProvider } from '../src/sdk/config-provider.js';
+
+function mockConfigProvider(workspaceRoot: string): ConfigProvider {
+  return {
+    getBehaviorConfig: () => ({
+      name: 'test',
+      maxTurns: 60,
+      workspaceRoot,
+      readOnly: false,
+      autoApproveDangerous: false,
+      sessionsDir: '/tmp/.sessions',
+    }),
+    getModelConfig: () => ({ provider: 'openai', model: '', apiKey: '' }),
+    getToolConfig: () => ({}),
+    getMcpConfig: () => ({}),
+    getConfig: () => ({
+      name: 'test', maxTurns: 60, workspaceRoot, readOnly: false,
+      autoApproveDangerous: false, sessionsDir: '/tmp/.sessions',
+      model: { provider: 'openai', model: '', apiKey: '' },
+    }),
+  };
+}
+
+/** workspace skills live under <workspaceRoot>/.agents/skills/ */
+function workspaceSkillsDir(workspaceRoot: string): string {
+  return join(workspaceRoot, '.agents', 'skills');
+}
 
 describe('FileSkillProvider', () => {
   let tempDir: string;
@@ -24,12 +51,12 @@ describe('FileSkillProvider', () => {
 
   it('loads skills from home and workspace directories', async () => {
     const homeDir = join(tempDir, 'home');
-    const workspaceDir = join(tempDir, 'workspace');
+    const workspaceRoot = join(tempDir, 'workspace-root');
 
     createSkill(homeDir, 'roll-dice', 'Roll dice.');
-    createSkill(workspaceDir, 'pdf-processing', 'Handle PDFs.', 'Detailed PDF instructions.');
+    createSkill(workspaceSkillsDir(workspaceRoot), 'pdf-processing', 'Handle PDFs.', 'Detailed PDF instructions.');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const provider = new FileSkillProvider(mockConfigProvider(workspaceRoot), homeDir);
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(2);
@@ -38,12 +65,12 @@ describe('FileSkillProvider', () => {
 
   it('workspace skills override home skills with same name', async () => {
     const homeDir = join(tempDir, 'home');
-    const workspaceDir = join(tempDir, 'workspace');
+    const workspaceRoot = join(tempDir, 'workspace-root');
 
     createSkill(homeDir, 'shared', 'Home version.');
-    createSkill(workspaceDir, 'shared', 'Workspace version.');
+    createSkill(workspaceSkillsDir(workspaceRoot), 'shared', 'Workspace version.');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const provider = new FileSkillProvider(mockConfigProvider(workspaceRoot), homeDir);
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(1);
@@ -54,7 +81,7 @@ describe('FileSkillProvider', () => {
     const homeDir = join(tempDir, 'home');
     mkdirSync(join(homeDir, 'empty-skill'), { recursive: true });
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const skills = await provider.loadSkills();
     expect(skills).toHaveLength(0);
   });
@@ -66,7 +93,7 @@ describe('FileSkillProvider', () => {
     mkdirSync(join(homeDir, 'node_modules'));
     writeFileSync(join(homeDir, '.hidden', 'SKILL.md'), '---\nname: hidden\ndescription: Hidden.\n---\n');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(1);
@@ -80,7 +107,7 @@ describe('FileSkillProvider', () => {
     mkdirSync(badDir);
     writeFileSync(join(badDir, 'SKILL.md'), '---\nname: bad\n---\n');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const skills = await provider.loadSkills();
 
     expect(skills).toHaveLength(1);
@@ -88,10 +115,10 @@ describe('FileSkillProvider', () => {
   });
 
   it('returns empty array when directories do not exist', async () => {
-    const provider = new FileSkillProvider({
-      homeSkillsDir: join(tempDir, 'missing-home'),
-      workspaceSkillsDir: join(tempDir, 'missing-workspace'),
-    });
+    const provider = new FileSkillProvider(
+      mockConfigProvider(join(tempDir, 'missing-workspace')),
+      join(tempDir, 'missing-home'),
+    );
     const skills = await provider.loadSkills();
     expect(skills).toHaveLength(0);
   });
@@ -100,7 +127,7 @@ describe('FileSkillProvider', () => {
     const homeDir = join(tempDir, 'home');
     createSkill(homeDir, 'github', 'GitHub CLI for issues and PRs.');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const skills = await provider.loadSkills();
     const catalog = provider.formatCatalog(skills);
 
@@ -112,7 +139,7 @@ describe('FileSkillProvider', () => {
   });
 
   it('returns empty catalog string when no skills', async () => {
-    const provider = new FileSkillProvider({ homeSkillsDir: join(tempDir, 'home'), workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), join(tempDir, 'home'));
     const catalog = provider.formatCatalog([]);
     expect(catalog).toBe('');
   });
@@ -140,7 +167,7 @@ describe('FileSkillProvider.readSkillRaw', () => {
     const raw = '---\nname: test\ndescription: Test skill.\n---\n\nBody here.';
     createRawSkill(homeDir, 'test', raw);
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const result = await provider.readSkillRaw('test');
 
     expect(result).toBe(raw);
@@ -148,12 +175,12 @@ describe('FileSkillProvider.readSkillRaw', () => {
 
   it('prefers workspace skill over home skill', async () => {
     const homeDir = join(tempDir, 'home');
-    const workspaceDir = join(tempDir, 'workspace');
+    const workspaceRoot = join(tempDir, 'workspace-root');
 
     createRawSkill(homeDir, 'shared', 'home raw');
-    createRawSkill(workspaceDir, 'shared', 'workspace raw');
+    createRawSkill(workspaceSkillsDir(workspaceRoot), 'shared', 'workspace raw');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const provider = new FileSkillProvider(mockConfigProvider(workspaceRoot), homeDir);
     const result = await provider.readSkillRaw('shared');
 
     expect(result).toBe('workspace raw');
@@ -163,14 +190,14 @@ describe('FileSkillProvider.readSkillRaw', () => {
     const homeDir = join(tempDir, 'home');
     createRawSkill(homeDir, 'only-home', 'home raw');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const result = await provider.readSkillRaw('only-home');
 
     expect(result).toBe('home raw');
   });
 
   it('returns undefined when skill is not found in either directory', async () => {
-    const provider = new FileSkillProvider({ homeSkillsDir: join(tempDir, 'home'), workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), join(tempDir, 'home'));
     const result = await provider.readSkillRaw('missing');
 
     expect(result).toBeUndefined();
@@ -180,7 +207,7 @@ describe('FileSkillProvider.readSkillRaw', () => {
     const homeDir = join(tempDir, 'home');
     mkdirSync(homeDir, { recursive: true });
     mkdirSync(join(homeDir, 'no-file'));
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: join(tempDir, 'workspace') });
+    const provider = new FileSkillProvider(mockConfigProvider(join(tempDir, 'workspace')), homeDir);
     const result = await provider.readSkillRaw('no-file');
 
     expect(result).toBeUndefined();
@@ -188,7 +215,7 @@ describe('FileSkillProvider.readSkillRaw', () => {
 
   it('returns undefined for invalid names', async () => {
     const homeDir = join(tempDir, 'home');
-    const workspaceDir = join(tempDir, 'workspace');
+    const workspaceRoot = join(tempDir, 'workspace-root');
     const escapeDir = join(tempDir, 'escape');
     mkdirSync(escapeDir);
     writeFileSync(join(escapeDir, 'SKILL.md'), 'escaped');
@@ -197,7 +224,7 @@ describe('FileSkillProvider.readSkillRaw', () => {
     createRawSkill(homeDir, 'leading', 'leading content');
     createRawSkill(homeDir, 'trailing', 'trailing content');
 
-    const provider = new FileSkillProvider({ homeSkillsDir: homeDir, workspaceSkillsDir: workspaceDir });
+    const provider = new FileSkillProvider(mockConfigProvider(workspaceRoot), homeDir);
 
     expect(await provider.readSkillRaw('../escape')).toBeUndefined();
     expect(await provider.readSkillRaw('foo/bar')).toBeUndefined();

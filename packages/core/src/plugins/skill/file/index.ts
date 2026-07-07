@@ -14,9 +14,9 @@ export class FileSkillProvider implements SkillProvider {
   private workspaceSkillsDir: string;
   private catalog = new DefaultSkillCatalog();
 
-  constructor(configProvider: ConfigProvider) {
+  constructor(configProvider: ConfigProvider, homeSkillsDirOverride?: string) {
     const workspaceRoot = configProvider.getBehaviorConfig().workspaceRoot;
-    this.homeSkillsDir = resolveHomeSkillsDir();
+    this.homeSkillsDir = homeSkillsDirOverride ?? resolveHomeSkillsDir();
     this.workspaceSkillsDir = resolveWorkspaceSkillsDir(workspaceRoot);
   }
 

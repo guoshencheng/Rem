@@ -6,18 +6,16 @@ import { AgentService } from '../src/agent.js';
 import { bus } from '../src/broadcast-bus.js';
 import { runRegistry } from '../src/run-registry.js';
 import {
-  FileSessionProvider,
-  createProviderManager,
-  DefaultConfigProvider,
+  createAgentFromEnv,
   registerProvider,
   clearProviders,
 } from 'rem-agent-core';
-import type { ProviderManager } from 'rem-agent-core';
+import type { AgentContext } from 'rem-agent-core';
 import type { BusEvent } from '../src/types.js';
 
 describe('AgentService.run background driver', () => {
   let dir: string;
-  let pm: ProviderManager;
+  let ctx: AgentContext;
   let service: AgentService;
 
   beforeEach(async () => {
@@ -37,17 +35,13 @@ describe('AgentService.run background driver', () => {
       },
     });
 
-    const sessionProvider = new FileSessionProvider(dir);
-    const configProvider = new DefaultConfigProvider({
-      overrides: {
-        name: 'RunTestAgent',
-        model: { provider: 'mock-run', model: 'mock-model' },
-        workspaceRoot: dir,
-      },
+    ctx = await createAgentFromEnv({
+      name: 'RunTestAgent',
+      provider: 'mock-run',
+      model: 'mock-model',
+      workspaceRoot: dir,
     });
-    await configProvider.init();
-    pm = await createProviderManager({ sessionProvider, configProvider });
-    service = new AgentService(pm);
+    service = new AgentService(ctx);
   });
 
   afterEach(async () => {

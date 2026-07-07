@@ -25,6 +25,8 @@ export interface CreateAgentOptions {
   workspaceRoot?: string;
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
+  provider?: string;
+  model?: string;
 }
 
 export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext> {
@@ -39,6 +41,7 @@ export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<
       workspaceRoot: options?.workspaceRoot,
       readOnly: options?.readOnly,
       autoApproveDangerous: options?.autoApproveDangerous,
+      ...(options?.provider ? { model: { provider: options.provider, model: options.model ?? '' } } : {}),
     },
   });
   await configProvider.init();

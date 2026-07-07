@@ -120,9 +120,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
       const result = await loopStrategy.run(loopCtx);
 
-      for (const msg of result.newMessages) {
-        if (!session.conversation.includes(msg)) session.conversation.push(msg);
-      }
       session.currentTurn++;
       liveState.finish();
       await sessionProvider.save(session);

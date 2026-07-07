@@ -31,7 +31,6 @@ export interface LoopContext {
 
 export interface LoopResult {
   content: string;
-  newMessages: ModelMessage[];
   usage: LanguageModelUsage;
 }
 

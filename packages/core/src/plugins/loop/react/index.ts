@@ -14,12 +14,10 @@ const DEFAULT_MAX_STEPS = 50;
 export class ReactLoop implements LoopStrategy {
   async run(ctx: LoopContext): Promise<LoopResult> {
     const session = ctx.session;
-    const newMessages: ModelMessage[] = [];
     let content = '';
     let usage = this.zeroUsage();
 
     const assistantMsg = this.createAssistantMessage(session);
-    newMessages.push(assistantMsg);
     ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.id });
 
     let step = 1;
@@ -52,7 +50,7 @@ export class ReactLoop implements LoopStrategy {
       step++;
     }
 
-    return { content, newMessages, usage };
+    return { content, usage };
   }
 
   private createAssistantMessage(session: Session): ModelMessage {

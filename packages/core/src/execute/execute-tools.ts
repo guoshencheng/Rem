@@ -1,7 +1,7 @@
 import type { Session } from '../session.js';
 import type { ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
-import type { AgentLiveProvider, ApprovalRequest, ApprovalDecision } from '../sdk/agent-state-provider.js';
+import type { AgentLiveProvider, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import { generateId } from '../shared/generate-id.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
@@ -21,6 +21,19 @@ export interface ExecuteParams {
   emit: (chunk: ProviderChunk) => void;
 }
 
+/** emit 工具结果 + 同步写入 conversation */
+function emitToolResult(
+  tc: ToolCall, result: ToolResult, session: Session,
+  emit: (chunk: ProviderChunk) => void,
+): void {
+  const output = result.error ?? result.output ?? '';
+  emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
+  session.conversation.push({
+    id: generateId(), role: 'tool',
+    content: [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }],
+  });
+}
+
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
   const { toolProvider, liveProvider, registry, session, emit, signal } = params;
@@ -31,59 +44,41 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     if (dangerous && registry && liveProvider) {
       const approvalId = generateId();
       const request: ApprovalRequest = {
-        approvalId,
-        toolName: tc.toolName,
-        toolCallId: tc.toolCallId,
+        approvalId, toolName: tc.toolName, toolCallId: tc.toolCallId,
         title: `Run ${tc.toolName}`,
         allowedDecisions: ['allow-once', 'deny'],
         sessionId: params.sessionId,
       };
 
-      // 持久化待审批状态
       const liveState = await liveProvider.getOrCreate(params.sessionId);
       liveState.pendingApprovals.push(request);
       await liveProvider.set(params.sessionId, liveState);
 
-      // 通知前端
-      emit({ type: 'approval-request', sessionId: params.sessionId, request } as any);
+      emit({ type: 'approval-request', sessionId: params.sessionId, request } as ProviderChunk);
 
-      // 等待审批决定
       const decision = await registry.wait(approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
 
-      // 清理持久化状态
-      const resolvedState = await liveProvider.getOrCreate(params.sessionId);
-      resolvedState.pendingApprovals = resolvedState.pendingApprovals.filter(r => r.approvalId !== approvalId);
-      await liveProvider.set(params.sessionId, resolvedState);
+      const resolved = await liveProvider.getOrCreate(params.sessionId);
+      resolved.pendingApprovals = resolved.pendingApprovals.filter(r => r.approvalId !== approvalId);
+      await liveProvider.set(params.sessionId, resolved);
 
-      // 通知前端审批结果
-      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as any);
+      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as ProviderChunk);
 
       if (decision !== 'allow-once') {
         const errMsg = decision === null ? 'approval timed out' : 'denied';
-        emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg } as any);
+        emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg } as ProviderChunk);
         results.push({ toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg });
         continue;
       }
     }
 
-    // 执行
     const [result] = await toolProvider.execute([tc], {
-      cwd: params.workspaceRoot,
-      workspaceRoot: params.workspaceRoot,
-      signal,
-      agentName: params.agentName,
-      readOnly: params.readOnly,
+      cwd: params.workspaceRoot, workspaceRoot: params.workspaceRoot,
+      signal, agentName: params.agentName, readOnly: params.readOnly,
       sessionId: params.sessionId,
     });
     results.push(result);
-
-    const output = result.error ?? result.output ?? '';
-    emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as any);
-
-    session.conversation.push({
-      id: generateId(), role: 'tool',
-      content: [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }],
-    });
+    emitToolResult(tc, result, session, emit);
   }
 
   return results;

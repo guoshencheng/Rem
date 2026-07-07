@@ -6,6 +6,7 @@ export * from './state.js';
 export * from './events.js';
 export * from './loop-strategy.js';
 export * from './agent-factory.js';
+export { buildAgentContext, type AgentContextBuildOptions } from './agent-context-builder.js';
 export type { AgentContext } from './agent-context.js';
 export * from './run-agent.js';
 export * from './stream/agent-stream.js';

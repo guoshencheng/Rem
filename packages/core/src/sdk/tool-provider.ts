@@ -15,7 +15,7 @@ export interface ToolDefinition<T extends TObject = TObject> {
   name: string;
   description: string;
   parameters: T;
-  category?: 'filesystem' | 'shell' | 'search';
+  category?: 'filesystem' | 'shell' | 'search' | 'mcp';
   dangerous?: boolean;
   readOnly?: boolean;
 }

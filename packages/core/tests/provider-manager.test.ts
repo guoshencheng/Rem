@@ -36,4 +36,10 @@ describe('ProviderManager', () => {
     expect(toolSet.read_skill.description).toContain('SKILL.md');
     expect(toolSet.read_skill.parameters.properties).toHaveProperty('name');
   });
+
+  it('initializes without MCP by default', async () => {
+    const pm = await createProviderManager();
+    const toolProvider = pm.require<ToolProvider>('tool');
+    expect(toolProvider.getToolSet()).toHaveProperty('read');
+  });
 });

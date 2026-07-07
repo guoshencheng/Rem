@@ -10,6 +10,8 @@ import {
   createReadSkillToolDefinition,
   createReadSkillToolExecutor,
 } from './plugins/tool/builtin/skill-read.js';
+import { McpConnectionManager } from './mcp/connection-manager.js';
+import { CompositeToolProvider } from './mcp/composite-tool-provider.js';
 import type {
   ProviderKind,
   ProviderReference,
@@ -56,6 +58,7 @@ export class ProviderManager {
   private configProvider!: ConfigProvider;
   private registry!: ProviderRegistry;
   private initialized = false;
+  private mcpManager?: McpConnectionManager;
 
   constructor(config: ProviderManagerConfig) {
     registerBuiltInProviders();
@@ -102,9 +105,29 @@ export class ProviderManager {
 
     await registry.initialize();
     registry.register('approval', approvalOrchestrator);
+
+    await this.attachMcpProviders(registry, approvalOrchestrator);
+
     this.registry = registry;
     this.registerSkillReadTool();
     this.initialized = true;
+  }
+
+  private async attachMcpProviders(
+    registry: ProviderRegistry,
+    approvalOrchestrator: ApprovalOrchestrator,
+  ): Promise<void> {
+    const toolProvider = registry.require<ToolProvider>('tool');
+    const mcpConfig = this.configProvider.getMcpConfig();
+    const mcpManager = new McpConnectionManager({ approvalOrchestrator });
+    const mcpProviders = await mcpManager.connectAll(mcpConfig);
+
+    if (mcpProviders.length > 0) {
+      const composite = new CompositeToolProvider(toolProvider, mcpProviders);
+      registry.register('tool', composite);
+    }
+
+    this.mcpManager = mcpManager;
   }
 
   private async createDefaultConfigProvider(): Promise<ConfigProvider> {
@@ -174,6 +197,10 @@ export class ProviderManager {
 
   getApprovalOrchestrator(): ApprovalOrchestrator {
     return this.require<ApprovalOrchestrator>('approval');
+  }
+
+  async close(): Promise<void> {
+    await this.mcpManager?.closeAll();
   }
 }
 

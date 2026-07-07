@@ -26,7 +26,7 @@ export class ReactLoop implements LoopStrategy {
 
       const reasonResult = await ctx.reason();
 
-      this.appendToAssistantMessage(assistantMsg, reasonResult);
+      this.appendToAssistantMessage(ctx, assistantMsg, reasonResult);
       content = reasonResult.text;
       usage = this.addUsage(usage, reasonResult.usage);
 
@@ -51,14 +51,13 @@ export class ReactLoop implements LoopStrategy {
   }
 
   private appendToAssistantMessage(
-    assistantMsg: ModelMessage,
+    ctx: LoopContext, assistantMsg: ModelMessage,
     result: { text: string; toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>; reasoning?: string },
   ): void {
-    const content = assistantMsg.content;
-    if (result.reasoning) content.push({ type: 'reasoning', text: result.reasoning });
-    if (result.text) content.push({ type: 'text', text: result.text });
+    if (result.reasoning) ctx.appendContent(assistantMsg, { type: 'reasoning', text: result.reasoning });
+    if (result.text) ctx.appendContent(assistantMsg, { type: 'text', text: result.text });
     for (const tc of result.toolCalls) {
-      content.push({ type: 'tool-call', toolCallId: tc.toolCallId, toolName: tc.toolName, arguments: tc.input });
+      ctx.appendContent(assistantMsg, { type: 'tool-call', toolCallId: tc.toolCallId, toolName: tc.toolName, arguments: tc.input });
     }
   }
 

@@ -11,6 +11,7 @@ export interface ExecuteParams {
   liveProvider?: AgentLiveProvider;
   registry?: ApprovalRegistry;
   addMessage: (role: 'tool') => ModelMessage;
+  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
   workspaceRoot: string;
   agentName?: string;
   readOnly?: boolean;
@@ -19,21 +20,22 @@ export interface ExecuteParams {
   emit: (chunk: ProviderChunk) => void;
 }
 
-/** emit 工具结果 + 同步写入 conversation */
+/** emit 工具结果 + 写入 conversation */
 function emitToolResult(
   tc: ToolCall, result: ToolResult,
   emit: (chunk: ProviderChunk) => void,
   addMessage: (role: 'tool') => ModelMessage,
+  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void,
 ): void {
   const output = result.error ?? result.output ?? '';
   emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
   const msg = addMessage('tool');
-  msg.content = [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }];
+  appendContent(msg, { type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output });
 }
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, liveProvider, registry, addMessage, emit, signal } = params;
+  const { toolProvider, liveProvider, registry, addMessage, appendContent, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     const dangerous = toolProvider.isDangerous(tc.toolName);
@@ -64,7 +66,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       if (decision !== 'allow-once') {
         const errMsg = decision === null ? 'approval timed out' : 'denied';
         const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg };
-        emitToolResult(tc, denied, emit, addMessage);
+        emitToolResult(tc, denied, emit, addMessage, appendContent);
         results.push(denied);
         continue;
       }
@@ -76,7 +78,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       sessionId: params.sessionId,
     });
     results.push(result);
-    emitToolResult(tc, result, emit, addMessage);
+    emitToolResult(tc, result, emit, addMessage, appendContent);
   }
 
   return results;

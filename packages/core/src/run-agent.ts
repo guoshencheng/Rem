@@ -80,13 +80,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const skillProvider = pm.get<SkillProvider>('skill');
       const errorHandler = pm.require<ErrorHandler>('error');
       const addMessage = (role: 'assistant' | 'tool'): ModelMessage => {
-        const msg: ModelMessage = {
-          id: generateId(), role,
-          content: [] as any,
-        };
+        const msg: ModelMessage = { id: generateId(), role, content: [] as any };
         session.conversation.push(msg);
-        void sessionProvider.save(session); // fire-and-forget, 不阻塞
+        sessionProvider.save(session).catch(() => {});
         return msg;
+      };
+
+      const appendContent = (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => {
+        msg.content.push(part as any);
+        sessionProvider.save(session).catch(() => {});
       };
 
       const { system, messages } = await contextProvider.build(session, behavior.name);
@@ -106,6 +108,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         liveState,
         messages: msgs,
         addMessage,
+        appendContent,
         system: systemWithSkills,
         reason: () => reason(
           {
@@ -116,7 +119,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           (chunk) => controller.emit(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider, addMessage,
+          toolCalls: calls, toolProvider, addMessage, appendContent,
           liveProvider: pm.get<AgentLiveProvider>('state'),
           registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,

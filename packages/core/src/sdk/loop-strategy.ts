@@ -19,8 +19,10 @@ export interface LoopContext {
   reason: () => Promise<LoopCallReason>;
   execute: (toolCalls: ToolCall[]) => Promise<ToolResult[]>;
   emit: (chunk: ProviderChunk) => void | Promise<void>;
-  /** 创建并持久化一条新消息，返回消息引用供 Loop 后续修改 content */
+  /** 创建并持久化一条新消息，返回消息引用 */
   addMessage: (role: 'assistant' | 'tool') => ModelMessage;
+  /** 向消息追加 content part 并持久化 */
+  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
 
   signal?: AbortSignal;
   maxSteps?: number;

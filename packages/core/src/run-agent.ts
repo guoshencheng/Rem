@@ -79,6 +79,11 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolProvider = pm.require<ToolProvider>('tool');
       const skillProvider = pm.get<SkillProvider>('skill');
       const errorHandler = pm.require<ErrorHandler>('error');
+      const appendMessage = async (msg: ModelMessage) => {
+        session.conversation.push(msg);
+        await sessionProvider.save(session);
+      };
+
       const { system, messages } = await contextProvider.build(session, behavior.name);
 
       let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
@@ -93,9 +98,10 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       }
 
       const loopCtx: LoopContext = {
-        session, liveState,
-        system: systemWithSkills,
+        liveState,
         messages: msgs,
+        appendMessage,
+        system: systemWithSkills,
         reason: () => reason(
           {
             provider: modelConfig.provider, model: modelConfig.model, apiKey: modelConfig.apiKey,
@@ -105,7 +111,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           (chunk) => controller.emit(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider, session,
+          toolCalls: calls, toolProvider, appendMessage,
           liveProvider: pm.get<AgentLiveProvider>('state'),
           registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,

@@ -1,5 +1,4 @@
 import type { AgentLiveState } from '../state.js';
-import type { Session } from '../session.js';
 import type { ModelMessage, LanguageModelUsage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolResult } from './tool-provider.js';
 
@@ -12,14 +11,16 @@ export interface LoopCallReason {
 }
 
 export interface LoopContext {
-  session: Session;
   liveState: AgentLiveState;
   system: string;
+  /** 当前上下文消息（会话 conversation 的引用） */
   messages: ModelMessage[];
 
   reason: () => Promise<LoopCallReason>;
   execute: (toolCalls: ToolCall[]) => Promise<ToolResult[]>;
   emit: (chunk: ProviderChunk) => void | Promise<void>;
+  /** 追加消息到会话并持久化 */
+  appendMessage: (msg: ModelMessage) => void | Promise<void>;
 
   signal?: AbortSignal;
   maxSteps?: number;

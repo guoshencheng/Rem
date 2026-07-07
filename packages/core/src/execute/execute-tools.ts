@@ -1,5 +1,4 @@
-import type { Session } from '../session.js';
-import type { ProviderChunk } from '../types.js';
+import type { ModelMessage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
 import type { AgentLiveProvider, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import { generateId } from '../shared/generate-id.js';
@@ -12,7 +11,7 @@ export interface ExecuteParams {
   toolProvider: ToolProvider;
   liveProvider?: AgentLiveProvider;
   registry?: ApprovalRegistry;
-  session: Session;
+  appendMessage: (msg: ModelMessage) => void;
   workspaceRoot: string;
   agentName?: string;
   readOnly?: boolean;
@@ -23,12 +22,13 @@ export interface ExecuteParams {
 
 /** emit 工具结果 + 同步写入 conversation */
 function emitToolResult(
-  tc: ToolCall, result: ToolResult, session: Session,
+  tc: ToolCall, result: ToolResult,
   emit: (chunk: ProviderChunk) => void,
+  appendMessage: (msg: ModelMessage) => void,
 ): void {
   const output = result.error ?? result.output ?? '';
   emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
-  session.conversation.push({
+  appendMessage({
     id: generateId(), role: 'tool',
     content: [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }],
   });
@@ -36,7 +36,7 @@ function emitToolResult(
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, liveProvider, registry, session, emit, signal } = params;
+  const { toolProvider, liveProvider, registry, appendMessage, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     const dangerous = toolProvider.isDangerous(tc.toolName);
@@ -67,7 +67,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       if (decision !== 'allow-once') {
         const errMsg = decision === null ? 'approval timed out' : 'denied';
         const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg };
-        emitToolResult(tc, denied, session, emit);
+        emitToolResult(tc, denied, emit, appendMessage);
         results.push(denied);
         continue;
       }
@@ -79,7 +79,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       sessionId: params.sessionId,
     });
     results.push(result);
-    emitToolResult(tc, result, session, emit);
+    emitToolResult(tc, result, emit, appendMessage);
   }
 
   return results;

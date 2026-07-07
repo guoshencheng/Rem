@@ -7,26 +7,22 @@ import type {
 } from '../../../sdk/loop-strategy.js';
 import { generateId } from '../../../shared/generate-id.js';
 import type { LanguageModelUsage } from '../../../types.js';
-import type { ProviderChunk } from '../../../types.js';
 
 const DEFAULT_MAX_STEPS = 50;
 
 export class ReactLoop implements LoopStrategy {
   async run(ctx: LoopContext): Promise<LoopResult> {
-    const session = ctx.session;
     let content = '';
     let usage = this.zeroUsage();
 
-    const assistantMsg = this.createAssistantMessage(session);
+    const assistantMsg = this.ensureAssistantMessage(ctx);
     ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.id });
 
     let step = 1;
     const maxSteps = ctx.maxSteps ?? DEFAULT_MAX_STEPS;
 
     while (step <= maxSteps) {
-      if (ctx.signal?.aborted) {
-        throw new Error('Aborted');
-      }
+      if (ctx.signal?.aborted) throw new Error('Aborted');
 
       ctx.emit({ type: 'step-start', step });
 
@@ -41,23 +37,20 @@ export class ReactLoop implements LoopStrategy {
         break;
       }
 
-      // 执行工具（审批在 ExecuteProvider 内部处理）
       await ctx.execute(reasonResult.toolCalls);
 
       ctx.emit({ type: 'step-finish', step });
-
-      ctx.messages = [...session.conversation];
       step++;
     }
 
     return { content, usage };
   }
 
-  private createAssistantMessage(session: Session): ModelMessage {
-    const last = session.conversation[session.conversation.length - 1];
+  private ensureAssistantMessage(ctx: LoopContext): ModelMessage {
+    const last = ctx.messages[ctx.messages.length - 1];
     if (last?.role === 'assistant') return last as ModelMessage;
     const msg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
-    session.conversation.push(msg);
+    ctx.appendMessage(msg);
     return msg;
   }
 
@@ -66,12 +59,8 @@ export class ReactLoop implements LoopStrategy {
     result: { text: string; toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>; reasoning?: string },
   ): void {
     const content = assistantMsg.content;
-    if (result.reasoning) {
-      content.push({ type: 'reasoning', text: result.reasoning });
-    }
-    if (result.text) {
-      content.push({ type: 'text', text: result.text });
-    }
+    if (result.reasoning) content.push({ type: 'reasoning', text: result.reasoning });
+    if (result.text) content.push({ type: 'text', text: result.text });
     for (const tc of result.toolCalls) {
       content.push({ type: 'tool-call', toolCallId: tc.toolCallId, toolName: tc.toolName, arguments: tc.input });
     }

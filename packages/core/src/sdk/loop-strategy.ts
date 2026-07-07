@@ -1,6 +1,6 @@
 import type { AgentState } from '../state.js';
 import type { IterationBudget } from '../budget.js';
-import type { ModelMessage, LanguageModelUsage, AgentStreamChunk } from '../types.js';
+import type { ModelMessage, LanguageModelUsage, ProviderChunk } from '../types.js';
 import type { ToolSet } from '../llm/types.js';
 
 export interface LoopContext {
@@ -9,7 +9,7 @@ export interface LoopContext {
   messages: ModelMessage[];
   tools?: ToolSet;
   budget: IterationBudget;
-  emit: (chunk: AgentStreamChunk) => void | Promise<void>;
+  emit: (chunk: ProviderChunk) => void | Promise<void>;
   signal?: AbortSignal;
   maxSteps?: number;
   workspaceRoot: string;

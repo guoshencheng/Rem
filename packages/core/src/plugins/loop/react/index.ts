@@ -9,7 +9,7 @@ import type { ReasonProvider } from '../../../sdk/reason-provider.js';
 import type { ExecuteProvider } from '../../../sdk/execute-provider.js';
 import { generateId } from '../../../shared/generate-id.js';
 import type { LanguageModelUsage } from '../../../types.js';
-import type { AgentStreamChunk } from '../../../types.js';
+import type { ProviderChunk } from '../../../types.js';
 
 export interface ReactLoopOptions {
   reasonProvider: ReasonProvider;
@@ -110,7 +110,7 @@ export class ReactLoop implements LoopStrategy {
     }
   }
 
-  private emit(ctx: LoopContext, chunk: AgentStreamChunk, step: number): void {
+  private emit(ctx: LoopContext, chunk: ProviderChunk, step: number): void {
     if ('step' in chunk && typeof (chunk as { step?: number }).step === 'number') {
       (chunk as { step: number }).step = step;
     }

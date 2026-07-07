@@ -48,7 +48,7 @@ export class AgentStreamController {
     }
   }
 
-  emit(chunk: AgentStreamChunk): void {
+  emit(chunk: import('../types.js').ProviderChunk | AgentStreamChunk): void {
     if (this.finished) return;
 
     const rawTypes = [
@@ -65,7 +65,7 @@ export class AgentStreamController {
       return;
     }
 
-    this.enqueue(chunk);
+    this.enqueue(chunk as AgentStreamChunk);
     if ('step' in chunk && typeof (chunk as { step: number }).step === 'number') {
       this.lastStep = (chunk as { step: number }).step;
     }

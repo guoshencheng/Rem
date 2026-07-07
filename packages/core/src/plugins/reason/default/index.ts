@@ -1,5 +1,5 @@
 import type {
-  AgentStreamChunk,
+  ProviderChunk,
   LanguageModelUsage,
   ModelMessage,
 } from '../../../types.js';
@@ -27,7 +27,7 @@ export class DefaultReasonProvider implements ReasonProvider {
   async reason(
     params: ReasonParams,
     ctx: ReasonContext,
-    emit: (chunk: AgentStreamChunk) => void | Promise<void>,
+    emit: (chunk: ProviderChunk) => void | Promise<void>,
   ): Promise<ReasonOutput> {
     const maxAttempts = this.options.maxAttempts ?? 3;
     let lastError: unknown;
@@ -53,7 +53,7 @@ export class DefaultReasonProvider implements ReasonProvider {
   private async runOnce(
     params: ReasonParams,
     ctx: ReasonContext,
-    emit: (chunk: AgentStreamChunk) => void | Promise<void>,
+    emit: (chunk: ProviderChunk) => void | Promise<void>,
   ): Promise<ReasonOutput> {
     const provider = resolveProvider(params.provider);
     const result = await this.inferenceEngine.infer({
@@ -92,7 +92,7 @@ export class DefaultReasonProvider implements ReasonProvider {
     };
   }
 
-  private mapChunk(chunk: StreamChunk): AgentStreamChunk | null {
+  private mapChunk(chunk: StreamChunk): ProviderChunk | null {
     if (chunk.type === 'text') {
       return { type: 'text-delta', step: 0, text: chunk.text };
     }

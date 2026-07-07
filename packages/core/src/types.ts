@@ -61,6 +61,18 @@ export type AgentStreamChunk =
   | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
   | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null };
 
+/** Chunks that providers emit before the AgentStreamController enriches them with partId. */
+export type ProviderChunk =
+  | { type: 'text-delta'; step: number; text: string }
+  | { type: 'reasoning-delta'; step: number; text: string }
+  | { type: 'tool-call'; step: number; toolCallId: string; toolName: string; input: unknown }
+  | { type: 'tool-result'; step: number; toolCallId: string; output: string; error?: string }
+  | { type: 'step-start'; step: number }
+  | { type: 'step-finish'; step: number }
+  | { type: 'message-start'; step: number; messageId: string }
+  | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
+  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null };
+
 export interface AgentStreamStepResult {
   step: number;
   text: string;

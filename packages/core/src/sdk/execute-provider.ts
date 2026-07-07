@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from '../types.js';
+import type { ProviderChunk } from '../types.js';
 import type { ToolCall, ToolResult } from './tool-provider.js';
 
 export interface ExecuteContext {
@@ -14,6 +14,6 @@ export interface ExecuteProvider {
   execute(
     toolCalls: ToolCall[],
     ctx: ExecuteContext,
-    emit: (chunk: AgentStreamChunk) => void | Promise<void>,
+    emit: (chunk: ProviderChunk) => void | Promise<void>,
   ): Promise<ToolResult[]>;
 }

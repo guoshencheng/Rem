@@ -1,4 +1,5 @@
-import type { ModelMessage, AgentStreamChunk, LanguageModelUsage, ToolSet } from '../types.js';
+import type { ModelMessage, LanguageModelUsage, ProviderChunk } from '../types.js';
+import type { ToolSet } from '../llm/types.js';
 
 export interface ReasonParams {
   provider: string;
@@ -27,6 +28,6 @@ export interface ReasonProvider {
   reason(
     params: ReasonParams,
     ctx: ReasonContext,
-    emit: (chunk: AgentStreamChunk) => void | Promise<void>,
+    emit: (chunk: ProviderChunk) => void | Promise<void>,
   ): Promise<ReasonOutput>;
 }

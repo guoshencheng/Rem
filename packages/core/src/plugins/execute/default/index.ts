@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from '../../../types.js';
+import type { ProviderChunk } from '../../../types.js';
 import type {
   ExecuteContext,
   ExecuteProvider,
@@ -15,7 +15,7 @@ export class DefaultExecuteProvider implements ExecuteProvider {
   async execute(
     toolCalls: ToolCall[],
     ctx: ExecuteContext,
-    emit: (chunk: AgentStreamChunk) => void | Promise<void>,
+    emit: (chunk: ProviderChunk) => void | Promise<void>,
   ): Promise<ToolResult[]> {
     if (toolCalls.length === 0) return [];
 
@@ -29,8 +29,8 @@ export class DefaultExecuteProvider implements ExecuteProvider {
     };
 
     const results = await this.options.toolProvider.execute(toolCalls, toolCtx, {
-      emit: async (chunk) => {
-        await emit(chunk);
+      emit: (chunk) => {
+        void emit(chunk as ProviderChunk);
       },
     });
 

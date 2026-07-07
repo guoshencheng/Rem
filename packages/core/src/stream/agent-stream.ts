@@ -48,6 +48,29 @@ export class AgentStreamController {
     }
   }
 
+  emit(chunk: AgentStreamChunk): void {
+    if (this.finished) return;
+
+    const rawTypes = [
+      'text-delta',
+      'reasoning-delta',
+      'tool-call',
+      'tool-result',
+      'approval-request',
+      'approval-resolved',
+    ];
+
+    if (rawTypes.includes(chunk.type)) {
+      this.append(chunk as RawChunk);
+      return;
+    }
+
+    this.enqueue(chunk);
+    if ('step' in chunk && typeof (chunk as { step: number }).step === 'number') {
+      this.lastStep = (chunk as { step: number }).step;
+    }
+  }
+
   finish(output: AgentOutput): void {
     if (this.finished) return;
     this.closeCurrentPart(this.lastStep);

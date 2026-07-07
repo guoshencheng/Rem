@@ -1,20 +1,15 @@
 import type { UserInput, AgentOutput, AgentStream, ModelMessage } from './types.js';
 import { AgentState } from './state.js';
 import { EventBus } from './events.js';
-import { IterationBudget } from './budget.js';
-import type { TurnHooks } from './turn.js';
-import { ReactTurnRunner } from './turn.js';
-import { ReactLoop } from './loop-strategy.js';
+import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SessionProvider } from './sdk/session-provider.js';
-import { AgentStreamController } from './stream/agent-stream.js';
-import type { ProviderManager } from './provider-manager.js';
-import type { MemoryProvider } from './sdk/memory-provider.js';
-import type { ToolProvider } from './sdk/tool-provider.js';
+import type { ContextProvider } from './sdk/context-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
-import type { ErrorHandler } from './sdk/error-handler.js';
-import type { SkillProvider } from './sdk/skill-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { TitleProvider } from './sdk/title-provider.js';
+import type { ToolProvider } from './sdk/tool-provider.js';
+import { AgentStreamController } from './stream/agent-stream.js';
+import type { ProviderManager } from './provider-manager.js';
 import { generateId } from './shared/generate-id.js';
 
 export interface RunAgentParams {
@@ -42,10 +37,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     let session = await sessionProvider.load(params.sessionId);
 
     const state = new AgentState(session ?? undefined);
-    if (session?.sessionId) {
-      state.session.sessionId = session.sessionId;
-    } else {
-      state.session.sessionId = params.sessionId;
+    state.session.sessionId = session?.sessionId ?? params.sessionId;
+    if (!session) {
       await sessionProvider.save(state.session);
     }
 
@@ -67,76 +60,49 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     }
 
-    const userMessage: ModelMessage = { id: generateId(), role: 'user', content: [{ type: 'text', text: params.input.content }] };
+    const userMessage: ModelMessage = {
+      id: generateId(),
+      role: 'user',
+      content: [{ type: 'text', text: params.input.content }],
+    };
     state.addMessage(userMessage);
     await sessionProvider.save(state.session);
 
-    // Fork title generation concurrently with the turn
-    const titleProvider = pm.get<TitleProvider>('title');
-    if (titleProvider) {
-      (async () => {
-        try {
-          if (state.session.metadata.title) return;
-          const title = await titleProvider.generateTitle(
-            state.session.conversation,
-            {
-              provider: modelConfig.provider,
-              providerConfig: {
-                model: modelConfig.model,
-                apiKey: modelConfig.apiKey,
-                baseURL: modelConfig.baseURL,
-              },
-            },
-          );
-          if (title) {
-            state.session.metadata.title = title;
-            controller.pushTitle(title);
-            await sessionProvider.save(state.session);
-          }
-        } catch {
-          // title generation is best-effort
-        }
-      })();
-    }
+    forkTitleGeneration(state, pm, controller, sessionProvider);
 
     try {
-      const toolProvider = pm.require<ToolProvider>('tool');
-      const memoryProvider = pm.require<MemoryProvider>('memory');
+      const contextProvider = pm.require<ContextProvider>('context');
       const compressor = pm.require<ContextCompressor>('compressor');
-      const errorHandler = pm.require<ErrorHandler>('error');
-      const skillProvider = pm.get<SkillProvider>('skill');
+      const loopStrategy = pm.require<LoopStrategy>('loopStrategy');
+      const toolProvider = pm.require<ToolProvider>('tool');
 
-      const loopStrategy = new ReactLoop(
-        events,
-        toolProvider,
-        memoryProvider,
-        compressor,
-        errorHandler,
-        skillProvider,
-      );
-      const turnRunner = new ReactTurnRunner(loopStrategy);
+      const { system, messages } = await contextProvider.build(state);
 
-      const result = await turnRunner.run(
-        {
-          input: params.input,
-          conversation: [...state.conversation],
-          systemPrompt: `You are ${behavior.name}.`,
-          budget: state.budget,
-          signal: params.signal,
-          provider: modelConfig.provider,
-          providerConfig: {
-            model: modelConfig.model,
-            apiKey: modelConfig.apiKey,
-            baseURL: modelConfig.baseURL,
-          },
-          workspaceRoot: behavior.workspaceRoot,
-          readOnly: behavior.readOnly,
-          agentName: behavior.name,
-          sessionId: params.sessionId,
+      let contextMessages = messages;
+      if (compressor.shouldCompress(state)) {
+        contextMessages = await compressor.compress(messages);
+      }
+
+      const result = await loopStrategy.run({
+        state,
+        system,
+        messages: contextMessages,
+        tools: toolProvider.getToolSet(),
+        budget: state.budget,
+        emit: (chunk) => controller.emit(chunk),
+        signal: params.signal,
+        maxSteps: behavior.maxTurns,
+        workspaceRoot: behavior.workspaceRoot,
+        readOnly: behavior.readOnly,
+        agentName: behavior.name,
+        sessionId: params.sessionId,
+        provider: modelConfig.provider,
+        modelConfig: {
+          model: modelConfig.model,
+          apiKey: modelConfig.apiKey,
+          baseURL: modelConfig.baseURL,
         },
-        createTurnHooks(state, sessionProvider),
-        controller,
-      );
+      });
 
       for (const msg of result.newMessages) {
         if (!state.conversation.includes(msg)) {
@@ -149,10 +115,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       await sessionProvider.save(state.session);
       await events.emit('core-agent:stop', { agent: null, state });
 
-      const output: AgentOutput = {
-        content: result.content,
-        completed: true,
-      };
+      const output: AgentOutput = { content: result.content, completed: true };
       controller.finish(output);
       return output;
     } catch (error) {
@@ -169,19 +132,36 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
   return { stream, output: outputPromise };
 }
 
-function createTurnHooks(state: AgentState, sessionProvider: SessionProvider): TurnHooks {
-  return {
-    onMessageAdded: () => {},
-    onToolCallRecorded: (record) => {
-      state.session.metadata.lastToolCall = record;
-    },
-    onStepFinish: async (messages) => {
-      for (const msg of messages) {
-        if (!state.conversation.includes(msg)) {
-          state.addMessage(msg);
-        }
+function forkTitleGeneration(
+  state: AgentState,
+  pm: ProviderManager,
+  controller: AgentStreamController,
+  sessionProvider: SessionProvider,
+): void {
+  const titleProvider = pm.get<TitleProvider>('title');
+  const modelConfig = pm.getModelConfig();
+  if (!titleProvider || state.session.metadata.title) return;
+
+  (async () => {
+    try {
+      const title = await titleProvider.generateTitle(
+        state.session.conversation,
+        {
+          provider: modelConfig.provider,
+          providerConfig: {
+            model: modelConfig.model,
+            apiKey: modelConfig.apiKey,
+            baseURL: modelConfig.baseURL,
+          },
+        },
+      );
+      if (title) {
+        state.session.metadata.title = title;
+        controller.pushTitle(title);
+        await sessionProvider.save(state.session);
       }
-      await sessionProvider.save(state.session);
-    },
-  };
+    } catch {
+      // title generation is best-effort
+    }
+  })();
 }

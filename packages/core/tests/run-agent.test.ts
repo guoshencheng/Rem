@@ -9,15 +9,34 @@ describe('runAgent', () => {
       getConfigProvider: () => ({}),
       get: () => null,
       require: (kind: string) => {
-        if (kind === 'session') return { load: async () => null, save: async () => {} };
-        if (kind === 'tool') return { runTool: async (name: string, _args: any) => ({ success: true, result: `${name} result` }) };
+        if (kind === 'session') {
+          return { load: async () => null, save: async () => {} };
+        }
+        if (kind === 'context') {
+          return { build: async () => ({ system: 'You are test.', messages: [] }) };
+        }
+        if (kind === 'compressor') {
+          return { shouldCompress: () => false, compress: async (msgs: unknown[]) => msgs };
+        }
+        if (kind === 'loopStrategy') {
+          return {
+            run: async () => ({
+              content: 'hello back',
+              newMessages: [],
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            }),
+          };
+        }
+        if (kind === 'tool') {
+          return { getToolSet: () => ({}), execute: async () => [] };
+        }
         return null;
       },
     } as unknown as ProviderManager;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
-      input: { content: 'hello' },
+      input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
       pm: mockPm,
     });
@@ -28,5 +47,8 @@ describe('runAgent', () => {
     for await (const _chunk of result.stream.fullStream) {
       // drain
     }
+
+    const output = await result.output;
+    expect(output.completed).toBe(true);
   });
 });

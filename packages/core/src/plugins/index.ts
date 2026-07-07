@@ -28,6 +28,7 @@ const builtinLoaders: Record<string, ProviderModuleRef> = {
   'title/llm':         () => import('./title/llm/index.js') as Promise<ProviderModule<any>>,
   'reason/default':    () => import('./reason/default/index.js') as Promise<ProviderModule<any>>,
   'execute/default':   () => import('./execute/default/index.js') as Promise<ProviderModule<any>>,
+  'loop/react':        () => import('./loop/react/index.js') as Promise<ProviderModule<any>>,
 };
 
 export const resolveBuiltinLoader: (kind: string, name: string) => ProviderModuleRef | undefined = (kind, name) => {

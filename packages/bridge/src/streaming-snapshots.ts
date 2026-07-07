@@ -1,4 +1,5 @@
 import type { ContentPart } from 'rem-agent-core';
+import type { BusEvent } from './types.js';
 
 export interface SnapshotEntry {
   messageId: string;
@@ -34,3 +35,20 @@ const globalKey = Symbol.for('rem.streaming-snapshots');
 export const streamingSnapshots: StreamingSnapshots =
   (globalThis as Record<symbol, StreamingSnapshots>)[globalKey]
   ?? ((globalThis as Record<symbol, StreamingSnapshots>)[globalKey] = new StreamingSnapshots());
+
+export function getStreamingSnapshotEvents(workspace: string): BusEvent[] {
+  const events: BusEvent[] = [];
+  for (const sessionId of streamingSnapshots.runningSessionIds()) {
+    const entry = streamingSnapshots.get(sessionId);
+    if (entry) {
+      events.push({
+        workspace,
+        sessionId,
+        type: 'snapshot',
+        messageId: entry.messageId,
+        parts: entry.parts,
+      });
+    }
+  }
+  return events;
+}

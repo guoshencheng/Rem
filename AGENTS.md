@@ -80,3 +80,7 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 
 - 单元测试放在 `packages/core/tests/`。
 - 运行测试前确保类型检查通过：`pnpm typecheck && pnpm test`。
+
+## 语言
+
+会话、文档请使用中文

@@ -111,24 +111,18 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async *stream(): AsyncIterable<BusEvent> {
-    console.log('[RemoteSSE] connecting to /api/agent/stream');
     const response = await fetch(`${this.baseUrl}/api/agent/stream`);
     if (!response.ok || !response.body) {
-      console.error('[RemoteSSE] connect failed', response.status);
       throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
     }
-    console.log('[RemoteSSE] connected, reading stream');
 
     const reader = response.body.getReader();
     const events = parseSSEStream(reader);
 
-    let count = 0;
     for await (const event of events) {
       if (event.event === 'bus' && event.data) {
         try {
           const parsed = JSON.parse(event.data) as BusEvent;
-          count++;
-          console.log(`[RemoteSSE] event #${count} session=${parsed.sessionId} type=${parsed.type}`);
           yield parsed;
         } catch {
           // skip malformed events

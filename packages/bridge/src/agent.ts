@@ -38,8 +38,6 @@ export class AgentService implements IAgentService {
       throw new ServiceError('Session is already running', 409);
     }
 
-    console.log(`[Agent] run start session=${sessionId} input="${input.slice(0, 50)}"`);
-
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
     this.activityTracker.start(sessionId);
 
@@ -64,7 +62,6 @@ export class AgentService implements IAgentService {
 
   private async drive(sessionId: string, result: ReturnType<typeof coreRunAgent>): Promise<void> {
     const workspace = this.workspace;
-    console.log(`[resume] driver start session=${sessionId}`);
 
     const consume = (async () => {
       for await (const chunk of result.stream.fullStream) {
@@ -72,7 +69,6 @@ export class AgentService implements IAgentService {
 
         if (chunk.type === 'message-start') {
           streamingSnapshots.start(sessionId, chunk.messageId);
-          console.log(`[resume] snapshot start session=${sessionId} messageId=${chunk.messageId}`);
         } else if (isContentChunk(chunk)) {
           const entry = streamingSnapshots.get(sessionId);
           if (entry) {
@@ -106,11 +102,9 @@ export class AgentService implements IAgentService {
       await Promise.race([consume, outputGuard]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.log(`[resume] driver error session=${sessionId} error=${message}`);
       streamingSnapshots.clear(sessionId);
       bus.publish({ workspace, sessionId, type: 'session-error', error: message });
     } finally {
-      console.log(`[resume] driver end session=${sessionId}`);
       runRegistry.remove(sessionId);
       streamingSnapshots.clear(sessionId);
       this.activityTracker.finish(sessionId);
@@ -179,32 +173,6 @@ export class AgentService implements IAgentService {
     });
 
     try {
-      // Push current snapshots to this new subscriber.
-      // subscribe() above and this read happen synchronously with no await between,
-      // so no chunk can be processed in between: snapshot + queued chunks are gap-free.
-      const runningIds = streamingSnapshots.runningSessionIds();
-      console.log(`[resume] new stream subscriber workspace=${this.workspace} runningSessions=[${runningIds.join(',')}]`);
-      const snapshotEvents: BusEvent[] = [];
-      for (const sessionId of runningIds) {
-        const entry = streamingSnapshots.get(sessionId);
-        if (entry && entry.parts.length > 0) {
-          snapshotEvents.push({
-            workspace: this.workspace,
-            sessionId,
-            type: 'snapshot',
-            messageId: entry.messageId,
-            parts: entry.parts,
-          });
-        } else {
-          console.log(`[resume] skip snapshot push session=${sessionId} reason=${entry ? 'emptyParts' : 'noEntry'}`);
-        }
-      }
-      for (const ev of snapshotEvents) {
-        const snap = ev as Extract<BusEvent, { type: 'snapshot' }>;
-        console.log(`[resume] push snapshot session=${snap.sessionId} messageId=${snap.messageId} parts=${snap.parts.length}`);
-        yield ev;
-      }
-
       while (true) {
         if (queue.length > 0) {
           yield queue.shift()!;

@@ -177,8 +177,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       const map = sessionMapRef.current;
       let state = map.get(event.sessionId);
 
-      console.log(`[useAgents] bus-event session=${event.sessionId} type=${event.type} hasState=${!!state}`);
-
       switch (event.type) {
         case 'session-start': {
           if (!state) {
@@ -192,11 +190,9 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         }
         case 'snapshot': {
           if (!state) {
-            console.log(`[resume] snapshot event but no state, buffering session=${event.sessionId} messageId=${event.messageId}`);
             bufferEvent(event);
             return;
           }
-          console.log(`[resume] apply snapshot session=${event.sessionId} messageId=${event.messageId} parts=${event.parts.length}`);
           ensureAssistantMessage(state, event.messageId);
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
@@ -216,7 +212,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           const chunk = event.chunk;
 
           if (chunk.type === 'message-start') {
-            console.log(`[resume] message-start chunk session=${event.sessionId} messageId=${chunk.messageId}`);
             ensureAssistantMessage(state, chunk.messageId);
             currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
           }
@@ -225,7 +220,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           if (msgId) {
             const target = state.messages.find((m) => m.id === msgId);
             if (chunk.type !== 'message-start' && (!target || target.status !== 'streaming')) {
-              console.log(`[resume] chunk not appended session=${event.sessionId} type=${chunk.type} msgId=${msgId} targetStatus=${target?.status ?? 'missing'}`);
+              // chunk not appended
             }
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
@@ -241,8 +236,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
               }
               return m;
             });
-          } else if (chunk.type !== 'message-start' && isContentChunkType(chunk.type)) {
-            console.log(`[resume] DROP content chunk (no currentMsgId) session=${event.sessionId} type=${chunk.type}`);
           }
 
           state.status = chunk.type === 'finish' ? 'done'
@@ -364,8 +357,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       state.error = null;
       state.activity = 'pending';
       notifyChange();
-
-      console.log(`[useAgents] send session=${currentId} content="${content.slice(0, 50)}"`);
 
       try {
         await bus.send(currentId, content);

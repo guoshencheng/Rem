@@ -24,3 +24,4 @@ export { BridgeAgentStateProvider } from './agent-state-provider.js';
 export { ServiceError } from './errors.js';
 export { BroadcastBus, bus } from './broadcast-bus.js';
 export { runRegistry } from './run-registry.js';
+export { getStreamingSnapshotEvents } from './streaming-snapshots.js';

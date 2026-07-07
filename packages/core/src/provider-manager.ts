@@ -3,8 +3,6 @@ import { AgentProviderRegistry } from './registry/provider-registry.js';
 import { DefaultProviderLoader } from './registry/provider-loader.js';
 import { resolveBuiltinLoader } from './plugins/index.js';
 import { registerBuiltInProviders } from './llm/providers/index.js';
-import { ApprovalOrchestrator } from './security/approval-orchestrator.js';
-import { ApprovalManager } from './security/approval-manager.js';
 import { InMemoryAgentLiveProvider } from './plugins/state/in-memory/index.js';
 import {
   createReadSkillToolDefinition,
@@ -82,7 +80,6 @@ export class ProviderManager {
     const toolCfg = this.configProvider.getToolConfig();
 
     const liveProvider = this.config.agentLiveProvider ?? this.config.agentStateProvider ?? new InMemoryAgentLiveProvider();
-    const approvalOrchestrator = new ApprovalOrchestrator(liveProvider, new ApprovalManager());
 
     const loader = new DefaultProviderLoader(resolveBuiltinLoader);
     const registry = new AgentProviderRegistry({
@@ -110,19 +107,16 @@ export class ProviderManager {
     });
 
     await registry.initialize();
-    registry.register('approval', approvalOrchestrator);
+    registry.register('state', liveProvider);
 
-    await this.attachMcpProviders(registry, approvalOrchestrator);
+    await this.attachMcpProviders(registry);
 
     this.registry = registry;
     this.registerSkillReadTool();
     this.initialized = true;
   }
 
-  private async attachMcpProviders(
-    registry: ProviderRegistry,
-    approvalOrchestrator: ApprovalOrchestrator,
-  ): Promise<void> {
+  private async attachMcpProviders(registry: ProviderRegistry): Promise<void> {
     const toolProvider = registry.require<ToolProvider>('tool');
     const mcpConfig = this.configProvider.getMcpConfig();
     const mcpManager = new McpConnectionManager();
@@ -199,10 +193,6 @@ export class ProviderManager {
 
   register<T>(kind: string, provider: T): void {
     this.registry.register(kind as ProviderKind, provider);
-  }
-
-  getApprovalOrchestrator(): ApprovalOrchestrator {
-    return this.require<ApprovalOrchestrator>('approval');
   }
 
   async close(): Promise<void> {

@@ -1,4 +1,3 @@
-import type { ApprovalOrchestrator } from './approval-orchestrator.js';
 import type { ToolPolicyConfig } from './tool-policy.js';
 
 export type ProviderKind =
@@ -22,8 +21,6 @@ export interface ProviderLoaderContext {
   agentName: string;
   workspaceRoot: string;
   readOnly?: boolean;
-  autoApproveDangerous?: boolean;
-  approvalOrchestrator?: ApprovalOrchestrator;
   sessionsDir: string;
   maxTurns: number;
   toolPolicy?: ToolPolicyConfig;

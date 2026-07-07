@@ -16,12 +16,16 @@ import type { ProviderManager } from './provider-manager.js';
 import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
+import type { ApprovalRegistry } from './execute/approval-registry.js';
+import type { AgentLiveProvider } from './sdk/agent-state-provider.js';
 
 export interface RunAgentParams {
   input: UserInput;
   sessionId: string;
   signal?: AbortSignal;
   pm: ProviderManager;
+  /** 审批等待/决议注册表（AgentService 传入） */
+  approvalRegistry?: ApprovalRegistry;
 }
 
 export interface RunAgentResult {
@@ -75,8 +79,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolProvider = pm.require<ToolProvider>('tool');
       const skillProvider = pm.get<SkillProvider>('skill');
       const errorHandler = pm.require<ErrorHandler>('error');
-      const approvalOrchestrator = pm.getApprovalOrchestrator();
-
       const { system, messages } = await contextProvider.build(session, behavior.name);
 
       let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
@@ -103,7 +105,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           (chunk) => controller.emit(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider, approvalOrchestrator, session,
+          toolCalls: calls, toolProvider, session,
+          liveProvider: pm.get<AgentLiveProvider>('state'),
+          registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
           emit: (chunk) => controller.emit(chunk),

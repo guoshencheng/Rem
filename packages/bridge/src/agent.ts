@@ -1,5 +1,5 @@
-import type { AgentStreamChunk, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
-import { runAgent as coreRunAgent } from 'rem-agent-core';
+import type { AgentStreamChunk, ProviderManager, SessionProvider, ApprovalDecision, ApprovalRequest, AgentLiveProvider } from 'rem-agent-core';
+import { runAgent as coreRunAgent, ApprovalRegistry } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
@@ -15,6 +15,7 @@ export class AgentService implements IAgentService {
   private workspace: string;
   private sessionManager: AgentSessionManager;
   private activityTracker: SessionActivityTracker;
+  private approvalRegistry = new ApprovalRegistry();
 
   constructor(private providerManager: ProviderManager, workspace = 'default') {
     this.sessionProvider = providerManager.require<SessionProvider>('session');
@@ -48,6 +49,7 @@ export class AgentService implements IAgentService {
         sessionId,
         signal: abortController.signal,
         pm: this.providerManager,
+        approvalRegistry: this.approvalRegistry,
       });
     } catch (err) {
       bus.publish({ workspace: this.workspace, sessionId, type: 'session-error', error: err instanceof Error ? err.message : String(err) });
@@ -149,11 +151,14 @@ export class AgentService implements IAgentService {
   /* ---- Approval ---- */
 
   async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
-    return this.providerManager.getApprovalOrchestrator().listPending(sessionId);
+    const liveProvider = this.providerManager.get<AgentLiveProvider>('state');
+    if (!liveProvider) return [];
+    const liveState = await liveProvider.get(sessionId);
+    return liveState?.pendingApprovals ?? [];
   }
 
   async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
-    return this.providerManager.getApprovalOrchestrator().resolveApproval(approvalId, decision);
+    return this.approvalRegistry.resolve(approvalId, decision);
   }
 
   /* ---- Broadcast stream ---- */

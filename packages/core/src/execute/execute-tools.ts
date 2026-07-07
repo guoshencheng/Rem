@@ -1,13 +1,17 @@
 import type { Session } from '../session.js';
 import type { ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
-import type { ApprovalOrchestrator } from '../sdk/approval-orchestrator.js';
+import type { AgentLiveProvider, ApprovalRequest, ApprovalDecision } from '../sdk/agent-state-provider.js';
 import { generateId } from '../shared/generate-id.js';
+import { ApprovalRegistry } from './approval-registry.js';
+
+const DEFAULT_APPROVAL_TIMEOUT_MS = 300_000;
 
 export interface ExecuteParams {
   toolCalls: ToolCall[];
   toolProvider: ToolProvider;
-  approvalOrchestrator?: ApprovalOrchestrator;
+  liveProvider?: AgentLiveProvider;
+  registry?: ApprovalRegistry;
   session: Session;
   workspaceRoot: string;
   agentName?: string;
@@ -19,33 +23,47 @@ export interface ExecuteParams {
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, approvalOrchestrator, session, emit, signal } = params;
+  const { toolProvider, liveProvider, registry, session, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     const dangerous = toolProvider.isDangerous(tc.toolName);
 
-    // 审批
-    if (dangerous && approvalOrchestrator) {
-      const decision = await approvalOrchestrator.requestApproval(
-        {
-          sessionId: params.sessionId,
-          toolName: tc.toolName,
-          toolCallId: tc.toolCallId,
-          cwd: params.workspaceRoot,
-          workspaceRoot: params.workspaceRoot,
-          signal,
-          input: tc.input,
-        } as any,
-        {
-          title: `Run ${tc.toolName}`,
-          allowedDecisions: ['allow-once', 'deny'],
-        },
-        { emit: (chunk) => emit(chunk as ProviderChunk) },
-      );
+    if (dangerous && registry && liveProvider) {
+      const approvalId = generateId();
+      const request: ApprovalRequest = {
+        approvalId,
+        toolName: tc.toolName,
+        toolCallId: tc.toolCallId,
+        title: `Run ${tc.toolName}`,
+        allowedDecisions: ['allow-once', 'deny'],
+        sessionId: params.sessionId,
+      };
+
+      // 持久化待审批状态
+      let liveState = await liveProvider.get(params.sessionId);
+      if (!liveState) liveState = new (await import('../state.js')).AgentLiveState();
+      liveState.pendingApprovals.push(request);
+      await liveProvider.set(params.sessionId, liveState);
+
+      // 通知前端
+      emit({ type: 'approval-request', sessionId: params.sessionId, request } as any);
+
+      // 等待审批决定
+      const decision = await registry.wait(approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
+
+      // 清理持久化状态
+      liveState = await liveProvider.get(params.sessionId);
+      if (liveState) {
+        liveState.pendingApprovals = liveState.pendingApprovals.filter(r => r.approvalId !== approvalId);
+        await liveProvider.set(params.sessionId, liveState);
+      }
+
+      // 通知前端审批结果
+      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as any);
 
       if (decision !== 'allow-once') {
-        const errMsg = 'denied';
-        emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg } as ProviderChunk);
+        const errMsg = decision === null ? 'approval timed out' : 'denied';
+        emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output: '', error: errMsg } as any);
         results.push({ toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg });
         continue;
       }
@@ -62,9 +80,8 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     });
     results.push(result);
 
-    // 输出结果 + 写消息
     const output = result.error ?? result.output ?? '';
-    emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
+    emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as any);
 
     session.conversation.push({
       id: generateId(), role: 'tool',

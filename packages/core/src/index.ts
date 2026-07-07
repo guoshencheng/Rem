@@ -10,6 +10,8 @@ export * from './provider-manager.js';
 export { createProviderManager } from './provider-manager.js';
 export * from './run-agent.js';
 export * from './stream/agent-stream.js';
+export { reason } from './reason/reason.js';
+export { executeTools } from './execute/execute-tools.js';
 export * from './sdk/index.js';
 export * from './plugins/index.js';
 export * from './registry/tool-registry.js';

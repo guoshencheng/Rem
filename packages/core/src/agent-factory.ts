@@ -1,4 +1,6 @@
 import { registerBuiltInProviders } from './llm/providers/index.js';
+import { createDefaultAgentPaths } from './config/paths.js';
+import { configureDebugLog } from './shared/debug-log.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { InMemorySessionProvider } from './plugins/session/in-memory/index.js';
 import { InMemoryAgentLiveProvider } from './plugins/state/in-memory/index.js';
@@ -32,8 +34,15 @@ export interface CreateAgentOptions {
 export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext> {
   registerBuiltInProviders();
 
-  // 1. ConfigProvider
+  // 0. 创建 AgentPaths（集中管理所有路径约定）
+  const paths = createDefaultAgentPaths();
+
+  // 0.1 配置调试日志
+  configureDebugLog(paths.debugLogFile);
+
+  // 1. ConfigProvider（注入 paths）
   const configProvider = new DefaultConfigProvider({
+    paths,
     configPath: options?.configPath,
     overrides: {
       name: options?.name,
@@ -51,7 +60,7 @@ export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<
   const agentLiveProvider = new InMemoryAgentLiveProvider();
   const toolProvider = createFileSystemTools(configProvider);
   const contextProvider = new SimpleContextProvider(configProvider);
-  const skillProvider = new FileSkillProvider(configProvider);
+  const skillProvider = new FileSkillProvider(configProvider, paths);
   const budgetPolicy = new FixedBudgetPolicy(configProvider);
   const compressor = new NoOpCompressor();
   const errorHandler = new SimpleErrorHandler();

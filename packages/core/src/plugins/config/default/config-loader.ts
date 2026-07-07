@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import type { ConfigFileData } from './index.js';
-import { resolveTilde } from '../../../config/paths.js';
+import { resolveTilde, getRemAgentDir } from '../../../config/paths.js';
 
 export async function loadConfigFile(path: string): Promise<ConfigFileData> {
   const resolved = resolveTilde(path);
@@ -24,6 +24,9 @@ export function resolveConfigPath(
     join(cwd, 'rem-agent.config.json'),
     join(cwd, 'rem-agent.config.yaml'),
     join(cwd, 'rem-agent.config.yml'),
+    join(getRemAgentDir(), 'rem-agent.config.json'),
+    join(getRemAgentDir(), 'rem-agent.config.yaml'),
+    join(getRemAgentDir(), 'rem-agent.config.yml'),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;

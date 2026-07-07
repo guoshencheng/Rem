@@ -10,14 +10,17 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
+import type { ToolComposer } from './sdk/tool-composer.js';
 
 export interface AgentContext {
   configProvider: ConfigProvider;
   sessionProvider: SessionProvider;
   agentLiveProvider: AgentLiveProvider;
-  toolProvider: ToolProvider;
-  contextProvider: ContextProvider;
+  toolProvider: ToolProvider;        // 原始本地 tools，不再预合并
+  mcpProviders: ToolProvider[];      // 新增
   skillProvider: SkillProvider;
+  toolComposer: ToolComposer;        // 新增
+  contextProvider: ContextProvider;
   budgetPolicy: BudgetPolicy;
   compressor: ContextCompressor;
   errorHandler: ErrorHandler;

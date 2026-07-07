@@ -36,6 +36,9 @@ function createMockConfigProvider(): ConfigProvider {
         policy: this.getToolConfig().policy,
       };
     },
+    getMcpConfig() {
+      return {};
+    },
   };
 }
 

@@ -13,6 +13,10 @@ import { parseSSEStream } from './sse.js';
 export class AgentRemoteService implements IAgentService {
   constructor(private baseUrl: string) {}
 
+  async init(): Promise<void> {
+    // Remote client requires no local initialization.
+  }
+
   async run(sessionId: string, input: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/api/agent/run`, {
       method: 'POST',

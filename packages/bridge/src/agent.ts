@@ -1,29 +1,40 @@
 import type { AgentStreamChunk, SessionProvider, ApprovalDecision, ApprovalRequest, AgentLiveProvider, AgentContext } from 'rem-agent-core';
-import { runAgent as coreRunAgent, ApprovalRegistry } from 'rem-agent-core';
+import { runAgent as coreRunAgent, ApprovalRegistry, buildAgentContext } from 'rem-agent-core';
+import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import { bus } from './broadcast-bus.js';
 import { runRegistry } from './run-registry.js';
-import type { BusEvent, SessionActivity, SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
 import { SessionActivityTracker } from './session-activity-tracker.js';
 import { streamingSnapshots } from './streaming-snapshots.js';
 import { reduceStreamChunk } from './stream-reducer.js';
 
-export class AgentService implements IAgentService {
-  private sessionProvider: SessionProvider;
-  private agentLiveProvider: AgentLiveProvider;
-  private ctx: AgentContext;
-  private workspace: string;
-  private sessionManager: AgentSessionManager;
-  private activityTracker: SessionActivityTracker;
-  private approvalRegistry = new ApprovalRegistry();
+export type AgentServiceOptions = AgentContextBuildOptions;
 
-  constructor(ctx: AgentContext, workspace = 'default') {
-    this.ctx = ctx;
-    this.sessionProvider = ctx.sessionProvider;
-    this.agentLiveProvider = ctx.agentLiveProvider;
+export class AgentService implements IAgentService {
+  private options: AgentServiceOptions;
+  private workspace: string;
+  private sessionProvider: SessionProvider | undefined;
+  private agentLiveProvider: AgentLiveProvider | undefined;
+  private ctx: AgentContext | undefined;
+  private sessionManager: AgentSessionManager | undefined;
+  private activityTracker: SessionActivityTracker | undefined;
+  private approvalRegistry = new ApprovalRegistry();
+  private initialized = false;
+
+  constructor(options: AgentServiceOptions, workspace = 'default') {
+    this.options = options;
     this.workspace = workspace;
+  }
+
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    this.ctx = await buildAgentContext(this.options);
+    this.sessionProvider = this.ctx.sessionProvider;
+    this.agentLiveProvider = this.ctx.agentLiveProvider;
     this.sessionManager = new AgentSessionManager(this.sessionProvider);
     this.activityTracker = new SessionActivityTracker((sessionId, activity) => {
       bus.publish({
@@ -33,18 +44,32 @@ export class AgentService implements IAgentService {
         activity,
       });
     });
+
+    this.initialized = true;
+  }
+
+  get context(): AgentContext | undefined {
+    return this.ctx;
+  }
+
+  private ensureInitialized(): void {
+    if (!this.initialized || !this.ctx || !this.sessionManager || !this.activityTracker) {
+      throw new ServiceError('AgentService not initialized', 503);
+    }
   }
 
   /* ---- Agent lifecycle ---- */
 
   async run(sessionId: string, input: string): Promise<void> {
+    this.ensureInitialized();
+
     const abortController = new AbortController();
     if (!runRegistry.register(sessionId, abortController)) {
       throw new ServiceError('Session is already running', 409);
     }
 
     bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
-    this.activityTracker.start(sessionId);
+    this.activityTracker!.start(sessionId);
 
     let result: ReturnType<typeof coreRunAgent>;
     try {
@@ -52,17 +77,16 @@ export class AgentService implements IAgentService {
         input: { content: input, timestamp: new Date() },
         sessionId,
         signal: abortController.signal,
-        ctx: this.ctx,
+        ctx: this.ctx!,
         approvalRegistry: this.approvalRegistry,
       });
     } catch (err) {
       bus.publish({ workspace: this.workspace, sessionId, type: 'session-error', error: err instanceof Error ? err.message : String(err) });
       runRegistry.remove(sessionId);
-      this.activityTracker.finish(sessionId);
+      this.activityTracker!.finish(sessionId);
       throw err;
     }
 
-    // Background self-driven consumption: independent of any client connection.
     void this.drive(sessionId, result);
   }
 
@@ -71,7 +95,7 @@ export class AgentService implements IAgentService {
 
     const consume = (async () => {
       for await (const chunk of result.stream.fullStream) {
-        this.activityTracker.applyChunk(sessionId, chunk);
+        this.activityTracker!.applyChunk(sessionId, chunk);
 
         if (chunk.type === 'message-start') {
           streamingSnapshots.start(sessionId, chunk.messageId);
@@ -113,7 +137,7 @@ export class AgentService implements IAgentService {
     } finally {
       runRegistry.remove(sessionId);
       streamingSnapshots.clear(sessionId);
-      this.activityTracker.finish(sessionId);
+      this.activityTracker!.finish(sessionId);
     }
   }
 
@@ -129,33 +153,39 @@ export class AgentService implements IAgentService {
   /* ---- Message tracking ---- */
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {
-    return this.sessionManager.getMessages(sessionId);
+    this.ensureInitialized();
+    return this.sessionManager!.getMessages(sessionId);
   }
 
   async createSession(): Promise<SessionSummary> {
-    return this.sessionManager.createSession();
+    this.ensureInitialized();
+    return this.sessionManager!.createSession();
   }
 
   async listSessions(): Promise<SessionSummary[]> {
-    const list = await this.sessionManager.listSessions();
+    this.ensureInitialized();
+    const list = await this.sessionManager!.listSessions();
     return list.map((s) => ({
       ...s,
-      activity: this.activityTracker.get(s.sessionId) ?? 'idle',
+      activity: this.activityTracker!.get(s.sessionId) ?? 'idle',
     }));
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
-    return this.sessionManager.updateSession(sessionId, updates);
+    this.ensureInitialized();
+    return this.sessionManager!.updateSession(sessionId, updates);
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    return this.sessionManager.deleteSession(sessionId);
+    this.ensureInitialized();
+    return this.sessionManager!.deleteSession(sessionId);
   }
 
   /* ---- Approval ---- */
 
   async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
-    const liveState = await this.agentLiveProvider.get(sessionId);
+    this.ensureInitialized();
+    const liveState = await this.agentLiveProvider!.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 

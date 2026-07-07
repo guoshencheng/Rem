@@ -79,9 +79,14 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolProvider = pm.require<ToolProvider>('tool');
       const skillProvider = pm.get<SkillProvider>('skill');
       const errorHandler = pm.require<ErrorHandler>('error');
-      const appendMessage = async (msg: ModelMessage) => {
+      const addMessage = (role: 'assistant' | 'tool'): ModelMessage => {
+        const msg: ModelMessage = {
+          id: generateId(), role,
+          content: [] as any,
+        };
         session.conversation.push(msg);
-        await sessionProvider.save(session);
+        void sessionProvider.save(session); // fire-and-forget, 不阻塞
+        return msg;
       };
 
       const { system, messages } = await contextProvider.build(session, behavior.name);
@@ -100,7 +105,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const loopCtx: LoopContext = {
         liveState,
         messages: msgs,
-        appendMessage,
+        addMessage,
         system: systemWithSkills,
         reason: () => reason(
           {
@@ -111,7 +116,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           (chunk) => controller.emit(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider, appendMessage,
+          toolCalls: calls, toolProvider, addMessage,
           liveProvider: pm.get<AgentLiveProvider>('state'),
           registry: params.approvalRegistry,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,

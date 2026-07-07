@@ -1,7 +1,6 @@
 import type { ModelMessage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
 import type { AgentLiveProvider, ApprovalRequest } from '../sdk/agent-state-provider.js';
-import { generateId } from '../shared/generate-id.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
 const DEFAULT_APPROVAL_TIMEOUT_MS = 300_000;
@@ -11,7 +10,7 @@ export interface ExecuteParams {
   toolProvider: ToolProvider;
   liveProvider?: AgentLiveProvider;
   registry?: ApprovalRegistry;
-  appendMessage: (msg: ModelMessage) => void;
+  addMessage: (role: 'tool') => ModelMessage;
   workspaceRoot: string;
   agentName?: string;
   readOnly?: boolean;
@@ -24,19 +23,17 @@ export interface ExecuteParams {
 function emitToolResult(
   tc: ToolCall, result: ToolResult,
   emit: (chunk: ProviderChunk) => void,
-  appendMessage: (msg: ModelMessage) => void,
+  addMessage: (role: 'tool') => ModelMessage,
 ): void {
   const output = result.error ?? result.output ?? '';
   emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
-  appendMessage({
-    id: generateId(), role: 'tool',
-    content: [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }],
-  });
+  const msg = addMessage('tool');
+  msg.content = [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output }];
 }
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, liveProvider, registry, appendMessage, emit, signal } = params;
+  const { toolProvider, liveProvider, registry, addMessage, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     const dangerous = toolProvider.isDangerous(tc.toolName);
@@ -67,7 +64,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       if (decision !== 'allow-once') {
         const errMsg = decision === null ? 'approval timed out' : 'denied';
         const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg };
-        emitToolResult(tc, denied, emit, appendMessage);
+        emitToolResult(tc, denied, emit, addMessage);
         results.push(denied);
         continue;
       }
@@ -79,8 +76,12 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       sessionId: params.sessionId,
     });
     results.push(result);
-    emitToolResult(tc, result, emit, appendMessage);
+    emitToolResult(tc, result, emit, addMessage);
   }
 
   return results;
+}
+
+function generateId(): string {
+  return crypto.randomUUID();
 }

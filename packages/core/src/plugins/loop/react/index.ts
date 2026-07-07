@@ -1,11 +1,9 @@
-import type { Session } from '../../../session.js';
 import type { ModelMessage } from '../../../types.js';
 import type {
   LoopContext,
   LoopResult,
   LoopStrategy,
 } from '../../../sdk/loop-strategy.js';
-import { generateId } from '../../../shared/generate-id.js';
 import type { LanguageModelUsage } from '../../../types.js';
 
 const DEFAULT_MAX_STEPS = 50;
@@ -48,10 +46,8 @@ export class ReactLoop implements LoopStrategy {
 
   private ensureAssistantMessage(ctx: LoopContext): ModelMessage {
     const last = ctx.messages[ctx.messages.length - 1];
-    if (last?.role === 'assistant') return last as ModelMessage;
-    const msg: ModelMessage = { id: generateId(), role: 'assistant', content: [] };
-    ctx.appendMessage(msg);
-    return msg;
+    if (last?.role === 'assistant') return last;
+    return ctx.addMessage('assistant');
   }
 
   private appendToAssistantMessage(

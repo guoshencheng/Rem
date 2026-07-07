@@ -17,7 +17,7 @@ describe('ReactLoop', () => {
     const loop = new ReactLoop();
     const ctx = {
       liveState, system: 'You are Rem.', messages: msgs,
-      appendMessage: (m: any) => { msgs.push(m); },
+      addMessage: () => { const m: any = { id: 'test-' + msgs.length, role: 'assistant', content: [] }; msgs.push(m); return m; },
       reason, execute: execute as any, emit: () => {},
     } as any;
 
@@ -42,7 +42,7 @@ describe('ReactLoop', () => {
     const loop = new ReactLoop();
     const ctx = {
       liveState, system: 'You are Rem.', messages: msgs,
-      appendMessage: (m: any) => { msgs.push(m); },
+      addMessage: () => { const m: any = { id: 'test-' + msgs.length, role: 'assistant', content: [] }; msgs.push(m); return m; },
       reason, execute, emit: () => {},
     } as any;
 

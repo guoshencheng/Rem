@@ -1,19 +1,13 @@
 import { appendFileSync } from 'fs';
 
-let debugFile: string | null | undefined;
+let debugFile: string | null = null;
 
-function resolveDebugFile(): string | null {
-  if (debugFile !== undefined) return debugFile;
-
-  if (process.env.REM_AGENT_DEBUG_FILE) {
-    debugFile = process.env.REM_AGENT_DEBUG_FILE;
-  } else if (process.env.REM_AGENT_DEBUG === '1') {
-    debugFile = '/tmp/rem-agent-debug.log';
-  } else {
-    debugFile = null;
-  }
-
-  return debugFile;
+/**
+ * 配置调试日志输出文件。传入 null 禁用。
+ * 应在应用初始化时调用，替代原来的环境变量读取。
+ */
+export function configureDebugLog(file: string | null): void {
+  debugFile = file;
 }
 
 function timestamp(): string {
@@ -21,11 +15,10 @@ function timestamp(): string {
 }
 
 export function debugLog(tag: string, message: string): void {
-  const file = resolveDebugFile();
-  if (!file) return;
+  if (!debugFile) return;
   const line = `[${timestamp()}] [${tag}] ${message}\n`;
   try {
-    appendFileSync(file, line);
+    appendFileSync(debugFile, line);
   } catch {
     // silently ignore write failures
   }
@@ -35,5 +28,5 @@ export function debugLog(tag: string, message: string): void {
  * Check whether debug logging is currently enabled.
  */
 export function isDebugEnabled(): boolean {
-  return resolveDebugFile() !== null;
+  return debugFile !== null;
 }

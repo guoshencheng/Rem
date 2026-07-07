@@ -17,7 +17,6 @@ export interface ProviderRegistryConfig {
   budgetPolicy?: ProviderReference<unknown>;
   titleProvider?: ProviderReference<unknown>;
   loopStrategy: ProviderReference<unknown>;
-  reasonProvider: ProviderReference<unknown>;
   [key: string]: ProviderReference<unknown> | undefined;
 }
 
@@ -38,7 +37,6 @@ const KIND_TO_REFS_KEY: Partial<Record<ProviderKind, keyof ProviderRegistryConfi
   budget: 'budgetPolicy',
   title: 'titleProvider',
   loopStrategy: 'loopStrategy',
-  reason: 'reasonProvider',
 };
 
 const DEFAULT_NAMES: Partial<Record<ProviderKind, string>> = {
@@ -54,7 +52,6 @@ const DEFAULT_NAMES: Partial<Record<ProviderKind, string>> = {
   loopStrategy: 'react',
   turnRunner: 'react',
   title: 'llm',
-  reason: 'default',
 };
 
 export class AgentProviderRegistry implements ProviderRegistry {
@@ -80,7 +77,6 @@ export class AgentProviderRegistry implements ProviderRegistry {
     await this.resolve('budget');
     await this.resolve('title');
     await this.resolve('loopStrategy');
-    await this.resolve('reason');
   }
 
   has(kind: ProviderKind): boolean {

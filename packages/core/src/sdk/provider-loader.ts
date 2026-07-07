@@ -15,8 +15,7 @@ export type ProviderKind =
   | 'turnRunner'
   | 'title'
   | 'approval'
-  | 'state'
-  | 'reason';
+  | 'state';
 
 export interface ProviderLoaderContext {
   kind: ProviderKind;

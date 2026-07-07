@@ -30,8 +30,8 @@ describe('runAgent', () => {
         if (kind === 'tool') {
           return { getToolSet: () => ({}), execute: async () => [] };
         }
-        if (kind === 'reason') {
-          return { reason: async (_p: any, _c: any, _e: any) => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, finishReason: 'stop' }) };
+        if (kind === 'error') {
+          return { classify: () => 'unknown', isRetryable: () => false };
         }
         return null;
       },

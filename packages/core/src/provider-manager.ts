@@ -26,7 +26,6 @@ import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
-import type { ReasonProvider } from './sdk/reason-provider.js';
 import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type {
   ConfigProvider,
@@ -51,7 +50,6 @@ export interface ProviderManagerConfig {
   budgetPolicy?: ProviderReference<BudgetPolicy>;
   titleProvider?: ProviderReference<TitleProvider>;
   loopStrategy?: ProviderReference<LoopStrategy>;
-  reasonProvider?: ProviderReference<ReasonProvider>;
   toolPolicy?: ToolPolicyConfig;
   /** @deprecated Use agentLiveProvider instead */
   agentStateProvider?: AgentLiveProvider;
@@ -110,7 +108,6 @@ export class ProviderManager {
         budgetPolicy: this.config.budgetPolicy,
         titleProvider: this.config.titleProvider,
         loopStrategy: this.config.loopStrategy ?? 'react',
-        reasonProvider: this.config.reasonProvider ?? 'default',
       },
     });
 

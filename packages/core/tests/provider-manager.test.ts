@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { createProviderManager } from '../src/provider-manager.js';
 import type { ToolProvider } from '../src/sdk/tool-provider.js';
 import type { LoopStrategy } from '../src/sdk/loop-strategy.js';
-import type { ReasonProvider } from '../src/sdk/reason-provider.js';
 import type { ContextProvider } from '../src/sdk/context-provider.js';
 
 describe('ProviderManager', () => {
@@ -46,10 +45,9 @@ describe('ProviderManager', () => {
     expect(toolProvider.getToolSet()).toHaveProperty('read');
   });
 
-  it('resolves loopStrategy, reason, context providers', async () => {
+  it('resolves loopStrategy and context providers', async () => {
     const pm = await createProviderManager();
     expect(pm.require<LoopStrategy>('loopStrategy')).toBeDefined();
-    expect(pm.require<ReasonProvider>('reason')).toBeDefined();
     expect(pm.require<ContextProvider>('context')).toBeDefined();
   });
 });

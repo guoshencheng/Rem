@@ -26,6 +26,7 @@ const builtinLoaders: Record<string, ProviderModuleRef> = {
   'error/simple':      () => import('./error/simple/index.js') as Promise<ProviderModule<any>>,
   'budget/fixed':      () => import('./budget/fixed/index.js') as Promise<ProviderModule<any>>,
   'title/llm':         () => import('./title/llm/index.js') as Promise<ProviderModule<any>>,
+  'reason/default':    () => import('./reason/default/index.js') as Promise<ProviderModule<any>>,
 };
 
 export const resolveBuiltinLoader: (kind: string, name: string) => ProviderModuleRef | undefined = (kind, name) => {

@@ -6,16 +6,13 @@ import { AgentService } from '../src/agent.js';
 import { bus } from '../src/broadcast-bus.js';
 import { runRegistry } from '../src/run-registry.js';
 import {
-  createAgentFromEnv,
   registerProvider,
   clearProviders,
 } from 'rem-agent-core';
-import type { AgentContext } from 'rem-agent-core';
 import type { BusEvent } from '../src/types.js';
 
 describe('AgentService.run background driver', () => {
   let dir: string;
-  let ctx: AgentContext;
   let service: AgentService;
 
   beforeEach(async () => {
@@ -35,13 +32,13 @@ describe('AgentService.run background driver', () => {
       },
     });
 
-    ctx = await createAgentFromEnv({
+    service = new AgentService({
       name: 'RunTestAgent',
       provider: 'mock-run',
       model: 'mock-model',
       workspaceRoot: dir,
     });
-    service = new AgentService(ctx);
+    await service.init();
   });
 
   afterEach(async () => {

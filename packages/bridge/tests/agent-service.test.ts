@@ -3,19 +3,16 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../src/agent.js';
-import { createAgentFromEnv } from 'rem-agent-core';
-import type { AgentContext, SessionProvider } from 'rem-agent-core';
 import type { ModelMessage } from 'rem-agent-core';
 
 describe('AgentService session management', () => {
   let dir: string;
-  let ctx: AgentContext;
   let service: AgentService;
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-test-'));
-    ctx = await createAgentFromEnv({ workspaceRoot: dir });
-    service = new AgentService(ctx);
+    service = new AgentService({ workspaceRoot: dir });
+    await service.init();
   });
 
   afterEach(async () => {
@@ -92,7 +89,7 @@ describe('AgentService session management', () => {
 
   it('merges tool-result parts into assistant messages', async () => {
     const summary = await service.createSession();
-    const sessionProvider = ctx.sessionProvider;
+    const sessionProvider = service.context!.sessionProvider;
     const session = await sessionProvider.load(summary.sessionId);
     if (!session) throw new Error('Session not found');
 

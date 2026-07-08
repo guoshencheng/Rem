@@ -8,27 +8,38 @@ export class AgentSessionManager {
     private agentState: AgentState,
   ) {}
 
-  async createSession(): Promise<SessionSummary> {
+  async createSession(workspace: string): Promise<SessionSummary> {
     const session = await this.sessionProvider.create();
-    return this.toSummary(session);
+    session.metadata.workspace = workspace;
+    await this.sessionProvider.save(session);
+    return this.toSummary(session, workspace);
   }
 
-  async listSessions(): Promise<SessionSummary[]> {
+  async listSessions(workspace: string): Promise<SessionSummary[]> {
     const summaries = await this.sessionProvider.list();
-    return summaries
-      .map((s) => ({
-        sessionId: s.sessionId,
-        title: s.title ?? 'New Chat',
-        pinned: s.pinned,
-        updatedAt: s.updatedAt.getTime(),
-        messageCount: s.messageCount,
-      }))
-      .sort((a, b) => {
-        if (a.pinned === b.pinned) {
-          return b.updatedAt - a.updatedAt;
-        }
-        return a.pinned ? -1 : 1;
-      });
+    const enriched = await Promise.all(
+      summaries.map(async (s) => {
+        const session = await this.sessionProvider.load(s.sessionId);
+        if (!session) return null;
+        const sessionWorkspace = (session.metadata?.workspace as string | undefined) ?? 'default';
+        if (sessionWorkspace !== workspace) return null;
+        return {
+          sessionId: s.sessionId,
+          workspace: sessionWorkspace,
+          title: s.title ?? 'New Chat',
+          pinned: s.pinned,
+          updatedAt: s.updatedAt.getTime(),
+          messageCount: s.messageCount,
+        };
+      }),
+    );
+    const filtered = enriched.filter((s): s is NonNullable<typeof s> => s !== null);
+    return filtered.sort((a, b) => {
+      if (a.pinned === b.pinned) {
+        return b.updatedAt - a.updatedAt;
+      }
+      return a.pinned ? -1 : 1;
+    });
   }
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {
@@ -98,9 +109,13 @@ export class AgentSessionManager {
     this.agentState.remove(sessionId);
   }
 
-  private toSummary(session: { sessionId: string; metadata?: Record<string, unknown>; updatedAt: Date; conversation?: unknown[] }): SessionSummary {
+  private toSummary(
+    session: { sessionId: string; metadata?: Record<string, unknown>; updatedAt: Date; conversation?: unknown[] },
+    workspace?: string,
+  ): SessionSummary {
     return {
       sessionId: session.sessionId,
+      workspace: workspace ?? (session.metadata?.workspace as string | undefined) ?? 'default',
       title: (session.metadata?.title as string | undefined) ?? 'New Chat',
       pinned: session.metadata?.pinned as boolean | undefined,
       updatedAt: session.updatedAt.getTime(),

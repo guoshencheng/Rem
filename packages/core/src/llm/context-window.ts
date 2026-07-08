@@ -1,5 +1,3 @@
-import { debugLog } from '../shared/debug-log.js';
-
 export interface ContextWindowEntry {
   maxTokens: number;
 }
@@ -53,7 +51,6 @@ export function resolveContextWindow(
     return builtIn.maxTokens;
   }
 
-  debugLog('context-window', `Unknown model "${provider}:${model}", falling back to 128k`);
   return 128_000;
 }
 

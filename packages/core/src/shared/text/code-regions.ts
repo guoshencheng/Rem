@@ -153,9 +153,114 @@ export function createCodeRegionScanner(initialState: CodeRegionState = closedCo
     return { done: false, nextIndex: i + 1 };
   }
 
+  /**
+   * Scan exactly up to `stopAt` without jumping past it, so the returned
+   * state reflects whether `stopAt` itself is inside a code region.
+   */
+  function scanToExact(text: string, stopAt: number): CodeRegionState {
+    const regions: CodeRegion[] = [];
+    let i = 0;
+
+    while (i < stopAt) {
+      const step = processNextExact(text, i, regions, stopAt);
+      if (step.done) {
+        break;
+      }
+      i = step.nextIndex;
+    }
+
+    return { ...state };
+  }
+
+  function processNextExact(
+    text: string,
+    i: number,
+    regions: CodeRegion[],
+    stopAt: number,
+  ): { done: true } | { done: false; nextIndex: number } {
+    if (state.fenceOpen) {
+      const rest = text.slice(i, stopAt);
+      const closeRe = new RegExp(
+        `(?:^|\\n)${escapeRegex(state.fenceMarker)}[^\\S\\r\\n]*(?:\\r?\\n|$)`,
+        "g",
+      );
+      const match = closeRe.exec(rest);
+      if (match && i + match.index + match[0].length <= stopAt) {
+        const end = i + match.index + match[0].length;
+        regions.push({ start: i, end });
+        state = { ...closedCodeRegionState };
+        return { done: false, nextIndex: end };
+      }
+      regions.push({ start: i, end: stopAt });
+      return { done: true };
+    }
+
+    if (state.inlineOpen) {
+      const closeRe = new RegExp(`\`{${state.inlineTicks}}`);
+      const rest = text.slice(i, stopAt);
+      const match = closeRe.exec(rest);
+      if (match && i + match.index + match[0].length <= stopAt) {
+        const end = i + match.index + match[0].length;
+        regions.push({ start: i, end });
+        state = { ...closedCodeRegionState };
+        return { done: false, nextIndex: end };
+      }
+      regions.push({ start: i, end: stopAt });
+      return { done: true };
+    }
+
+    const atLineStart = i === 0 || text[i - 1] === "\n";
+    if (atLineStart) {
+      const fenceMatch = text.slice(i, stopAt).match(/^(```+|~~~+)/);
+      if (fenceMatch) {
+        const marker = fenceMatch[1];
+        if (marker.length >= 3) {
+          const afterFence = i + fenceMatch[0].length;
+          const rest = text.slice(afterFence, stopAt);
+          const closeRe = new RegExp(
+            `(?:^|\\n)${escapeRegex(marker)}[^\\S\\r\\n]*(?:\\r?\\n|$)`,
+            "g",
+          );
+          const closeMatch = closeRe.exec(rest);
+          if (closeMatch && afterFence + closeMatch.index + closeMatch[0].length <= stopAt) {
+            const end = afterFence + closeMatch.index + closeMatch[0].length;
+            regions.push({ start: i, end });
+            return { done: false, nextIndex: end };
+          }
+          state = { fenceOpen: true, fenceMarker: marker, inlineOpen: false, inlineTicks: 0 };
+          regions.push({ start: i, end: stopAt });
+          return { done: true };
+        }
+      }
+    }
+
+    if (text[i] === "`") {
+      const tickStart = i;
+      let tickCount = 0;
+      while (i < stopAt && text[i] === "`") {
+        tickCount += 1;
+        i += 1;
+      }
+      const rest = text.slice(i, stopAt);
+      const closeRe = new RegExp(`\`{${tickCount}}`);
+      const match = closeRe.exec(rest);
+      if (match && i + match.index + match[0].length <= stopAt) {
+        const end = i + match.index + match[0].length;
+        regions.push({ start: tickStart, end });
+        return { done: false, nextIndex: end };
+      }
+      state = { inlineOpen: true, inlineTicks: tickCount, fenceOpen: false, fenceMarker: "" };
+      regions.push({ start: tickStart, end: stopAt });
+      return { done: true };
+    }
+
+    return { done: false, nextIndex: i + 1 };
+  }
+
   return {
     scan,
     scanTo,
+    scanToExact,
     getState: () => ({ ...state }),
     reset: () => {
       state = { ...closedCodeRegionState };
@@ -170,4 +275,21 @@ export function isInsideCode(index: number, regions: CodeRegion[]): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Determine whether the character at `index` in `text` is inside a fenced or
+ * inline code region, starting from `initialState`. This scans incrementally
+ * and stops exactly at `index`, so it is suitable for repeated calls during
+ * streaming without re-scanning the whole string each time.
+ */
+export function isInsideCodeAt(
+  text: string,
+  index: number,
+  initialState: CodeRegionState = closedCodeRegionState,
+): boolean {
+  const scanner = createCodeRegionScanner(initialState);
+  scanner.scanToExact(text, index);
+  const state = scanner.getState();
+  return state.inlineOpen || state.fenceOpen;
 }

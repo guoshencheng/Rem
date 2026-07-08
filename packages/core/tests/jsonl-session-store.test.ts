@@ -217,4 +217,47 @@ describe('JsonlSessionStore', () => {
     expect(typeof parsed.updatedAt).toBe('string');
     expect(new Date(parsed.updatedAt).getTime()).toBeGreaterThan(0);
   });
+
+  it('debounces rapid saves: coalesces into a single file write', async () => {
+    const session = makeSession('s1', [textMessage('m1', 'v1')]);
+
+    // Fire many saves in quick succession with different content; the debounce
+    // window should collapse them into one persisted snapshot (the latest).
+    const promises: Promise<void>[] = [];
+    for (let i = 0; i < 10; i++) {
+      session.conversation = [textMessage('m1', `v${i}`)];
+      promises.push(store.save(session));
+    }
+
+    await Promise.all(promises);
+
+    const loaded = await store.load('s1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.conversation).toHaveLength(1);
+    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'v9' }]);
+  });
+
+  it('resolves all save promises after the debounced write completes', async () => {
+    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+
+    const p1 = store.save(session);
+    const p2 = store.save(session);
+
+    // Both promises must resolve once the debounced flush finishes.
+    await Promise.all([p1, p2]);
+
+    const loaded = await store.load('s1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'hi' }]);
+  });
+
+  it('delete cancels a pending debounced save without writing the file', async () => {
+    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+    // Schedule a save but do not await it; delete before the debounce fires.
+    void store.save(session);
+    await store.delete('s1');
+
+    const entries = await readdir(dir);
+    expect(entries.filter((e) => e.startsWith('s1'))).toHaveLength(0);
+  });
 });

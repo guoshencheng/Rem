@@ -12,6 +12,14 @@
     "./stream/stream-aggregators": {
       "import": "./dist/stream/stream-aggregators.js",
       "types": "./dist/stream/stream-aggregators.d.ts"
+    },
+    "./token-usage": {
+      "import": "./dist/token-usage.js",
+      "types": "./dist/token-usage.d.ts"
+    },
+    "./llm/context-window": {
+      "import": "./dist/llm/context-window.js",
+      "types": "./dist/llm/context-window.d.ts"
     }
   },
   "scripts": {

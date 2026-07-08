@@ -4,8 +4,12 @@ import { randomUUID } from 'crypto';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
 import type { ModelMessage } from '../../types.js';
 
+const SAVE_DEBOUNCE_MS = 100;
+
 export class JsonlSessionStore {
   private counts = new Map<string, number>();
+  private pendingSaves = new Map<string, { session: Session; timer: ReturnType<typeof setTimeout> }>();
+  private savePromises = new Map<string, { resolve: () => void; reject: (err: unknown) => void; promise: Promise<void> }>();
 
   constructor(private dir: string) {}
 
@@ -42,6 +46,58 @@ export class JsonlSessionStore {
   }
 
   async save(session: Session): Promise<void> {
+    let deferred = this.savePromises.get(session.sessionId);
+    if (!deferred) {
+      let resolve!: () => void;
+      let reject!: (err: unknown) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      deferred = { resolve, reject, promise };
+      this.savePromises.set(session.sessionId, deferred);
+    }
+
+    const pending = this.pendingSaves.get(session.sessionId);
+    if (pending) {
+      pending.session = session;
+      return deferred.promise;
+    }
+
+    const timer = setTimeout(() => {
+      void this.flushSave(session.sessionId);
+    }, SAVE_DEBOUNCE_MS);
+
+    this.pendingSaves.set(session.sessionId, { session, timer });
+    return deferred.promise;
+  }
+
+  private async flushSave(sessionId: string): Promise<void> {
+    const pending = this.pendingSaves.get(sessionId);
+    if (!pending) return;
+    this.pendingSaves.delete(sessionId);
+
+    try {
+      await this.writeSave(pending.session);
+
+      // If another update arrived during the write, schedule a follow-up save.
+      const nextPending = this.pendingSaves.get(sessionId);
+      if (nextPending) {
+        clearTimeout(nextPending.timer);
+        this.pendingSaves.delete(sessionId);
+        await this.writeSave(nextPending.session);
+      }
+
+      this.savePromises.get(sessionId)?.resolve();
+    } catch (err) {
+      this.savePromises.get(sessionId)?.reject(err);
+      throw err;
+    } finally {
+      this.savePromises.delete(sessionId);
+    }
+  }
+
+  private async writeSave(session: Session): Promise<void> {
     await this.ensureDir();
     // Rewrite the full conversation file so that in-place content updates
     // (e.g. appending text/reasoning parts to an assistant message) are persisted.
@@ -57,6 +113,16 @@ export class JsonlSessionStore {
 
   async delete(sessionId: string): Promise<void> {
     this.counts.delete(sessionId);
+    const pending = this.pendingSaves.get(sessionId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingSaves.delete(sessionId);
+    }
+    const deferred = this.savePromises.get(sessionId);
+    if (deferred) {
+      deferred.resolve();
+      this.savePromises.delete(sessionId);
+    }
     await this.unlinkQuiet(this.jsonlPath(sessionId));
     await this.unlinkQuiet(this.metaPath(sessionId));
   }

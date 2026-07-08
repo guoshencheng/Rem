@@ -1,7 +1,8 @@
 'use client';
 
 import type { LanguageModelUsage } from 'rem-agent-core';
-import { formatUsage, computeCacheStats, computeWindowRatio } from 'rem-agent-core';
+import { formatUsage, computeCacheStats } from 'rem-agent-core/token-usage';
+import { computeWindowRatio } from 'rem-agent-core/llm/context-window';
 
 interface TokenStatsBadgeProps {
   usage: LanguageModelUsage;

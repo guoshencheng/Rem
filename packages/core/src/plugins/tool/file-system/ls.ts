@@ -1,5 +1,9 @@
 import { Type, type Static } from '@sinclair/typebox';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import {
+  access as fsAccess,
+  readdir as fsReaddir,
+  stat as fsStat,
+} from 'node:fs/promises';
 import nodePath from 'node:path';
 import { normalizePositiveLimit } from './shared/limits.js';
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from './shared/truncate.js';
@@ -19,15 +23,25 @@ export type LsToolInput = Static<typeof lsSchema>;
 const DEFAULT_LIMIT = 500;
 
 export interface LsOperations {
-  exists: (absolutePath: string) => boolean;
-  stat: (absolutePath: string) => { isDirectory: () => boolean };
-  readdir: (absolutePath: string) => string[];
+  exists: (absolutePath: string) => Promise<boolean>;
+  stat: (absolutePath: string) => Promise<{ isDirectory: () => boolean }>;
+  readdir: (absolutePath: string) => Promise<string[]>;
 }
 
 const defaultLsOperations: LsOperations = {
-  exists: existsSync,
-  stat: statSync,
-  readdir: readdirSync,
+  exists: async (absolutePath: string) => {
+    try {
+      await fsAccess(absolutePath);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  stat: async (absolutePath: string) => {
+    const stat = await fsStat(absolutePath);
+    return { isDirectory: () => stat.isDirectory() };
+  },
+  readdir: fsReaddir,
 };
 
 export function createLsToolDefinition(): ToolDefinition<typeof lsSchema> {
@@ -47,16 +61,16 @@ export function createLsToolExecutor(
     const dirPath = resolveWorkspacePath(input.path || '.', ctx);
     const effectiveLimit = normalizePositiveLimit(input.limit, DEFAULT_LIMIT);
 
-    if (!operations.exists(dirPath)) {
+    if (!(await operations.exists(dirPath))) {
       throw new Error(`Path not found: ${dirPath}`);
     }
-    if (!operations.stat(dirPath).isDirectory()) {
+    if (!(await operations.stat(dirPath)).isDirectory()) {
       throw new Error(`Not a directory: ${dirPath}`);
     }
 
     let entries: string[];
     try {
-      entries = operations.readdir(dirPath);
+      entries = await operations.readdir(dirPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Cannot read directory: ${message}`);
@@ -75,7 +89,7 @@ export function createLsToolExecutor(
       const fullPath = nodePath.join(dirPath, entry);
       let suffix = '';
       try {
-        if (operations.stat(fullPath).isDirectory()) suffix = '/';
+        if ((await operations.stat(fullPath)).isDirectory()) suffix = '/';
       } catch {
         continue;
       }
@@ -95,7 +109,7 @@ export function createLsToolExecutor(
       notices.push(`${effectiveLimit} entries limit reached. Use limit=${effectiveLimit * 2} for more`);
     }
     if (truncation.truncated) {
-      notices.push(`${formatSize(DEFAULT_MAX_BYTES)} limit reached`);
+      notices.push(`${formatSize(DEFAULT_MAX_BYTES)} size limit reached`);
     }
     if (notices.length > 0) {
       output += `\n\n[${notices.join('. ')}]`;

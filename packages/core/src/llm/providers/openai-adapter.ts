@@ -73,6 +73,24 @@ export function convertToOpenAITools(tools: GenerateOptions['tools']): OpenAI.Ch
   }));
 }
 
+function buildOpenAIInputTokenDetails(usage: OpenAI.Completions.CompletionUsage | undefined) {
+  if (!usage?.prompt_tokens_details) return undefined;
+  const cached = usage.prompt_tokens_details.cached_tokens ?? 0;
+  return {
+    noCacheTokens: Math.max(0, usage.prompt_tokens - cached),
+    cacheReadTokens: cached,
+  };
+}
+
+function buildOpenAIOutputTokenDetails(usage: OpenAI.Completions.CompletionUsage | undefined) {
+  if (!usage?.completion_tokens_details) return undefined;
+  const reasoning = usage.completion_tokens_details.reasoning_tokens ?? 0;
+  return {
+    textTokens: Math.max(0, usage.completion_tokens - reasoning),
+    reasoningTokens: reasoning,
+  };
+}
+
 export function parseOpenAIResponse(response: OpenAI.Chat.Completions.ChatCompletion): GenerateResult {
   const message = response.choices[0]?.message ?? { content: '', tool_calls: [] };
   const text = message.content ?? '';
@@ -89,6 +107,8 @@ export function parseOpenAIResponse(response: OpenAI.Chat.Completions.ChatComple
       inputTokens: response.usage?.prompt_tokens ?? 0,
       outputTokens: response.usage?.completion_tokens ?? 0,
       totalTokens: response.usage?.total_tokens ?? 0,
+      inputTokenDetails: buildOpenAIInputTokenDetails(response.usage),
+      outputTokenDetails: buildOpenAIOutputTokenDetails(response.usage),
     },
   };
 }

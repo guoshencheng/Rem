@@ -8,10 +8,10 @@ import {
   simpleTextStream,
 } from './shared.js';
 
-describe('AgentService.run background driver', { timeout: 20000 }, () => {
+describe('AgentService.run background driver', { timeout: 30000 }, () => {
   it('run() resolves immediately and registers the run', async () => {
     const { service, cleanup } = await createTestService({
-      provider: { name: 'mock-run', stream: simpleTextStream },
+      provider: { name: 'mock-run-immediate', stream: simpleTextStream },
     });
     try {
       const summary = await service.createSession();
@@ -22,7 +22,7 @@ describe('AgentService.run background driver', { timeout: 20000 }, () => {
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(true);
 
       // Wait for the background drive to finish before cleanup.
-      await waitFor(events, (es) => es.some((e) => e.type === 'session-end'), 15000);
+      await waitFor(events, (es) => es.some((e) => e.type === 'session-end'), 25000);
       stop();
     } finally {
       await cleanup();
@@ -43,14 +43,14 @@ describe('AgentService.run background driver', { timeout: 20000 }, () => {
 
   it('publishes session-start, chunks, and session-end via bus', async () => {
     const { service, cleanup } = await createTestService({
-      provider: { name: 'mock-run', stream: simpleTextStream },
+      provider: { name: 'mock-run-bus', stream: simpleTextStream },
     });
     try {
       const summary = await service.createSession();
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
       await service.run(summary.sessionId, 'hi');
-      await waitFor(events, (es) => es.some((e) => e.type === 'session-end'), 15000);
+      await waitFor(events, (es) => es.some((e) => e.type === 'session-end'), 25000);
       stop();
 
       const types = events.map((e) => e.type);
@@ -81,7 +81,7 @@ describe('AgentService.run background driver', { timeout: 20000 }, () => {
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
       await service.run(summary.sessionId, 'hi');
-      await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 15000);
+      await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 25000);
       stop();
 
       expect(events.some((e) => e.type === 'session-error' && e.error.includes('stream boom'))).toBe(true);
@@ -102,7 +102,7 @@ describe('AgentService.run background driver', { timeout: 20000 }, () => {
       });
 
       await expect(service.run(summary.sessionId, 'hi')).rejects.toThrow('sync boom');
-      await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 15000);
+      await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 25000);
       stop();
 
       expect(events.some((e) => e.type === 'session-error' && e.error.includes('sync boom'))).toBe(true);

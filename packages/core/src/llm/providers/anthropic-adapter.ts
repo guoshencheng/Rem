@@ -55,6 +55,26 @@ export function convertToAnthropicTools(tools: GenerateOptions['tools']): Anthro
   }));
 }
 
+function buildAnthropicInputTokenDetails(usage: Anthropic.Message['usage']) {
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+  if (cacheRead === 0 && cacheWrite === 0) return undefined;
+  return {
+    noCacheTokens: Math.max(0, usage.input_tokens - cacheRead - cacheWrite),
+    cacheReadTokens: cacheRead,
+    cacheWriteTokens: cacheWrite,
+  };
+}
+
+function buildAnthropicOutputTokenDetails(usage: Anthropic.Message['usage']) {
+  if (!usage.output_tokens_details) return undefined;
+  const reasoning = usage.output_tokens_details.thinking_tokens ?? 0;
+  return {
+    textTokens: Math.max(0, usage.output_tokens - reasoning),
+    reasoningTokens: reasoning,
+  };
+}
+
 export function parseAnthropicResponse(response: Anthropic.Message): GenerateResult {
   const text = response.content
     .filter((c): c is Anthropic.TextBlock => c.type === 'text')
@@ -76,6 +96,8 @@ export function parseAnthropicResponse(response: Anthropic.Message): GenerateRes
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      inputTokenDetails: buildAnthropicInputTokenDetails(response.usage),
+      outputTokenDetails: buildAnthropicOutputTokenDetails(response.usage),
     },
   };
 }
@@ -105,6 +127,8 @@ export function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageS
         inputTokens: message.usage.input_tokens ?? 0,
         outputTokens: message.usage.output_tokens ?? 0,
         totalTokens: (message.usage.input_tokens ?? 0) + (message.usage.output_tokens ?? 0),
+        inputTokenDetails: buildAnthropicInputTokenDetails(message.usage),
+        outputTokenDetails: buildAnthropicOutputTokenDetails(message.usage),
       };
     }
   } else if (event.type === 'message_delta' && event.usage) {
@@ -113,6 +137,7 @@ export function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageS
       inputTokens: 0,
       outputTokens: event.usage.output_tokens,
       totalTokens: event.usage.output_tokens,
+      outputTokenDetails: buildAnthropicOutputTokenDetails(event.usage as Anthropic.Message['usage']),
     };
   }
 }

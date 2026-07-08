@@ -53,4 +53,46 @@ describe('ReactLoop', () => {
     ]);
     expect(msgs.length).toBeGreaterThan(0);
   });
+
+  it('accumulates input token details across multiple steps', async () => {
+    const msgs: any[] = [];
+    const ctx = {
+      liveState: new AgentLiveState(),
+      system: 'You are Rem.',
+      messages: msgs,
+      addMessage: () => { const m: any = { id: 'a', role: 'assistant', content: [] }; msgs.push(m); return m; },
+      appendContent: () => {},
+      reason: vi.fn()
+        .mockResolvedValueOnce({
+          text: 'step 1',
+          toolCalls: [{ toolCallId: 'tc-1', toolName: 'echo', input: {} }],
+          usage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            inputTokenDetails: { noCacheTokens: 8, cacheReadTokens: 2 },
+          },
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          text: 'step 2',
+          toolCalls: [],
+          usage: {
+            inputTokens: 20,
+            outputTokens: 10,
+            totalTokens: 30,
+            inputTokenDetails: { noCacheTokens: 15, cacheReadTokens: 5 },
+          },
+          finishReason: 'stop',
+        }),
+      execute: vi.fn(async () => [{ toolCallId: 'tc-1', toolName: 'echo', output: 'echoed' }]),
+      emit: () => {},
+    } as any;
+
+    const loop = new ReactLoop();
+    const result = await loop.run(ctx);
+
+    expect(result.usage.inputTokens).toBe(30);
+    expect(result.usage.inputTokenDetails).toEqual({ noCacheTokens: 23, cacheReadTokens: 7, cacheWriteTokens: 0 });
+  });
 });

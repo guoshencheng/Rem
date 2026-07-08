@@ -34,6 +34,36 @@ describe('openaiProvider', () => {
     );
   });
 
+  it('should parse prompt token details', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{
+        message: {
+          content: 'Hello!',
+          tool_calls: [],
+        },
+      }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 20,
+        total_tokens: 120,
+        prompt_tokens_details: { cached_tokens: 30 },
+      },
+    });
+
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    const result = await openaiProvider.generate({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+
+    expect(result.usage.inputTokens).toBe(100);
+    expect(result.usage.inputTokenDetails).toEqual({ noCacheTokens: 70, cacheReadTokens: 30 });
+  });
+
   it('should parse tool calls', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{
@@ -89,6 +119,31 @@ describe('openaiProvider', () => {
 
     const text = chunks.filter(c => c.type === 'text').map(c => c.text).join('');
     expect(text).toBe('Hello world');
+  });
+
+  it('should emit usage chunk with prompt token details', async () => {
+    async function* mockStream() {
+      yield { choices: [{ delta: { content: 'Hello' } }] };
+      yield { usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12, prompt_tokens_details: { cached_tokens: 4 } } };
+    }
+
+    const mockCreate = vi.fn().mockResolvedValue(mockStream());
+    vi.mocked(OpenAI).mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as any);
+
+    const chunks: any[] = [];
+    for await (const chunk of openaiProvider.stream({
+      model: 'gpt-4o',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    const usageChunks = chunks.filter(c => c.type === 'usage');
+    expect(usageChunks).toHaveLength(1);
+    expect(usageChunks[0].inputTokenDetails).toEqual({ noCacheTokens: 6, cacheReadTokens: 4 });
   });
 
   it('should pass system message as first message in generate()', async () => {

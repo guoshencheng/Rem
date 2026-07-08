@@ -139,9 +139,9 @@ Add this helper above `parseAnthropicResponse` (after `convertToAnthropicTools`)
 
 ```typescript
 function buildAnthropicInputTokenDetails(usage: Anthropic.Message['usage']) {
-  if (!usage?.input_token_details) return undefined;
-  const cacheRead = usage.input_token_details.cache_read_tokens ?? 0;
-  const cacheWrite = usage.input_token_details.cache_creation_tokens ?? 0;
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+  if (cacheRead === 0 && cacheWrite === 0) return undefined;
   return {
     noCacheTokens: Math.max(0, usage.input_tokens - cacheRead - cacheWrite),
     cacheReadTokens: cacheRead,
@@ -150,8 +150,8 @@ function buildAnthropicInputTokenDetails(usage: Anthropic.Message['usage']) {
 }
 
 function buildAnthropicOutputTokenDetails(usage: Anthropic.Message['usage']) {
-  if (!usage?.output_token_details) return undefined;
-  const reasoning = usage.output_token_details.reasoning_tokens ?? 0;
+  if (!usage.output_tokens_details) return undefined;
+  const reasoning = usage.output_tokens_details.thinking_tokens ?? 0;
   return {
     textTokens: Math.max(0, usage.output_tokens - reasoning),
     reasoningTokens: reasoning,
@@ -467,10 +467,8 @@ Insert after the existing `it('should generate text', ...)` test:
       usage: {
         input_tokens: 100,
         output_tokens: 20,
-        input_token_details: {
-          cache_read_tokens: 40,
-          cache_creation_tokens: 10,
-        },
+        cache_read_input_tokens: 40,
+        cache_creation_input_tokens: 10,
       },
     });
 
@@ -507,7 +505,8 @@ Insert after the existing `it('should stream text chunks', ...)` test:
           usage: {
             input_tokens: 50,
             output_tokens: 0,
-            input_token_details: { cache_read_tokens: 20, cache_creation_tokens: 5 },
+            cache_read_input_tokens: 20,
+            cache_creation_input_tokens: 5,
           },
         },
       };
@@ -678,7 +677,7 @@ Append a new test inside the existing `describe('ReactLoop', ...)` block:
     const result = await loop.run(ctx);
 
     expect(result.usage.inputTokens).toBe(30);
-    expect(result.usage.inputTokenDetails).toEqual({ noCacheTokens: 23, cacheReadTokens: 7 });
+    expect(result.usage.inputTokenDetails).toEqual({ noCacheTokens: 23, cacheReadTokens: 7, cacheWriteTokens: 0 });
   });
 ```
 

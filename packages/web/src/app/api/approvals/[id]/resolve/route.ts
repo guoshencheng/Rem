@@ -11,7 +11,7 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
-import { getWorkspace } from '../../../workspace-param.js';
+import { getWorkspace } from '../../../workspace-param';
 
 export async function POST(
   request: NextRequest,

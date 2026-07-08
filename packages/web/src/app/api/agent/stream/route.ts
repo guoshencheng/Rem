@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { BusEvent, IAgentService } from 'rem-agent-bridge';
 import { createBusSSEResponse } from 'rem-agent-bridge';
 import { getContainer } from '@/lib/container';
-import { getWorkspace } from '../../workspace-param.js';
+import { getWorkspace } from '../../workspace-param';
 
 async function getAgentService(): Promise<IAgentService> {
   const container = await getContainer();

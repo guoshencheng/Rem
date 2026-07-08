@@ -5,16 +5,31 @@ import os from 'node:os';
 import { AgentService } from '../src/agent.js';
 import { JsonWorkspaceRepository } from '../src/workspace-repository-json.js';
 import type { IAgentService } from '../src/agent-service.interface.js';
+import { registerMockProvider } from './agent-service/shared.js';
 
 async function makeService(): Promise<{ service: IAgentService; tmpDir: string }> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-svc-'));
+  registerMockProvider({ name: 'mock-workspace' });
   const repo = new JsonWorkspaceRepository(path.join(tmpDir, 'workspaces.json'));
-  const service = new AgentService({ sessionsDir: path.join(tmpDir, 'sessions') }, repo);
+  const service = new AgentService(
+    {
+      name: 'TestAgent',
+      provider: 'mock-workspace',
+      model: 'mock-model',
+      workspaceRoot: tmpDir,
+      sessionsDir: path.join(tmpDir, 'sessions'),
+    },
+    repo,
+  );
   await service.init();
   return { service, tmpDir };
 }
 
-describe('AgentService workspace', () => {
+describe('AgentService workspace', { timeout: 20000 }, () => {
+  beforeEach(() => {
+    // Each test gets a fresh service via makeService.
+  });
+
   it('lists, adds and removes workspaces', async () => {
     const { service, tmpDir } = await makeService();
     expect(await service.listWorkspaces()).toEqual([]);

@@ -8,7 +8,7 @@ import {
   restoreLineEndings,
   stripBom,
 } from './edit-diff.js';
-import { withFileMutationQueue } from './shared/file-mutation-queue.js';
+import type { FileMutationQueue } from './shared/file-mutation-queue.js';
 import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 import { type EditToolInput, editSchema } from './edit-schemas.js';
@@ -55,7 +55,7 @@ export function createEditToolDefinition(): ToolDefinition<typeof editSchema> {
   };
 }
 
-export function createEditToolExecutor(): ToolExecutor<typeof editSchema> {
+export function createEditToolExecutor(queue: FileMutationQueue): ToolExecutor<typeof editSchema> {
   return async (rawInput: EditToolInput, ctx: ToolContext) => {
     if (ctx.readOnly) {
       throw new Error('edit is disabled in read-only mode');
@@ -69,7 +69,7 @@ export function createEditToolExecutor(): ToolExecutor<typeof editSchema> {
     const absolutePath = resolveWorkspacePath(input.path, ctx);
     await fsAccess(absolutePath, constants.R_OK | constants.W_OK);
 
-    return withFileMutationQueue(absolutePath, async () => {
+    return queue.withQueue(absolutePath, async () => {
       const originalBuffer = await fsReadFile(absolutePath);
       const originalContent = originalBuffer.toString('utf8');
       const bom = originalContent.startsWith('\uFEFF') ? '\uFEFF' : '';

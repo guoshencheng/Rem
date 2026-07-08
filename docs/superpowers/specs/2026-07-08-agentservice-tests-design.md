@@ -70,7 +70,8 @@ packages/bridge/tests/
 - `init() builds AgentContext and enables session operations`
 - `init() is idempotent`
 - `ensureInitialized() throws 503 for all public methods before init`
-  - 参数化遍历：`run`, `interrupt`, `reset`, `createSession`, `listSessions`, `getMessages`, `updateSession`, `deleteSession`, `stream`, `listPendingApprovals`, `resolveApproval`
+  - 参数化遍历实际调用守卫的方法：`run`, `createSession`, `listSessions`, `getMessages`, `updateSession`, `deleteSession`, `listPendingApprovals`
+  - `interrupt`, `reset`, `resolveApproval`, `stream` 不调用守卫，不测 503
 
 ### `session.test.ts`
 
@@ -133,8 +134,16 @@ packages/bridge/tests/
 - **目标**：`packages/bridge/src/agent.ts` 行覆盖率 ≥ 90%。
 - **验证命令**：
   - `pnpm --filter rem-agent-bridge test`
-  - 可选：`pnpm --filter rem-agent-bridge test -- --coverage`
+  - `pnpm vitest run packages/bridge/tests --coverage`
 - **质量门**：实现完成后运行 `pnpm typecheck && pnpm test`，确保无 `.skip`、无失败。
+
+## 实现中发现的源修复
+
+为让 `run()` 生命周期测试稳定通过，对核心代码做了以下必要修复：
+
+1. `packages/core/src/run-agent.ts`：移除正常/错误收尾路径中对 `liveState.finish()` / `liveState.fail()` 的直接调用，改由 `AgentState.applyChunk` 在消费到 `finish` / `error` chunk 时统一发布 `session-end` / `session-error`。
+2. `packages/core/src/plugins/session/jsonl-store.ts`：保存会话时使用唯一临时文件名，避免并发 save 冲突。
+3. `packages/bridge/src/agent.ts`：在 `drive()` 尾部增加兜底 `finishRun`，处理流正常结束但未被 chunk 收尾的场景。
 
 ## 风险与缓解
 
@@ -142,7 +151,7 @@ packages/bridge/tests/
 |------|------|
 | 迁移导致旧测试历史丢失 | 新测试保留并扩展所有旧场景 |
 | mock provider 与真实 provider 行为偏离 | 明确分层：provider 逻辑由 `rem-agent-core` 自身测试保证 |
-| `stream()` 异步测试不稳定 | 用 `queueMicrotask` + 显式迭代器控制，避免真实时间等待 |
+| `stream()` 异步测试不稳定 | 用 `setTimeout` + 显式迭代器控制，避免真实时间等待 |
 
 ## 废弃内容
 

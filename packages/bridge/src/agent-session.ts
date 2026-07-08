@@ -1,10 +1,12 @@
-import type { SessionProvider, ContentPart } from 'rem-agent-core';
+import type { SessionProvider, ContentPart, AgentState } from 'rem-agent-core';
 import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import { ServiceError } from './errors.js';
-import { runRegistry } from './run-registry.js';
 
 export class AgentSessionManager {
-  constructor(private sessionProvider: SessionProvider) {}
+  constructor(
+    private sessionProvider: SessionProvider,
+    private agentState: AgentState,
+  ) {}
 
   async createSession(): Promise<SessionSummary> {
     const session = await this.sessionProvider.create();
@@ -88,9 +90,12 @@ export class AgentSessionManager {
     if (!session) {
       throw new ServiceError('Session not found', 404);
     }
-    runRegistry.abort(sessionId);
-    runRegistry.remove(sessionId);
+    this.agentState.abortRun(sessionId);
+    this.agentState.removeRun(sessionId);
     await this.sessionProvider.delete(sessionId);
+    // 删除后清理内存中的 live state，避免后续 stream 重连时把已删除会话的
+    // snapshot 推给前端。
+    this.agentState.remove(sessionId);
   }
 
   private toSummary(session: { sessionId: string; metadata?: Record<string, unknown>; updatedAt: Date; conversation?: unknown[] }): SessionSummary {

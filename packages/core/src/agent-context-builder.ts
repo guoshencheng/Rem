@@ -2,9 +2,9 @@ import { registerBuiltInProviders } from './llm/providers/index.js';
 import { createDefaultAgentPaths } from './config/paths.js';
 import { configureDebugLog } from './shared/debug-log.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
-import { InMemorySessionProvider } from './plugins/session/in-memory/index.js';
-import { InMemoryAgentLiveProvider } from './plugins/state/in-memory/index.js';
+import { FileSessionProvider } from './plugins/session/file/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
+import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import { SimpleContextProvider } from './plugins/memory/simple/index.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
 import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
@@ -25,12 +25,13 @@ export interface AgentContextBuildOptions {
   autoApproveDangerous?: boolean;
   provider?: string;
   model?: string;
+  sessionsDir?: string;
 }
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
   registerBuiltInProviders();
 
-  const paths = createDefaultAgentPaths();
+  const paths = createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
   configureDebugLog(paths.debugLogFile);
 
   const configProvider = new DefaultConfigProvider({
@@ -47,9 +48,9 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   });
   await configProvider.init();
 
-  const sessionProvider = new InMemorySessionProvider();
-  const agentLiveProvider = new InMemoryAgentLiveProvider();
-  const toolProvider = createFileSystemTools(configProvider);
+  const sessionProvider = new FileSessionProvider(paths.sessionsDir);
+  const fileMutationQueue = createFileMutationQueue();
+  const toolProvider = createFileSystemTools(configProvider, fileMutationQueue);
   const contextProvider = new SimpleContextProvider(configProvider);
   const skillProvider = new FileSkillProvider(configProvider, paths);
   const budgetPolicy = new FixedBudgetPolicy(configProvider);
@@ -67,7 +68,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   return {
     configProvider,
     sessionProvider,
-    agentLiveProvider,
     toolProvider,
     mcpProviders,
     skillProvider,
@@ -79,5 +79,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     titleProvider,
     loopStrategy,
     mcpManager,
+    fileMutationQueue,
   };
 }

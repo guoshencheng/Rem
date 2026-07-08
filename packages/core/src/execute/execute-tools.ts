@@ -1,15 +1,14 @@
 import type { ModelMessage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
-import type { AgentLiveProvider, ApprovalRequest } from '../sdk/agent-state-provider.js';
-import { ApprovalRegistry } from './approval-registry.js';
+import type { ApprovalRequest } from '../sdk/agent-state-provider.js';
+import { AgentState } from '../agent-state.js';
 
 const DEFAULT_APPROVAL_TIMEOUT_MS = 300_000;
 
 export interface ExecuteParams {
   toolCalls: ToolCall[];
   toolProvider: ToolProvider;
-  liveProvider?: AgentLiveProvider;
-  registry?: ApprovalRegistry;
+  agentState: AgentState;
   addMessage: (role: 'tool') => ModelMessage;
   appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
   workspaceRoot: string;
@@ -35,12 +34,12 @@ function emitToolResult(
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, liveProvider, registry, addMessage, appendContent, emit, signal } = params;
+  const { toolProvider, agentState, addMessage, appendContent, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     const dangerous = toolProvider.isDangerous(tc.toolName);
 
-    if (dangerous && registry && liveProvider) {
+    if (dangerous) {
       const approvalId = generateId();
       const request: ApprovalRequest = {
         approvalId, toolName: tc.toolName, toolCallId: tc.toolCallId,
@@ -49,17 +48,15 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
         sessionId: params.sessionId,
       };
 
-      const liveState = await liveProvider.getOrCreate(params.sessionId);
+      const liveState = agentState.getOrCreate(params.sessionId);
       liveState.pendingApprovals.push(request);
-      await liveProvider.set(params.sessionId, liveState);
 
       emit({ type: 'approval-request', sessionId: params.sessionId, request } as ProviderChunk);
 
-      const decision = await registry.wait(approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
+      const decision = await agentState.waitApproval(params.sessionId, approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
 
-      const resolved = await liveProvider.getOrCreate(params.sessionId);
+      const resolved = agentState.getOrCreate(params.sessionId);
       resolved.pendingApprovals = resolved.pendingApprovals.filter(r => r.approvalId !== approvalId);
-      await liveProvider.set(params.sessionId, resolved);
 
       emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as ProviderChunk);
 

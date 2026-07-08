@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createEditToolExecutor } from '../src/plugins/tool/file-system/edit.js';
+import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 
 const ctx = (workspaceRoot: string, readOnly = false) => ({
   cwd: workspaceRoot,
@@ -19,7 +20,7 @@ describe('edit tool', () => {
 
   it('applies a single replacement', async () => {
     await writeFile(join(workspaceRoot, 'foo.txt'), 'hello world', 'utf8');
-    const executor = createEditToolExecutor();
+    const executor = createEditToolExecutor(createFileMutationQueue());
     const result = await executor(
       { path: 'foo.txt', edits: [{ oldText: 'world', newText: 'there' }] },
       ctx(workspaceRoot),
@@ -31,7 +32,7 @@ describe('edit tool', () => {
 
   it('applies multiple replacements', async () => {
     await writeFile(join(workspaceRoot, 'foo.txt'), 'a b c', 'utf8');
-    const executor = createEditToolExecutor();
+    const executor = createEditToolExecutor(createFileMutationQueue());
     await executor(
       {
         path: 'foo.txt',
@@ -48,7 +49,7 @@ describe('edit tool', () => {
 
   it('preserves CRLF line endings', async () => {
     await writeFile(join(workspaceRoot, 'foo.txt'), 'line1\r\nline2\r\n', 'utf8');
-    const executor = createEditToolExecutor();
+    const executor = createEditToolExecutor(createFileMutationQueue());
     await executor(
       { path: 'foo.txt', edits: [{ oldText: 'line1', newText: 'first' }] },
       ctx(workspaceRoot),
@@ -59,7 +60,7 @@ describe('edit tool', () => {
 
   it('reports mismatch with file snippet', async () => {
     await writeFile(join(workspaceRoot, 'foo.txt'), 'hello world', 'utf8');
-    const executor = createEditToolExecutor();
+    const executor = createEditToolExecutor(createFileMutationQueue());
     await expect(
       executor(
         { path: 'foo.txt', edits: [{ oldText: 'missing', newText: 'x' }] },
@@ -70,7 +71,7 @@ describe('edit tool', () => {
 
   it('rejects edit in read-only mode', async () => {
     await writeFile(join(workspaceRoot, 'foo.txt'), 'x', 'utf8');
-    const executor = createEditToolExecutor();
+    const executor = createEditToolExecutor(createFileMutationQueue());
     await expect(
       executor(
         { path: 'foo.txt', edits: [{ oldText: 'x', newText: 'y' }] },

@@ -12,7 +12,6 @@ export class AgentStreamController {
   private queue: AgentStreamChunk[] = [];
   private pending: Array<() => void> = [];
   private finished = false;
-  private error?: Error;
   private currentPart?: { type: string; partId: string };
   private lastStep = 0;
 
@@ -85,7 +84,6 @@ export class AgentStreamController {
     this.closeCurrentPart(this.lastStep);
     this.enqueue({ type: 'error', error });
     this.finished = true;
-    this.error = error;
     for (const resolve of this.pending) resolve();
     this.pending = [];
   }
@@ -123,10 +121,9 @@ export class AgentStreamController {
   }
 
   private waitForFinish(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       const check = () => {
         if (this.finished) {
-          if (this.error) return reject(this.error);
           return resolve();
         }
         setTimeout(check, 10);

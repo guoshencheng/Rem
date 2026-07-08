@@ -6,7 +6,7 @@ import {
   writeFile as fsWriteFile,
 } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { withFileMutationQueue } from './shared/file-mutation-queue.js';
+import type { FileMutationQueue } from './shared/file-mutation-queue.js';
 import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 
@@ -104,7 +104,7 @@ export function createWriteToolDefinition(): ToolDefinition<typeof writeSchema> 
   };
 }
 
-export function createWriteToolExecutor(): ToolExecutor<typeof writeSchema> {
+export function createWriteToolExecutor(queue: FileMutationQueue): ToolExecutor<typeof writeSchema> {
   return async (input: WriteToolInput, ctx: ToolContext) => {
     if (ctx.readOnly) {
       throw new Error('write is disabled in read-only mode');
@@ -113,7 +113,7 @@ export function createWriteToolExecutor(): ToolExecutor<typeof writeSchema> {
     const absolutePath = resolveWorkspacePath(input.path, ctx);
     const dir = dirname(absolutePath);
 
-    return withFileMutationQueue(absolutePath, async () => {
+    return queue.withQueue(absolutePath, async () => {
       const precheck = await readOriginalWriteState(absolutePath, input.content);
       if (precheck.state === 'same') {
         return { output: `File ${input.path} already up to date` };

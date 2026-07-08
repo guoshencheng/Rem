@@ -1,4 +1,7 @@
-import type { AgentStreamChunk, ContentPart } from 'rem-agent-core';
+import type { ContentPart } from 'rem-agent-core';
+import type { BusEvent, SessionActivity } from 'rem-agent-core';
+
+export type { BusEvent, SessionActivity };
 
 export interface UIMessage {
   id: string;
@@ -6,6 +9,8 @@ export interface UIMessage {
   parts: ContentPart[];
   status: 'pending' | 'streaming' | 'done' | 'error';
   error?: string;
+  /** 当前正在流式写入的 part 类型；reasoning-finish/text-finish 等结束后会被清空 */
+  activePartType?: 'text' | 'reasoning' | 'tool-call' | 'tool-result';
 }
 
 export interface RunRequest {
@@ -26,13 +31,6 @@ export interface SessionUpdate {
   pinned?: boolean;
 }
 
-export type SessionActivity =
-  | 'idle'
-  | 'pending'
-  | 'thinking'
-  | 'calling-function'
-  | 'outputting';
-
 export interface SessionSummary {
   sessionId: string;
   title?: string;
@@ -42,12 +40,4 @@ export interface SessionSummary {
   activity?: SessionActivity;
 }
 
-export type ServerStreamEvent = AgentStreamChunk;
-
-export type BusEvent =
-  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamChunk }
-  | { workspace: string; sessionId: string; type: 'session-start' }
-  | { workspace: string; sessionId: string; type: 'session-end' }
-  | { workspace: string; sessionId: string; type: 'session-error'; error: string }
-  | { workspace: string; sessionId: string; type: 'activity-change'; activity: SessionActivity }
-  | { workspace: string; sessionId: string; type: 'snapshot'; messageId: string; parts: ContentPart[] };
+export type ServerStreamEvent = import('rem-agent-core').AgentStreamChunk;

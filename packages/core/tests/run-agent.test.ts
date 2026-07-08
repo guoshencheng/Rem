@@ -1,24 +1,31 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { AgentContext } from '../src/agent-context.js';
+import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
+import { AgentState } from '../src/agent-state.js';
+
+const createMockContextBase = () => ({
+  configProvider: {
+    getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+    getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
+    getToolConfig: () => ({}),
+    getMcpConfig: () => ({}),
+  },
+  sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
+  toolProvider: { getToolSet: () => ({}), register: () => {} },
+  contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
+  skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
+  budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
+  compressor: { shouldCompress: () => false, compress: async (msgs: unknown[]) => msgs },
+  errorHandler: { classify: () => 'unknown', isRetryable: () => false },
+  titleProvider: { generateTitle: async () => undefined },
+  mcpManager: { connectAll: async () => [], closeAll: async () => {} },
+  fileMutationQueue: createFileMutationQueue(),
+});
 
 describe('runAgent', () => {
   it('returns a stream and output promise', async () => {
     const mockCtx = {
-      configProvider: {
-        getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
-        getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
-        getToolConfig: () => ({}),
-        getMcpConfig: () => ({}),
-      },
-      sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-      agentLiveProvider: { get: () => null, getOrCreate: () => ({} as any), set: () => {} },
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
-      contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
-      skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
-      budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
-      compressor: { shouldCompress: () => false, compress: async (msgs: unknown[]) => msgs },
-      errorHandler: { classify: () => 'unknown', isRetryable: () => false },
-      titleProvider: { generateTitle: async () => undefined },
+      ...createMockContextBase(),
       loopStrategy: {
         run: async () => ({
           content: 'hello back',
@@ -26,7 +33,6 @@ describe('runAgent', () => {
           usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
         }),
       },
-      mcpManager: { connectAll: async () => [], closeAll: async () => {} },
     } as unknown as AgentContext;
 
     const { runAgent } = await import('../src/run-agent.js');
@@ -34,6 +40,7 @@ describe('runAgent', () => {
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
       ctx: mockCtx,
+      agentState: new AgentState(),
     });
     expect(result.stream).toBeDefined();
     expect(result.output).toBeInstanceOf(Promise);
@@ -57,23 +64,9 @@ describe('runAgent', () => {
     }));
 
     const mockCtx = {
-      configProvider: {
-        getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
-        getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
-        getToolConfig: () => ({}),
-        getMcpConfig: () => ({}),
-      },
-      sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-      agentLiveProvider: { get: () => null, getOrCreate: () => ({} as any), set: () => {} },
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
+      ...createMockContextBase(),
       mcpProviders: [],
-      skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
       toolComposer: { compose },
-      contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
-      budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
-      compressor: { shouldCompress: () => false, compress: async (msgs: unknown[]) => msgs },
-      errorHandler: { classify: () => 'unknown', isRetryable: () => false },
-      titleProvider: { generateTitle: async () => undefined },
       loopStrategy: {
         run: async (ctx: any) => {
           expect(ctx.reason).toBeDefined();
@@ -84,7 +77,6 @@ describe('runAgent', () => {
           };
         },
       },
-      mcpManager: { connectAll: async () => [], closeAll: async () => {} },
     } as unknown as AgentContext;
 
     const { runAgent } = await import('../src/run-agent.js');
@@ -92,6 +84,7 @@ describe('runAgent', () => {
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
       ctx: mockCtx,
+      agentState: new AgentState(),
     });
 
     for await (const _chunk of result.stream.fullStream) {
@@ -105,5 +98,45 @@ describe('runAgent', () => {
       mcpProviders: mockCtx.mcpProviders,
       skillProvider: mockCtx.skillProvider,
     });
+  });
+
+  it('emits error chunk when loopStrategy throws', async () => {
+    const mockCtx = {
+      ...createMockContextBase(),
+      mcpProviders: [],
+      toolComposer: {
+        compose: () => ({
+          getToolSet: () => ({}),
+          execute: async () => [],
+          register: () => {},
+          isDangerous: () => false,
+        }),
+      },
+      loopStrategy: {
+        run: async () => { throw new Error('LLM failed'); },
+      },
+    } as unknown as AgentContext;
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+
+    const chunks: import('../src/types.js').AgentStreamChunk[] = [];
+    for await (const chunk of result.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.some((c) => c.type === 'error')).toBe(true);
+    expect(chunks.find((c) => c.type === 'error')).toMatchObject({
+      error: expect.objectContaining({ message: 'LLM failed' }),
+    });
+
+    const output = await result.output;
+    expect(output.completed).toBe(true);
+    expect(output.content).toContain('LLM failed');
   });
 });

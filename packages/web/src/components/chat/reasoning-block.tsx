@@ -4,21 +4,26 @@ import { useState, useEffect } from 'react';
 import { ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import type { UIMessage } from 'rem-agent-bridge';
+
 interface ReasoningBlockProps {
   text: string;
   isStreaming: boolean;
+  activePartType?: UIMessage['activePartType'];
 }
 
-export function ReasoningBlock({ text, isStreaming }: ReasoningBlockProps) {
+export function ReasoningBlock({ text, isStreaming, activePartType }: ReasoningBlockProps) {
   const [open, setOpen] = useState(false);
 
+  const isReasoningActive = isStreaming && activePartType === 'reasoning';
+
   useEffect(() => {
-    if (isStreaming && text.length > 0) {
+    if (isReasoningActive && text.length > 0) {
       setOpen(true);
     }
-  }, [isStreaming, text]);
+  }, [isReasoningActive, text]);
 
-  if (!text && !isStreaming) return null;
+  if (!text && !isReasoningActive) return null;
 
   return (
     <div className="mb-2">
@@ -31,13 +36,13 @@ export function ReasoningBlock({ text, isStreaming }: ReasoningBlockProps) {
           className={cn('transition-transform flex-shrink-0', open && 'rotate-90')}
         />
         <Sparkles size={12} className="flex-shrink-0" />
-        <span>{isStreaming ? 'Thinking...' : 'Thought'}</span>
-        {isStreaming && <Loader2 size={10} className="animate-spin ml-auto" />}
+        <span>{isReasoningActive ? 'Thinking...' : 'Thought'}</span>
+        {isReasoningActive && <Loader2 size={10} className="animate-spin ml-auto" />}
       </button>
 
       {open && (
         <div className="mt-1.5 mx-2 px-3 py-2 rounded-card bg-card2 border border-bd text-tx2 text-xs italic leading-relaxed max-h-48 overflow-y-auto">
-          {text || (isStreaming ? '...' : '')}
+          {text || (isReasoningActive ? '...' : '')}
         </div>
       )}
     </div>

@@ -18,15 +18,18 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { decision } = body as { decision?: ApprovalDecision };
+    const { sessionId, decision } = body as { sessionId?: string; decision?: ApprovalDecision };
 
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
+    }
     if (!decision) {
       return NextResponse.json({ error: 'decision is required' }, { status: 400 });
     }
 
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const result = await agentService.resolveApproval(id, decision);
+    const result = await agentService.resolveApproval(sessionId, id, decision);
     return NextResponse.json(result);
   } catch (err) {
     return errorResponse(err);

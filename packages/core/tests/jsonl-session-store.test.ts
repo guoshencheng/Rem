@@ -87,6 +87,20 @@ describe('JsonlSessionStore', () => {
     expect(JSON.parse(lines[1]).id).toBe('m2');
   });
 
+  it('persists in-place content updates when saving a session twice', async () => {
+    const msg: ModelMessage = { id: 'm1', role: 'assistant', content: [] };
+    const session = makeSession('s1', [msg]);
+    await store.save(session);
+
+    msg.content.push({ type: 'text', text: 'updated' });
+    await store.save(session);
+
+    const loaded = await store.load('s1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.conversation).toHaveLength(1);
+    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'updated' }]);
+  });
+
   it('delete removes both jsonl and meta files', async () => {
     const session = makeSession('s1', [textMessage('m1', 'hi')]);
     await store.save(session);

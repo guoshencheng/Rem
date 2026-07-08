@@ -111,4 +111,23 @@ describe('AgentStreamController', () => {
     expect(chunks[chunks.length - 2].type).toBe('text-finish');
     expect(chunks[chunks.length - 1].type).toBe('finish');
   });
+
+  it('does not let stream.text/usage/steps reject on fail', async () => {
+    const controller = new AgentStreamController();
+    controller.append({ type: 'text-delta', step: 1, text: 'partial' });
+    controller.fail(new Error('stream error'));
+
+    const chunks: AgentStreamChunk[] = [];
+    for await (const chunk of controller.stream.fullStream) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.some((c) => c.type === 'error')).toBe(true);
+
+    // These should resolve (not reject) so consumers who only drain fullStream
+    // don't get unhandled rejections from the aggregate promises.
+    await expect(controller.stream.text).resolves.toBeDefined();
+    await expect(controller.stream.usage).resolves.toBeDefined();
+    await expect(controller.stream.steps).resolves.toBeDefined();
+  });
 });

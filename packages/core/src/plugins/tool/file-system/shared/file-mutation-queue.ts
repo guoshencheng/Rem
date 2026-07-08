@@ -1,8 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const fileMutationQueues = new Map<string, Promise<void>>();
-
 function getMutationQueueKey(filePath: string): string {
   const resolvedPath = resolve(filePath);
   try {
@@ -12,24 +10,32 @@ function getMutationQueueKey(filePath: string): string {
   }
 }
 
-export async function withFileMutationQueue<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
-  const key = getMutationQueueKey(filePath);
-  const currentQueue = fileMutationQueues.get(key) ?? Promise.resolve();
+export class FileMutationQueue {
+  private queues = new Map<string, Promise<void>>();
 
-  let releaseNext!: () => void;
-  const nextQueue = new Promise<void>((resolveQueue) => {
-    releaseNext = resolveQueue;
-  });
-  const chainedQueue = currentQueue.then(() => nextQueue);
-  fileMutationQueues.set(key, chainedQueue);
+  async withQueue<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
+    const key = getMutationQueueKey(filePath);
+    const currentQueue = this.queues.get(key) ?? Promise.resolve();
 
-  await currentQueue;
-  try {
-    return await fn();
-  } finally {
-    releaseNext();
-    if (fileMutationQueues.get(key) === chainedQueue) {
-      fileMutationQueues.delete(key);
+    let releaseNext!: () => void;
+    const nextQueue = new Promise<void>((resolveQueue) => {
+      releaseNext = resolveQueue;
+    });
+    const chainedQueue = currentQueue.then(() => nextQueue);
+    this.queues.set(key, chainedQueue);
+
+    await currentQueue;
+    try {
+      return await fn();
+    } finally {
+      releaseNext();
+      if (this.queues.get(key) === chainedQueue) {
+        this.queues.delete(key);
+      }
     }
   }
+}
+
+export function createFileMutationQueue(): FileMutationQueue {
+  return new FileMutationQueue();
 }

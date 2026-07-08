@@ -13,5 +13,5 @@ export interface IAgentService {
   deleteSession(sessionId: string): Promise<void>;
   stream(): AsyncIterable<BusEvent>;
   listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]>;
-  resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean>;
+  resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean>;
 }

@@ -62,14 +62,29 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         const persisted = await agentService.getMessages(sessionId);
         const state = sessionMapRef.current.get(sessionId);
         if (!state) return;
-        const persistedIds = new Set(persisted.map((m) => m.id));
-        const streamingTail = state.messages.filter(
-          (m) => m.status === 'streaming' && !persistedIds.has(m.id),
+
+        // Preserve streaming messages that have more recent content than the
+        // persisted snapshot. This prevents a reconnect/refresh from replacing
+        // a live streaming assistant message with a stale partial snapshot from
+        // disk, which makes the message appear to disappear or truncate.
+        const streamingMap = new Map(
+          state.messages.filter((m) => m.status === 'streaming').map((m) => [m.id, m]),
         );
-        state.messages = [
-          ...persisted.map((m) => ({ ...m, status: 'done' as const })),
-          ...streamingTail,
-        ];
+
+        const merged: UIMessage[] = [];
+        for (const m of persisted) {
+          const streaming = streamingMap.get(m.id);
+          if (streaming) {
+            merged.push(streaming);
+            streamingMap.delete(m.id);
+          } else {
+            merged.push({ ...m, status: 'done' as const });
+          }
+        }
+        // Append any streaming messages that do not yet exist in persisted storage.
+        merged.push(...streamingMap.values());
+
+        state.messages = merged;
         notifyChange();
       } catch {
         // ignore refresh errors
@@ -211,6 +226,32 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
           const chunk = event.chunk;
 
+          // Compute the next active part type before updating messages so the
+          // streaming message can be updated in a single pass.
+          let nextActivePartType: UIMessage['activePartType'] | undefined;
+          switch (chunk.type) {
+            case 'reasoning-start':
+              nextActivePartType = 'reasoning';
+              break;
+            case 'text-start':
+              nextActivePartType = 'text';
+              break;
+            case 'tool-call-start':
+              nextActivePartType = 'tool-call';
+              break;
+            case 'tool-result-start':
+              nextActivePartType = 'tool-result';
+              break;
+            case 'reasoning-finish':
+            case 'text-finish':
+            case 'tool-call-finish':
+            case 'tool-result-finish':
+            case 'finish':
+            case 'error':
+              nextActivePartType = undefined;
+              break;
+          }
+
           if (chunk.type === 'message-start') {
             ensureAssistantMessage(state, chunk.messageId);
             currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
@@ -228,6 +269,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
                 return {
                   ...m,
                   parts: newParts,
+                  activePartType: nextActivePartType ?? m.activePartType,
                   status: chunk.type === 'finish' ? 'done'
                     : chunk.type === 'error' ? 'error'
                     : 'streaming',
@@ -270,6 +312,9 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
             if (state.pendingToolCalls.size === 0) {
               state.activity = 'outputting';
             }
+          } else if (chunk.type === 'step-finish') {
+            state.activity = state.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
+            state.pendingToolCalls.clear();
           }
 
           notifyChange();
@@ -429,13 +474,14 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
   const resolveApproval = useCallback(
     async (approvalId: string, decision: ApprovalDecision) => {
+      if (!currentId) return;
       try {
-        await agentService.resolveApproval(approvalId, decision);
+        await agentService.resolveApproval(currentId, approvalId, decision);
       } catch {
         // silent fail; resolved chunks will update state if successful
       }
     },
-    [agentService],
+    [agentService, currentId],
   );
 
   return {

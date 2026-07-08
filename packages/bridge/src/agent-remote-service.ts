@@ -102,11 +102,11 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as ApprovalRequest[];
   }
 
-  async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+  async resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
     const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision }),
+      body: JSON.stringify({ sessionId, decision }),
     });
     if (!response.ok) {
       throw new Error(`Failed to resolve approval: ${response.status} ${response.statusText}`);

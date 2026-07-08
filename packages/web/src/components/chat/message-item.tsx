@@ -38,7 +38,14 @@ export function MessageItem({ message }: MessageItemProps) {
       )}>
         {message.parts.map((part, i) => {
           if (part.type === 'reasoning') {
-            return <ReasoningBlock key={i} text={part.text} isStreaming={message.status === 'streaming'} />;
+            return (
+              <ReasoningBlock
+                key={i}
+                text={part.text}
+                isStreaming={message.status === 'streaming'}
+                activePartType={message.activePartType}
+              />
+            );
           }
           if (part.type === 'tool-call') {
             const result = message.parts.find(

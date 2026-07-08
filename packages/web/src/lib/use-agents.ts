@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
@@ -23,6 +23,7 @@ interface SessionState {
   activity?: SessionActivity;
   pendingToolCalls: Set<string>;
   pendingApprovals: ApprovalRequest[];
+  tokenUsage?: LanguageModelUsage;
 }
 
 export interface SessionSummary {
@@ -32,6 +33,7 @@ export interface SessionSummary {
   messageCount: number;
   pinned?: boolean;
   activity?: SessionActivity;
+  tokenUsage?: LanguageModelUsage;
 }
 
 interface UseAgentsOptions {
@@ -295,6 +297,14 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
             state.pendingApprovals = state.pendingApprovals.filter(
               (r) => r.approvalId !== chunk.approvalId,
             );
+          } else if (chunk.type === 'usage') {
+            state.tokenUsage = {
+              inputTokens: chunk.inputTokens,
+              outputTokens: chunk.outputTokens,
+              totalTokens: chunk.totalTokens,
+              inputTokenDetails: chunk.inputTokenDetails,
+              outputTokenDetails: chunk.outputTokenDetails,
+            };
           } else if (chunk.type === 'finish' || chunk.type === 'error') {
             state.activity = 'idle';
             state.pendingToolCalls.clear();
@@ -348,6 +358,15 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           notifyChange();
           break;
         }
+        case 'usage-change': {
+          if (!state) {
+            bufferEvent(event);
+            return;
+          }
+          state.tokenUsage = event.usage;
+          notifyChange();
+          break;
+        }
       }
     };
 
@@ -379,6 +398,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       error: state.error,
       activity: state.activity,
       pendingApprovals: state.pendingApprovals,
+      tokenUsage: state.tokenUsage,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);

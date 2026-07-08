@@ -10,6 +10,9 @@ export type {
   UIMessage,
   BusEvent,
   SessionActivity,
+  Workspace,
+  AddWorkspaceRequest,
+  RemoveWorkspaceRequest,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
 export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';

@@ -1,4 +1,5 @@
 import type { SessionProvider, ContentPart, AgentState, LanguageModelUsage } from 'rem-agent-core';
+import { addUsage, emptyUsage } from 'rem-agent-core/token-usage';
 import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import { ServiceError } from './errors.js';
 
@@ -41,14 +42,7 @@ export class AgentSessionManager {
     if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
     const entries = Object.values(messageTokenUsage) as LanguageModelUsage[];
     if (entries.length === 0) return undefined;
-    return entries.reduce(
-      (acc, usage) => ({
-        inputTokens: acc.inputTokens + (usage.inputTokens ?? 0),
-        outputTokens: acc.outputTokens + (usage.outputTokens ?? 0),
-        totalTokens: acc.totalTokens + (usage.totalTokens ?? 0),
-      }),
-      { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-    );
+    return entries.reduce((acc, usage) => addUsage(acc, usage), emptyUsage());
   }
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {

@@ -65,14 +65,14 @@ describe('computeCacheStats', () => {
 });
 
 describe('computeCacheRatio', () => {
-  it('returns cache tokens divided by input tokens', () => {
+  it('returns cache tokens divided by total tokens', () => {
     const usage: LanguageModelUsage = {
       inputTokens: 100,
-      outputTokens: 50,
-      totalTokens: 150,
+      outputTokens: 100,
+      totalTokens: 200,
       inputTokenDetails: { noCacheTokens: 60, cacheReadTokens: 30, cacheWriteTokens: 10 },
     };
-    expect(computeCacheRatio(usage)).toBe(0.4);
+    expect(computeCacheRatio(usage)).toBe(0.2);
   });
 
   it('defaults missing details to zero', () => {
@@ -80,11 +80,11 @@ describe('computeCacheRatio', () => {
     expect(computeCacheRatio(usage)).toBe(0);
   });
 
-  it('returns zero when input tokens is zero', () => {
+  it('returns zero when total tokens is zero', () => {
     const usage: LanguageModelUsage = {
       inputTokens: 0,
-      outputTokens: 10,
-      totalTokens: 10,
+      outputTokens: 0,
+      totalTokens: 0,
       inputTokenDetails: { cacheReadTokens: 5 },
     };
     expect(computeCacheRatio(usage)).toBe(0);

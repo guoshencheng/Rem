@@ -9,11 +9,12 @@ export default defineConfig({
     setupFiles: ['packages/core/tests/setup.ts'],
   },
   resolve: {
-    alias: {
-      'rem-agent-core': resolve(__dirname, 'packages/core/src/index.ts'),
-      'rem-agent-bridge': resolve(__dirname, 'packages/bridge/src/index.ts'),
-
-      'rem-agent-tui': resolve(__dirname, 'packages/tui/src/index.ts'),
-    },
+    alias: [
+      { find: 'rem-agent-core/token-usage', replacement: resolve(__dirname, 'packages/core/src/token-usage.ts') },
+      { find: 'rem-agent-core/llm/context-window', replacement: resolve(__dirname, 'packages/core/src/llm/context-window.ts') },
+      { find: 'rem-agent-core', replacement: resolve(__dirname, 'packages/core/src/index.ts') },
+      { find: 'rem-agent-bridge', replacement: resolve(__dirname, 'packages/bridge/src/index.ts') },
+      { find: 'rem-agent-tui', replacement: resolve(__dirname, 'packages/tui/src/index.ts') },
+    ],
   },
 });

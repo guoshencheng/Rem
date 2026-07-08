@@ -66,9 +66,9 @@ export function computeCacheStats(usage: LanguageModelUsage): {
 }
 
 export function computeCacheRatio(usage: LanguageModelUsage): number {
-  if (usage.inputTokens === 0) return 0;
+  if (usage.totalTokens === 0) return 0;
   const details = detailOrZero(usage.inputTokenDetails);
-  return (details.cacheReadTokens + details.cacheWriteTokens) / usage.inputTokens;
+  return (details.cacheReadTokens + details.cacheWriteTokens) / usage.totalTokens;
 }
 
 export function formatUsage(usage: LanguageModelUsage): string {

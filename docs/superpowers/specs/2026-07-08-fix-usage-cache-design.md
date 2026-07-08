@@ -51,11 +51,11 @@ Mapping:
 
 | Our field | Anthropic source |
 |---|---|
-| `inputTokenDetails.cacheReadTokens` | `usage.input_token_details.cache_read_tokens` |
-| `inputTokenDetails.cacheWriteTokens` | `usage.input_token_details.cache_creation_tokens` |
+| `inputTokenDetails.cacheReadTokens` | `usage.cache_read_input_tokens` |
+| `inputTokenDetails.cacheWriteTokens` | `usage.cache_creation_input_tokens` |
 | `inputTokenDetails.noCacheTokens` | `usage.input_tokens - cache_read - cache_creation` |
-| `outputTokenDetails.reasoningTokens` | `usage.output_token_details.reasoning_tokens` |
-| `outputTokenDetails.textTokens` | `usage.output_tokens - reasoning_tokens` |
+| `outputTokenDetails.reasoningTokens` | `usage.output_tokens_details.thinking_tokens` |
+| `outputTokenDetails.textTokens` | `usage.output_tokens - thinking_tokens` |
 
 ### 3. Stream Collector
 
@@ -102,11 +102,11 @@ File: `packages/core/tests/llm/providers/anthropic.test.ts`
 Add two new test cases:
 
 1. **`generate()` parses input token details**
-   - Mock response includes `usage: { input_tokens: 100, output_tokens: 20, input_token_details: { cache_read_tokens: 40, cache_creation_tokens: 10 } }`.
+   - Mock response includes `usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 40, cache_creation_input_tokens: 10 }`.
    - Assert `result.usage.inputTokenDetails` equals `{ noCacheTokens: 50, cacheReadTokens: 40, cacheWriteTokens: 10 }`.
 2. **`stream()` emits details from `message_start` and `message_delta`**
-   - Yield a `message_start` event with input details and a `message_delta` event with output details.
-   - Assert aggregated usage chunks carry the correct `inputTokenDetails` / `outputTokenDetails`.
+   - Yield a `message_start` event with `cache_read_input_tokens` / `cache_creation_input_tokens` and a `message_delta` event with output tokens.
+   - Assert aggregated usage chunks carry the correct `inputTokenDetails`.
 
 #### 5.3 Stream Collector Tests
 
@@ -128,7 +128,7 @@ Add one test:
 
 1. **Multi-step usage accumulates details**
    - Mock `ctx.reason()` to return usage with `inputTokenDetails` twice.
-   - Assert the final `LoopResult.usage.inputTokenDetails` equals the sum of both steps.
+   - Assert the final `LoopResult.usage.inputTokenDetails` equals the sum of both steps (including `cacheWriteTokens: 0` because `addUsage` normalizes missing fields to zero).
    - This directly guards against the previous bug where `inputTokenDetails` only kept the first step and `outputTokenDetails` only kept the last.
 
 #### 5.5 Existing Coverage

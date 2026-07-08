@@ -1,27 +1,19 @@
-import type { AgentStreamChunk, SessionProvider, ApprovalDecision, ApprovalRequest, AgentLiveProvider, AgentContext } from 'rem-agent-core';
-import { runAgent as coreRunAgent, ApprovalRegistry, buildAgentContext } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentContext } from 'rem-agent-core';
+import { runAgent as coreRunAgent, buildAgentContext, AgentState } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
-import { bus } from './broadcast-bus.js';
-import { runRegistry } from './run-registry.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
-import { SessionActivityTracker } from './session-activity-tracker.js';
-import { streamingSnapshots } from './streaming-snapshots.js';
-import { reduceStreamChunk } from './stream-reducer.js';
 
 export type AgentServiceOptions = AgentContextBuildOptions;
 
 export class AgentService implements IAgentService {
   private options: AgentServiceOptions;
   private workspace: string;
-  private sessionProvider: SessionProvider | undefined;
-  private agentLiveProvider: AgentLiveProvider | undefined;
   private ctx: AgentContext | undefined;
   private sessionManager: AgentSessionManager | undefined;
-  private activityTracker: SessionActivityTracker | undefined;
-  private approvalRegistry = new ApprovalRegistry();
+  private agentState = new AgentState();
   private initialized = false;
 
   constructor(options: AgentServiceOptions, workspace = 'default') {
@@ -33,17 +25,7 @@ export class AgentService implements IAgentService {
     if (this.initialized) return;
 
     this.ctx = await buildAgentContext(this.options);
-    this.sessionProvider = this.ctx.sessionProvider;
-    this.agentLiveProvider = this.ctx.agentLiveProvider;
-    this.sessionManager = new AgentSessionManager(this.sessionProvider);
-    this.activityTracker = new SessionActivityTracker((sessionId, activity) => {
-      bus.publish({
-        workspace: this.workspace,
-        sessionId,
-        type: 'activity-change',
-        activity,
-      });
-    });
+    this.sessionManager = new AgentSessionManager(this.ctx.sessionProvider, this.agentState);
 
     this.initialized = true;
   }
@@ -52,8 +34,12 @@ export class AgentService implements IAgentService {
     return this.ctx;
   }
 
+  get state(): AgentState {
+    return this.agentState;
+  }
+
   private ensureInitialized(): void {
-    if (!this.initialized || !this.ctx || !this.sessionManager || !this.activityTracker) {
+    if (!this.initialized || !this.ctx || !this.sessionManager) {
       throw new ServiceError('AgentService not initialized', 503);
     }
   }
@@ -63,13 +49,11 @@ export class AgentService implements IAgentService {
   async run(sessionId: string, input: string): Promise<void> {
     this.ensureInitialized();
 
-    const abortController = new AbortController();
-    if (!runRegistry.register(sessionId, abortController)) {
+    if (this.agentState.isRunning(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
 
-    bus.publish({ workspace: this.workspace, sessionId, type: 'session-start' });
-    this.activityTracker!.start(sessionId);
+    const abortController = this.agentState.startRun(sessionId, this.workspace);
 
     let result: ReturnType<typeof coreRunAgent>;
     try {
@@ -78,48 +62,24 @@ export class AgentService implements IAgentService {
         sessionId,
         signal: abortController.signal,
         ctx: this.ctx!,
-        approvalRegistry: this.approvalRegistry,
+        agentState: this.agentState,
       });
     } catch (err) {
-      bus.publish({ workspace: this.workspace, sessionId, type: 'session-error', error: err instanceof Error ? err.message : String(err) });
-      runRegistry.remove(sessionId);
-      this.activityTracker!.finish(sessionId);
+      this.agentState.finishRun(sessionId, this.workspace, {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     }
 
-    void this.drive(sessionId, result);
+    void this.drive(sessionId, abortController.signal, result);
   }
 
-  private async drive(sessionId: string, result: ReturnType<typeof coreRunAgent>): Promise<void> {
+  private async drive(sessionId: string, signal: AbortSignal, result: ReturnType<typeof coreRunAgent>): Promise<void> {
     const workspace = this.workspace;
 
     const consume = (async () => {
       for await (const chunk of result.stream.fullStream) {
-        this.activityTracker!.applyChunk(sessionId, chunk);
-
-        if (chunk.type === 'message-start') {
-          streamingSnapshots.start(sessionId, chunk.messageId);
-        } else if (isContentChunk(chunk)) {
-          const entry = streamingSnapshots.get(sessionId);
-          if (entry) {
-            try {
-              streamingSnapshots.update(sessionId, reduceStreamChunk(entry.parts, chunk));
-            } catch {
-              // snapshot best-effort
-            }
-          }
-        }
-
-        bus.publish({ workspace, sessionId, type: 'chunk', chunk });
-
-        if (chunk.type === 'finish') {
-          streamingSnapshots.clear(sessionId);
-          bus.publish({ workspace, sessionId, type: 'session-end' });
-        }
-        if (chunk.type === 'error') {
-          streamingSnapshots.clear(sessionId);
-          bus.publish({ workspace, sessionId, type: 'session-error', error: String(chunk.error) });
-        }
+        this.agentState.applyChunk(workspace, sessionId, chunk);
       }
     })();
 
@@ -131,23 +91,29 @@ export class AgentService implements IAgentService {
     try {
       await Promise.race([consume, outputGuard]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      streamingSnapshots.clear(sessionId);
-      bus.publish({ workspace, sessionId, type: 'session-error', error: message });
-    } finally {
-      runRegistry.remove(sessionId);
-      streamingSnapshots.clear(sessionId);
-      this.activityTracker!.finish(sessionId);
+      // 主动中断（interrupt/reset）触发的 abort 算正常收尾，不算 error
+      if (signal.aborted) {
+        this.agentState.finishRun(sessionId, workspace);
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        this.agentState.finishRun(sessionId, workspace, { error: message });
+      }
+    }
+
+    // 正常流结束：如果 applyChunk 没有触发 finishRun（例如 runAgent 已经直接调用了
+    // liveState.finish），这里兜底确保会话状态被正确收尾并发布 session-end。
+    if (this.agentState.isRunning(sessionId)) {
+      this.agentState.finishRun(sessionId, workspace);
     }
   }
 
   async interrupt(sessionId: string): Promise<void> {
-    runRegistry.abort(sessionId);
+    this.agentState.abortRun(sessionId);
   }
 
   async reset(sessionId: string): Promise<void> {
-    runRegistry.abort(sessionId);
-    runRegistry.remove(sessionId);
+    this.agentState.abortRun(sessionId);
+    this.agentState.finishRun(sessionId, this.workspace);
   }
 
   /* ---- Message tracking ---- */
@@ -167,7 +133,7 @@ export class AgentService implements IAgentService {
     const list = await this.sessionManager!.listSessions();
     return list.map((s) => ({
       ...s,
-      activity: this.activityTracker!.get(s.sessionId) ?? 'idle',
+      activity: this.agentState.get(s.sessionId)?.activity ?? 'idle',
     }));
   }
 
@@ -185,12 +151,12 @@ export class AgentService implements IAgentService {
 
   async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
     this.ensureInitialized();
-    const liveState = await this.agentLiveProvider!.get(sessionId);
+    const liveState = this.agentState.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 
-  async resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean> {
-    return this.approvalRegistry.resolve(approvalId, decision);
+  async resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+    return this.agentState.resolveApproval(sessionId, approvalId, decision);
   }
 
   /* ---- Broadcast stream ---- */
@@ -199,7 +165,7 @@ export class AgentService implements IAgentService {
     const queue: BusEvent[] = [];
     let resolveNext: ((event: BusEvent) => void) | null = null;
 
-    const unsub = bus.subscribe((event) => {
+    const unsub = this.agentState.subscribe((event) => {
       if (event.workspace !== this.workspace) return;
       if (resolveNext) {
         resolveNext(event);
@@ -210,6 +176,22 @@ export class AgentService implements IAgentService {
     });
 
     try {
+      // Replay in-flight snapshots to this new subscriber first, then live bus
+      // events. subscribe() above already ran synchronously, so any chunk
+      // published after this point is queued — snapshot + queue are gap-free.
+      for (const sessionId of this.agentState.runningSessionIds()) {
+        const snapshot = this.agentState.getSnapshot(sessionId);
+        if (snapshot) {
+          yield {
+            workspace: this.workspace,
+            sessionId,
+            type: 'snapshot',
+            messageId: snapshot.messageId,
+            parts: snapshot.parts,
+          };
+        }
+      }
+
       while (true) {
         if (queue.length > 0) {
           yield queue.shift()!;
@@ -221,11 +203,4 @@ export class AgentService implements IAgentService {
       unsub();
     }
   }
-}
-
-function isContentChunk(chunk: AgentStreamChunk): boolean {
-  return chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' ||
-    chunk.type === 'tool-call' || chunk.type === 'tool-result' ||
-    chunk.type === 'text-start' || chunk.type === 'reasoning-start' ||
-    chunk.type === 'tool-call-start' || chunk.type === 'tool-result-start';
 }

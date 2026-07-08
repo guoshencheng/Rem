@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile, appendFile, unlink, readdir, rename, access } from 'fs/promises';
+import { mkdir, readFile, writeFile, unlink, readdir, rename, access } from 'fs/promises';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
 import type { ModelMessage } from '../../types.js';
 
@@ -42,17 +43,14 @@ export class JsonlSessionStore {
 
   async save(session: Session): Promise<void> {
     await this.ensureDir();
-    if (!this.counts.has(session.sessionId)) {
-      const existing = await this.readMessages(session.sessionId);
-      this.counts.set(session.sessionId, existing?.length ?? 0);
-    }
-    const count = this.counts.get(session.sessionId)!;
-    const newMessages = session.conversation.slice(count);
-    if (newMessages.length > 0) {
-      const lines = newMessages.map((m) => JSON.stringify(m)).join('\n') + '\n';
-      await appendFile(this.jsonlPath(session.sessionId), lines, 'utf-8');
-      this.counts.set(session.sessionId, session.conversation.length);
-    }
+    // Rewrite the full conversation file so that in-place content updates
+    // (e.g. appending text/reasoning parts to an assistant message) are persisted.
+    // Using temp-file + rename keeps the write atomic.
+    const lines = session.conversation.map((m) => JSON.stringify(m)).join('\n') + (session.conversation.length > 0 ? '\n' : '');
+    const tmpPath = `${this.jsonlPath(session.sessionId)}.${randomUUID()}.tmp`;
+    await writeFile(tmpPath, lines, 'utf-8');
+    await rename(tmpPath, this.jsonlPath(session.sessionId));
+    this.counts.set(session.sessionId, session.conversation.length);
     session.updatedAt = new Date();
     await this.writeMeta(session);
   }
@@ -138,7 +136,7 @@ export class JsonlSessionStore {
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };
-    const tmpPath = `${this.metaPath(session.sessionId)}.tmp`;
+    const tmpPath = `${this.metaPath(session.sessionId)}.${randomUUID()}.tmp`;
     await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
     await rename(tmpPath, this.metaPath(session.sessionId));
   }

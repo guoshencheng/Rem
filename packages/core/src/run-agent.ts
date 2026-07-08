@@ -16,15 +16,14 @@ import type { AgentContext } from './agent-context.js';
 import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
-import type { ApprovalRegistry } from './execute/approval-registry.js';
-import type { AgentLiveProvider } from './sdk/agent-state-provider.js';
+import { AgentState } from './agent-state.js';
 
 export interface RunAgentParams {
   input: UserInput;
   sessionId: string;
   signal?: AbortSignal;
   ctx: AgentContext;
-  approvalRegistry?: ApprovalRegistry;
+  agentState: AgentState;
 }
 
 export interface RunAgentResult {
@@ -52,11 +51,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     }
 
     const events = new EventBus();
-    const liveState = new AgentLiveState(undefined, events);
-    liveState.start();
+    const liveState = params.agentState.getOrCreate(params.sessionId);
+    liveState.attachEvents(events);
+
+    // AgentService 已通过 startRun 将状态置为 running；直接调用 runAgent 时在这里启动
+    if (liveState.status !== 'running') {
+      liveState.start({ clearSnapshot: true });
+    }
 
     if (!ctx.budgetPolicy.checkTurn(liveState) || !ctx.budgetPolicy.checkTimeout(Date.now())) {
-      liveState.finish();
       const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
       controller.finish(output);
       return output;
@@ -115,8 +118,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
-          liveProvider: ctx.agentLiveProvider,
-          registry: params.approvalRegistry,
+          agentState: params.agentState,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
           emit: (chunk) => controller.emit(chunk),
@@ -130,17 +132,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const result = await loopStrategy.run(loopCtx);
 
       session.currentTurn++;
-      liveState.finish();
       await sessionProvider.save(session);
 
       const output: AgentOutput = { content: result.content, completed: true };
       controller.finish(output);
       return output;
     } catch (error) {
-      liveState.fail(error);
       const message = error instanceof Error ? error.message : String(error);
       const output: AgentOutput = { content: `Error: ${message}`, completed: true };
-      controller.finish(output);
+      controller.fail(error instanceof Error ? error : new Error(message));
       await sessionProvider.save(session);
       return output;
     }

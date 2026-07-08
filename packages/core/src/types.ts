@@ -59,7 +59,22 @@ export type AgentStreamChunk =
   | { type: 'error'; error: Error }
   | { type: 'session-title'; title: string }
   | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
-  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null };
+  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      inputTokenDetails?: {
+        noCacheTokens?: number;
+        cacheReadTokens?: number;
+        cacheWriteTokens?: number;
+      };
+      outputTokenDetails?: {
+        textTokens?: number;
+        reasoningTokens?: number;
+      };
+    };
 
 /** Chunks that providers emit before the AgentStreamController enriches them with partId. */
 export type ProviderChunk =

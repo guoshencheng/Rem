@@ -1,7 +1,7 @@
-import type { ContentPart } from 'rem-agent-core';
+import type { ContentPart, LanguageModelUsage } from 'rem-agent-core';
 import type { BusEvent, SessionActivity } from 'rem-agent-core';
 
-export type { BusEvent, SessionActivity };
+export type { BusEvent, SessionActivity, LanguageModelUsage };
 
 export interface UIMessage {
   id: string;
@@ -38,6 +38,7 @@ export interface SessionSummary {
   updatedAt: number;
   messageCount: number;
   activity?: SessionActivity;
+  tokenUsage?: LanguageModelUsage;
 }
 
 export type ServerStreamEvent = import('rem-agent-core').AgentStreamChunk;

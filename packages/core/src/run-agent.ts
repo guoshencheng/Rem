@@ -24,6 +24,8 @@ export interface RunAgentParams {
   signal?: AbortSignal;
   ctx: AgentContext;
   agentState: AgentState;
+  workspace?: string;
+  workspaceRoot?: string;
 }
 
 export interface RunAgentResult {
@@ -39,6 +41,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     const ctx = params.ctx;
     const behavior = ctx.configProvider.getBehaviorConfig();
     const modelConfig = ctx.configProvider.getModelConfig();
+    const workspace = params.workspace ?? 'default';
+    const workspaceRoot = params.workspaceRoot ?? (params.workspace ? params.workspace : behavior.workspaceRoot);
 
     const sessionProvider = ctx.sessionProvider;
     let session = await sessionProvider.load(params.sessionId);
@@ -119,13 +123,13 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
           agentState: params.agentState,
-          workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,
+          workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
           emit: (chunk) => controller.emit(chunk),
         }),
         emit: (chunk) => controller.emit(chunk),
         signal: params.signal, maxSteps: behavior.maxTurns,
-        workspaceRoot: behavior.workspaceRoot, readOnly: behavior.readOnly,
+        workspaceRoot, readOnly: behavior.readOnly,
         agentName: behavior.name, sessionId: params.sessionId,
       };
 

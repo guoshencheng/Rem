@@ -35,12 +35,12 @@ export interface SessionSummary {
 }
 
 interface UseAgentsOptions {
-  workspace?: string;
+  workspace: string;
 }
 
-export function useAgents(agentService: IAgentService, options?: UseAgentsOptions) {
-  const workspace = options?.workspace ?? 'default';
-  const bus = useAgentBus(agentService);
+export function useAgents(agentService: IAgentService, options: UseAgentsOptions) {
+  const workspace = options.workspace;
+  const bus = useAgentBus(agentService, workspace);
 
   const [sessionList, setSessionList] = useState<SessionSummary[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
   const refreshSession = useCallback(
     async (sessionId: string) => {
       try {
-        const persisted = await agentService.getMessages(sessionId);
+        const persisted = await agentService.getMessages(workspace, sessionId);
         const state = sessionMapRef.current.get(sessionId);
         if (!state) return;
 
@@ -90,7 +90,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         // ignore refresh errors
       }
     },
-    [agentService, notifyChange],
+    [agentService, notifyChange, workspace],
   );
 
   const ensureSession = useCallback(
@@ -98,8 +98,8 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       if (sessionMapRef.current.has(sessionId)) return;
       try {
         const [messages, pendingApprovals] = await Promise.all([
-          agentService.getMessages(sessionId),
-          agentService.listPendingApprovals(sessionId).catch(() => [] as ApprovalRequest[]),
+          agentService.getMessages(workspace, sessionId),
+          agentService.listPendingApprovals(workspace, sessionId).catch(() => [] as ApprovalRequest[]),
         ]);
         sessionMapRef.current.set(sessionId, {
           messages,
@@ -119,7 +119,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
       }
       notifyChange();
     },
-    [agentService, notifyChange],
+    [agentService, notifyChange, workspace],
   );
 
   const ensureAssistantMessage = useCallback(
@@ -171,7 +171,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
   // Init: load session list
   useEffect(() => {
-    agentService.listSessions().then((list) => {
+    agentService.listSessions(workspace).then((list) => {
       setSessionList(list as SessionSummary[]);
       if (!currentId && list.length > 0) {
         const id = list[0].sessionId;
@@ -436,7 +436,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
 
   const createSession = useCallback(async () => {
     try {
-      const res = await fetch('/api/sessions', { method: 'POST' });
+      const res = await fetch(`/api/sessions?workspace=${encodeURIComponent(workspace)}`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to create');
       const session = await res.json() as SessionSummary;
       setSessionList((prev) => [session, ...prev]);
@@ -446,12 +446,12 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     } catch (err) {
       // silent fail
     }
-  }, [ensureSession]);
+  }, [ensureSession, workspace]);
 
   const deleteSession = useCallback(
     async (id: string) => {
       try {
-        await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+        await fetch(`/api/sessions/${id}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' });
         sessionMapRef.current.delete(id);
         currentMsgIdRef.current.delete(id);
         pendingEventsRef.current.delete(id);
@@ -469,19 +469,19 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
         // silent fail
       }
     },
-    [currentId, notifyChange],
+    [currentId, notifyChange, workspace],
   );
 
   const resolveApproval = useCallback(
     async (approvalId: string, decision: ApprovalDecision) => {
       if (!currentId) return;
       try {
-        await agentService.resolveApproval(currentId, approvalId, decision);
+        await agentService.resolveApproval(workspace, currentId, approvalId, decision);
       } catch {
         // silent fail; resolved chunks will update state if successful
       }
     },
-    [agentService, currentId],
+    [agentService, currentId, workspace],
   );
 
   return {

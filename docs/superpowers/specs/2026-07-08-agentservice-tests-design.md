@@ -60,7 +60,7 @@ packages/bridge/tests/
 | `run.test.ts` | `run()` 正常流、错误流、并发、同步抛错 |
 | `interrupt-reset.test.ts` | `interrupt()` 与 `reset()` 的状态转换和边界 |
 | `stream.test.ts` | `stream()` 快照回放、多订阅者、workspace 过滤、取消订阅 |
-| `approval.test.ts` | `listPendingApprovals()`、`resolveApproval()`、审批端到端流 |
+| `approval.test.ts` | `listPendingApprovals()`、`resolveApproval()` 的 wrapper 契约 |
 | `shared.ts` | 共享 helper：临时目录、mock provider、bus 事件收集 |
 
 ## 各文件测试用例
@@ -115,8 +115,8 @@ packages/bridge/tests/
 - `listPendingApprovals() returns pending requests from AgentState`
 - `resolveApproval() resolves pending approval and returns true`
 - `resolveApproval() returns false for unknown approvalId`
-- `run() emits approval-request chunk and waits for resolveApproval`
-- `bus receives approval-resolved and tool-result after resolveApproval`
+
+> 审批生命周期（emit `approval-request` chunk、等待决策、发布 `approval-resolved`）由 `rem-agent-core` 的 `execute-tools` 负责，不在 bridge 层做端到端测试。
 
 ## 共享 Helper（`shared.ts`）
 

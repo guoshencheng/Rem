@@ -22,7 +22,7 @@
 | `packages/bridge/tests/agent-service/run.test.ts` | `run()` normal flow, error flow, concurrency, sync throw |
 | `packages/bridge/tests/agent-service/interrupt-reset.test.ts` | `interrupt()`/`reset()` state transitions and safety |
 | `packages/bridge/tests/agent-service/stream.test.ts` | `stream()` snapshot replay, live events, workspace filter, multi-subscriber, unsubscribe |
-| `packages/bridge/tests/agent-service/approval.test.ts` | `listPendingApprovals()`, `resolveApproval()`, approval end-to-end via bus |
+| `packages/bridge/tests/agent-service/approval.test.ts` | `listPendingApprovals()`, `resolveApproval()` wrapper contract |
 
 ### Files to Delete
 
@@ -904,35 +904,13 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Create: `packages/bridge/tests/agent-service/approval.test.ts`
 
-**Context:** Covers `listPendingApprovals()`, `resolveApproval()` directly, plus an end-to-end run that emits an `approval-request` chunk, waits for resolution, and verifies `approval-resolved` / `tool-result` bus events. The tool-call needs to target a tool that triggers approvals when `autoApproveDangerous` is false; the simplest path is to register a mock provider that yields an `approval-request` chunk directly.
+**Context:** Covers `listPendingApprovals()` and `resolveApproval()` against `AgentState`. These are thin proxies over `AgentState`; the real approval lifecycle (emitting `approval-request` chunks, waiting for decisions, publishing `approval-resolved`) is owned by `rem-agent-core` execute-tools and is tested there. We test the bridge wrapper contract only.
 
 - [ ] **Step 1: Write `approval.test.ts`**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import {
-  createTestService,
-  getAgentState,
-  collectBusEvents,
-  waitFor,
-  buildStreamFromChunks,
-} from './shared.js';
-import type { AgentStreamChunk } from 'rem-agent-core';
-
-function approvalStream(): AsyncGenerator<AgentStreamChunk> {
-  return buildStreamFromChunks([
-    { type: 'message-start', messageId: 'm1' },
-    {
-      type: 'approval-request',
-      messageId: 'm1',
-      approvalId: 'ap1',
-      toolCallId: 'tc1',
-      toolName: 'write',
-      input: { path: './poem.txt', content: 'A poem' },
-    },
-    { type: 'usage', inputTokens: 5, outputTokens: 5, totalTokens: 10 },
-  ]);
-}
+import { createTestService, getAgentState } from './shared.js';
 
 describe('AgentService approval flow', { timeout: 20000 }, () => {
   it('listPendingApprovals() returns pending requests from AgentState', async () => {
@@ -976,31 +954,6 @@ describe('AgentService approval flow', { timeout: 20000 }, () => {
       const summary = await service.createSession();
       const resolved = await service.resolveApproval(summary.sessionId, 'unknown', 'allow-once');
       expect(resolved).toBe(false);
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it('run() emits approval-request and waits for resolveApproval', async () => {
-    const { service, cleanup } = await createTestService({
-      provider: { name: 'mock-approval', stream: approvalStream },
-    });
-    try {
-      const summary = await service.createSession();
-      const { events, stop } = collectBusEvents(service, summary.sessionId);
-
-      await service.run(summary.sessionId, 'write a poem');
-      await waitFor(events, (es) =>
-        es.some((e) => e.type === 'chunk' && e.chunk.type === 'approval-request'),
-      );
-
-      const pending = await service.listPendingApprovals(summary.sessionId);
-      expect(pending.some((r) => r.approvalId === 'ap1')).toBe(true);
-
-      const resolved = await service.resolveApproval(summary.sessionId, 'ap1', 'allow-once');
-      expect(resolved).toBe(true);
-
-      stop();
     } finally {
       await cleanup();
     }

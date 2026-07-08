@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { createTestService, getAgentState } from './shared.js';
+import { DEFAULT_WORKSPACE } from './shared.js';
 
 describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('interrupt() aborts run but does not finish it', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       getAgentState(service).startRun(summary.sessionId, 'default');
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(true);
 
-      await service.interrupt(summary.sessionId);
+      await service.interrupt(DEFAULT_WORKSPACE, summary.sessionId);
 
       // interrupt only aborts; drive is not running so finishRun is never called.
       // State remains in memory but controller is aborted.
@@ -23,11 +24,11 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('reset() aborts run and finishes it', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       getAgentState(service).startRun(summary.sessionId, 'default');
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(true);
 
-      await service.reset(summary.sessionId);
+      await service.reset(DEFAULT_WORKSPACE, summary.sessionId);
 
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(false);
       const liveState = getAgentState(service).get(summary.sessionId)!;
@@ -41,7 +42,7 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('reset() clears snapshot and runController', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       getAgentState(service).startRun(summary.sessionId, 'default');
       getAgentState(service).startSnapshot(summary.sessionId, 'm1');
       getAgentState(service).appendSnapshotParts(summary.sessionId, {
@@ -56,7 +57,7 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
         text: 'x',
       });
 
-      await service.reset(summary.sessionId);
+      await service.reset(DEFAULT_WORKSPACE, summary.sessionId);
 
       expect(getAgentState(service).getSnapshot(summary.sessionId)).toBeUndefined();
       expect(getAgentState(service).get(summary.sessionId)?.runController).toBeUndefined();
@@ -68,8 +69,8 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('interrupt() is safe when session is not running', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
-      await expect(service.interrupt(summary.sessionId)).resolves.toBeUndefined();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
+      await expect(service.interrupt(DEFAULT_WORKSPACE, summary.sessionId)).resolves.toBeUndefined();
     } finally {
       await cleanup();
     }
@@ -78,8 +79,8 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('reset() is safe when session is not running', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
-      await expect(service.reset(summary.sessionId)).resolves.toBeUndefined();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
+      await expect(service.reset(DEFAULT_WORKSPACE, summary.sessionId)).resolves.toBeUndefined();
     } finally {
       await cleanup();
     }

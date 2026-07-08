@@ -20,6 +20,7 @@ export interface TUIAppOptions {
   agentService: IAgentService;
   sessionId?: string;
   maxTurns?: number;
+  workspace?: string;
 }
 
 export class TUIApp {
@@ -27,6 +28,7 @@ export class TUIApp {
   private agentService: IAgentService;
   private sessionId: string;
   private maxTurns: number;
+  private workspace: string;
   private currentTurn = 0;
   private running = false;
 
@@ -47,6 +49,7 @@ export class TUIApp {
     this.agentService = options.agentService;
     this.sessionId = options.sessionId ?? generateId();
     this.maxTurns = options.maxTurns ?? 60;
+    this.workspace = options.workspace ?? 'default';
   }
 
   async init(): Promise<void> {
@@ -110,7 +113,7 @@ export class TUIApp {
         if (this.overlayBox.visible) {
           hidePicker({ overlayBox: this.overlayBox, inputNode: this.inputNode });
         } else if (this.running) {
-          this.agentService.interrupt(this.sessionId).catch(() => {});
+          this.agentService.interrupt(this.workspace, this.sessionId).catch(() => {});
         }
       }
     });
@@ -147,6 +150,7 @@ export class TUIApp {
     if (text === "/new") {
       await handleNewSession({
         agentService: this.agentService,
+        workspace: this.workspace,
         sessionId: this.sessionId,
         onNewSession: (id: string) => {
           this.currentTurn = 0;
@@ -161,6 +165,7 @@ export class TUIApp {
     if (text === "/resume") {
       await handleResumeCommand({
         agentService: this.agentService,
+        workspace: this.workspace,
         onShowPicker: (sessions: SessionSummary[]) => this.showPicker(sessions),
         onAddAssistantText: (text: string) => this.addAssistantText(text),
       });
@@ -182,7 +187,7 @@ export class TUIApp {
     this.startStreamMessage();
 
     try {
-      await this.agentService.run(this.sessionId, text);
+      await this.agentService.run(this.workspace, this.sessionId, text);
       // TODO(server-driven-run): tui 尚未迁移到 bus，流式渲染暂时失效。
       // 后续应订阅 AgentService.stream() 并按 BusEvent 渲染（含 message-start/snapshot/chunk）。
       this.endStream();
@@ -208,6 +213,7 @@ export class TUIApp {
         hidePicker({ overlayBox: this.overlayBox, inputNode: this.inputNode });
         switchSession({
           agentService: this.agentService,
+          workspace: this.workspace,
           currentSessionId: this.sessionId,
           onClearChat: () => this.clearChat(),
           onUpdateStatus: () => this.updateStatus(),

@@ -66,11 +66,12 @@ export function hidePicker(params: {
 
 export async function switchSession(params: {
   agentService: IAgentService;
+  workspace: string;
   currentSessionId: string;
   onClearChat: () => void;
   onUpdateStatus: () => void;
 }): Promise<void> {
-  params.agentService.interrupt(params.currentSessionId).catch(() => {});
+  params.agentService.interrupt(params.workspace, params.currentSessionId).catch(() => {});
   params.onClearChat();
   params.onUpdateStatus();
 }

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
+import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 import {
   clearProviders,
   registerProvider,
@@ -55,6 +56,12 @@ export async function createTestService(options: {
     registerMockProvider(options.provider);
   }
 
+  const workspaceRepo = new JsonWorkspaceRepository(join(dir, 'workspaces.json'));
+  const workspace = options.workspace ?? DEFAULT_WORKSPACE;
+  // Seed the repository with the test workspace so workspace management APIs work,
+  // but tolerate failures because the workspace string may not be a real directory.
+  await workspaceRepo.add(workspace, workspace).catch(() => {});
+
   const service = new AgentService(
     {
       name: 'TestAgent',
@@ -64,7 +71,7 @@ export async function createTestService(options: {
       sessionsDir: dir,
       ...options.agentOptions,
     },
-    options.workspace ?? DEFAULT_WORKSPACE,
+    workspaceRepo,
   );
 
   await service.init();

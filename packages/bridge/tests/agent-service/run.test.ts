@@ -7,6 +7,7 @@ import {
   getAgentState,
   simpleTextStream,
 } from './shared.js';
+import { DEFAULT_WORKSPACE } from './shared.js';
 
 describe('AgentService.run background driver', { timeout: 30000 }, () => {
   it('run() resolves immediately and registers the run', async () => {
@@ -14,10 +15,10 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
       provider: { name: 'mock-run-immediate', stream: simpleTextStream },
     });
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
-      const p = service.run(summary.sessionId, 'hi');
+      const p = service.run(DEFAULT_WORKSPACE, summary.sessionId, 'hi');
       await expect(p).resolves.toBeUndefined();
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(true);
 
@@ -32,9 +33,9 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
   it('rejects concurrent run for the same session with 409', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       getAgentState(service).startRun(summary.sessionId, 'default');
-      await expect(service.run(summary.sessionId, 'hi')).rejects.toThrow(/already running/);
+      await expect(service.run(DEFAULT_WORKSPACE, summary.sessionId, 'hi')).rejects.toThrow(/already running/);
       getAgentState(service).finishRun(summary.sessionId, 'default');
     } finally {
       await cleanup();
@@ -46,10 +47,10 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
       provider: { name: 'mock-run-bus', stream: simpleTextStream },
     });
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
-      await service.run(summary.sessionId, 'hi');
+      await service.run(DEFAULT_WORKSPACE, summary.sessionId, 'hi');
       await waitFor(events, (es) => es.some((e) => e.type === 'session-end'), 25000);
       stop();
 
@@ -77,10 +78,10 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
       },
     });
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
-      await service.run(summary.sessionId, 'hi');
+      await service.run(DEFAULT_WORKSPACE, summary.sessionId, 'hi');
       await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 25000);
       stop();
 
@@ -94,14 +95,14 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
   it('handles synchronous throw from coreRunAgent', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const summary = await service.createSession();
+      const summary = await service.createSession(DEFAULT_WORKSPACE);
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
       const runAgentSpy = vi.spyOn(core, 'runAgent').mockImplementationOnce(() => {
         throw new Error('sync boom');
       });
 
-      await expect(service.run(summary.sessionId, 'hi')).rejects.toThrow('sync boom');
+      await expect(service.run(DEFAULT_WORKSPACE, summary.sessionId, 'hi')).rejects.toThrow('sync boom');
       await waitFor(events, (es) => es.some((e) => e.type === 'session-error'), 25000);
       stop();
 

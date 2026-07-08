@@ -23,6 +23,8 @@ export class StreamCollector {
         inputTokens: chunk.inputTokens,
         outputTokens: chunk.outputTokens,
         totalTokens: chunk.totalTokens,
+        inputTokenDetails: chunk.inputTokenDetails,
+        outputTokenDetails: chunk.outputTokenDetails,
       };
     } else if (chunk.type === 'finish') {
       this.finishReason = chunk.reason;

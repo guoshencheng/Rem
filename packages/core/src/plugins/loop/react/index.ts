@@ -4,14 +4,14 @@ import type {
   LoopResult,
   LoopStrategy,
 } from '../../../sdk/loop-strategy.js';
-import type { LanguageModelUsage } from '../../../types.js';
+import { emptyUsage, addUsage } from '../../../token-usage.js';
 
 const DEFAULT_MAX_STEPS = 50;
 
 export class ReactLoop implements LoopStrategy {
   async run(ctx: LoopContext): Promise<LoopResult> {
     let content = '';
-    let usage = this.zeroUsage();
+    let usage = emptyUsage();
 
     const assistantMsg = this.ensureAssistantMessage(ctx);
     ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.id });
@@ -28,7 +28,7 @@ export class ReactLoop implements LoopStrategy {
 
       this.appendToAssistantMessage(ctx, assistantMsg, reasonResult);
       content = reasonResult.text;
-      usage = this.addUsage(usage, reasonResult.usage);
+      usage = addUsage(usage, reasonResult.usage);
 
       if (reasonResult.toolCalls.length === 0) {
         ctx.emit({ type: 'step-finish', step });
@@ -59,23 +59,5 @@ export class ReactLoop implements LoopStrategy {
     for (const tc of result.toolCalls) {
       ctx.appendContent(assistantMsg, { type: 'tool-call', toolCallId: tc.toolCallId, toolName: tc.toolName, arguments: tc.input });
     }
-  }
-
-  private zeroUsage(): LanguageModelUsage {
-    return {
-      inputTokens: 0, outputTokens: 0, totalTokens: 0,
-      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-    };
-  }
-
-  private addUsage(a: LanguageModelUsage, b: LanguageModelUsage): LanguageModelUsage {
-    return {
-      inputTokens: a.inputTokens + b.inputTokens,
-      outputTokens: a.outputTokens + b.outputTokens,
-      totalTokens: a.totalTokens + b.totalTokens,
-      inputTokenDetails: a.inputTokenDetails,
-      outputTokenDetails: b.outputTokenDetails,
-    };
   }
 }

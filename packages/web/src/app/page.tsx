@@ -48,6 +48,7 @@ export default function Home() {
           activity={currentSession.activity}
           pendingApprovals={currentSession.pendingApprovals}
           initialized={initialized}
+          tokenUsage={currentSession.tokenUsage}
           onSend={send}
           onInterrupt={interrupt}
           onResolveApproval={resolveApproval}

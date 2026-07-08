@@ -65,6 +65,11 @@ export function MessageItem({ message }: MessageItemProps) {
         {message.status === 'error' && message.error && (
           <div className="mt-2 px-3 py-2 rounded-btn bg-err-bg text-err text-xs border border-err/30">{message.error}</div>
         )}
+        {message.role === 'assistant' && message.tokenUsage && message.status !== 'streaming' && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            {message.tokenUsage.totalTokens.toLocaleString()} tokens
+          </div>
+        )}
       </div>
     </div>
   );

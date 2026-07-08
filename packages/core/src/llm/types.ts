@@ -34,6 +34,15 @@ export interface GenerateResult {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    inputTokenDetails?: {
+      noCacheTokens?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+    };
+    outputTokenDetails?: {
+      textTokens?: number;
+      reasoningTokens?: number;
+    };
   };
   finishReason?: string;
 }
@@ -42,5 +51,19 @@ export type StreamChunk =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
   | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      inputTokenDetails?: {
+        noCacheTokens?: number;
+        cacheReadTokens?: number;
+        cacheWriteTokens?: number;
+      };
+      outputTokenDetails?: {
+        textTokens?: number;
+        reasoningTokens?: number;
+      };
+    }
   | { type: 'finish'; reason: string };

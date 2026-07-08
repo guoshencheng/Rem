@@ -1,4 +1,5 @@
 import type { AgentStreamChunk, AgentStreamStepResult, LanguageModelUsage, ContentPart } from '../types.js';
+import { addUsage, emptyUsage } from '../token-usage.js';
 
 export function aggregateText(chunks: AgentStreamChunk[]): string {
   return chunks
@@ -7,14 +8,16 @@ export function aggregateText(chunks: AgentStreamChunk[]): string {
     .join('');
 }
 
-export function aggregateUsage(_chunks: AgentStreamChunk[]): LanguageModelUsage {
-  return {
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-    outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-  };
+export function aggregateUsage(chunks: AgentStreamChunk[]): LanguageModelUsage {
+  return chunks
+    .filter((c): c is Extract<AgentStreamChunk, { type: 'usage' }> => c.type === 'usage')
+    .reduce((acc, chunk) => addUsage(acc, {
+      inputTokens: chunk.inputTokens,
+      outputTokens: chunk.outputTokens,
+      totalTokens: chunk.totalTokens,
+      inputTokenDetails: chunk.inputTokenDetails,
+      outputTokenDetails: chunk.outputTokenDetails,
+    }), emptyUsage());
 }
 
 export function aggregateSteps(chunks: AgentStreamChunk[]): AgentStreamStepResult[] {

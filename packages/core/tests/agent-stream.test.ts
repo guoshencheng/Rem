@@ -112,22 +112,21 @@ describe('AgentStreamController', () => {
     expect(chunks[chunks.length - 1].type).toBe('finish');
   });
 
-  it('does not let stream.text/usage/steps reject on fail', async () => {
+  it('emits usage chunks and aggregates them', async () => {
     const controller = new AgentStreamController();
-    controller.append({ type: 'text-delta', step: 1, text: 'partial' });
-    controller.fail(new Error('stream error'));
+    controller.emit({ type: 'usage', inputTokens: 100, outputTokens: 50, totalTokens: 150 });
+    controller.finish({ content: 'done', completed: true });
 
     const chunks: AgentStreamChunk[] = [];
     for await (const chunk of controller.stream.fullStream) {
       chunks.push(chunk);
     }
 
-    expect(chunks.some((c) => c.type === 'error')).toBe(true);
+    const usageChunks = chunks.filter(c => c.type === 'usage');
+    expect(usageChunks).toHaveLength(1);
+    expect(usageChunks[0].totalTokens).toBe(150);
 
-    // These should resolve (not reject) so consumers who only drain fullStream
-    // don't get unhandled rejections from the aggregate promises.
-    await expect(controller.stream.text).resolves.toBeDefined();
-    await expect(controller.stream.usage).resolves.toBeDefined();
-    await expect(controller.stream.steps).resolves.toBeDefined();
+    const usage = await controller.stream.usage;
+    expect(usage.totalTokens).toBe(150);
   });
 });

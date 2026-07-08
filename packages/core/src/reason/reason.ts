@@ -47,7 +47,16 @@ export async function reason(
           signal: params.signal,
         }),
         onChunk: (chunk: StreamChunk) => {
-          if (chunk.type === 'text') {
+          if (chunk.type === 'usage') {
+            emit({
+              type: 'usage',
+              inputTokens: chunk.inputTokens,
+              outputTokens: chunk.outputTokens,
+              totalTokens: chunk.totalTokens,
+              inputTokenDetails: chunk.inputTokenDetails,
+              outputTokenDetails: chunk.outputTokenDetails,
+            });
+          } else if (chunk.type === 'text') {
             emit({ type: 'text-delta', step: 0, text: chunk.text });
           } else if (chunk.type === 'reasoning') {
             emit({ type: 'reasoning-delta', step: 0, text: chunk.text });
@@ -65,8 +74,8 @@ export async function reason(
           inputTokens: result.usage.inputTokens,
           outputTokens: result.usage.outputTokens,
           totalTokens: result.usage.totalTokens,
-          inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-          outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+          inputTokenDetails: result.usage.inputTokenDetails ?? { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+          outputTokenDetails: result.usage.outputTokenDetails ?? { textTokens: undefined, reasoningTokens: undefined },
         },
         finishReason: result.finishReason ?? 'stop',
       };

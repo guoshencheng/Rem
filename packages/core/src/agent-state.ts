@@ -1,8 +1,9 @@
 import { AgentLiveState } from './state.js';
 import { BroadcastBus } from './broadcast-bus.js';
 import type { BusEvent, SessionActivity } from './bus-events.js';
-import type { AgentStreamChunk, ContentPart } from './types.js';
+import type { AgentStreamChunk, ContentPart, LanguageModelUsage } from './types.js';
 import type { ApprovalDecision } from './sdk/agent-state-provider.js';
+import { addUsage, emptyUsage, type TokenUsageDetail } from './token-usage.js';
 
 export class AgentState {
   private liveStates = new Map<string, AgentLiveState>();
@@ -61,6 +62,15 @@ export class AgentState {
 
   publishSnapshot(workspace: string, sessionId: string, messageId: string, parts: ContentPart[]): void {
     this.bus.publish({ workspace, sessionId, type: 'snapshot', messageId, parts });
+  }
+
+  publishUsageChange(workspace: string, sessionId: string, usage: LanguageModelUsage): void {
+    this.bus.publish({ workspace, sessionId, type: 'usage-change', usage });
+  }
+
+  restoreTokenUsage(sessionId: string, history: TokenUsageDetail[]): void {
+    const state = this.getOrCreate(sessionId);
+    state.tokenUsage = history.reduce((acc, detail) => addUsage(acc, detail), emptyUsage());
   }
 
   // ---- Snapshot proxy ----

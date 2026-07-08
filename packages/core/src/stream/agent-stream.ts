@@ -50,6 +50,11 @@ export class AgentStreamController {
   emit(chunk: import('../types.js').ProviderChunk | AgentStreamChunk): void {
     if (this.finished) return;
 
+    if (chunk.type === 'usage') {
+      this.enqueue(chunk as AgentStreamChunk);
+      return;
+    }
+
     const rawTypes = [
       'text-delta',
       'reasoning-delta',

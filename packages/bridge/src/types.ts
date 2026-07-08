@@ -1,7 +1,7 @@
-import type { ContentPart } from 'rem-agent-core';
+import type { ContentPart, LanguageModelUsage } from 'rem-agent-core';
 import type { BusEvent, SessionActivity } from 'rem-agent-core';
 
-export type { BusEvent, SessionActivity };
+export type { BusEvent, SessionActivity, LanguageModelUsage };
 
 export interface UIMessage {
   id: string;
@@ -11,6 +11,7 @@ export interface UIMessage {
   error?: string;
   /** 当前正在流式写入的 part 类型；reasoning-finish/text-finish 等结束后会被清空 */
   activePartType?: 'text' | 'reasoning' | 'tool-call' | 'tool-result';
+  tokenUsage?: LanguageModelUsage;
 }
 
 export interface RunRequest {
@@ -38,6 +39,7 @@ export interface SessionSummary {
   updatedAt: number;
   messageCount: number;
   activity?: SessionActivity;
+  tokenUsage?: LanguageModelUsage;
 }
 
 export type ServerStreamEvent = import('rem-agent-core').AgentStreamChunk;

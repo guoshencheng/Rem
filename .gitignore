@@ -11,3 +11,4 @@ vitest.config.js
 .superpowers/
 .next
 .sessions
+*.cpuprofile

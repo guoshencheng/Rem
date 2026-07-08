@@ -1,4 +1,4 @@
-import type { UserInput, AgentOutput, AgentStream, ModelMessage } from './types.js';
+import type { UserInput, AgentOutput, AgentStream, ModelMessage, ProviderChunk } from './types.js';
 import { EventBus } from './events.js';
 import type { Session } from './session.js';
 import type { LoopContext } from './sdk/loop-strategy.js';
@@ -90,6 +90,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
       const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
 
+      // 跟踪当前 assistant 消息的 messageId，用于把本次 usage 绑定到消息
+      let currentMessageId: string | undefined;
+      const trackMessageStart = (chunk: ProviderChunk) => {
+        if (chunk.type === 'message-start') {
+          currentMessageId = chunk.messageId;
+        }
+        controller.emit(chunk);
+      };
+
       const { system, messages } = await contextProvider.build(session, behavior.name);
 
       let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
@@ -119,16 +128,16 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
             baseURL: modelConfig.baseURL, system: systemWithSkills, messages: msgs,
             tools: effectiveToolProvider.getToolSet(), signal: params.signal, errorHandler,
           },
-          (chunk) => controller.emit(chunk),
+          (chunk) => trackMessageStart(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
           agentState: params.agentState,
           workspaceRoot: behavior.workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
-          emit: (chunk) => controller.emit(chunk),
+          emit: (chunk) => trackMessageStart(chunk),
         }),
-        emit: (chunk) => controller.emit(chunk),
+        emit: (chunk) => trackMessageStart(chunk),
         signal: params.signal, maxSteps: behavior.maxTurns,
         workspaceRoot: behavior.workspaceRoot, readOnly: behavior.readOnly,
         agentName: behavior.name, sessionId: params.sessionId,
@@ -147,6 +156,13 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         turns: [result.usage],
       });
       session.metadata.tokenUsageHistory = history;
+
+      // 把本次 usage 绑定到当前 assistant 消息
+      if (currentMessageId) {
+        const messageTokenUsage = (session.metadata.messageTokenUsage ?? {}) as Record<string, import('./types.js').LanguageModelUsage>;
+        messageTokenUsage[currentMessageId] = result.usage;
+        session.metadata.messageTokenUsage = messageTokenUsage;
+      }
 
       session.currentTurn++;
       await sessionProvider.save(session);

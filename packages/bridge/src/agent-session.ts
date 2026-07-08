@@ -1,4 +1,4 @@
-import type { SessionProvider, ContentPart, AgentState } from 'rem-agent-core';
+import type { SessionProvider, ContentPart, AgentState, LanguageModelUsage } from 'rem-agent-core';
 import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
 import { ServiceError } from './errors.js';
 
@@ -18,7 +18,7 @@ export class AgentSessionManager {
     const enriched = await Promise.all(
       summaries.map(async (s) => {
         const session = await this.sessionProvider.load(s.sessionId);
-        const tokenUsage = this.computeTokenUsage(session?.metadata?.tokenUsageHistory);
+        const tokenUsage = this.computeTotalTokenUsage(session?.metadata?.messageTokenUsage);
         return {
           sessionId: s.sessionId,
           title: s.title ?? 'New Chat',
@@ -37,17 +37,18 @@ export class AgentSessionManager {
     });
   }
 
-  private computeTokenUsage(history: unknown): import('rem-agent-core').LanguageModelUsage | undefined {
-    if (!Array.isArray(history) || history.length === 0) return undefined;
-    const total = history.reduce(
-      (acc: any, detail: any) => ({
-        inputTokens: acc.inputTokens + (detail.inputTokens ?? 0),
-        outputTokens: acc.outputTokens + (detail.outputTokens ?? 0),
-        totalTokens: acc.totalTokens + (detail.totalTokens ?? 0),
+  private computeTotalTokenUsage(messageTokenUsage: unknown): LanguageModelUsage | undefined {
+    if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
+    const entries = Object.values(messageTokenUsage) as LanguageModelUsage[];
+    if (entries.length === 0) return undefined;
+    return entries.reduce(
+      (acc, usage) => ({
+        inputTokens: acc.inputTokens + (usage.inputTokens ?? 0),
+        outputTokens: acc.outputTokens + (usage.outputTokens ?? 0),
+        totalTokens: acc.totalTokens + (usage.totalTokens ?? 0),
       }),
       { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     );
-    return total.totalTokens > 0 ? total : undefined;
   }
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {
@@ -65,6 +66,8 @@ export class AgentSessionManager {
         }
       }
     }
+
+    const messageTokenUsage = (session.metadata?.messageTokenUsage ?? {}) as Record<string, LanguageModelUsage>;
 
     return session.conversation
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
@@ -85,6 +88,7 @@ export class AgentSessionManager {
           role: msg.role as 'user' | 'assistant',
           parts: mergedParts,
           status: 'done' as const,
+          tokenUsage: messageTokenUsage[msg.id],
         };
       });
   }

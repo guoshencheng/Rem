@@ -96,7 +96,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
   );
 
   const ensureSession = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string, initialTokenUsage?: LanguageModelUsage) => {
       if (sessionMapRef.current.has(sessionId)) return;
       try {
         const [messages, pendingApprovals] = await Promise.all([
@@ -109,6 +109,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
           error: null,
           pendingToolCalls: new Set(),
           pendingApprovals,
+          tokenUsage: initialTokenUsage,
         });
       } catch {
         sessionMapRef.current.set(sessionId, {
@@ -176,9 +177,9 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
     agentService.listSessions().then((list) => {
       setSessionList(list as SessionSummary[]);
       if (!currentId && list.length > 0) {
-        const id = list[0].sessionId;
-        setCurrentId(id);
-        ensureSession(id);
+        const first = list[0];
+        setCurrentId(first.sessionId);
+        ensureSession(first.sessionId, first.tokenUsage);
       }
       setInitialized(true);
     }).catch(() => {
@@ -268,7 +269,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
                 const newParts = reduceStreamChunk(m.parts, chunk);
-                const isTerminal = chunk.type === 'finish' || chunk.type === 'error';
                 return {
                   ...m,
                   parts: newParts,
@@ -277,7 +277,6 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
                     : chunk.type === 'error' ? 'error'
                     : 'streaming',
                   error: chunk.type === 'error' ? String(chunk.error) : undefined,
-                  tokenUsage: isTerminal ? state.tokenUsage : m.tokenUsage,
                 };
               }
               return m;
@@ -307,6 +306,12 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
               inputTokenDetails: chunk.inputTokenDetails,
               outputTokenDetails: chunk.outputTokenDetails,
             };
+            // 把本次 usage 绑定到当前正在生成的 assistant 消息
+            if (msgId) {
+              state.messages = state.messages.map((m) =>
+                m.id === msgId ? { ...m, tokenUsage: state.tokenUsage } : m,
+              );
+            }
           } else if (chunk.type === 'finish' || chunk.type === 'error') {
             state.activity = 'idle';
             state.pendingToolCalls.clear();
@@ -449,11 +454,12 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
   const switchSession = useCallback(
     async (id: string) => {
       if (!sessionMapRef.current.has(id)) {
-        await ensureSession(id);
+        const summary = sessionList.find((s) => s.sessionId === id);
+        await ensureSession(id, summary?.tokenUsage);
       }
       setCurrentId(id);
     },
-    [ensureSession],
+    [ensureSession, sessionList],
   );
 
   const createSession = useCallback(async () => {

@@ -10,56 +10,41 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
-import { getWorkspace } from '../../workspace-param.js';
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET() {
   try {
-    const { id } = await params;
-    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const messages = await agentService.getMessages(workspace, id);
-    return NextResponse.json({
-      sessionId: id,
-      title: 'New Chat',
-      messages,
-    });
+    return NextResponse.json(await agentService.listWorkspaces());
   } catch (err) {
     return errorResponse(err);
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await params;
-    const workspace = getWorkspace(request);
     const body = await request.json();
-    const { title, pinned } = body as { title?: string; pinned?: boolean };
+    const { path, name } = body as { path: string; name?: string };
+    if (!path) {
+      return NextResponse.json({ error: 'path is required' }, { status: 400 });
+    }
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    await agentService.updateSession(workspace, id, { title, pinned });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(await agentService.addWorkspace(path, name));
   } catch (err) {
     return errorResponse(err);
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(request: NextRequest) {
   try {
-    const { id } = await params;
-    const workspace = getWorkspace(request);
+    const body = await request.json();
+    const { path } = body as { path: string };
+    if (!path) {
+      return NextResponse.json({ error: 'path is required' }, { status: 400 });
+    }
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    await agentService.deleteSession(workspace, id);
+    await agentService.removeWorkspace(path);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return errorResponse(err);

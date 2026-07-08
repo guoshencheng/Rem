@@ -10,6 +10,8 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+import { getWorkspace } from '../workspace-param.js';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
@@ -18,9 +20,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
 
+    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const approvals = await agentService.listPendingApprovals(sessionId);
+    const approvals = await agentService.listPendingApprovals(workspace, sessionId);
     return NextResponse.json(approvals);
   } catch (err) {
     return errorResponse(err);

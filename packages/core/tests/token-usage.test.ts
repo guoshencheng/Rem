@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { emptyUsage, addUsage, computeCacheStats, formatUsage } from '../src/token-usage.js';
+import { emptyUsage, addUsage, computeCacheStats, computeCacheRatio, formatUsage } from '../src/token-usage.js';
 import type { LanguageModelUsage } from '../src/types.js';
 
 describe('emptyUsage', () => {
@@ -61,6 +61,33 @@ describe('computeCacheStats', () => {
   it('defaults missing details to zero', () => {
     const usage: LanguageModelUsage = { inputTokens: 100, outputTokens: 50, totalTokens: 150 };
     expect(computeCacheStats(usage)).toEqual({ cacheRead: 0, cacheWrite: 0, noCache: 0 });
+  });
+});
+
+describe('computeCacheRatio', () => {
+  it('returns cache tokens divided by input tokens', () => {
+    const usage: LanguageModelUsage = {
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 150,
+      inputTokenDetails: { noCacheTokens: 60, cacheReadTokens: 30, cacheWriteTokens: 10 },
+    };
+    expect(computeCacheRatio(usage)).toBe(0.4);
+  });
+
+  it('defaults missing details to zero', () => {
+    const usage: LanguageModelUsage = { inputTokens: 100, outputTokens: 50, totalTokens: 150 };
+    expect(computeCacheRatio(usage)).toBe(0);
+  });
+
+  it('returns zero when input tokens is zero', () => {
+    const usage: LanguageModelUsage = {
+      inputTokens: 0,
+      outputTokens: 10,
+      totalTokens: 10,
+      inputTokenDetails: { cacheReadTokens: 5 },
+    };
+    expect(computeCacheRatio(usage)).toBe(0);
   });
 });
 

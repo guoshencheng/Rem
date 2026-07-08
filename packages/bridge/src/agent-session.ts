@@ -15,20 +15,39 @@ export class AgentSessionManager {
 
   async listSessions(): Promise<SessionSummary[]> {
     const summaries = await this.sessionProvider.list();
-    return summaries
-      .map((s) => ({
-        sessionId: s.sessionId,
-        title: s.title ?? 'New Chat',
-        pinned: s.pinned,
-        updatedAt: s.updatedAt.getTime(),
-        messageCount: s.messageCount,
-      }))
-      .sort((a, b) => {
-        if (a.pinned === b.pinned) {
-          return b.updatedAt - a.updatedAt;
-        }
-        return a.pinned ? -1 : 1;
-      });
+    const enriched = await Promise.all(
+      summaries.map(async (s) => {
+        const session = await this.sessionProvider.load(s.sessionId);
+        const tokenUsage = this.computeTokenUsage(session?.metadata?.tokenUsageHistory);
+        return {
+          sessionId: s.sessionId,
+          title: s.title ?? 'New Chat',
+          pinned: s.pinned,
+          updatedAt: s.updatedAt.getTime(),
+          messageCount: s.messageCount,
+          tokenUsage,
+        };
+      }),
+    );
+    return enriched.sort((a, b) => {
+      if (a.pinned === b.pinned) {
+        return b.updatedAt - a.updatedAt;
+      }
+      return a.pinned ? -1 : 1;
+    });
+  }
+
+  private computeTokenUsage(history: unknown): import('rem-agent-core').LanguageModelUsage | undefined {
+    if (!Array.isArray(history) || history.length === 0) return undefined;
+    const total = history.reduce(
+      (acc: any, detail: any) => ({
+        inputTokens: acc.inputTokens + (detail.inputTokens ?? 0),
+        outputTokens: acc.outputTokens + (detail.outputTokens ?? 0),
+        totalTokens: acc.totalTokens + (detail.totalTokens ?? 0),
+      }),
+      { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    );
+    return total.totalTokens > 0 ? total : undefined;
   }
 
   async getMessages(sessionId: string): Promise<UIMessage[]> {

@@ -8,6 +8,16 @@
 
 **Tech Stack:** vitest, TypeScript, `rem-agent-core` (workspace), Node `fs/promises` temp dirs.
 
+**Implementation Notes (post-execution updates):**
+
+- `ensureInitialized()` is only called by `run`, `createSession`, `listSessions`, `getMessages`, `updateSession`, `deleteSession`, and `listPendingApprovals`. The parameterised guard in `init.test.ts` covers these 7 methods; `interrupt`, `reset`, `resolveApproval`, and `stream` do not throw 503.
+- `StreamChunk` (not `AgentStreamChunk`) is the correct type for mock provider `stream()` functions.
+- Source fixes were required during implementation:
+  - `packages/core/src/run-agent.ts`: removed premature `liveState.finish()`/`fail()` calls so `AgentState.applyChunk` publishes `session-end`/`session-error`.
+  - `packages/core/src/plugins/session/jsonl-store.ts`: use unique temp filenames for concurrent saves.
+  - `packages/bridge/src/agent.ts`: added a `drive()` tail fallback `finishRun` for normal stream completion.
+- `@vitest/coverage-v8` was added to root devDependencies for coverage verification.
+
 ---
 
 ## File Structure

@@ -11,6 +11,7 @@ export interface UIMessage {
   error?: string;
   /** 当前正在流式写入的 part 类型；reasoning-finish/text-finish 等结束后会被清空 */
   activePartType?: 'text' | 'reasoning' | 'tool-call' | 'tool-result';
+  tokenUsage?: LanguageModelUsage;
 }
 
 export interface RunRequest {

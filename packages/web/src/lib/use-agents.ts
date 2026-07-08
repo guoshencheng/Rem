@@ -268,6 +268,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
                 const newParts = reduceStreamChunk(m.parts, chunk);
+                const isTerminal = chunk.type === 'finish' || chunk.type === 'error';
                 return {
                   ...m,
                   parts: newParts,
@@ -276,6 +277,7 @@ export function useAgents(agentService: IAgentService, options?: UseAgentsOption
                     : chunk.type === 'error' ? 'error'
                     : 'streaming',
                   error: chunk.type === 'error' ? String(chunk.error) : undefined,
+                  tokenUsage: isTerminal ? state.tokenUsage : m.tokenUsage,
                 };
               }
               return m;

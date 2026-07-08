@@ -29,6 +29,35 @@ describe('anthropicProvider', () => {
     );
   });
 
+  it('should parse input token details', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'Hello!' }],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_read_input_tokens: 40,
+        cache_creation_input_tokens: 10,
+      },
+    });
+
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    const result = await anthropicProvider.generate({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+
+    expect(result.usage.inputTokens).toBe(100);
+    expect(result.usage.inputTokenDetails).toEqual({
+      noCacheTokens: 50,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10,
+    });
+  });
+
   it('should pass system as top-level parameter in generate()', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: 'OK' }],
@@ -136,6 +165,50 @@ describe('anthropicProvider', () => {
 
     const text = chunks.filter(c => c.type === 'text').map(c => c.text).join('');
     expect(text).toBe('Hello world');
+  });
+
+  it('should emit usage chunks with token details', async () => {
+    async function* mockStream() {
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } };
+      yield {
+        type: 'message_start',
+        message: {
+          usage: {
+            input_tokens: 50,
+            output_tokens: 0,
+            cache_read_input_tokens: 20,
+            cache_creation_input_tokens: 5,
+          },
+        },
+      };
+      yield {
+        type: 'message_delta',
+        usage: { output_tokens: 10 },
+      };
+    }
+
+    const mockCreate = vi.fn().mockResolvedValue(mockStream());
+    vi.mocked(Anthropic).mockImplementation(() => ({
+      messages: { create: mockCreate },
+    }) as any);
+
+    const chunks: any[] = [];
+    for await (const chunk of anthropicProvider.stream({
+      model: 'claude-sonnet-4-7',
+      apiKey: 'test-key',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    const usageChunks = chunks.filter(c => c.type === 'usage');
+    expect(usageChunks).toHaveLength(2);
+    expect(usageChunks[0].inputTokenDetails).toEqual({
+      noCacheTokens: 25,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 5,
+    });
+    expect(usageChunks[1].outputTokens).toBe(10);
   });
 
   it('should propagate errors from generate()', async () => {

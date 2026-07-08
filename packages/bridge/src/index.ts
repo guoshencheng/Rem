@@ -10,6 +10,9 @@ export type {
   UIMessage,
   BusEvent,
   SessionActivity,
+  Workspace,
+  AddWorkspaceRequest,
+  RemoveWorkspaceRequest,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
 export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';
@@ -23,3 +26,5 @@ export { AgentService } from './agent.js';
 export { BridgeAgentStateProvider } from './agent-state-provider.js';
 export { ServiceError } from './errors.js';
 export { BroadcastBus, createBroadcastBus } from './broadcast-bus.js';
+export { JsonWorkspaceRepository } from './workspace-repository-json.js';
+export type { WorkspaceRepository } from './workspace-repository.js';

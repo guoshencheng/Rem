@@ -10,6 +10,8 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+import { getWorkspace } from '../../workspace-param';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -22,9 +24,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    await agentService.interrupt(sessionId);
+    await agentService.interrupt(workspace, sessionId);
 
     return NextResponse.json({ sessionId, interrupted: true });
   } catch (err) {

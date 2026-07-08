@@ -10,13 +10,16 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+import { getWorkspace } from '../workspace-param';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get('q') ?? '';
+    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    let sessions = await agentService.listSessions();
+    let sessions = await agentService.listSessions(workspace);
     if (q) {
       const lower = q.toLowerCase();
       sessions = sessions.filter((s) => (s.title ?? '').toLowerCase().includes(lower));
@@ -27,11 +30,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const result = await agentService.createSession();
+    const result = await agentService.createSession(workspace);
     return NextResponse.json(result);
   } catch (err) {
     return errorResponse(err);

@@ -33,7 +33,7 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
     } as any;
 
     const manager = new AgentSessionManager(sessionProvider, {} as any);
-    const list = await manager.listSessions();
+    const list = await manager.listSessions('default');
 
     expect(list).toHaveLength(1);
     expect(list[0].tokenUsage?.inputTokenDetails).toEqual({

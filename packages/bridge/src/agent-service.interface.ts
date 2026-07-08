@@ -1,17 +1,24 @@
 import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
-import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 
 export interface IAgentService {
   init(): Promise<void>;
-  run(sessionId: string, input: string): Promise<void>;
-  interrupt(sessionId: string): Promise<void>;
-  reset(sessionId: string): Promise<void>;
-  createSession(): Promise<SessionSummary>;
-  listSessions(): Promise<SessionSummary[]>;
-  getMessages(sessionId: string): Promise<UIMessage[]>;
-  updateSession(sessionId: string, updates: SessionUpdate): Promise<void>;
-  deleteSession(sessionId: string): Promise<void>;
-  stream(): AsyncIterable<BusEvent>;
-  listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]>;
-  resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean>;
+
+  // Workspace management
+  listWorkspaces(): Promise<Workspace[]>;
+  addWorkspace(path: string, name?: string): Promise<Workspace>;
+  removeWorkspace(path: string): Promise<void>;
+
+  // Session operations now require workspace
+  run(workspace: string, sessionId: string, input: string): Promise<void>;
+  interrupt(workspace: string, sessionId: string): Promise<void>;
+  reset(workspace: string, sessionId: string): Promise<void>;
+  createSession(workspace: string): Promise<SessionSummary>;
+  listSessions(workspace: string): Promise<SessionSummary[]>;
+  getMessages(workspace: string, sessionId: string): Promise<UIMessage[]>;
+  updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void>;
+  deleteSession(workspace: string, sessionId: string): Promise<void>;
+  stream(workspace: string): AsyncIterable<BusEvent>;
+  listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]>;
+  resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean>;
 }

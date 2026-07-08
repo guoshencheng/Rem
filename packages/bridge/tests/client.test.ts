@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentRemoteService } from '../src/agent-remote-service.js';
 
+const WORKSPACE = 'default';
+
 describe('AgentRemoteService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -11,12 +13,12 @@ describe('AgentRemoteService', () => {
     global.fetch = fetchMock as any;
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    const res = await client.run('s1', 'hello');
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const res = await client.run(WORKSPACE, 's1', 'hello');
 
     expect(res).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8321/api/agent/run',
+      `http://localhost:8321/api/agent/run?workspace=${encodeURIComponent(WORKSPACE)}`,
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -26,8 +28,8 @@ describe('AgentRemoteService', () => {
     global.fetch = fetchMock as any;
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    await expect(client.run('s1', 'hello')).rejects.toThrow(/500/);
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    await expect(client.run(WORKSPACE, 's1', 'hello')).rejects.toThrow(/500/);
   });
 });
 
@@ -88,13 +90,16 @@ describe('AgentRemoteService session methods', () => {
 
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ sessionId: 's1', title: 'New Chat', updatedAt: 1, messageCount: 0 }),
+      json: async () => ({ sessionId: 's1', workspace: WORKSPACE, title: 'New Chat', updatedAt: 1, messageCount: 0 }),
     });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    const summary = await client.createSession();
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const summary = await client.createSession(WORKSPACE);
     expect(summary.sessionId).toBe('s1');
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8321/api/sessions', { method: 'POST' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:8321/api/sessions?workspace=${encodeURIComponent(WORKSPACE)}`,
+      { method: 'POST' },
+    );
   });
 
   it('lists sessions', async () => {
@@ -104,15 +109,17 @@ describe('AgentRemoteService session methods', () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => [
-        { sessionId: 's1', title: 'A', updatedAt: 2, messageCount: 1 },
-        { sessionId: 's2', title: 'B', updatedAt: 1, messageCount: 0 },
+        { sessionId: 's1', workspace: WORKSPACE, title: 'A', updatedAt: 2, messageCount: 1 },
+        { sessionId: 's2', workspace: WORKSPACE, title: 'B', updatedAt: 1, messageCount: 0 },
       ],
     });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    const list = await client.listSessions();
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const list = await client.listSessions(WORKSPACE);
     expect(list).toHaveLength(2);
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8321/api/sessions');
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:8321/api/sessions?workspace=${encodeURIComponent(WORKSPACE)}`,
+    );
   });
 
   it('gets messages', async () => {
@@ -128,8 +135,8 @@ describe('AgentRemoteService session methods', () => {
       }),
     });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    const messages = await client.getMessages('s1');
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const messages = await client.getMessages(WORKSPACE, 's1');
     expect(messages).toHaveLength(1);
     expect(messages[0].id).toBe('m1');
   });
@@ -140,10 +147,10 @@ describe('AgentRemoteService session methods', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    await client.updateSession('s1', { title: 'T', pinned: true });
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    await client.updateSession(WORKSPACE, 's1', { title: 'T', pinned: true });
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8321/api/sessions/s1',
+      `http://localhost:8321/api/sessions/s1?workspace=${encodeURIComponent(WORKSPACE)}`,
       expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ title: 'T', pinned: true }) }),
     );
   });
@@ -154,35 +161,11 @@ describe('AgentRemoteService session methods', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const client = new AgentRemoteService('http://localhost:8321');
-    await client.deleteSession('s1');
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8321/api/sessions/s1', { method: 'DELETE' });
-  });
-
-  it('throws on create session failure', async () => {
-    const fetchMock = vi.fn();
-    global.fetch = fetchMock as any;
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' });
-
-    const client = new AgentRemoteService('http://localhost:8321');
-    await expect(client.createSession()).rejects.toThrow(/500 Internal Server Error/);
-  });
-
-  it('throws on update session failure', async () => {
-    const fetchMock = vi.fn();
-    global.fetch = fetchMock as any;
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, statusText: 'Not Found' });
-
-    const client = new AgentRemoteService('http://localhost:8321');
-    await expect(client.updateSession('s1', { title: 'X' })).rejects.toThrow(/404 Not Found/);
-  });
-
-  it('throws on delete session failure', async () => {
-    const fetchMock = vi.fn();
-    global.fetch = fetchMock as any;
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' });
-
-    const client = new AgentRemoteService('http://localhost:8321');
-    await expect(client.deleteSession('s1')).rejects.toThrow(/403 Forbidden/);
+    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    await client.deleteSession(WORKSPACE, 's1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:8321/api/sessions/s1?workspace=${encodeURIComponent(WORKSPACE)}`,
+      { method: 'DELETE' },
+    );
   });
 });

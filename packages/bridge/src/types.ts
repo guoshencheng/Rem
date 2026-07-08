@@ -32,8 +32,24 @@ export interface SessionUpdate {
   pinned?: boolean;
 }
 
+export interface Workspace {
+  path: string;
+  name: string;
+  createdAt: number;
+}
+
+export interface AddWorkspaceRequest {
+  path: string;
+  name?: string;
+}
+
+export interface RemoveWorkspaceRequest {
+  path: string;
+}
+
 export interface SessionSummary {
   sessionId: string;
+  workspace: string;
   title?: string;
   pinned?: boolean;
   updatedAt: number;

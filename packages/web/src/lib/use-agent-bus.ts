@@ -6,7 +6,7 @@ import type { IAgentService, BusEvent } from 'rem-agent-bridge/client';
 type Listener = (event: BusEvent) => void;
 type ReconnectListener = () => void;
 
-export function useAgentBus(agentService: IAgentService) {
+export function useAgentBus(agentService: IAgentService, workspace: string) {
   const listenersRef = useRef<Set<Listener>>(new Set());
   const reconnectListenersRef = useRef<Set<ReconnectListener>>(new Set());
   const runningRef = useRef(false);
@@ -43,7 +43,7 @@ export function useAgentBus(agentService: IAgentService) {
     async function consume() {
       try {
         retryDelayRef.current = 1000;
-        const stream = agentService.stream();
+        const stream = agentService.stream(workspace);
         for await (const event of stream) {
           for (const listener of listenersRef.current) {
             listener(event);
@@ -62,7 +62,7 @@ export function useAgentBus(agentService: IAgentService) {
     }
 
     consume();
-  }, [agentService, notifyReconnect]);
+  }, [agentService, workspace, notifyReconnect]);
 
   const disconnect = useCallback(() => {
     runningRef.current = false;
@@ -75,17 +75,17 @@ export function useAgentBus(agentService: IAgentService) {
 
   const send = useCallback(
     async (sessionId: string, content: string) => {
-      await agentService.run(sessionId, content);
+      await agentService.run(workspace, sessionId, content);
       // UI updates come from the broadcast bus, not from this call.
     },
-    [agentService],
+    [agentService, workspace],
   );
 
   const interrupt = useCallback(
     async (sessionId: string) => {
-      await agentService.interrupt(sessionId);
+      await agentService.interrupt(workspace, sessionId);
     },
-    [agentService],
+    [agentService, workspace],
   );
 
   return { onEvent, onReconnect, send, interrupt };

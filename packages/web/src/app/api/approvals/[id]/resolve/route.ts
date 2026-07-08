@@ -11,6 +11,8 @@ function errorResponse(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+import { getWorkspace } from '../../../workspace-param';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -27,9 +29,10 @@ export async function POST(
       return NextResponse.json({ error: 'decision is required' }, { status: 400 });
     }
 
+    const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const result = await agentService.resolveApproval(sessionId, id, decision);
+    const result = await agentService.resolveApproval(workspace, sessionId, id, decision);
     return NextResponse.json(result);
   } catch (err) {
     return errorResponse(err);

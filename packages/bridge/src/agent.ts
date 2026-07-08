@@ -2,23 +2,25 @@ import type { ApprovalDecision, ApprovalRequest, AgentContext } from 'rem-agent-
 import { runAgent as coreRunAgent, buildAgentContext, AgentState } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
-import type { BusEvent, SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentSessionManager } from './agent-session.js';
+import type { WorkspaceRepository } from './workspace-repository.js';
 
 export type AgentServiceOptions = AgentContextBuildOptions;
 
 export class AgentService implements IAgentService {
   private options: AgentServiceOptions;
-  private workspace: string;
   private ctx: AgentContext | undefined;
   private sessionManager: AgentSessionManager | undefined;
   private agentState = new AgentState();
   private initialized = false;
 
-  constructor(options: AgentServiceOptions, workspace = 'default') {
+  constructor(
+    options: AgentServiceOptions,
+    private workspaceRepository: WorkspaceRepository,
+  ) {
     this.options = options;
-    this.workspace = workspace;
   }
 
   async init(): Promise<void> {
@@ -44,16 +46,30 @@ export class AgentService implements IAgentService {
     }
   }
 
+  /* ---- Workspace management ---- */
+
+  async listWorkspaces(): Promise<Workspace[]> {
+    return this.workspaceRepository.list();
+  }
+
+  async addWorkspace(path: string, name?: string): Promise<Workspace> {
+    return this.workspaceRepository.add(path, name);
+  }
+
+  async removeWorkspace(path: string): Promise<void> {
+    return this.workspaceRepository.remove(path);
+  }
+
   /* ---- Agent lifecycle ---- */
 
-  async run(sessionId: string, input: string): Promise<void> {
+  async run(workspace: string, sessionId: string, input: string): Promise<void> {
     this.ensureInitialized();
 
     if (this.agentState.isRunning(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
 
-    const abortController = this.agentState.startRun(sessionId, this.workspace);
+    const abortController = this.agentState.startRun(sessionId, workspace);
 
     let result: ReturnType<typeof coreRunAgent>;
     try {
@@ -63,20 +79,20 @@ export class AgentService implements IAgentService {
         signal: abortController.signal,
         ctx: this.ctx!,
         agentState: this.agentState,
+        workspace,
+        workspaceRoot: workspace,
       });
     } catch (err) {
-      this.agentState.finishRun(sessionId, this.workspace, {
+      this.agentState.finishRun(sessionId, workspace, {
         error: err instanceof Error ? err.message : String(err),
       });
       throw err;
     }
 
-    void this.drive(sessionId, abortController.signal, result);
+    void this.drive(sessionId, workspace, abortController.signal, result);
   }
 
-  private async drive(sessionId: string, signal: AbortSignal, result: ReturnType<typeof coreRunAgent>): Promise<void> {
-    const workspace = this.workspace;
-
+  private async drive(sessionId: string, workspace: string, signal: AbortSignal, result: ReturnType<typeof coreRunAgent>): Promise<void> {
     const consume = (async () => {
       for await (const chunk of result.stream.fullStream) {
         this.agentState.applyChunk(workspace, sessionId, chunk);
@@ -107,66 +123,66 @@ export class AgentService implements IAgentService {
     }
   }
 
-  async interrupt(sessionId: string): Promise<void> {
+  async interrupt(_workspace: string, sessionId: string): Promise<void> {
     this.agentState.abortRun(sessionId);
   }
 
-  async reset(sessionId: string): Promise<void> {
+  async reset(_workspace: string, sessionId: string): Promise<void> {
     this.agentState.abortRun(sessionId);
-    this.agentState.finishRun(sessionId, this.workspace);
+    this.agentState.finishRun(sessionId, 'default');
   }
 
   /* ---- Message tracking ---- */
 
-  async getMessages(sessionId: string): Promise<UIMessage[]> {
+  async getMessages(_workspace: string, sessionId: string): Promise<UIMessage[]> {
     this.ensureInitialized();
     return this.sessionManager!.getMessages(sessionId);
   }
 
-  async createSession(): Promise<SessionSummary> {
+  async createSession(workspace: string): Promise<SessionSummary> {
     this.ensureInitialized();
-    return this.sessionManager!.createSession();
+    return this.sessionManager!.createSession(workspace);
   }
 
-  async listSessions(): Promise<SessionSummary[]> {
+  async listSessions(workspace: string): Promise<SessionSummary[]> {
     this.ensureInitialized();
-    const list = await this.sessionManager!.listSessions();
+    const list = await this.sessionManager!.listSessions(workspace);
     return list.map((s) => ({
       ...s,
       activity: this.agentState.get(s.sessionId)?.activity ?? 'idle',
     }));
   }
 
-  async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
+  async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
     this.ensureInitialized();
     return this.sessionManager!.updateSession(sessionId, updates);
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
+  async deleteSession(_workspace: string, sessionId: string): Promise<void> {
     this.ensureInitialized();
     return this.sessionManager!.deleteSession(sessionId);
   }
 
   /* ---- Approval ---- */
 
-  async listPendingApprovals(sessionId: string): Promise<ApprovalRequest[]> {
+  async listPendingApprovals(_workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
     this.ensureInitialized();
     const liveState = this.agentState.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 
-  async resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+  async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
     return this.agentState.resolveApproval(sessionId, approvalId, decision);
   }
 
   /* ---- Broadcast stream ---- */
 
-  async *stream(): AsyncIterable<BusEvent> {
+  async *stream(workspace: string): AsyncIterable<BusEvent> {
     const queue: BusEvent[] = [];
     let resolveNext: ((event: BusEvent) => void) | null = null;
 
     const unsub = this.agentState.subscribe((event) => {
-      if (event.workspace !== this.workspace) return;
+      if (event.workspace !== workspace) return;
       if (resolveNext) {
         resolveNext(event);
         resolveNext = null;
@@ -183,7 +199,7 @@ export class AgentService implements IAgentService {
         const snapshot = this.agentState.getSnapshot(sessionId);
         if (snapshot) {
           yield {
-            workspace: this.workspace,
+            workspace,
             sessionId,
             type: 'snapshot',
             messageId: snapshot.messageId,

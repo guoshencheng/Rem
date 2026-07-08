@@ -22,9 +22,10 @@
 
 ### 测试策略：Mock Provider 分层验证
 
-- **不 stub `coreRunAgent`**：让 `AgentService` 真实调用 `buildAgentContext` 和 `runAgent`，仅把 LLM 层替换为 mock provider。
+- **主流场景不 stub `coreRunAgent`**：让 `AgentService` 真实调用 `buildAgentContext` 和 `runAgent`，仅把 LLM 层替换为 mock provider。
 - Provider 自身逻辑由 `rem-agent-core` 的独立测试保证；bridge 层只验证 `AgentService` 与 provider 的调用契约和状态管理。
 - 对于 `stream()`、`interrupt()`/`reset()` 等需要精确控制运行时状态的场景，可直接操作 `service.state`（`AgentState`）注入事件和状态。
+- **例外**：`run()` 的同步抛错路径可用 `vi.spyOn(rem-agent-core, 'runAgent').mockImplementationOnce(...)` 临时 stub，以稳定触发 `catch` 分支。
 
 ### 文件组织：新建 `agent-service/` 目录并一次性迁移
 

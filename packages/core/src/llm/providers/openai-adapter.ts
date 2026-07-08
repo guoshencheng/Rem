@@ -165,6 +165,8 @@ export function* parseOpenAIChunk(
       inputTokens: chunk.usage.prompt_tokens,
       outputTokens: chunk.usage.completion_tokens,
       totalTokens: chunk.usage.total_tokens,
+      inputTokenDetails: buildOpenAIInputTokenDetails(chunk.usage as OpenAI.Completions.CompletionUsage),
+      outputTokenDetails: buildOpenAIOutputTokenDetails(chunk.usage as OpenAI.Completions.CompletionUsage),
     };
   }
 }

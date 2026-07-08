@@ -127,6 +127,8 @@ export function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageS
         inputTokens: message.usage.input_tokens ?? 0,
         outputTokens: message.usage.output_tokens ?? 0,
         totalTokens: (message.usage.input_tokens ?? 0) + (message.usage.output_tokens ?? 0),
+        inputTokenDetails: buildAnthropicInputTokenDetails(message.usage),
+        outputTokenDetails: buildAnthropicOutputTokenDetails(message.usage),
       };
     }
   } else if (event.type === 'message_delta' && event.usage) {
@@ -135,6 +137,7 @@ export function* parseAnthropicStreamEvent(event: Anthropic.Messages.RawMessageS
       inputTokens: 0,
       outputTokens: event.usage.output_tokens,
       totalTokens: event.usage.output_tokens,
+      outputTokenDetails: buildAnthropicOutputTokenDetails(event.usage as Anthropic.Message['usage']),
     };
   }
 }

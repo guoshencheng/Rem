@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { AgentContext } from '../src/agent-context.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
+import type { LanguageModelUsage } from '../src/types.js';
 
 const createMockContextBase = () => ({
   configProvider: {
@@ -98,6 +99,62 @@ describe('runAgent', () => {
       mcpProviders: mockCtx.mcpProviders,
       skillProvider: mockCtx.skillProvider,
     });
+  });
+
+  it('accumulates usage and writes history', async () => {
+    const usage: LanguageModelUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const savedSessions: any[] = [];
+    const mockCtx = {
+      ...createMockContextBase(),
+      mcpProviders: [],
+      toolComposer: {
+        compose: () => ({
+          getToolSet: () => ({}),
+          execute: async () => [],
+          register: () => {},
+          isDangerous: () => false,
+        }),
+      },
+      loopStrategy: {
+        run: async () => ({ content: 'hello back', newMessages: [], usage }),
+      },
+      sessionProvider: {
+        load: async () => null,
+        save: async (session: any) => { savedSessions.push(session); },
+        addMessage: () => ({} as any),
+        appendContent: () => {},
+      },
+    } as unknown as AgentContext;
+
+    const agentState = new AgentState();
+    const listener = vi.fn();
+    agentState.subscribe(listener);
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState,
+      workspace: 'test-workspace',
+    });
+
+    for await (const _chunk of result.stream.fullStream) {
+      // drain
+    }
+
+    await result.output;
+
+    expect(agentState.get('test-session')?.tokenUsage.totalTokens).toBe(15);
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      workspace: 'test-workspace',
+      sessionId: 'test-session',
+      type: 'usage-change',
+    }));
+
+    const lastSession = savedSessions[savedSessions.length - 1];
+    expect(lastSession.metadata.tokenUsageHistory).toHaveLength(1);
+    expect(lastSession.metadata.tokenUsageHistory[0].totalTokens).toBe(15);
   });
 
   it('emits error chunk when loopStrategy throws', async () => {

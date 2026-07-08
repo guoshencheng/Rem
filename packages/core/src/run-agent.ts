@@ -17,6 +17,7 @@ import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';
+import type { TokenUsageDetail } from './token-usage.js';
 
 export interface RunAgentParams {
   input: UserInput;
@@ -24,6 +25,7 @@ export interface RunAgentParams {
   signal?: AbortSignal;
   ctx: AgentContext;
   agentState: AgentState;
+  workspace?: string;
 }
 
 export interface RunAgentResult {
@@ -39,6 +41,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     const ctx = params.ctx;
     const behavior = ctx.configProvider.getBehaviorConfig();
     const modelConfig = ctx.configProvider.getModelConfig();
+    const workspace = params.workspace ?? 'default';
 
     const sessionProvider = ctx.sessionProvider;
     let session = await sessionProvider.load(params.sessionId);
@@ -53,6 +56,14 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     const events = new EventBus();
     const liveState = params.agentState.getOrCreate(params.sessionId);
     liveState.attachEvents(events);
+
+    // 恢复累计 token usage（如果运行时状态为空）
+    if (liveState.tokenUsage.totalTokens === 0) {
+      const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
+      if (history.length > 0) {
+        params.agentState.restoreTokenUsage(params.sessionId, history);
+      }
+    }
 
     // AgentService 已通过 startRun 将状态置为 running；直接调用 runAgent 时在这里启动
     if (liveState.status !== 'running') {
@@ -130,6 +141,18 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       };
 
       const result = await loopStrategy.run(loopCtx);
+
+      // 累加 token usage，发布事件，持久化明细
+      liveState.addTokenUsage(result.usage);
+      params.agentState.publishUsageChange(workspace, params.sessionId, liveState.tokenUsage);
+
+      const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
+      history.push({
+        ...result.usage,
+        runAt: new Date(),
+        turns: [result.usage],
+      });
+      session.metadata.tokenUsageHistory = history;
 
       session.currentTurn++;
       await sessionProvider.save(session);

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { AgentSessionManager } from '../src/agent-session.js';
 
 describe('AgentSessionManager.listSessions tokenUsage', () => {
-  it('includes tokenUsage from messageTokenUsage metadata', async () => {
+  it('preserves inputTokenDetails when computing total tokenUsage', async () => {
     const sessionProvider = {
       list: async () => [
         { sessionId: 's1', title: 'Test', updatedAt: new Date(), messageCount: 2 },
@@ -11,8 +11,18 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
         sessionId,
         metadata: {
           messageTokenUsage: {
-            msg1: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-            msg2: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
+            msg1: {
+              inputTokens: 100,
+              outputTokens: 20,
+              totalTokens: 120,
+              inputTokenDetails: { noCacheTokens: 70, cacheReadTokens: 30 },
+            },
+            msg2: {
+              inputTokens: 50,
+              outputTokens: 10,
+              totalTokens: 60,
+              inputTokenDetails: { noCacheTokens: 40, cacheReadTokens: 10 },
+            },
           },
         },
         conversation: [],
@@ -26,7 +36,11 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
     const list = await manager.listSessions();
 
     expect(list).toHaveLength(1);
-    expect(list[0].tokenUsage?.totalTokens).toBe(45);
+    expect(list[0].tokenUsage?.inputTokenDetails).toEqual({
+      noCacheTokens: 110,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 0,
+    });
   });
 
   it('restores tokenUsage per message from metadata', async () => {

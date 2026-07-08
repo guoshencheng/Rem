@@ -1,10 +1,11 @@
-import type { AgentStatus, ContentPart, AgentStreamChunk } from './types.js';
+import type { AgentStatus, ContentPart, AgentStreamChunk, LanguageModelUsage } from './types.js';
 import type { EventBus } from './events.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 import type { SessionActivity } from './bus-events.js';
 import { IterationBudget } from './budget.js';
 import { ApprovalRegistry } from './execute/approval-registry.js';
 import { reduceStreamChunk } from './stream/stream-aggregators.js';
+import { addUsage, emptyUsage } from './token-usage.js';
 
 export interface StreamingSnapshot {
   messageId: string;
@@ -46,6 +47,9 @@ export class AgentLiveState {
 
   /** 当前会话的审批注册表（管理审批 Promise） */
   readonly approvalRegistry = new ApprovalRegistry();
+
+  /** 当前会话累计 token usage */
+  tokenUsage: LanguageModelUsage = emptyUsage();
 
   get status(): AgentStatus { return this._status; }
 
@@ -152,6 +156,12 @@ export class AgentLiveState {
 
   setActivity(activity: SessionActivity): void {
     this.activity = activity;
+  }
+
+  // ---- Token Usage ----
+
+  addTokenUsage(usage: LanguageModelUsage): void {
+    this.tokenUsage = addUsage(this.tokenUsage, usage);
   }
 
   applyChunk(chunk: AgentStreamChunk): SessionActivity | undefined {

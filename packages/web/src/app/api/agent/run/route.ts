@@ -14,13 +14,16 @@ function errorResponse(err: unknown) {
 import { getWorkspace } from '../../workspace-param';
 
 export async function POST(request: NextRequest) {
+  let body: { sessionId?: string } | undefined;
+  let workspace: string | undefined;
+
   try {
-    const body = await request.json();
+    body = await request.json();
     const { sessionId, content } = body as {
       sessionId: string;
       content?: string;
     };
-    const workspace = getWorkspace(request);
+    workspace = getWorkspace(request);
 
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');

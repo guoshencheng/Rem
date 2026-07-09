@@ -8,6 +8,7 @@ import type { SessionSummary } from '@/lib/use-agents';
 interface SessionSidebarProps {
   sessions: SessionSummary[];
   currentSessionId: string | null;
+  workspace?: string;
   onSwitch(id: string): void;
   onCreate(): void;
   onDelete(id: string): void;
@@ -17,6 +18,7 @@ interface SessionSidebarProps {
 export function SessionSidebar({
   sessions,
   currentSessionId,
+  workspace,
   onSwitch,
   onCreate,
   onDelete,
@@ -65,6 +67,7 @@ export function SessionSidebar({
       <SessionList
         sessions={sessions}
         currentSessionId={currentSessionId}
+        workspace={workspace}
         onSwitch={onSwitch}
         onDelete={onDelete}
       />

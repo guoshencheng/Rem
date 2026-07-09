@@ -107,6 +107,7 @@ function WorkspacePanel({ workspace }: { workspace: string }) {
       <SessionSidebar
         sessions={sessions as SessionSummary[]}
         currentSessionId={currentSession?.id ?? null}
+        workspace={workspace}
         onSwitch={switchSession}
         onCreate={createSession}
         onDelete={deleteSession}

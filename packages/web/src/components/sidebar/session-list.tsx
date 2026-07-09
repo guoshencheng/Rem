@@ -6,11 +6,12 @@ import type { SessionSummary } from '@/lib/use-agents';
 interface SessionListProps {
   sessions: SessionSummary[];
   currentSessionId: string | null;
+  workspace?: string;
   onSwitch(id: string): void;
   onDelete(id: string): void;
 }
 
-export function SessionList({ sessions, currentSessionId, onSwitch, onDelete }: SessionListProps) {
+export function SessionList({ sessions, currentSessionId, workspace, onSwitch, onDelete }: SessionListProps) {
   const sorted = [...sessions].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
@@ -30,6 +31,7 @@ export function SessionList({ sessions, currentSessionId, onSwitch, onDelete }: 
           key={s.sessionId}
           session={s}
           isActive={s.sessionId === currentSessionId}
+          workspace={workspace}
           onSwitch={onSwitch}
           onDelete={onDelete}
         />

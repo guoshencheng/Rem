@@ -129,7 +129,8 @@ export class AgentService implements IAgentService {
 
   async reset(_workspace: string, sessionId: string): Promise<void> {
     this.agentState.abortRun(sessionId);
-    this.agentState.finishRun(sessionId, 'default');
+    const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
+    this.agentState.finishRun(sessionId, ws);
   }
 
   /* ---- Message tracking ---- */

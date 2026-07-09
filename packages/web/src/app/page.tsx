@@ -40,7 +40,7 @@ export default function Home() {
     interrupt,
     resolveApproval,
     initialized,
-  } = useAgents(agentService, { workspace: activeWorkspace ?? 'default' });
+  } = useAgents(agentService, { workspace: activeWorkspace ?? '' });
 
   // Create session after workspace activation when triggered from a different workspace
   useEffect(() => {

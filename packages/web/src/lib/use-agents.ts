@@ -172,8 +172,14 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     [ensureSession],
   );
 
-  // Init: load session list
+  // Init: load session list (skip when no workspace selected)
   useEffect(() => {
+    if (!workspace) {
+      setSessionList([]);
+      setCurrentId(null);
+      setInitialized(true);
+      return;
+    }
     agentService.listSessions(workspace).then((list) => {
       setSessionList(list as SessionSummary[]);
       if (!currentId && list.length > 0) {
@@ -185,7 +191,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     }).catch(() => {
       setInitialized(true);
     });
-  }, []);
+  }, [workspace]);
 
   // Subscribe to bus events
   useEffect(() => {

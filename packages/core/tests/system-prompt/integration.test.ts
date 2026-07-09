@@ -64,7 +64,7 @@ describe('system prompt integration', () => {
     expect(result).toContain('## Tooling');
     expect(result).toContain('## Project Instructions');
     expect(result).toContain('## Runtime');
-    expect(result).toMatchSnapshot();
+    expect(result.replaceAll(dir, '/tmp/rem-agent-test')).toMatchSnapshot();
     await rm(dir, { recursive: true, force: true });
   });
 

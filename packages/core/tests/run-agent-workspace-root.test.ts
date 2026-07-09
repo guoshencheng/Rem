@@ -20,6 +20,15 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
   titleProvider: { generateTitle: async () => undefined },
   mcpManager: { connectAll: async () => [], closeAll: async () => {} },
   fileMutationQueue: createFileMutationQueue(),
+  systemPromptAssembler: { assemble: async () => 'mock system prompt' },
+  toolComposer: {
+    compose: () => ({
+      getToolSet: () => ({}),
+      execute: async () => [],
+      register: () => {},
+      isDangerous: () => false,
+    }),
+  },
 });
 
 describe('runAgent workspaceRoot', () => {

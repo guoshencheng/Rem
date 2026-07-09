@@ -190,11 +190,15 @@ function forkTitleGeneration(
   controller: AgentStreamController,
   sessionProvider: SessionProvider,
 ): void {
+  console.log(session.metadata.title, 'session.metadata.title');
   if (session.metadata.title) return;
   (async () => {
     try {
       const title = await titleProvider.generateTitle(session.conversation);
+      console.log(title, 'title');
       if (title) { session.metadata.title = title; controller.pushTitle(title); await sessionProvider.save(session); }
-    } catch { /* best-effort */ }
+    } catch { /* best-effort */
+      console.log('Failed to generate title for session', session.sessionId);
+     }
   })();
 }

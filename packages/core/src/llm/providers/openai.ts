@@ -31,6 +31,7 @@ export const openaiProvider: LLMProvider = {
       temperature: options.temperature,
       max_tokens: options.maxTokens,
       stream: false,
+      ...(options.responseFormat ? { response_format: options.responseFormat as any } : {}),
     }, { signal: options.signal });
 
     return parseOpenAIResponse(response);

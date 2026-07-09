@@ -20,6 +20,15 @@ export interface GenerateOptions extends ProviderConfig {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** OpenAI-style response_format for structured output */
+  responseFormat?: {
+    type: 'json_schema' | 'json_object';
+    json_schema?: {
+      name: string;
+      schema: Record<string, unknown>;
+      strict?: boolean;
+    };
+  };
 }
 
 export interface GenerateResult {

@@ -235,6 +235,16 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
 
           const chunk = event.chunk;
 
+          // LLM-generated session title — update session list immediately
+          if (chunk.type === 'session-title' && (chunk as any).title) {
+            const newTitle = (chunk as any).title as string;
+            setSessionList((prev) =>
+              prev.map((s) =>
+                s.sessionId === event.sessionId ? { ...s, title: newTitle } : s,
+              ),
+            );
+          }
+
           // Compute the next active part type before updating messages so the
           // streaming message can be updated in a single pass.
           let nextActivePartType: UIMessage['activePartType'] | undefined;

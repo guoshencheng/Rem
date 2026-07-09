@@ -1,15 +1,16 @@
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
 import type { ModelMessage } from '../../../types.js';
+import type { ToolSchema } from '../../../llm/types.js';
 import { resolveProvider } from '../../../llm/api-registry.js';
 
-const TITLE_SYSTEM_PROMPT = `You are a title generator. You output ONLY a JSON object with a "title" field. Nothing else.
+const TITLE_SYSTEM_PROMPT = `You are a title generator. Generate a brief title for this conversation by calling the set_title function.
 
 <task>
 Generate a brief title that would help the user find this conversation later.
-Your output must be a JSON object: {"title": "..."}
+The title must be:
 - ≤50 characters
-- No explanations
+- A single concise line
 </task>
 
 <rules>
@@ -22,7 +23,6 @@ Your output must be a JSON object: {"title": "..."}
 - Keep exact: technical terms, numbers, filenames, HTTP codes
 - Remove: the, this, my, a, an
 - Never assume tech stack
-- Never use tools
 - NEVER respond to questions, just generate a title for the conversation
 - The title should NEVER include "summarizing" or "generating" when generating a title
 - DO NOT SAY YOU CANNOT GENERATE A TITLE OR COMPLAIN ABOUT THE INPUT
@@ -32,17 +32,32 @@ Your output must be a JSON object: {"title": "..."}
 </rules>
 
 <examples>
-"debug 500 errors in production" → {"title": "Debugging production 500 errors"}
-"refactor user service" → {"title": "Refactoring user service"}
-"why is app.js failing" → {"title": "app.js failure investigation"}
-"implement rate limiting" → {"title": "Rate limiting implementation"}
-"how do I connect postgres to my API" → {"title": "Postgres API connection"}
-"best practices for React hooks" → {"title": "React hooks best practices"}
-"@src/auth.ts can you add refresh token support" → {"title": "Auth refresh token support"}
-"@utils/parser.ts this is broken" → {"title": "Parser bug fix"}
-"look at @config.json" → {"title": "Config review"}
-"@App.tsx add dark mode toggle" → {"title": "Dark mode toggle in App"}
+"debug 500 errors in production" → Debugging production 500 errors
+"refactor user service" → Refactoring user service
+"why is app.js failing" → app.js failure investigation
+"implement rate limiting" → Rate limiting implementation
+"how do I connect postgres to my API" → Postgres API connection
+"best practices for React hooks" → React hooks best practices
+"@src/auth.ts can you add refresh token support" → Auth refresh token support
+"@utils/parser.ts this is broken" → Parser bug fix
+"look at @config.json" → Config review
+"@App.tsx add dark mode toggle" → Dark mode toggle in App
 </examples>`;
+
+const TITLE_TOOL: ToolSchema = {
+  description: 'Set the title for this conversation',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        description: 'A brief, concise title (≤50 chars) summarizing the conversation topic',
+      },
+    },
+    required: ['title'],
+    additionalProperties: false,
+  },
+};
 
 export class LLMTitleProvider implements TitleProvider {
   private configProvider: ConfigProvider;
@@ -70,31 +85,17 @@ export class LLMTitleProvider implements TitleProvider {
         baseURL: modelConfig.baseURL,
         system: TITLE_SYSTEM_PROMPT,
         messages,
-        maxTokens: 50,
+        maxTokens: 100,
         temperature: 0.3,
-        responseFormat: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'conversation_title',
-            strict: true,
-            schema: {
-              type: 'object',
-              properties: {
-                title: {
-                  type: 'string',
-                  description: 'A brief, concise title (≤50 chars) summarizing the conversation topic',
-                },
-              },
-              required: ['title'],
-              additionalProperties: false,
-            },
-          },
-        },
+        tools: { set_title: TITLE_TOOL },
       });
 
-      const parsed = JSON.parse(result.text) as { title?: string };
-      const title = parsed.title?.trim().slice(0, 50);
-      return title || undefined;
+      const titleCall = result.toolCalls.find(tc => tc.toolName === 'set_title');
+      if (titleCall?.input && typeof titleCall.input === 'object' && 'title' in titleCall.input) {
+        const title = String(titleCall.input.title).trim().slice(0, 50);
+        return title || undefined;
+      }
+      return undefined;
     } catch {
       return undefined;
     }

@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, AgentContext } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule } from 'rem-agent-core';
 import { runAgent as coreRunAgent, buildAgentContext, AgentState, log } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
@@ -183,8 +183,14 @@ export class AgentService implements IAgentService {
     return liveState?.pendingApprovals ?? [];
   }
 
-  async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
-    return this.agentState.resolveApproval(sessionId, approvalId, decision);
+  async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
+    this.ensureInitialized();
+    // Persist the approved rule before resolving so the engine sees it immediately.
+    if (decision === 'allow-always' && rule) {
+      await this.ctx!.ruleStore.saveApproved(rule);
+      this.ctx!.ruleEngine.addRule({ ...rule, source: 'approved' });
+    }
+    return this.agentState.resolveApproval(sessionId, approvalId, decision, rule);
   }
 
   /* ---- Broadcast stream ---- */

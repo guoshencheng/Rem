@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
@@ -107,11 +107,11 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as ApprovalRequest[];
   }
 
-  async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+  async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
     const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, decision }),
+      body: JSON.stringify({ sessionId, decision, rule }),
     });
     if (!response.ok) {
       throw new Error(`Failed to resolve approval: ${response.status} ${response.statusText}`);

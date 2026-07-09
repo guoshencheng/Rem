@@ -62,6 +62,7 @@ describe('ChatComposer', () => {
         pendingApprovals={[
           {
             approvalId: 'a1',
+            toolName: 'write_file',
             title: 'Approve file write',
             description: 'Modify /src/config.ts',
             severity: 'warning',

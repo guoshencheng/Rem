@@ -228,11 +228,6 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           break;
         }
         case 'chunk': {
-          if (!state) {
-            bufferEvent(event);
-            return;
-          }
-
           const chunk = event.chunk;
 
           // LLM-generated session title — update session list immediately
@@ -243,6 +238,12 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
                 s.sessionId === event.sessionId ? { ...s, title: newTitle } : s,
               ),
             );
+            return;
+          }
+
+          if (!state) {
+            bufferEvent(event);
+            return;
           }
 
           // Compute the next active part type before updating messages so the

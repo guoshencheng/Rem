@@ -23,7 +23,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-templates.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

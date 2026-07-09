@@ -1,4 +1,6 @@
 import type { UserInput, AgentOutput, AgentStream, ModelMessage, ProviderChunk } from './types.js';
+import type { PromptBuildContext } from './sdk/system-prompt.js';
+import type { Skill } from './sdk/skill-provider.js';
 import { EventBus } from './events.js';
 import type { Session } from './session.js';
 import type { LoopContext } from './sdk/loop-strategy.js';
@@ -102,16 +104,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         controller.emit(chunk);
       };
 
-      const { system, messages } = await contextProvider.build(session, behavior.name);
+      const { messages } = await contextProvider.build(session, behavior.name);
 
       let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
-
-      let systemWithSkills = system;
-      try {
-        const skills = await skillProvider.loadSkills();
-        const catalog = skillProvider.formatCatalog(skills);
-        if (catalog) systemWithSkills = `${system}\n\n${catalog}`;
-      } catch { /* best-effort */ }
 
       const effectiveToolProvider = toolComposer.compose({
         toolProvider,
@@ -119,16 +114,41 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         skillProvider,
       });
 
+      const toolSet = effectiveToolProvider.getToolSet();
+      const tools = Object.entries(toolSet).map(([name, schema]) => ({
+        name,
+        description: schema.description,
+      }));
+
+      const skills = await skillProvider.loadSkills().catch(() => [] as Skill[]);
+
+      const buildCtx: PromptBuildContext = {
+        agentName: behavior.name,
+        workspaceRoot,
+        readOnly: behavior.readOnly,
+        tools,
+        skills,
+        model: { provider: modelConfig.provider, model: modelConfig.model },
+        runtime: {
+          platform: process.platform,
+          nodeVersion: process.version,
+          today: new Date().toISOString().split('T')[0],
+          cwd: process.cwd(),
+        },
+      };
+
+      const systemPrompt = await ctx.systemPromptAssembler.assemble(buildCtx);
+
       const loopCtx: LoopContext = {
         liveState,
         messages: msgs,
         addMessage,
         appendContent,
-        system: systemWithSkills,
+        system: systemPrompt,
         reason: () => reason(
           {
             provider: modelConfig.provider, model: modelConfig.model, apiKey: modelConfig.apiKey,
-            baseURL: modelConfig.baseURL, system: systemWithSkills, messages: msgs,
+            baseURL: modelConfig.baseURL, system: systemPrompt, messages: msgs,
             tools: effectiveToolProvider.getToolSet(), signal: params.signal, errorHandler,
           },
           (chunk) => trackMessageStart(chunk),

@@ -112,6 +112,7 @@ export class AgentState {
     }
     const controller = new AbortController();
     state.runController = controller;
+    state.workspace = workspace;
     state.start({ clearSnapshot: true });
     state.setActivity('pending');
     this.publishSessionStart(workspace, sessionId);

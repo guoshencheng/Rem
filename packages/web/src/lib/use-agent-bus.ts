@@ -43,7 +43,7 @@ export function useAgentBus(agentService: IAgentService, workspace: string) {
     async function consume() {
       try {
         retryDelayRef.current = 1000;
-        const stream = agentService.stream(workspace);
+        const stream = agentService.stream();
         for await (const event of stream) {
           for (const listener of listenersRef.current) {
             listener(event);
@@ -62,7 +62,7 @@ export function useAgentBus(agentService: IAgentService, workspace: string) {
     }
 
     consume();
-  }, [agentService, workspace, notifyReconnect]);
+  }, [agentService, notifyReconnect]);
 
   const disconnect = useCallback(() => {
     runningRef.current = false;

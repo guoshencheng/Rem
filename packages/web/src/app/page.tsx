@@ -10,7 +10,7 @@ import { ChatPanel } from '@/components/chat/chat-panel';
 import { AddWorkspaceDialog } from '@/components/workspace/add-workspace-dialog';
 
 export default function Home() {
-  const agentService = useMemo(() => new AgentRemoteService('', 'default'), []);
+  const agentService = useMemo(() => new AgentRemoteService(''), []);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);

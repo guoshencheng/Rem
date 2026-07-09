@@ -177,12 +177,11 @@ export class AgentService implements IAgentService {
 
   /* ---- Broadcast stream ---- */
 
-  async *stream(workspace: string): AsyncIterable<BusEvent> {
+  async *stream(): AsyncIterable<BusEvent> {
     const queue: BusEvent[] = [];
     let resolveNext: ((event: BusEvent) => void) | null = null;
 
     const unsub = this.agentState.subscribe((event) => {
-      if (event.workspace !== workspace) return;
       if (resolveNext) {
         resolveNext(event);
         resolveNext = null;
@@ -192,14 +191,15 @@ export class AgentService implements IAgentService {
     });
 
     try {
-      // Replay in-flight snapshots to this new subscriber first, then live bus
-      // events. subscribe() above already ran synchronously, so any chunk
-      // published after this point is queued — snapshot + queue are gap-free.
+      // Replay in-flight snapshots for ALL workspaces to this new subscriber.
+      // subscribe() above already ran synchronously, so any chunk published
+      // after this point is queued — snapshot + queue are gap-free.
       for (const sessionId of this.agentState.runningSessionIds()) {
         const snapshot = this.agentState.getSnapshot(sessionId);
+        const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
         if (snapshot) {
           yield {
-            workspace,
+            workspace: ws,
             sessionId,
             type: 'snapshot',
             messageId: snapshot.messageId,

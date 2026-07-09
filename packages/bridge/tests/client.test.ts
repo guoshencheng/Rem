@@ -13,7 +13,7 @@ describe('AgentRemoteService', () => {
     global.fetch = fetchMock as any;
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     const res = await client.run(WORKSPACE, 's1', 'hello');
 
     expect(res).toBeUndefined();
@@ -28,7 +28,7 @@ describe('AgentRemoteService', () => {
     global.fetch = fetchMock as any;
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     await expect(client.run(WORKSPACE, 's1', 'hello')).rejects.toThrow(/500/);
   });
 });
@@ -93,7 +93,7 @@ describe('AgentRemoteService session methods', () => {
       json: async () => ({ sessionId: 's1', workspace: WORKSPACE, title: 'New Chat', updatedAt: 1, messageCount: 0 }),
     });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     const summary = await client.createSession(WORKSPACE);
     expect(summary.sessionId).toBe('s1');
     expect(fetchMock).toHaveBeenCalledWith(
@@ -114,7 +114,7 @@ describe('AgentRemoteService session methods', () => {
       ],
     });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     const list = await client.listSessions(WORKSPACE);
     expect(list).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -135,7 +135,7 @@ describe('AgentRemoteService session methods', () => {
       }),
     });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     const messages = await client.getMessages(WORKSPACE, 's1');
     expect(messages).toHaveLength(1);
     expect(messages[0].id).toBe('m1');
@@ -147,7 +147,7 @@ describe('AgentRemoteService session methods', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     await client.updateSession(WORKSPACE, 's1', { title: 'T', pinned: true });
     expect(fetchMock).toHaveBeenCalledWith(
       `http://localhost:8321/api/sessions/s1?workspace=${encodeURIComponent(WORKSPACE)}`,
@@ -161,7 +161,7 @@ describe('AgentRemoteService session methods', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const client = new AgentRemoteService('http://localhost:8321', WORKSPACE);
+    const client = new AgentRemoteService('http://localhost:8321');
     await client.deleteSession(WORKSPACE, 's1');
     expect(fetchMock).toHaveBeenCalledWith(
       `http://localhost:8321/api/sessions/s1?workspace=${encodeURIComponent(WORKSPACE)}`,

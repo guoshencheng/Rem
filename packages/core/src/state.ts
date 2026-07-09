@@ -30,6 +30,9 @@ export class AgentLiveState {
   private _maxTurns: number;
   private _events?: EventBus;
 
+  /** 当前会话所属的 workspace */
+  workspace?: string;
+
   /** 待处理的审批请求 */
   pendingApprovals: ApprovalRequest[] = [];
 

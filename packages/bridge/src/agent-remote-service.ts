@@ -12,21 +12,18 @@ import type {
 import { parseSSEStream } from './sse.js';
 
 export class AgentRemoteService implements IAgentService {
-  constructor(
-    private baseUrl: string,
-    private workspace: string,
-  ) {}
+  constructor(private baseUrl: string) {}
 
   async init(): Promise<void> {
     // Remote client requires no local initialization.
   }
 
-  private workspaceQuery(): string {
-    return `workspace=${encodeURIComponent(this.workspace)}`;
+  private static wsQuery(workspace: string): string {
+    return `workspace=${encodeURIComponent(workspace)}`;
   }
 
-  async run(_workspace: string, sessionId: string, input: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/run?${this.workspaceQuery()}`, {
+  async run(workspace: string, sessionId: string, input: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/agent/run?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, content: input }),
@@ -37,8 +34,8 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
-  async interrupt(_workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/interrupt?${this.workspaceQuery()}`, {
+  async interrupt(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/agent/interrupt?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId } satisfies InterruptRequest),
@@ -48,8 +45,8 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
-  async reset(_workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/reset?${this.workspaceQuery()}`, {
+  async reset(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/agent/reset?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId } satisfies ResetRequest),
@@ -59,24 +56,24 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
-  async createSession(_workspace: string): Promise<SessionSummary> {
-    const response = await fetch(`${this.baseUrl}/api/sessions?${this.workspaceQuery()}`, { method: 'POST' });
+  async createSession(workspace: string): Promise<SessionSummary> {
+    const response = await fetch(`${this.baseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`, { method: 'POST' });
     if (!response.ok) {
       throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as SessionSummary;
   }
 
-  async listSessions(_workspace: string): Promise<SessionSummary[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions?${this.workspaceQuery()}`);
+  async listSessions(workspace: string): Promise<SessionSummary[]> {
+    const response = await fetch(`${this.baseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`);
     if (!response.ok) {
       throw new Error(`Failed to list sessions: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as SessionSummary[];
   }
 
-  async getMessages(_workspace: string, sessionId: string): Promise<UIMessage[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${this.workspaceQuery()}`);
+  async getMessages(workspace: string, sessionId: string): Promise<UIMessage[]> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`);
     if (!response.ok) {
       throw new Error(`Failed to get messages: ${response.status} ${response.statusText}`);
     }
@@ -84,8 +81,8 @@ export class AgentRemoteService implements IAgentService {
     return data.messages ?? [];
   }
 
-  async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${this.workspaceQuery()}`, {
+  async updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -95,23 +92,23 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
-  async deleteSession(_workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${this.workspaceQuery()}`, { method: 'DELETE' });
+  async deleteSession(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, { method: 'DELETE' });
     if (!response.ok) {
       throw new Error(`Failed to delete session: ${response.status} ${response.statusText}`);
     }
   }
 
-  async listPendingApprovals(_workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
-    const response = await fetch(`${this.baseUrl}/api/approvals?${this.workspaceQuery()}&sessionId=${encodeURIComponent(sessionId)}`);
+  async listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
+    const response = await fetch(`${this.baseUrl}/api/approvals?${AgentRemoteService.wsQuery(workspace)}&sessionId=${encodeURIComponent(sessionId)}`);
     if (!response.ok) {
       throw new Error(`Failed to list pending approvals: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as ApprovalRequest[];
   }
 
-  async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
-    const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve?${this.workspaceQuery()}`, {
+  async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean> {
+    const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, decision }),
@@ -122,8 +119,8 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as boolean;
   }
 
-  async *stream(_workspace: string): AsyncIterable<BusEvent> {
-    const response = await fetch(`${this.baseUrl}/api/agent/stream?${this.workspaceQuery()}`);
+  async *stream(): AsyncIterable<BusEvent> {
+    const response = await fetch(`${this.baseUrl}/api/agent/stream`);
     if (!response.ok || !response.body) {
       throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
     }

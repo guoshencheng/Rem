@@ -18,7 +18,7 @@ export interface IAgentService {
   getMessages(workspace: string, sessionId: string): Promise<UIMessage[]>;
   updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void>;
   deleteSession(workspace: string, sessionId: string): Promise<void>;
-  stream(workspace: string): AsyncIterable<BusEvent>;
+  stream(): AsyncIterable<BusEvent>;
   listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]>;
   resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean>;
 }

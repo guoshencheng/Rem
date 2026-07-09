@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { createTestService, getAgentState } from './shared.js';
-import { DEFAULT_WORKSPACE } from './shared.js';
 import type { BusEvent } from '../../src/types.js';
 
 describe('AgentService stream', { timeout: 20000 }, () => {
@@ -21,7 +20,7 @@ describe('AgentService stream', { timeout: 20000 }, () => {
         text: 'hello',
       });
 
-      const iterator = service.stream(DEFAULT_WORKSPACE)[Symbol.asyncIterator]();
+      const iterator = service.stream()[Symbol.asyncIterator]();
 
       setTimeout(() =>
         getAgentState(service).publish({ workspace: 'default', sessionId: 's1', type: 'session-end' }),
@@ -39,19 +38,24 @@ describe('AgentService stream', { timeout: 20000 }, () => {
     }
   });
 
-  it('filters events by workspace', async () => {
-    const { service, cleanup } = await createTestService({ workspace: 'ws-a' });
+  it('receives events from all workspaces', async () => {
+    const { service, cleanup } = await createTestService();
     try {
-      const iterator = service.stream('ws-a')[Symbol.asyncIterator]();
+      const iterator = service.stream()[Symbol.asyncIterator]();
 
+      // Publish events from two different workspaces — both should arrive
       setTimeout(() => {
         getAgentState(service).publish({ workspace: 'ws-b', sessionId: 's1', type: 'session-start' });
         getAgentState(service).publish({ workspace: 'ws-a', sessionId: 's1', type: 'session-end' });
       });
 
       const first = await iterator.next();
-      expect((first.value as BusEvent).type).toBe('session-end');
-      expect((first.value as BusEvent).workspace).toBe('ws-a');
+      expect((first.value as BusEvent).type).toBe('session-start');
+      expect((first.value as BusEvent).workspace).toBe('ws-b');
+
+      const second = await iterator.next();
+      expect((second.value as BusEvent).type).toBe('session-end');
+      expect((second.value as BusEvent).workspace).toBe('ws-a');
 
       await iterator.return?.();
     } finally {
@@ -62,8 +66,8 @@ describe('AgentService stream', { timeout: 20000 }, () => {
   it('supports multiple concurrent subscribers', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const iter1 = service.stream(DEFAULT_WORKSPACE)[Symbol.asyncIterator]();
-      const iter2 = service.stream(DEFAULT_WORKSPACE)[Symbol.asyncIterator]();
+      const iter1 = service.stream()[Symbol.asyncIterator]();
+      const iter2 = service.stream()[Symbol.asyncIterator]();
 
       const p1 = iter1.next();
       const p2 = iter2.next();
@@ -86,7 +90,7 @@ describe('AgentService stream', { timeout: 20000 }, () => {
   it('unsubscribes on break/return', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const iter = service.stream(DEFAULT_WORKSPACE)[Symbol.asyncIterator]();
+      const iter = service.stream()[Symbol.asyncIterator]();
       await iter.return?.();
 
       // After return, subscriber is removed; no errors on publish.
@@ -101,7 +105,7 @@ describe('AgentService stream', { timeout: 20000 }, () => {
   it('replays no snapshots when no sessions are running', async () => {
     const { service, cleanup } = await createTestService();
     try {
-      const iterator = service.stream(DEFAULT_WORKSPACE)[Symbol.asyncIterator]();
+      const iterator = service.stream()[Symbol.asyncIterator]();
 
       setTimeout(() =>
         getAgentState(service).publish({ workspace: 'default', sessionId: 's1', type: 'session-start' }),

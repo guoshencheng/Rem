@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@opentui/core-darwin-arm64": "^0.4.2",
+    "@testing-library/jest-dom": "^6.4.0",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^1.6.0",
     "typescript": "^5.4.0",

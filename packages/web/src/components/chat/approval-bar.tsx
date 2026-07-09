@@ -37,7 +37,7 @@ export function ApprovalBar({ approvals, onResolve }: ApprovalBarProps) {
   if (approvals.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2 mb-3">
+    <div className="flex flex-col gap-2">
       {approvals.map((request) => (
         <div
           key={request.approvalId}

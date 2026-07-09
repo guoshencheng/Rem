@@ -6,6 +6,7 @@ import type { SessionActivity } from 'rem-agent-bridge';
 
 interface ActivityBarProps {
   activity?: SessionActivity;
+  showIdle?: boolean;
 }
 
 const config: Record<Exclude<SessionActivity, 'idle'>, { label: string; icon: React.ReactNode; color: string }> = {
@@ -31,8 +32,17 @@ const config: Record<Exclude<SessionActivity, 'idle'>, { label: string; icon: Re
   },
 };
 
-export function ActivityBar({ activity }: ActivityBarProps) {
-  if (!activity || activity === 'idle') return null;
+export function ActivityBar({ activity, showIdle }: ActivityBarProps) {
+  if (!activity || activity === 'idle') {
+    if (!showIdle) return null;
+    return (
+      <div className="flex items-center gap-2 px-1 py-2 text-xs text-tx3">
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5">●</span>
+        <span>Idle</span>
+      </div>
+    );
+  }
+
   const { label, icon, color } = config[activity];
   return (
     <div className={cn('flex items-center gap-2 px-1 py-2 text-xs', color)}>

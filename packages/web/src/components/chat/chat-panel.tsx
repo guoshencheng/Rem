@@ -1,9 +1,7 @@
 'use client';
 
 import { MessageList } from './message-list';
-import { InputBox } from './input-box';
-import { ActivityBar } from './activity-bar';
-import { TokenStatsBadge } from './token-stats';
+import { ChatComposer } from './chat-composer';
 import type { UIMessage, SessionActivity } from '@/lib/types';
 import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
 
@@ -23,7 +21,19 @@ interface ChatPanelProps {
   onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
 }
 
-export function ChatPanel({ messages, status, error, activity, pendingApprovals, initialized, tokenUsage, maxTokens = 128_000, onSend, onInterrupt, onResolveApproval }: ChatPanelProps) {
+export function ChatPanel({
+  messages,
+  status,
+  error,
+  activity,
+  pendingApprovals,
+  initialized,
+  tokenUsage,
+  maxTokens = 128_000,
+  onSend,
+  onInterrupt,
+  onResolveApproval,
+}: ChatPanelProps) {
   const streaming = status === 'streaming' || status === 'loading';
 
   return (
@@ -36,19 +46,16 @@ export function ChatPanel({ messages, status, error, activity, pendingApprovals,
       </header>
       <MessageList messages={messages} onSend={onSend} />
       <div className="max-w-3xl mx-auto w-full px-4 pb-4">
-        {tokenUsage && (
-          <div className="mb-2">
-            <TokenStatsBadge usage={tokenUsage} maxTokens={maxTokens} />
-          </div>
-        )}
-        <ActivityBar activity={activity} />
-        <InputBox
+        <ChatComposer
           streaming={streaming}
           initialized={initialized}
+          activity={activity}
+          tokenUsage={tokenUsage}
+          maxTokens={maxTokens}
           pendingApprovals={pendingApprovals}
-          onResolveApproval={onResolveApproval}
           onSend={onSend}
           onInterrupt={onInterrupt}
+          onResolveApproval={onResolveApproval}
         />
       </div>
     </div>

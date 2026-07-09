@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import type { AgentPaths } from '../src/config/paths.js';
 import { DefaultConfigProvider } from '../src/plugins/config/default/index.js';
 import { createDefaultAgentPaths } from '../src/config/paths.js';
 
@@ -17,8 +18,16 @@ describe('DefaultConfigProvider', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  function makePaths() {
-    return createDefaultAgentPaths({ agentDir: tempDir });
+  function makePaths(): AgentPaths {
+    const base = createDefaultAgentPaths({ agentDir: tempDir });
+    return {
+      ...base,
+      homeConfigCandidates: () => [
+        join(tempDir, 'home-config.json'),
+        join(tempDir, 'home-config.yaml'),
+        join(tempDir, 'home-config.yml'),
+      ],
+    };
   }
 
   it('applies defaults when nothing is provided', async () => {
@@ -117,5 +126,123 @@ describe('DefaultConfigProvider', () => {
     const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
     await provider.init();
     expect(provider.getMcpConfig()).toEqual({});
+  });
+
+  it('loads home config as base when no workspace config exists', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({ name: 'Home Agent', maxTurns: 50 }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
+    await provider.init();
+    expect(provider.getBehaviorConfig().name).toBe('Home Agent');
+    expect(provider.getBehaviorConfig().maxTurns).toBe(50);
+  });
+
+  it('workspace config overrides home config properties', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({ name: 'Home Agent', maxTurns: 50, readOnly: false }),
+    );
+    await writeFile(
+      join(tempDir, 'rem-agent.config.json'),
+      JSON.stringify({ name: 'Workspace Agent', readOnly: true }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
+    await provider.init();
+    expect(provider.getBehaviorConfig().name).toBe('Workspace Agent');
+    expect(provider.getBehaviorConfig().maxTurns).toBe(50);
+    expect(provider.getBehaviorConfig().readOnly).toBe(true);
+  });
+
+  it('merges mcpServers by key, keeping home servers not in workspace', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({
+        mcpServers: {
+          homeServer: { transport: 'stdio', command: 'home-cmd' },
+          sharedServer: { transport: 'stdio', command: 'home-shared' },
+        },
+      }),
+    );
+    await writeFile(
+      join(tempDir, 'rem-agent.config.json'),
+      JSON.stringify({
+        mcpServers: {
+          sharedServer: { transport: 'stdio', command: 'workspace-shared' },
+          wsServer: { transport: 'sse', url: 'http://ws' },
+        },
+      }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
+    await provider.init();
+    const mcp = provider.getMcpConfig();
+    expect((mcp.homeServer as any).command).toBe('home-cmd');
+    expect((mcp.sharedServer as any).command).toBe('workspace-shared');
+    expect((mcp.wsServer as any).url).toBe('http://ws');
+  });
+
+  it('merges models by key, keeping home models not in workspace', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({
+        models: {
+          default: { provider: 'openai', model: 'gpt-4' },
+          cheap: { provider: 'openai', model: 'gpt-3.5' },
+        },
+      }),
+    );
+    await writeFile(
+      join(tempDir, 'rem-agent.config.json'),
+      JSON.stringify({
+        models: {
+          cheap: { provider: 'anthropic', model: 'claude-3-haiku' },
+          premium: { provider: 'anthropic', model: 'claude-3-opus' },
+        },
+      }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
+    await provider.init();
+    expect(provider.getModelConfig('default').model).toBe('gpt-4');
+    expect(provider.getModelConfig('cheap').model).toBe('claude-3-haiku');
+    expect(provider.getModelConfig('premium').model).toBe('claude-3-opus');
+  });
+
+  it('does not overwrite file config with undefined overrides', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({ name: 'Home Agent', maxTurns: 30 }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({
+      paths,
+      cwd: tempDir,
+      env: {},
+      overrides: { name: undefined, maxTurns: 100 },
+    });
+    await provider.init();
+    expect(provider.getBehaviorConfig().name).toBe('Home Agent');
+    expect(provider.getBehaviorConfig().maxTurns).toBe(100);
+  });
+
+  it('workspace config in .rem-agent subdirectory is found and merged', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({ name: 'Home Agent' }),
+    );
+    const subDir = join(tempDir, '.rem-agent');
+    await mkdir(subDir, { recursive: true });
+    await writeFile(
+      join(subDir, 'config.json'),
+      JSON.stringify({ name: 'Subdir Agent' }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, cwd: tempDir, env: {} });
+    await provider.init();
+    expect(provider.getBehaviorConfig().name).toBe('Subdir Agent');
   });
 });

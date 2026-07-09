@@ -44,16 +44,41 @@ describe('createDefaultAgentPaths', () => {
     expect(paths.workspaceSkillsDir('/root')).toBe('/root/.agents/skills');
   });
 
-  it('configCandidates should return candidates in priority order', () => {
+  it('configCandidates should return workspace candidates before home candidates', () => {
     const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
     const candidates = paths.configCandidates('/cwd');
+    expect(candidates).toHaveLength(9);
+    expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
+    expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');
+    expect(candidates[2]).toBe('/cwd/rem-agent.config.yml');
+    expect(candidates[3]).toBe('/cwd/.rem-agent/config.json');
+    expect(candidates[4]).toBe('/cwd/.rem-agent/config.yaml');
+    expect(candidates[5]).toBe('/cwd/.rem-agent/config.yml');
+    expect(candidates[6]).toContain('.rem-agent/config.json');
+    expect(candidates[7]).toContain('.rem-agent/config.yaml');
+    expect(candidates[8]).toContain('.rem-agent/config.yml');
+  });
+
+  it('workspaceConfigCandidates should return only workspace-level candidates', () => {
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
+    const candidates = paths.workspaceConfigCandidates('/cwd');
     expect(candidates).toHaveLength(6);
     expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
     expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');
     expect(candidates[2]).toBe('/cwd/rem-agent.config.yml');
-    expect(candidates[3]).toBe('/tmp/a/config.json');
-    expect(candidates[4]).toBe('/tmp/a/config.yaml');
-    expect(candidates[5]).toBe('/tmp/a/config.yml');
+    expect(candidates[3]).toBe('/cwd/.rem-agent/config.json');
+    expect(candidates[4]).toBe('/cwd/.rem-agent/config.yaml');
+    expect(candidates[5]).toBe('/cwd/.rem-agent/config.yml');
+  });
+
+  it('homeConfigCandidates should always point to ~/.rem-agent regardless of agentDir', () => {
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
+    const candidates = paths.homeConfigCandidates();
+    expect(candidates).toHaveLength(3);
+    expect(candidates[0]).not.toContain('/tmp/a');
+    expect(candidates[0]).toContain('.rem-agent/config.json');
+    expect(candidates[1]).toContain('.rem-agent/config.yaml');
+    expect(candidates[2]).toContain('.rem-agent/config.yml');
   });
 
   it('debugLogFile should be null by default in production', () => {

@@ -2,7 +2,7 @@ import type { AgentModelConfig } from '../../../sdk/config-provider.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 

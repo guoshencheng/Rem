@@ -9,9 +9,15 @@ import type {
 } from '../../../sdk/config-provider.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
 import type { AgentPaths } from '../../../config/paths.js';
-import { resolveConfigPath, loadConfigFile } from './config-loader.js';
-import { resolveTemplate, resolveOptionalTemplate, pickToolPolicy } from './config-parser.js';
-import { mergeFileConfig, mergeEnvConfig, applyBehaviorDefaults } from './config-merger.js';
+import { resolveConfigPath, loadConfigFile, resolveConfigPaths } from './config-loader.js';
+import { resolveTemplate, resolveOptionalTemplate } from './config-parser.js';
+import {
+  mergeFileConfig,
+  mergeEnvConfig,
+  applyBehaviorDefaults,
+  mergeDeepConfig,
+  mergeOverrides,
+} from './config-merger.js';
 
 export interface ConfigFileData {
   [key: string]: unknown;
@@ -47,21 +53,25 @@ export class DefaultConfigProvider implements ConfigProvider {
     let config: AgentConfig = {};
 
     const paths = await this.resolvePaths();
-    const configPath = resolveConfigPath(this.options.configPath, cwd, paths);
-    if (configPath) {
-      const file = await loadConfigFile(configPath);
-      config = mergeFileConfig(config, file);
+
+    const homePath = resolveConfigPaths(paths.homeConfigCandidates())[0];
+    if (homePath) {
+      const homeFile = await loadConfigFile(homePath);
+      config = mergeFileConfig(config, homeFile);
+    }
+
+    const workspacePath = this.options.configPath
+      ? resolveConfigPath(this.options.configPath, cwd, paths)
+      : resolveConfigPaths(paths.workspaceConfigCandidates(cwd))[0];
+    if (workspacePath) {
+      const workspaceFile = await loadConfigFile(workspacePath);
+      config = mergeDeepConfig(config, workspaceFile);
     }
 
     config = mergeEnvConfig(config, this.env);
 
     if (this.options.overrides) {
-      config = { ...config, ...this.options.overrides };
-      const overridePolicy = pickToolPolicy(this.options.overrides.toolPolicy);
-      if (overridePolicy) config.toolPolicy = overridePolicy;
-      if (this.options.overrides.model) config.model = this.options.overrides.model;
-      if (this.options.overrides.models) config.models = this.options.overrides.models;
-      if (this.options.overrides.activeModel) config.activeModel = this.options.overrides.activeModel;
+      config = mergeOverrides(config, this.options.overrides);
     }
 
     this.raw = config;

@@ -1,4 +1,5 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
+import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { Rule } from '../../../security/rules/rule.js';
 import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig } from './config-parser.js';
 
@@ -13,14 +14,16 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (typeof file.profile === 'string') merged.profile = file.profile as AgentBehaviorConfig['profile'];
   if (Array.isArray(file.sessionRules)) merged.sessionRules = file.sessionRules as Rule[];
   const toolPolicy = pickToolPolicy(file.toolPolicy);
-  if (toolPolicy) merged.toolPolicy = toolPolicy;
+  if (toolPolicy) {
+    merged.toolPolicy = merged.toolPolicy ? mergeToolPolicy(merged.toolPolicy, toolPolicy) : toolPolicy;
+  }
   const models = pickModels(file.models);
-  if (models) merged.models = models;
+  if (models) merged.models = { ...merged.models, ...models };
   const singleModel = pickModelConfig(file.model);
   if (singleModel) merged.model = singleModel;
   if (typeof file.activeModel === 'string') merged.activeModel = file.activeModel;
   const mcpServers = pickMcpConfig(file.mcpServers);
-  if (mcpServers) merged.mcpServers = mcpServers;
+  if (mcpServers) merged.mcpServers = { ...merged.mcpServers, ...mcpServers };
   return merged;
 }
 
@@ -51,4 +54,48 @@ export function applyBehaviorDefaults(
     profile: config.profile ?? 'coding',
     sessionRules: config.sessionRules ?? [],
   };
+}
+
+export function mergeDeepConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
+  const merged = mergeFileConfig(base, file);
+  const toolPolicy = pickToolPolicy(file.toolPolicy);
+  if (toolPolicy && base.toolPolicy) {
+    merged.toolPolicy = mergeToolPolicy(base.toolPolicy, toolPolicy);
+  }
+  return merged;
+}
+
+export function mergeOverrides(base: AgentConfig, overrides: AgentConfig): AgentConfig {
+  const merged: AgentConfig = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) continue;
+    (merged as Record<string, unknown>)[key] = value;
+  }
+  if (overrides.toolPolicy && base.toolPolicy) {
+    merged.toolPolicy = mergeToolPolicy(base.toolPolicy, overrides.toolPolicy);
+  }
+  if (overrides.models && base.models) {
+    merged.models = { ...base.models, ...overrides.models };
+  }
+  if (overrides.mcpServers && base.mcpServers) {
+    merged.mcpServers = { ...base.mcpServers, ...overrides.mcpServers };
+  }
+  return merged;
+}
+
+function mergeToolPolicy(base: ToolPolicyConfig, override: ToolPolicyConfig): ToolPolicyConfig {
+  const merged: ToolPolicyConfig = { ...base, ...override };
+  if (base.byProvider && override.byProvider) {
+    merged.byProvider = { ...base.byProvider, ...override.byProvider };
+  }
+  if (base.toolsBySender && override.toolsBySender) {
+    merged.toolsBySender = { ...base.toolsBySender, ...override.toolsBySender };
+  }
+  if (base.sandbox && override.sandbox) {
+    merged.sandbox = { ...base.sandbox, ...override.sandbox };
+    if (base.sandbox.tools && override.sandbox.tools) {
+      merged.sandbox.tools = { ...base.sandbox.tools, ...override.sandbox.tools };
+    }
+  }
+  return merged;
 }

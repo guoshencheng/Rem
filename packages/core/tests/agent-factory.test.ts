@@ -3,32 +3,24 @@ import { createAgentFromEnv } from '../src/agent-factory.js';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { createDefaultAgentPaths } from '../src/config/paths.js';
 
 describe('createAgentFromEnv', () => {
   it('returns raw providers and a toolComposer without pre-merging tools', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-agent-test-'));
     writeFileSync(join(dir, 'agent.json'), JSON.stringify({ name: 'test-agent' }));
 
-    const previousHome = process.env.REM_AGENT_HOME;
-    process.env.REM_AGENT_HOME = dir;
+    const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
 
-    try {
-      const ctx = await createAgentFromEnv({ configPath: join(dir, 'agent.json') });
+    const ctx = await createAgentFromEnv({ configPath: join(dir, 'agent.json'), paths });
 
-      expect(ctx.toolProvider).toBeDefined();
-      expect(ctx.mcpProviders).toBeDefined();
-      expect(ctx.mcpProviders).toBeInstanceOf(Array);
-      expect(ctx.toolComposer).toBeDefined();
-      expect(typeof ctx.toolComposer.compose).toBe('function');
+    expect(ctx.toolProvider).toBeDefined();
+    expect(ctx.mcpProviders).toBeDefined();
+    expect(ctx.mcpProviders).toBeInstanceOf(Array);
+    expect(ctx.toolComposer).toBeDefined();
+    expect(typeof ctx.toolComposer.compose).toBe('function');
 
-      // read_skill should NOT be pre-registered on the raw toolProvider
-      expect(ctx.toolProvider.getToolSet()).not.toHaveProperty('read_skill');
-    } finally {
-      if (previousHome === undefined) {
-        delete process.env.REM_AGENT_HOME;
-      } else {
-        process.env.REM_AGENT_HOME = previousHome;
-      }
-    }
+    // read_skill should NOT be pre-registered on the raw toolProvider
+    expect(ctx.toolProvider.getToolSet()).not.toHaveProperty('read_skill');
   });
 });

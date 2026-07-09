@@ -35,6 +35,8 @@ import {
 import type { AgentContext } from './agent-context.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 
+import type { AgentPaths } from './config/paths.js';
+
 export interface AgentContextBuildOptions {
   name?: string;
   configPath?: string;
@@ -47,6 +49,7 @@ export interface AgentContextBuildOptions {
   sessionsDir?: string;
   profile?: import('./security/rules/profiles.js').ToolProfileId;
   sessionRules?: Rule[];
+  paths?: AgentPaths;
 }
 
 async function buildRuleSecurity(
@@ -71,7 +74,7 @@ async function buildRuleSecurity(
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
   registerBuiltInProviders();
 
-  const paths = createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
+  const paths = options?.paths ?? createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
   configureDebugLog(paths.debugLogFile);
   if (paths.debugLogFile && process.env.NODE_ENV === 'development') {
     configureConsoleOutput(true);
@@ -79,6 +82,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   const configProvider = new DefaultConfigProvider({
     paths,
+    cwd: options?.workspaceRoot ?? process.cwd(),
     configPath: options?.configPath,
     overrides: {
       name: options?.name,

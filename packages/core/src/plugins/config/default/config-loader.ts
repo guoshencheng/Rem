@@ -23,8 +23,9 @@ export function resolveConfigPath(
 ): string | undefined {
   if (explicitPath) return resolveTilde(explicitPath);
   const candidates = paths.configCandidates(cwd);
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return undefined;
+  return resolveConfigPaths(candidates)[0];
+}
+
+export function resolveConfigPaths(candidates: string[]): string[] {
+  return candidates.filter((candidate) => existsSync(candidate));
 }

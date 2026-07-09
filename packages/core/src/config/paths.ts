@@ -16,6 +16,12 @@ export interface AgentPaths {
   /** 配置文件候选列表（优先级从高到低） */
   configCandidates(cwd: string): string[];
 
+  /** home 级配置候选列表（~/.rem-agent/config.*），优先级从高到低 */
+  homeConfigCandidates(): string[];
+
+  /** workspace 级配置候选列表（cwd/rem-agent.config.* 与 cwd/.rem-agent/config.*），优先级从高到低 */
+  workspaceConfigCandidates(cwd: string): string[];
+
   /** 会话存储目录 */
   readonly sessionsDir: string;
 
@@ -25,6 +31,7 @@ export interface AgentPaths {
 
 export interface CreateAgentPathsOptions {
   agentDir?: string;
+  homeAgentDir?: string;
   homeSkillsDir?: string;
   sessionsDir?: string;
   env?: Partial<NodeJS.ProcessEnv>;
@@ -36,6 +43,7 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
   const env = opts.env ?? process.env;
 
   const agentDir = opts.agentDir ?? resolveAgentDir(env);
+  const homeAgentDir = opts.homeAgentDir ?? join(homedir(), '.rem-agent');
   const homeSkillsDir = opts.homeSkillsDir ?? join(homedir(), '.agents', 'skills');
   const sessionsDir = opts.sessionsDir ?? join(agentDir, 'sessions');
   const debugLogFile = resolveDebugLogFile(env, agentDir);
@@ -49,13 +57,25 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
     },
 
     configCandidates(cwd: string) {
+      return [...this.workspaceConfigCandidates(cwd), ...this.homeConfigCandidates()];
+    },
+
+    homeConfigCandidates() {
+      return [
+        join(homeAgentDir, 'config.json'),
+        join(homeAgentDir, 'config.yaml'),
+        join(homeAgentDir, 'config.yml'),
+      ];
+    },
+
+    workspaceConfigCandidates(cwd: string) {
       return [
         join(cwd, 'rem-agent.config.json'),
         join(cwd, 'rem-agent.config.yaml'),
         join(cwd, 'rem-agent.config.yml'),
-        join(agentDir, 'config.json'),
-        join(agentDir, 'config.yaml'),
-        join(agentDir, 'config.yml'),
+        join(cwd, '.rem-agent', 'config.json'),
+        join(cwd, '.rem-agent', 'config.yaml'),
+        join(cwd, '.rem-agent', 'config.yml'),
       ];
     },
 

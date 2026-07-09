@@ -4,7 +4,6 @@ import type { Workspace, WorkspaceRepository } from './workspace-repository.js';
 
 interface PersistedWorkspace {
   path: string;
-  name?: string;
   createdAt: number;
 }
 
@@ -18,11 +17,11 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   async list(): Promise<Workspace[]> {
     const data = await this.read();
     return data.workspaces
-      .map((w) => this.normalize(w))
+      .map((w) => ({ path: w.path, createdAt: w.createdAt }))
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  async add(rawPath: string, name?: string): Promise<Workspace> {
+  async add(rawPath: string): Promise<Workspace> {
     const absolutePath = path.resolve(rawPath);
     try {
       const stat = await fs.stat(absolutePath);
@@ -41,12 +40,11 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
 
     const workspace: PersistedWorkspace = {
       path: absolutePath,
-      name: name || path.basename(absolutePath),
       createdAt: Date.now(),
     };
     data.workspaces.push(workspace);
     await this.write(data);
-    return this.normalize(workspace);
+    return { path: workspace.path, createdAt: workspace.createdAt };
   }
 
   async remove(rawPath: string): Promise<void> {
@@ -58,14 +56,6 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     }
     data.workspaces.splice(index, 1);
     await this.write(data);
-  }
-
-  private normalize(w: PersistedWorkspace): Workspace {
-    return {
-      path: w.path,
-      name: w.name || path.basename(w.path),
-      createdAt: w.createdAt,
-    };
   }
 
   private async read(): Promise<PersistedData> {

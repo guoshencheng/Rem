@@ -151,11 +151,11 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as Workspace[];
   }
 
-  async addWorkspace(path: string, name?: string): Promise<Workspace> {
+  async addWorkspace(path: string): Promise<Workspace> {
     const response = await fetch(`${this.baseUrl}/api/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, name }),
+      body: JSON.stringify({ path }),
     });
     if (!response.ok) {
       throw new Error(`Failed to add workspace: ${response.status} ${response.statusText}`);

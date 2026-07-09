@@ -6,6 +6,10 @@ import { SessionList } from './session-list';
 import type { SessionSummary } from '@/lib/use-agents';
 import type { Workspace } from 'rem-agent-bridge';
 
+function basename(filePath: string): string {
+  return filePath.split('/').filter(Boolean).pop() ?? filePath;
+}
+
 interface WorkspaceSidebarProps {
   workspaces: Workspace[];
   activeWorkspace: string | null;
@@ -109,7 +113,7 @@ export function WorkspaceSidebar({
               >
                 {isExpanded ? <ChevronDown size={12} className="text-tx3 flex-shrink-0" /> : <ChevronRight size={12} className="text-tx3 flex-shrink-0" />}
                 <Folder size={12} className="text-tx3 flex-shrink-0" />
-                <span className={`flex-1 truncate font-medium ${isActive ? 'text-tx' : 'text-tx2'}`}>{ws.name}</span>
+                <span className={`flex-1 truncate font-medium ${isActive ? 'text-tx' : 'text-tx2'}`}>{basename(ws.path)}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); onCreateSession(ws.path); }}
                   className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-bd transition-all flex-shrink-0"

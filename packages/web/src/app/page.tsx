@@ -50,8 +50,8 @@ export default function Home() {
     }
   }, [pendingCreate, activeWorkspace, createSession]);
 
-  const handleAddWorkspace = useCallback(async (path: string, name?: string) => {
-    const ws = await agentService.addWorkspace(path, name);
+  const handleAddWorkspace = useCallback(async (path: string) => {
+    const ws = await agentService.addWorkspace(path);
     setWorkspaces((prev) => [...prev, ws]);
     setActiveWorkspace(ws.path);
     setDialogOpen(false);

@@ -23,13 +23,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { path, name } = body as { path: string; name?: string };
+    const { path } = body as { path: string };
     if (!path) {
       return NextResponse.json({ error: 'path is required' }, { status: 400 });
     }
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    return NextResponse.json(await agentService.addWorkspace(path, name));
+    return NextResponse.json(await agentService.addWorkspace(path));
   } catch (err) {
     return errorResponse(err);
   }

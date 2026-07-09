@@ -33,14 +33,14 @@ export interface SessionUpdate {
 }
 
 export interface Workspace {
+  /** workspace 唯一标识符，即目录绝对路径 */
   path: string;
-  name: string;
+  /** 添加时间戳 */
   createdAt: number;
 }
 
 export interface AddWorkspaceRequest {
   path: string;
-  name?: string;
 }
 
 export interface RemoveWorkspaceRequest {

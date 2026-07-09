@@ -18,19 +18,13 @@ describe('JsonWorkspaceRepository', () => {
   });
 
   it('adds a workspace and returns it', async () => {
-    const ws = await repo.add(tmpDir, 'my-tmp');
+    const ws = await repo.add(tmpDir);
     expect(ws.path).toBe(tmpDir);
-    expect(ws.name).toBe('my-tmp');
     expect(ws.createdAt).toBeTypeOf('number');
 
     const list = await repo.list();
     expect(list).toHaveLength(1);
     expect(list[0].path).toBe(tmpDir);
-  });
-
-  it('defaults name to basename of path', async () => {
-    const ws = await repo.add(tmpDir);
-    expect(ws.name).toBe(path.basename(tmpDir));
   });
 
   it('rejects non-existent paths', async () => {

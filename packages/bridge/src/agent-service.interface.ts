@@ -6,7 +6,7 @@ export interface IAgentService {
 
   // Workspace management
   listWorkspaces(): Promise<Workspace[]>;
-  addWorkspace(path: string, name?: string): Promise<Workspace>;
+  addWorkspace(path: string): Promise<Workspace>;
   removeWorkspace(path: string): Promise<void>;
 
   // Session operations now require workspace

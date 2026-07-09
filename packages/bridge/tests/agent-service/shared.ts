@@ -60,7 +60,7 @@ export async function createTestService(options: {
   const workspace = options.workspace ?? DEFAULT_WORKSPACE;
   // Seed the repository with the test workspace so workspace management APIs work,
   // but tolerate failures because the workspace string may not be a real directory.
-  await workspaceRepo.add(workspace, workspace).catch(() => {});
+  await workspaceRepo.add(workspace).catch(() => {});
 
   const service = new AgentService(
     {

@@ -52,8 +52,8 @@ export class AgentService implements IAgentService {
     return this.workspaceRepository.list();
   }
 
-  async addWorkspace(path: string, name?: string): Promise<Workspace> {
-    return this.workspaceRepository.add(path, name);
+  async addWorkspace(path: string): Promise<Workspace> {
+    return this.workspaceRepository.add(path);
   }
 
   async removeWorkspace(path: string): Promise<void> {

@@ -15,6 +15,8 @@ export default function Home() {
   const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Track workspace that needs a session created after activation
+  const [pendingCreate, setPendingCreate] = useState<string | null>(null);
 
   // Load workspace list on mount
   useEffect(() => {
@@ -40,6 +42,14 @@ export default function Home() {
     initialized,
   } = useAgents(agentService, { workspace: activeWorkspace ?? 'default' });
 
+  // Create session after workspace activation when triggered from a different workspace
+  useEffect(() => {
+    if (pendingCreate && pendingCreate === activeWorkspace) {
+      createSession();
+      setPendingCreate(null);
+    }
+  }, [pendingCreate, activeWorkspace, createSession]);
+
   const handleAddWorkspace = useCallback(async (path: string, name?: string) => {
     const ws = await agentService.addWorkspace(path, name);
     setWorkspaces((prev) => [...prev, ws]);
@@ -56,6 +66,15 @@ export default function Home() {
       return next;
     });
   }, [activeWorkspace]);
+
+  const handleCreateSession = useCallback((wsPath: string) => {
+    if (wsPath === activeWorkspace) {
+      createSession();
+    } else {
+      setActiveWorkspace(wsPath);
+      setPendingCreate(wsPath);
+    }
+  }, [activeWorkspace, createSession]);
 
   const handleSearch = useCallback(async (q: string) => {
     if (!activeWorkspace) return;
@@ -81,7 +100,7 @@ export default function Home() {
         onAddWorkspace={() => setDialogOpen(true)}
         onRemoveWorkspace={handleRemoveWorkspace}
         onSwitchSession={switchSession}
-        onCreateSession={createSession}
+        onCreateSession={handleCreateSession}
         onDeleteSession={deleteSession}
         onSearch={handleSearch}
       />

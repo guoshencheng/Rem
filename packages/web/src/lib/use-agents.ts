@@ -3,41 +3,11 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
-import type { UIMessage, ContentPart } from 'rem-agent-bridge';
+import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
 import { useAgentBus } from './use-agent-bus';
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
-
-/** Unique identity key for part-level deduplication */
-function partKey(p: ContentPart): string {
-  switch (p.type) {
-    case 'text': return 'text';
-    case 'reasoning': return 'reasoning';
-    case 'tool-call': return `tc:${p.toolCallId}`;
-    case 'tool-result': return `tr:${p.toolCallId}`;
-  }
-}
-
-/** Merge snapshot parts into existing parts, deduplicating by part identity */
-function mergeSnapshotParts(existing: ContentPart[], snapshot: ContentPart[]): ContentPart[] {
-  const seen = new Map<string, number>();
-  const merged = [...existing];
-  // Index existing parts
-  for (let i = 0; i < merged.length; i++) seen.set(partKey(merged[i]), i);
-  // Merge snapshot parts in place (update if exists, append if new)
-  for (const p of snapshot) {
-    const k = partKey(p);
-    const idx = seen.get(k);
-    if (idx !== undefined) {
-      merged[idx] = p;
-    } else {
-      seen.set(k, merged.length);
-      merged.push(p);
-    }
-  }
-  return merged;
-}
 
 interface SessionState {
   messages: UIMessage[];
@@ -244,7 +214,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
             m.id === event.messageId
-              ? { ...m, parts: mergeSnapshotParts(m.parts, event.parts as ContentPart[]) }
+              ? { ...m, parts: event.parts }
               : m,
           );
           notifyChange();

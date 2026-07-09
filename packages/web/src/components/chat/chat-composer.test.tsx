@@ -67,6 +67,8 @@ describe('ChatComposer', () => {
             description: 'Modify /src/config.ts',
             severity: 'warning',
             allowedDecisions: ['allow-once', 'deny'],
+            patterns: [],
+            alwaysOptions: [],
           },
         ]}
         onSend={noop}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ServiceError, type IAgentService } from 'rem-agent-bridge';
-import type { ApprovalDecision } from 'rem-agent-core';
+import type { ApprovalDecision, Rule } from 'rem-agent-core';
 import { getContainer } from '@/lib/container';
 
 function errorResponse(err: unknown) {
@@ -20,7 +20,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { sessionId, decision } = body as { sessionId?: string; decision?: ApprovalDecision };
+    const { sessionId, decision, rule } = body as { sessionId?: string; decision?: ApprovalDecision; rule?: Omit<Rule, 'source'> };
 
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(
     const workspace = getWorkspace(request);
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
-    const result = await agentService.resolveApproval(workspace, sessionId, id, decision);
+    const result = await agentService.resolveApproval(workspace, sessionId, id, decision, rule);
     return NextResponse.json(result);
   } catch (err) {
     return errorResponse(err);

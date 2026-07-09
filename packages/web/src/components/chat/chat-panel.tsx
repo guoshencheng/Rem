@@ -3,7 +3,7 @@
 import { MessageList } from './message-list';
 import { ChatComposer } from './chat-composer';
 import type { UIMessage, SessionActivity } from '@/lib/types';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -18,7 +18,7 @@ interface ChatPanelProps {
   maxTokens?: number;
   onSend(content: string): void;
   onInterrupt(): void;
-  onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
+  onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
 }
 
 export function ChatPanel({

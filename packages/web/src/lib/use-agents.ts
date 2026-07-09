@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
@@ -511,10 +511,10 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
   );
 
   const resolveApproval = useCallback(
-    async (approvalId: string, decision: ApprovalDecision) => {
+    async (approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>) => {
       if (!currentId) return;
       try {
-        await agentService.resolveApproval(workspace, currentId, approvalId, decision);
+        await agentService.resolveApproval(workspace, currentId, approvalId, decision, rule);
       } catch {
         // silent fail; resolved chunks will update state if successful
       }

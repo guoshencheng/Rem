@@ -12,8 +12,10 @@ export class SimpleContextProvider implements ContextProvider, MemoryProvider {
   }
 
   async build(session: Session, _agentName: string): Promise<{ system: string; messages: ModelMessage[] }> {
-    const ctx = await this.buildContext(session, _agentName);
-    return { system: ctx.systemPrompt, messages: ctx.messages };
+    return {
+      system: '',
+      messages: session.conversation,
+    };
   }
 
   async buildContext(session: Session, agentName: string): Promise<MemoryContext> {

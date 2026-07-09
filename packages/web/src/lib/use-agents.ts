@@ -219,9 +219,11 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           }
           ensureAssistantMessage(state, event.messageId);
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
+          // Update parts even if the message was loaded from disk as 'done'
+          // (e.g. on reconnect the message may have empty parts from save-in-progress).
           state.messages = state.messages.map((m) =>
-            m.id === event.messageId && m.status === 'streaming'
-              ? { ...m, parts: event.parts }
+            m.id === event.messageId
+              ? { ...m, parts: event.parts, status: 'streaming' as const }
               : m,
           );
           notifyChange();

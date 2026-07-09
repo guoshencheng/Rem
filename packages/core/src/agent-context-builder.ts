@@ -93,9 +93,9 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
       new ToolingSection(),
       new ExecutionBiasSection(),
       new SafetySection(),
-      new WorkspaceSection(),
       new AgentsMdSection(new ProjectAgentsMdLoader()),
       new SkillsSection(skillProvider),
+      new WorkspaceSection(),
       new RuntimeSection(),
     ],
   );

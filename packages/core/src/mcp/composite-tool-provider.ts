@@ -39,6 +39,11 @@ export class CompositeToolProvider implements ToolProvider {
     return owner.isDangerous(toolName);
   }
 
+  getToolDefinition(name: string): ToolDefinition | undefined {
+    const owner = this.ownership.get(name) ?? this.primary;
+    return owner.getToolDefinition(name);
+  }
+
   async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
     const grouped = new Map<ToolProvider, ToolCall[]>();
 

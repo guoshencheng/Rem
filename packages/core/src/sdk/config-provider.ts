@@ -1,5 +1,7 @@
 import type { ToolPolicyConfig } from './tool-policy.js';
 import type { McpServerConfig } from '../mcp/types.js';
+import type { ToolProfileId } from '../security/rules/profiles.js';
+import type { Rule } from '../security/rules/rule.js';
 
 export interface AgentModelConfig {
   provider: string;
@@ -20,6 +22,8 @@ export interface AgentBehaviorConfig {
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
   sessionsDir?: string;
+  profile?: ToolProfileId;
+  sessionRules?: Rule[];
 }
 
 export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 import { cn } from '@/lib/utils';
 import { ApprovalBar } from './approval-bar';
 import { TokenStatsBadge } from './token-stats';
@@ -13,7 +13,7 @@ interface InputBoxProps {
   pendingApprovals?: ApprovalRequest[];
   tokenUsage?: LanguageModelUsage;
   maxTokens?: number;
-  onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
+  onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
   onSend(content: string): void;
   onInterrupt(): void;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import type { SessionActivity } from 'rem-agent-bridge';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 import { ActivityBar } from './activity-bar';
 import { InputBox } from './input-box';
 
@@ -14,7 +14,7 @@ export interface ChatComposerProps {
   pendingApprovals?: ApprovalRequest[];
   onSend(content: string): void;
   onInterrupt(): void;
-  onResolveApproval(approvalId: string, decision: ApprovalDecision): void;
+  onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
 }
 
 export function ChatComposer({

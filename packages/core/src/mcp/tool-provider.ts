@@ -78,6 +78,10 @@ export class McpToolProvider implements ToolProvider {
     return this.tools.get(toolName)?.def.dangerous === true;
   }
 
+  getToolDefinition(name: string): ToolDefinition | undefined {
+    return this.tools.get(name)?.def;
+  }
+
   async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
 

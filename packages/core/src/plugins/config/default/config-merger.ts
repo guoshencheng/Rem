@@ -1,4 +1,5 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
+import type { Rule } from '../../../security/rules/rule.js';
 import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
@@ -9,6 +10,8 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (typeof file.readOnly === 'boolean') merged.readOnly = file.readOnly;
   if (typeof file.autoApproveDangerous === 'boolean') merged.autoApproveDangerous = file.autoApproveDangerous;
   if (typeof file.sessionsDir === 'string') merged.sessionsDir = file.sessionsDir;
+  if (typeof file.profile === 'string') merged.profile = file.profile as AgentBehaviorConfig['profile'];
+  if (Array.isArray(file.sessionRules)) merged.sessionRules = file.sessionRules as Rule[];
   const toolPolicy = pickToolPolicy(file.toolPolicy);
   if (toolPolicy) merged.toolPolicy = toolPolicy;
   const models = pickModels(file.models);
@@ -30,6 +33,7 @@ export function mergeEnvConfig(base: AgentConfig, env: NodeJS.ProcessEnv): Agent
   if (env.REM_AGENT_AUTO_APPROVE_DANGEROUS) merged.autoApproveDangerous = env.REM_AGENT_AUTO_APPROVE_DANGEROUS === 'true';
   if (env.REM_AGENT_SESSIONS_DIR) merged.sessionsDir = env.REM_AGENT_SESSIONS_DIR;
   if (env.REM_AGENT_ACTIVE_MODEL) merged.activeModel = env.REM_AGENT_ACTIVE_MODEL;
+  if (env.REM_AGENT_PROFILE) merged.profile = env.REM_AGENT_PROFILE as AgentBehaviorConfig['profile'];
   return merged;
 }
 
@@ -44,5 +48,7 @@ export function applyBehaviorDefaults(
     readOnly: config.readOnly ?? false,
     autoApproveDangerous: config.autoApproveDangerous ?? false,
     sessionsDir: config.sessionsDir ?? sessionsDir,
+    profile: config.profile ?? 'coding',
+    sessionRules: config.sessionRules ?? [],
   };
 }

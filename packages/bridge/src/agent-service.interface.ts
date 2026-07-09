@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule } from 'rem-agent-core';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 
 export interface IAgentService {
@@ -20,5 +20,5 @@ export interface IAgentService {
   deleteSession(workspace: string, sessionId: string): Promise<void>;
   stream(): AsyncIterable<BusEvent>;
   listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]>;
-  resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision): Promise<boolean>;
+  resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean>;
 }

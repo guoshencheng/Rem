@@ -12,6 +12,8 @@ import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
 import type { ToolComposer } from './sdk/tool-composer.js';
 import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
+import type { RuleEngine } from './security/rules/rule-engine.js';
+import type { RuleStore } from './security/rules/rule-store.js';
 
 export interface AgentContext {
   configProvider: ConfigProvider;
@@ -29,4 +31,6 @@ export interface AgentContext {
   mcpManager: McpConnectionManager;
   fileMutationQueue: FileMutationQueue;
   systemPromptAssembler: SystemPromptAssembler; // 新增
+  ruleEngine: RuleEngine;
+  ruleStore: RuleStore;
 }

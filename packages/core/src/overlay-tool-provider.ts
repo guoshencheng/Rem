@@ -25,7 +25,7 @@ export class OverlayToolProvider implements ToolProvider {
 
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void {
     this.overlays.set(def.name, {
-      def: def as ToolDefinition,
+      def: def as unknown as ToolDefinition,
       executor: executor as ToolExecutor,
       check: TypeCompiler.Compile(def.parameters),
     });
@@ -46,6 +46,12 @@ export class OverlayToolProvider implements ToolProvider {
     const overlay = this.overlays.get(toolName);
     if (overlay) return overlay.def.dangerous === true;
     return this.base.isDangerous(toolName);
+  }
+
+  getToolDefinition(name: string): ToolDefinition | undefined {
+    const overlay = this.overlays.get(name);
+    if (overlay) return overlay.def;
+    return this.base.getToolDefinition(name);
   }
 
   async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {

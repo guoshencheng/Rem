@@ -70,11 +70,9 @@ export class AgentSessionManager {
 
     const messageTokenUsage = (session.metadata?.messageTokenUsage ?? {}) as Record<string, LanguageModelUsage>;
 
-    const isRunning = this.agentState.isRunning(sessionId);
-
     return session.conversation
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg, i, arr) => {
+      .map((msg) => {
         const parts = (msg.content ?? []) as ContentPart[];
         const mergedParts: ContentPart[] = [];
         for (const part of parts) {
@@ -86,14 +84,11 @@ export class AgentSessionManager {
             }
           }
         }
-        // The last assistant message should be 'streaming' if the session is still
-        // running, so that snapshot replay via SSE can update its content in-place.
-        const isLastAssistant = msg.role === 'assistant' && i === arr.length - 1;
         return {
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
           parts: mergedParts,
-          status: (isRunning && isLastAssistant ? 'streaming' : 'done') as 'done' | 'streaming',
+          status: 'done' as const,
           tokenUsage: messageTokenUsage[msg.id],
         };
       });

@@ -156,6 +156,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
           agentState: params.agentState,
+          ruleEngine: ctx.ruleEngine,
+          ruleStore: ctx.ruleStore,
           workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
           emit: (chunk) => trackMessageStart(chunk),

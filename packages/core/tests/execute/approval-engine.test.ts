@@ -25,9 +25,9 @@ describe('ApprovalEngine', () => {
   it('resolves once without persisting rule', async () => {
     const req = engine.createRequest({ toolCallId: 'tc-1', toolName: 'write', patterns: ['file:src/foo.ts'], alwaysOptions: [] });
     const promise = engine.wait(req.approvalId);
-    engine.resolve(req.approvalId, 'once');
+    engine.resolve(req.approvalId, 'allow-once');
     const res = await promise;
-    expect(res.decision).toBe('once');
+    expect(res.decision).toBe('allow-once');
     expect(res.rule).toBeUndefined();
   });
 
@@ -35,9 +35,9 @@ describe('ApprovalEngine', () => {
     const rule: Omit<Rule, 'source'> = { permission: 'write', pattern: '*.ts', action: 'allow' };
     const req = engine.createRequest({ toolCallId: 'tc-1', toolName: 'write', patterns: ['file:src/foo.ts'], alwaysOptions: [{ label: '*.ts', rule }] });
     const promise = engine.wait(req.approvalId);
-    engine.resolve(req.approvalId, 'always', rule);
+    engine.resolve(req.approvalId, 'allow-always', rule);
     const res = await promise;
-    expect(res.decision).toBe('always');
+    expect(res.decision).toBe('allow-always');
     expect(res.rule).toEqual(rule);
   });
 

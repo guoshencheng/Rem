@@ -14,6 +14,10 @@ import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
 import { DefaultToolComposer } from './tool-composer.js';
+import { RuleEngine } from './security/rules/rule-engine.js';
+import { RuleStore } from './security/rules/rule-store.js';
+import { getProfileRules } from './security/rules/profiles.js';
+import type { Rule } from './security/rules/rule.js';
 import {
   DefaultSystemPromptAssembler,
   ProviderAwareTemplateSelector,
@@ -29,6 +33,7 @@ import {
   ProjectAgentsMdLoader,
 } from './system-prompt/index.js';
 import type { AgentContext } from './agent-context.js';
+import type { ConfigProvider } from './sdk/config-provider.js';
 
 export interface AgentContextBuildOptions {
   name?: string;
@@ -40,6 +45,22 @@ export interface AgentContextBuildOptions {
   provider?: string;
   model?: string;
   sessionsDir?: string;
+  profile?: import('./security/rules/profiles.js').ToolProfileId;
+  sessionRules?: Rule[];
+}
+
+async function buildRuleEngine(configProvider: ConfigProvider): Promise<RuleEngine> {
+  const store = new RuleStore();
+  const userRules = await store.loadAll();
+  const config = configProvider.getConfig();
+  const profileRules = getProfileRules(config.profile ?? 'coding');
+  const defaultRules: Rule[] = [
+    { permission: 'read', pattern: '*', action: 'allow', source: 'default' },
+    { permission: 'ls', pattern: '*', action: 'allow', source: 'default' },
+    { permission: 'session_status', pattern: '*', action: 'allow', source: 'default' },
+  ];
+  const sessionRules = config.sessionRules ?? [];
+  return new RuleEngine([...defaultRules, ...profileRules, ...userRules, ...sessionRules]);
 }
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
@@ -60,6 +81,8 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
       workspaceRoot: options?.workspaceRoot,
       readOnly: options?.readOnly,
       autoApproveDangerous: options?.autoApproveDangerous,
+      profile: options?.profile,
+      sessionRules: options?.sessionRules,
       ...(options?.provider ? { model: { provider: options.provider, model: options.model ?? '' } } : {}),
     },
   });
@@ -100,6 +123,9 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     ],
   );
 
+  const ruleEngine = await buildRuleEngine(configProvider);
+  const ruleStore = new RuleStore();
+
   return {
     configProvider,
     sessionProvider,
@@ -116,5 +142,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     mcpManager,
     fileMutationQueue,
     systemPromptAssembler,
+    ruleEngine,
+    ruleStore,
   };
 }

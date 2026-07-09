@@ -3,6 +3,8 @@ import { BroadcastBus } from './broadcast-bus.js';
 import type { BusEvent, SessionActivity } from './bus-events.js';
 import type { AgentStreamChunk, ContentPart, LanguageModelUsage } from './types.js';
 import type { ApprovalDecision } from './sdk/agent-state-provider.js';
+import type { ApprovalResolution } from './execute/approval-engine.js';
+import type { Rule } from './security/rules/rule.js';
 import { addUsage, emptyUsage, type TokenUsageDetail } from './token-usage.js';
 
 export class AgentState {
@@ -172,17 +174,17 @@ export class AgentState {
 
   // ---- Approval ----
 
-  /** 等待某个会话的审批决策（按 sessionId 隔离 registry） */
-  waitApproval(sessionId: string, approvalId: string, timeoutMs?: number): Promise<ApprovalDecision | null> {
-    return this.getOrCreate(sessionId).approvalRegistry.wait(approvalId, timeoutMs);
+  /** 等待某个会话的审批决策（按 sessionId 隔离 engine） */
+  waitApproval(sessionId: string, approvalId: string): Promise<ApprovalResolution> {
+    return this.getOrCreate(sessionId).approvalEngine.wait(approvalId);
   }
 
   /**
-   * 解析某个会话的审批决策。按 sessionId 定位该会话的 registry。
+   * 解析某个会话的审批决策。按 sessionId 定位该会话的 engine。
    * 返回 true 表示找到并解析成功。
    */
-  resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): boolean {
-    return this.get(sessionId)?.approvalRegistry.resolve(approvalId, decision) ?? false;
+  resolveApproval(sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): boolean {
+    return this.get(sessionId)?.approvalEngine.resolve(approvalId, decision, rule) ?? false;
   }
 
   // ---- Activity / chunk ----

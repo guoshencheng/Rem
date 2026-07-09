@@ -1,8 +1,8 @@
 import type { Rule } from '../security/rules/rule.js';
-import type { ApprovalRequest } from '../sdk/agent-state-provider.js';
+import type { ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
 import { generateId } from '../shared/generate-id.js';
 
-export type ApprovalDecision = 'once' | 'always' | 'deny';
+export type { ApprovalDecision };
 
 export interface CreateApprovalInput {
   toolCallId: string;

@@ -17,7 +17,6 @@ export * from './stream/agent-stream.js';
 export * from './stream/stream-aggregators.js';
 export { reason } from './reason/reason.js';
 export { executeTools } from './execute/execute-tools.js';
-export { ApprovalRegistry } from './execute/approval-registry.js';
 export * from './sdk/index.js';
 export * from './plugins/index.js';
 export * from './registry/tool-registry.js';

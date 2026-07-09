@@ -3,7 +3,7 @@ import type { EventBus } from './events.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 import type { SessionActivity } from './bus-events.js';
 import { IterationBudget } from './budget.js';
-import { ApprovalRegistry } from './execute/approval-registry.js';
+import { ApprovalEngine } from './execute/approval-engine.js';
 import { reduceStreamChunk } from './stream/stream-aggregators.js';
 import { addUsage, emptyUsage } from './token-usage.js';
 import { log } from './shared/debug-log.js';
@@ -49,8 +49,8 @@ export class AgentLiveState {
   /** 当前待处理的 tool call id 集合 */
   pendingToolCalls = new Set<string>();
 
-  /** 当前会话的审批注册表（管理审批 Promise） */
-  readonly approvalRegistry = new ApprovalRegistry();
+  /** 当前会话的审批引擎（管理审批 Promise，无超时） */
+  readonly approvalEngine = new ApprovalEngine('');
 
   /** 当前会话累计 token usage */
   tokenUsage: LanguageModelUsage = emptyUsage();

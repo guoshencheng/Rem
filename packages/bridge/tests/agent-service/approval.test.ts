@@ -12,7 +12,10 @@ describe('AgentService approval flow', { timeout: 20000 }, () => {
         approvalId: 'ap1',
         toolCallId: 'tc1',
         toolName: 'write',
-        input: { path: './x.txt' },
+        title: 'Write file',
+        allowedDecisions: ['allow-once', 'deny'],
+        patterns: [],
+        alwaysOptions: [],
       });
 
       const pending = await service.listPendingApprovals(DEFAULT_WORKSPACE, summary.sessionId);
@@ -28,11 +31,17 @@ describe('AgentService approval flow', { timeout: 20000 }, () => {
     try {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
       const liveState = getAgentState(service).getOrCreate(summary.sessionId);
-      const waitP = liveState.approvalRegistry.wait('ap1');
+      const request = liveState.approvalEngine.createRequest({
+        toolCallId: 'tc1',
+        toolName: 'write',
+        patterns: [],
+        alwaysOptions: [],
+      });
+      const waitP = liveState.approvalEngine.wait(request.approvalId);
 
-      const resolved = await service.resolveApproval(DEFAULT_WORKSPACE, summary.sessionId, 'ap1', 'allow-once');
+      const resolved = await service.resolveApproval(DEFAULT_WORKSPACE, summary.sessionId, request.approvalId, 'allow-once');
       expect(resolved).toBe(true);
-      await expect(waitP).resolves.toBe('allow-once');
+      await expect(waitP).resolves.toEqual({ decision: 'allow-once' });
     } finally {
       await cleanup();
     }

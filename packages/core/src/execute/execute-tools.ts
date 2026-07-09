@@ -1,15 +1,17 @@
 import type { ModelMessage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
-import type { ApprovalRequest } from '../sdk/agent-state-provider.js';
+import type { Rule } from '../security/rules/rule.js';
 import { AgentState } from '../agent-state.js';
+import { RuleEngine } from '../security/rules/rule-engine.js';
+import { RuleStore } from '../security/rules/rule-store.js';
 import { log } from '../shared/debug-log.js';
-
-const DEFAULT_APPROVAL_TIMEOUT_MS = 300_000;
 
 export interface ExecuteParams {
   toolCalls: ToolCall[];
   toolProvider: ToolProvider;
   agentState: AgentState;
+  ruleEngine: RuleEngine;
+  ruleStore: RuleStore;
   addMessage: (role: 'tool') => ModelMessage;
   appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
   workspaceRoot: string;
@@ -34,46 +36,78 @@ function emitToolResult(
   appendContent(msg, { type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output });
 }
 
+function formatDescription(tc: ToolCall): string {
+  return JSON.stringify(tc.input).slice(0, 200);
+}
+
+function derivePatterns(tc: ToolCall, toolProvider: ToolProvider): string[] {
+  const def = toolProvider.getToolDefinition(tc.toolName);
+  if (def?.derivePatterns) {
+    return def.derivePatterns(tc.input as never);
+  }
+  return [`tool:${tc.toolName}`];
+}
+
+function deriveAlwaysOptions(tc: ToolCall, toolProvider: ToolProvider): Array<{ label: string; rule: Omit<Rule, 'source'> }> {
+  const def = toolProvider.getToolDefinition(tc.toolName);
+  if (def?.deriveAlwaysOptions) {
+    return def.deriveAlwaysOptions(tc.input as never);
+  }
+  return [
+    { label: tc.toolName, rule: { permission: tc.toolName, pattern: '*', action: 'allow' } },
+  ];
+}
+
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, agentState, addMessage, appendContent, emit, signal } = params;
+  const { toolProvider, agentState, ruleEngine, ruleStore, addMessage, appendContent, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
-    const dangerous = toolProvider.isDangerous(tc.toolName);
-    log('tools', 'executing tool call', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName, dangerous });
+    log('tools', 'executing tool call', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName });
 
-    if (dangerous) {
-      const approvalId = generateId();
-      const request: ApprovalRequest = {
-        approvalId, toolName: tc.toolName, toolCallId: tc.toolCallId,
-        title: `Run ${tc.toolName}`,
-        allowedDecisions: ['allow-once', 'deny'],
-        sessionId: params.sessionId,
-        patterns: [],
-        alwaysOptions: [],
-      };
+    const derivedPatterns = derivePatterns(tc, toolProvider);
+    const action = ruleEngine.evaluate({ toolName: tc.toolName, input: tc.input, derivedPatterns });
 
+    if (action === 'deny') {
+      const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: 'denied by rule' };
+      emitToolResult(tc, denied, emit, addMessage, appendContent);
+      results.push(denied);
+      continue;
+    }
+
+    if (action === 'ask') {
+      const alwaysOptions = deriveAlwaysOptions(tc, toolProvider);
       const liveState = agentState.getOrCreate(params.sessionId);
+      const request = liveState.approvalEngine.createRequest({
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        patterns: derivedPatterns,
+        title: `Run ${tc.toolName}`,
+        description: formatDescription(tc),
+        severity: 'warning',
+        alwaysOptions,
+      });
+
       liveState.pendingApprovals.push(request);
-
       emit({ type: 'approval-request', sessionId: params.sessionId, request } as ProviderChunk);
-      log('tools', 'approval requested', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId });
+      log('tools', 'approval requested', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId });
 
-      const decision = await agentState.waitApproval(params.sessionId, approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
+      const resolution = await liveState.approvalEngine.wait(request.approvalId);
 
-      const resolved = agentState.getOrCreate(params.sessionId);
-      resolved.pendingApprovals = resolved.pendingApprovals.filter(r => r.approvalId !== approvalId);
+      liveState.pendingApprovals = liveState.pendingApprovals.filter((r) => r.approvalId !== request.approvalId);
+      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId: request.approvalId, decision: resolution.decision } as ProviderChunk);
+      log('tools', 'approval resolved', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId, decision: resolution.decision });
 
-      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId, decision } as ProviderChunk);
-      log('tools', 'approval resolved', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId, decision: decision ?? 'timeout' });
-
-      if (decision !== 'allow-once') {
-        const errMsg = decision === null ? 'approval timed out' : 'denied';
-        log('tools', 'tool denied', { sessionId: params.sessionId, toolCallId: tc.toolCallId, reason: errMsg });
-        const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: errMsg };
+      if (resolution.decision === 'deny') {
+        const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: 'denied' };
         emitToolResult(tc, denied, emit, addMessage, appendContent);
         results.push(denied);
         continue;
+      }
+
+      if (resolution.decision === 'allow-always' && resolution.rule) {
+        await ruleStore.saveApproved(resolution.rule);
+        ruleEngine.addRule({ ...resolution.rule, source: 'approved' });
       }
     }
 
@@ -88,8 +122,4 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
   }
 
   return results;
-}
-
-function generateId(): string {
-  return crypto.randomUUID();
 }

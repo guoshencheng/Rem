@@ -11,7 +11,7 @@ export class InMemoryToolProvider implements ToolProvider {
 
   register<T extends TObject>(def: ToolDefinition<T>, executor: ToolExecutor<T>): void {
     this.tools.set(def.name, {
-      def: def as ToolDefinition,
+      def: def as unknown as ToolDefinition,
       executor: executor as ToolExecutor,
       check: TypeCompiler.Compile(def.parameters),
     });
@@ -27,6 +27,10 @@ export class InMemoryToolProvider implements ToolProvider {
 
   isDangerous(toolName: string): boolean {
     return this.tools.get(toolName)?.def.dangerous === true;
+  }
+
+  getToolDefinition(name: string): ToolDefinition | undefined {
+    return this.tools.get(name)?.def;
   }
 
   async execute(calls: ToolCall[], ctx: ToolContext): Promise<ToolResult[]> {

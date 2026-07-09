@@ -40,7 +40,7 @@ export function MessageList({ messages, onSend }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin pb-6">
       <div className="max-w-3xl mx-auto px-4">
         {messages.map((msg, index) => (
           <MessageItem key={msg.id ?? index} message={msg} />

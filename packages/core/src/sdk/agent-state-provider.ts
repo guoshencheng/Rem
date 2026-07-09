@@ -1,5 +1,6 @@
 import type { ContentPart } from '../types.js';
 import type { AgentLiveState } from '../state.js';
+import type { Rule } from '../security/rules/rule.js';
 
 /* ---- Approval types ---- */
 
@@ -13,8 +14,9 @@ export interface ApprovalRequest {
   description?: string;
   severity?: 'info' | 'warning' | 'critical';
   allowedDecisions: ApprovalDecision[];
-  timeoutMs?: number;
   sessionId?: string;
+  patterns: string[];
+  alwaysOptions: Array<{ label: string; rule: Omit<Rule, 'source'> }>;
 }
 
 /** @deprecated Use AgentLiveState directly */

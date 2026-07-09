@@ -49,6 +49,8 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
         title: `Run ${tc.toolName}`,
         allowedDecisions: ['allow-once', 'deny'],
         sessionId: params.sessionId,
+        patterns: [],
+        alwaysOptions: [],
       };
 
       const liveState = agentState.getOrCreate(params.sessionId);

@@ -5,11 +5,9 @@ import { AgentRemoteService } from 'rem-agent-bridge/client';
 import type { Workspace } from 'rem-agent-bridge';
 import { useAgents } from '@/lib/use-agents';
 import type { SessionSummary } from '@/lib/use-agents';
-import { SessionSidebar } from '@/components/sidebar/session-sidebar';
+import { WorkspaceSidebar } from '@/components/sidebar/workspace-sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
-import { WorkspaceTabs } from '@/components/workspace/workspace-tabs';
 import { AddWorkspaceDialog } from '@/components/workspace/add-workspace-dialog';
-import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 
 export default function Home() {
   const agentService = useMemo(() => new AgentRemoteService('', 'default'), []);
@@ -18,6 +16,7 @@ export default function Home() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Load workspace list on mount
   useEffect(() => {
     agentService.listWorkspaces().then((list) => {
       setWorkspaces(list);
@@ -28,60 +27,7 @@ export default function Home() {
     }).catch(() => setLoaded(true));
   }, [agentService]);
 
-  const handleAdd = useCallback(async (path: string, name?: string) => {
-    const ws = await agentService.addWorkspace(path, name);
-    setWorkspaces((prev) => [...prev, ws]);
-    setActiveWorkspace(ws.path);
-    setDialogOpen(false);
-  }, [agentService]);
-
-  const handleClose = useCallback((path: string) => {
-    setWorkspaces((prev) => {
-      const next = prev.filter((w) => w.path !== path);
-      if (activeWorkspace === path) {
-        setActiveWorkspace(next[0]?.path ?? null);
-      }
-      return next;
-    });
-  }, [activeWorkspace]);
-
-  if (!loaded) {
-    return <div className="flex h-full items-center justify-center">Loading...</div>;
-  }
-
-  if (workspaces.length === 0) {
-    return (
-      <div className="flex h-full">
-        <WorkspaceOnboarding onAdd={() => setDialogOpen(true)} />
-        <AddWorkspaceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAdd} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      <WorkspaceTabs
-        workspaces={workspaces}
-        activePath={activeWorkspace}
-        onSelect={setActiveWorkspace}
-        onClose={handleClose}
-        onAdd={() => setDialogOpen(true)}
-      />
-      <div className="flex-1 overflow-hidden">
-        {activeWorkspace && (
-          <WorkspacePanel
-            key={activeWorkspace}
-            workspace={activeWorkspace}
-          />
-        )}
-      </div>
-      <AddWorkspaceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAdd} />
-    </div>
-  );
-}
-
-function WorkspacePanel({ workspace }: { workspace: string }) {
-  const agentService = useMemo(() => new AgentRemoteService('', workspace), [workspace]);
+  // Sessions for the active workspace
   const {
     currentSession,
     sessions,
@@ -92,30 +38,56 @@ function WorkspacePanel({ workspace }: { workspace: string }) {
     interrupt,
     resolveApproval,
     initialized,
-  } = useAgents(agentService, { workspace });
+  } = useAgents(agentService, { workspace: activeWorkspace ?? 'default' });
+
+  const handleAddWorkspace = useCallback(async (path: string, name?: string) => {
+    const ws = await agentService.addWorkspace(path, name);
+    setWorkspaces((prev) => [...prev, ws]);
+    setActiveWorkspace(ws.path);
+    setDialogOpen(false);
+  }, [agentService]);
+
+  const handleRemoveWorkspace = useCallback((path: string) => {
+    setWorkspaces((prev) => {
+      const next = prev.filter((w) => w.path !== path);
+      if (activeWorkspace === path) {
+        setActiveWorkspace(next[0]?.path ?? null);
+      }
+      return next;
+    });
+  }, [activeWorkspace]);
 
   const handleSearch = useCallback(async (q: string) => {
+    if (!activeWorkspace) return;
     if (q) {
-      await fetch(`/api/sessions?workspace=${encodeURIComponent(workspace)}&q=${encodeURIComponent(q)}`);
+      await fetch(`/api/sessions?workspace=${encodeURIComponent(activeWorkspace)}&q=${encodeURIComponent(q)}`);
     } else {
-      agentService.listSessions(workspace).catch(() => {});
+      agentService.listSessions(activeWorkspace).catch(() => {});
     }
-  }, [agentService, workspace]);
+  }, [agentService, activeWorkspace]);
+
+  if (!loaded) {
+    return <div className="flex h-full items-center justify-center text-tx2 text-sm">Loading...</div>;
+  }
 
   return (
     <div className="flex h-full">
-      <SessionSidebar
+      <WorkspaceSidebar
+        workspaces={workspaces}
+        activeWorkspace={activeWorkspace}
         sessions={sessions as SessionSummary[]}
         currentSessionId={currentSession?.id ?? null}
-        workspace={workspace}
-        onSwitch={switchSession}
-        onCreate={createSession}
-        onDelete={deleteSession}
+        onSelectWorkspace={setActiveWorkspace}
+        onAddWorkspace={() => setDialogOpen(true)}
+        onRemoveWorkspace={handleRemoveWorkspace}
+        onSwitchSession={switchSession}
+        onCreateSession={createSession}
+        onDeleteSession={deleteSession}
         onSearch={handleSearch}
       />
-      {currentSession ? (
+      {activeWorkspace && currentSession ? (
         <ChatPanel
-          key={currentSession.id}
+          key={`${activeWorkspace}-${currentSession.id}`}
           messages={currentSession.messages}
           status={currentSession.status}
           error={currentSession.error}
@@ -129,9 +101,10 @@ function WorkspacePanel({ workspace }: { workspace: string }) {
         />
       ) : (
         <div className="flex-1 flex items-center justify-center text-tx3 text-sm">
-          Select or create a conversation
+          {activeWorkspace ? 'Select or create a conversation' : 'Select or add a workspace'}
         </div>
       )}
+      <AddWorkspaceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAddWorkspace} />
     </div>
   );
 }

@@ -14,6 +14,20 @@ import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
 import { DefaultToolComposer } from './tool-composer.js';
+import {
+  DefaultSystemPromptAssembler,
+  ProviderAwareTemplateSelector,
+  ClaudeAgentPromptTemplate,
+  OpenAiAgentPromptTemplate,
+  ToolingSection,
+  ExecutionBiasSection,
+  SafetySection,
+  WorkspaceSection,
+  AgentsMdSection,
+  SkillsSection,
+  RuntimeSection,
+  ProjectAgentsMdLoader,
+} from './system-prompt/index.js';
 import type { AgentContext } from './agent-context.js';
 
 export interface AgentContextBuildOptions {
@@ -68,6 +82,24 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   const toolComposer = new DefaultToolComposer();
 
+  const templateSelector = new ProviderAwareTemplateSelector(
+    new ClaudeAgentPromptTemplate(),
+    { openai: new OpenAiAgentPromptTemplate() },
+  );
+
+  const systemPromptAssembler = new DefaultSystemPromptAssembler(
+    templateSelector,
+    [
+      new ToolingSection(),
+      new ExecutionBiasSection(),
+      new SafetySection(),
+      new WorkspaceSection(),
+      new AgentsMdSection(new ProjectAgentsMdLoader()),
+      new SkillsSection(skillProvider),
+      new RuntimeSection(),
+    ],
+  );
+
   return {
     configProvider,
     sessionProvider,
@@ -83,5 +115,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     loopStrategy,
     mcpManager,
     fileMutationQueue,
+    systemPromptAssembler,
   };
 }

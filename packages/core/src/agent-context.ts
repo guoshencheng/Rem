@@ -1,3 +1,4 @@
+import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
@@ -27,4 +28,5 @@ export interface AgentContext {
   loopStrategy: LoopStrategy;
   mcpManager: McpConnectionManager;
   fileMutationQueue: FileMutationQueue;
+  systemPromptAssembler: SystemPromptAssembler; // 新增
 }

@@ -10,11 +10,20 @@ export interface StoredPermissions {
   profiles?: Record<string, Rule[]>;
 }
 
+/**
+ * 本地规则持久化。默认写入统一 agentDir（~/.rem-agent/permissions.json），
+ * 与 sessions / debug log / config 共享同一根目录；可通过 REM_AGENT_HOME 覆盖。
+ */
 export class RuleStore {
   private filePath: string;
 
-  constructor(configDir = path.join(os.homedir(), '.config', 'rem')) {
-    this.filePath = path.join(configDir, 'permissions.json');
+  constructor(agentDir: string = path.join(os.homedir(), '.rem-agent')) {
+    this.filePath = path.join(agentDir, 'permissions.json');
+  }
+
+  /** 当前持久化文件路径，便于测试与诊断 */
+  get location(): string {
+    return this.filePath;
   }
 
   async loadAll(): Promise<Rule[]> {

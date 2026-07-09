@@ -49,18 +49,23 @@ export interface AgentContextBuildOptions {
   sessionRules?: Rule[];
 }
 
-async function buildRuleEngine(configProvider: ConfigProvider): Promise<RuleEngine> {
-  const store = new RuleStore();
-  const userRules = await store.loadAll();
+async function buildRuleSecurity(
+  configProvider: ConfigProvider,
+  agentDir: string,
+): Promise<{ ruleEngine: RuleEngine; ruleStore: RuleStore }> {
+  const ruleStore = new RuleStore(agentDir);
+  const userRules = await ruleStore.loadAll();
   const config = configProvider.getConfig();
   const profileRules = getProfileRules(config.profile ?? 'coding');
+  // 只读 / 状态类工具默认放行。pattern 用 ** 才能跨路径分隔符匹配（派生 pattern 是 file:/abs/path）。
   const defaultRules: Rule[] = [
-    { permission: 'read', pattern: '*', action: 'allow', source: 'default' },
-    { permission: 'ls', pattern: '*', action: 'allow', source: 'default' },
+    { permission: 'read', pattern: '**', action: 'allow', source: 'default' },
+    { permission: 'ls', pattern: '**', action: 'allow', source: 'default' },
     { permission: 'session_status', pattern: '*', action: 'allow', source: 'default' },
   ];
   const sessionRules = config.sessionRules ?? [];
-  return new RuleEngine([...defaultRules, ...profileRules, ...userRules, ...sessionRules]);
+  const ruleEngine = new RuleEngine([...defaultRules, ...profileRules, ...userRules, ...sessionRules]);
+  return { ruleEngine, ruleStore };
 }
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
@@ -123,8 +128,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     ],
   );
 
-  const ruleEngine = await buildRuleEngine(configProvider);
-  const ruleStore = new RuleStore();
+  const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, paths.agentDir);
 
   return {
     configProvider,

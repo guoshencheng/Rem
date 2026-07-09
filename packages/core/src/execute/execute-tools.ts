@@ -65,9 +65,11 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
   for (const tc of params.toolCalls) {
     log('tools', 'executing tool call', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName });
 
+    const def = toolProvider.getToolDefinition(tc.toolName);
     const derivedPatterns = derivePatterns(tc, toolProvider);
     const action = ruleEngine.evaluate({ toolName: tc.toolName, input: tc.input, derivedPatterns });
 
+    // 安全语义优先：显式 deny 永远拦截，即使只读工具。
     if (action === 'deny') {
       const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: 'denied by rule' };
       emitToolResult(tc, denied, emit, addMessage, appendContent);
@@ -75,7 +77,11 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       continue;
     }
 
-    if (action === 'ask') {
+    // 只读工具（read/ls 等）默认免审批；除非被 deny 规则拦截（上面已处理）。
+    const readOnly = def?.readOnly === true;
+    if (action === 'ask' && readOnly) {
+      log('tools', 'read-only tool auto-approved', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName });
+    } else if (action === 'ask') {
       const alwaysOptions = deriveAlwaysOptions(tc, toolProvider);
       const liveState = agentState.getOrCreate(params.sessionId);
       const request = liveState.approvalEngine.createRequest({

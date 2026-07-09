@@ -22,26 +22,26 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-bg1 p-6 rounded-lg w-full max-w-md shadow-xl">
-        <h2 className="text-lg font-semibold mb-4">Add Workspace</h2>
-        <label className="block text-sm mb-1">Path</label>
+      <div className="bg-card border border-bd p-6 rounded-lg w-full max-w-md shadow-xl">
+        <h2 className="text-lg font-semibold text-tx mb-4">Add Workspace</h2>
+        <label className="block text-sm text-tx2 mb-1">Path</label>
         <input
-          className="w-full border rounded px-3 py-2 mb-3"
+          className="w-full bg-bd border border-bd2 rounded px-3 py-2 mb-3 text-tx text-sm outline-none"
           value={path}
           onChange={(e) => setPath(e.target.value)}
           placeholder="/absolute/path/to/project"
         />
-        <label className="block text-sm mb-1">Name (optional)</label>
+        <label className="block text-sm text-tx2 mb-1">Name (optional)</label>
         <input
-          className="w-full border rounded px-3 py-2 mb-4"
+          className="w-full bg-bd border border-bd2 rounded px-3 py-2 mb-4 text-tx text-sm outline-none"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="My Project"
         />
         <div className="flex justify-end gap-2">
-          <button className="px-4 py-2" onClick={onClose}>Cancel</button>
+          <button className="px-4 py-2 rounded-btn text-sm text-tx2 hover:bg-bd transition-colors" onClick={onClose}>Cancel</button>
           <button
-            className="px-4 py-2 bg-primary text-white rounded"
+            className="px-4 py-2 rounded-btn text-sm bg-ac text-ac-ink hover:opacity-90 transition-opacity"
             onClick={handleAdd}
           >
             Add

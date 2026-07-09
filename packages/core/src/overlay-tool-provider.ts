@@ -9,6 +9,7 @@ import type {
   ToolResult,
 } from './sdk/tool-provider.js';
 import type { ToolSet } from './llm/types.js';
+import { log } from './shared/debug-log.js';
 
 export class OverlayToolProvider implements ToolProvider {
   private overlays = new Map<
@@ -34,7 +35,7 @@ export class OverlayToolProvider implements ToolProvider {
     const result: ToolSet = { ...this.base.getToolSet() };
     for (const [name, { def }] of this.overlays) {
       if (result[name]) {
-        console.warn(`[OverlayToolProvider] duplicate tool "${name}" overwritten by overlay`);
+        log('tools', 'duplicate tool overwritten by overlay', { toolName: name });
       }
       result[name] = { description: def.description, parameters: def.parameters as Record<string, unknown> };
     }

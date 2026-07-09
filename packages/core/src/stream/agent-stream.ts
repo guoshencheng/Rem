@@ -1,6 +1,7 @@
 import type { AgentOutput, AgentStream, AgentStreamChunk } from '../types.js';
 import { generateId } from '../shared/generate-id.js';
 import { aggregateText, aggregateUsage, aggregateSteps } from './stream-aggregators.js';
+import { log } from '../shared/debug-log.js';
 
 export type RawChunk =
   | { type: 'text-delta'; step: number; text: string }
@@ -69,6 +70,18 @@ export class AgentStreamController {
       return;
     }
 
+    if (chunk.type === 'message-start') {
+      log('stream', 'message started', { messageId: chunk.messageId, step: chunk.step });
+    } else if (chunk.type === 'text-start') {
+      log('stream', 'text part started', { partId: chunk.partId, step: chunk.step });
+    } else if (chunk.type === 'reasoning-start') {
+      log('stream', 'reasoning part started', { partId: chunk.partId, step: chunk.step });
+    } else if (chunk.type === 'tool-call-start') {
+      log('stream', 'tool call started', { partId: chunk.partId, step: chunk.step, toolCallId: chunk.toolCallId, toolName: chunk.toolName });
+    } else if (chunk.type === 'tool-result-start') {
+      log('stream', 'tool result started', { partId: chunk.partId, step: chunk.step, toolCallId: chunk.toolCallId });
+    }
+
     this.enqueue(chunk as AgentStreamChunk);
     if ('step' in chunk && typeof (chunk as { step: number }).step === 'number') {
       this.lastStep = (chunk as { step: number }).step;
@@ -78,6 +91,7 @@ export class AgentStreamController {
   finish(output: AgentOutput): void {
     if (this.finished) return;
     this.closeCurrentPart(this.lastStep);
+    log('stream', 'stream finished', { step: this.lastStep, outputLength: output.content.length });
     this.enqueue({ type: 'finish', output });
     this.finished = true;
     for (const resolve of this.pending) resolve();
@@ -87,6 +101,7 @@ export class AgentStreamController {
   fail(error: Error): void {
     if (this.finished) return;
     this.closeCurrentPart(this.lastStep);
+    log('stream', 'stream failed', { step: this.lastStep, error: error.message });
     this.enqueue({ type: 'error', error });
     this.finished = true;
     for (const resolve of this.pending) resolve();

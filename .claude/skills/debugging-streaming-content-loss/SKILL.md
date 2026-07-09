@@ -119,12 +119,84 @@ grep -a -E "(Error|400|chunk session=.*type=(text|tool|finish))" /tmp/web.log | 
 
 If the API response already shows the bug, the fix is in core/bridge, not web.
 
-### 6. Add temporary logs if needed
+## Using the Built-in Debug Logs
 
-When the root cause is unclear, add focused temporary logs, rebuild, and restart:
+The project has a structured logging system in `packages/core/src/shared/debug-log.ts`.
+In dev mode (`NODE_ENV=development`) it prints to the terminal **and** writes to
+`<agentDir>/debug.log` automatically.
+
+### Where to find the logs
+
+- **Terminal**: when you start `pnpm --filter rem-agent-web dev`, logs are mixed into `/tmp/web.log` or the terminal where you ran it.
+- **File**: `packages/web/.rem-agent/debug.log` (because the web dev server runs from `packages/web`).
+
+### Useful log tags for streaming issues
+
+| Tag | File(s) | What it tells you |
+|---|---|---|
+| `api:stream` | `packages/web/src/app/api/agent/stream/route.ts` | When SSE connections are established / fail |
+| `sse` | `packages/bridge/src/agent.ts`, `packages/web/src/lib/use-agent-bus.ts` | Bus subscriber events, snapshot replays, reconnections |
+| `agent:lifecycle` | `packages/bridge/src/agent.ts` | Run start/finish/interrupt, chunk consumption count |
+| `stream` | `packages/core/src/stream/agent-stream.ts` | When text/reasoning/tool parts start and finish |
+| `state` | `packages/core/src/state.ts` | Activity changes (`pending` → `thinking` → `outputting` → `idle`) |
+| `reason` / `llm:engine` | `packages/core/src/reason/reason.ts`, `packages/core/src/llm/engine.ts` | LLM inference start/end, retry attempts |
+| `openai` / `anthropic` | Provider adapters | Raw provider chunks |
+| `session` | `packages/core/src/plugins/session/jsonl-store.ts` | When sessions are loaded/saved |
+| `tools` | `packages/core/src/execute/execute-tools.ts` | Tool calls, approvals, results |
+
+### Common streaming-specific log checks
 
 ```bash
-# Common log points:
+# Follow the log in real time
+tail -f packages/web/.rem-agent/debug.log
+
+# See activity transitions during a request
+grep -a "activity changed" packages/web/.rem-agent/debug.log
+
+# See reasoning/text part lifecycle
+grep -a -E "reasoning part|text part|stream finished" packages/web/.rem-agent/debug.log
+
+# See if the run completed normally or errored
+grep -a -E "run finished|run failed|run aborted" packages/web/.rem-agent/debug.log
+
+# See SSE reconnections from the browser
+grep -a -E "sse.*reconnect|new bus subscriber" packages/web/.rem-agent/debug.log
+```
+
+### Adding temporary logs
+
+If built-in logs are not enough, add focused temporary logs, rebuild, and restart.
+
+Use the `log()` helper (preferred) or the older `debugLog()`:
+
+```typescript
+import { log } from 'rem-agent-core';
+
+log('debug:my-feature', 'something happened', {
+  sessionId: '...',
+  workspace: '...',
+  chunkType: chunk.type,
+});
+```
+
+Context values are appended as `key=value` pairs, so the log line becomes:
+
+```
+[debug:my-feature] sessionId=... workspace=... chunkType=text-delta something happened
+```
+
+For browser-only code (client components), `rem-agent-core` imports won't work because the logger uses Node's `fs`. Use a small browser-safe helper instead:
+
+```typescript
+function sseLog(message: string, context?: Record<string, unknown>): void {
+  const ctx = context ? Object.entries(context).map(([k, v]) => `${k}=${String(v)}`).join(' ') : '';
+  console.log(`[sse]${ctx ? ` ${ctx}` : ''} ${message}`);
+}
+```
+
+Common temporary log points:
+
+```bash
 # - packages/core/src/llm/providers/openai-adapter.ts  (raw chunk parsing)
 # - packages/core/src/loop-strategy.ts                 (inferResult after LLM call)
 # - packages/core/src/turn.ts                          (newMessages at turn end)
@@ -140,7 +212,14 @@ sleep 5
 
 Remember to remove temporary logs before committing.
 
-### 7. Apply the fix and re-verify
+### When logs point to the root cause
+
+- **Only `reasoning-*` chunks, no `text-start`**: the model produced thinking tokens but stopped before text. Check provider token limits / thinking budget.
+- **`activity` stays `thinking` and then run finishes**: final answer may be inside reasoning; check the provider/model behavior.
+- **`sse` reconnect with no subsequent chunks**: the bus stream disconnected; check network / provider stream.
+- **`session` save errors**: persistence layer issue; check disk permissions.
+
+### 6. Apply the fix and re-verify
 
 After each code change:
 
@@ -166,7 +245,7 @@ A fix is NOT verified until:
 - Server logs show no unexpected errors.
 - `pnpm typecheck` and `pnpm test` pass.
 
-### 8. Clean up
+### 7. Clean up
 
 ```bash
 agent-browser close --all

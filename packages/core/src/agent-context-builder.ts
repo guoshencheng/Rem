@@ -1,6 +1,6 @@
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { createDefaultAgentPaths } from './config/paths.js';
-import { configureDebugLog } from './shared/debug-log.js';
+import { configureDebugLog, configureConsoleOutput } from './shared/debug-log.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { FileSessionProvider } from './plugins/session/file/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
@@ -33,6 +33,9 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   const paths = createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
   configureDebugLog(paths.debugLogFile);
+  if (paths.debugLogFile && process.env.NODE_ENV === 'development') {
+    configureConsoleOutput(true);
+  }
 
   const configProvider = new DefaultConfigProvider({
     paths,

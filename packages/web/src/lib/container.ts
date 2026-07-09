@@ -1,6 +1,6 @@
 import { createContainer, asFunction, Lifetime, type AwilixContainer } from 'awilix';
 import { AgentService, JsonWorkspaceRepository } from 'rem-agent-bridge';
-import { createDefaultAgentPaths } from 'rem-agent-core';
+import { createDefaultAgentPaths, log } from 'rem-agent-core';
 import path from 'node:path';
 
 const GLOBAL_CONTAINER_KEY = '__REM_AGENT_CONTAINER__';
@@ -15,7 +15,7 @@ async function configureContainer(): Promise<AwilixContainer> {
   const service = new AgentService({ workspaceRoot: process.cwd() }, workspaceRepository);
   await service.init();
 
-  console.log('[Container] LLM config:', {
+  log('config', 'LLM config loaded', {
     model: service.context?.configProvider.getModelConfig().model,
     provider: service.context?.configProvider.getModelConfig().provider,
     hasApiKey: !!service.context?.configProvider.getModelConfig().apiKey,

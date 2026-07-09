@@ -6,6 +6,12 @@ import type { IAgentService, BusEvent } from 'rem-agent-bridge/client';
 type Listener = (event: BusEvent) => void;
 type ReconnectListener = () => void;
 
+function sseLog(message: string, context?: Record<string, unknown>): void {
+  const ctx = context ? Object.entries(context).map(([k, v]) => `${k}=${String(v)}`).join(' ') : '';
+  // eslint-disable-next-line no-console
+  console.log(`[sse]${ctx ? ` ${ctx}` : ''} ${message}`);
+}
+
 export function useAgentBus(agentService: IAgentService, workspace: string) {
   const listenersRef = useRef<Set<Listener>>(new Set());
   const reconnectListenersRef = useRef<Set<ReconnectListener>>(new Set());
@@ -50,17 +56,20 @@ export function useAgentBus(agentService: IAgentService, workspace: string) {
           }
         }
       } catch (err) {
-        console.error('[useAgentBus] stream error, reconnecting...', err);
+        const message = err instanceof Error ? err.message : String(err);
+        sseLog('stream error, reconnecting', { error: message, retryDelayMs: retryDelayRef.current });
         // Stream disconnected, reconnect with backoff
         if (runningRef.current) {
           await new Promise((r) => setTimeout(r, retryDelayRef.current));
           retryDelayRef.current = Math.min(retryDelayRef.current * 2, 15000);
+          sseLog('reconnecting after backoff', { retryDelayMs: retryDelayRef.current });
           notifyReconnect();
           consume();
         }
       }
     }
 
+    sseLog('connecting');
     consume();
   }, [agentService, notifyReconnect]);
 

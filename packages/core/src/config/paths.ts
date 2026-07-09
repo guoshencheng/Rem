@@ -38,7 +38,7 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
   const agentDir = opts.agentDir ?? resolveAgentDir(env);
   const homeSkillsDir = opts.homeSkillsDir ?? join(homedir(), '.agents', 'skills');
   const sessionsDir = opts.sessionsDir ?? join(agentDir, 'sessions');
-  const debugLogFile = resolveDebugLogFile(env);
+  const debugLogFile = resolveDebugLogFile(env, agentDir);
 
   return {
     agentDir,
@@ -87,12 +87,15 @@ function resolveAgentDir(env: Partial<NodeJS.ProcessEnv>): string {
   return join(homedir(), '.rem-agent');
 }
 
-function resolveDebugLogFile(env: Partial<NodeJS.ProcessEnv>): string | null {
+function resolveDebugLogFile(env: Partial<NodeJS.ProcessEnv>, agentDir: string): string | null {
   if (env.REM_AGENT_DEBUG_FILE) {
     return env.REM_AGENT_DEBUG_FILE;
   }
   if (env.REM_AGENT_DEBUG === '1') {
     return '/tmp/rem-agent-debug.log';
+  }
+  if (env.NODE_ENV === 'development') {
+    return join(agentDir, 'debug.log');
   }
   return null;
 }

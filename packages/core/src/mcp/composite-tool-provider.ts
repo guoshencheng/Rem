@@ -3,6 +3,7 @@ import type {
   ToolCall, ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolResult,
 } from '../sdk/tool-provider.js';
 import type { ToolSet } from '../llm/types.js';
+import { log } from '../shared/debug-log.js';
 
 export class CompositeToolProvider implements ToolProvider {
   private ownership = new Map<string, ToolProvider>();
@@ -25,7 +26,7 @@ export class CompositeToolProvider implements ToolProvider {
       const set = provider.getToolSet();
       for (const [name, schema] of Object.entries(set)) {
         if (result[name]) {
-          console.warn(`[CompositeToolProvider] duplicate tool "${name}" overwritten by MCP provider`);
+          log('tools', 'duplicate tool overwritten by MCP provider', { toolName: name });
         }
         result[name] = schema;
       }

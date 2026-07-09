@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { join } from 'node:path';
 import { createDefaultAgentPaths, resolveTilde } from '../../src/config/paths.js';
 
 describe('createDefaultAgentPaths', () => {
@@ -55,9 +56,14 @@ describe('createDefaultAgentPaths', () => {
     expect(candidates[5]).toBe('/tmp/a/config.yml');
   });
 
-  it('debugLogFile should be null by default', () => {
-    const paths = createDefaultAgentPaths({ env: {} });
+  it('debugLogFile should be null by default in production', () => {
+    const paths = createDefaultAgentPaths({ env: { NODE_ENV: 'production' } });
     expect(paths.debugLogFile).toBeNull();
+  });
+
+  it('debugLogFile should default to agentDir/debug.log in development', () => {
+    const paths = createDefaultAgentPaths({ env: { NODE_ENV: 'development' } });
+    expect(paths.debugLogFile).toBe(join(paths.agentDir, 'debug.log'));
   });
 
   it('debugLogFile should return REM_AGENT_DEBUG_FILE if set', () => {

@@ -4,6 +4,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { McpServerConfig, McpConnectionState } from './types.js';
 import { McpClient } from './client.js';
 import { McpToolProvider } from './tool-provider.js';
+import { log } from '../shared/debug-log.js';
 
 export class McpConnectionManager {
   private states = new Map<string, McpConnectionState>();
@@ -31,7 +32,7 @@ export class McpConnectionManager {
         this.states.set(name, { status: 'connected' });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        console.warn(`[McpConnectionManager] failed to connect MCP server "${name}": ${message}`);
+        log('mcp', 'failed to connect server', { name, error: message });
         this.states.set(name, { status: 'error', error: message });
       }
     }

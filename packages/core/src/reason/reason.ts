@@ -3,6 +3,7 @@ import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet, StreamChunk } from '../llm/types.js';
 import { resolveProvider } from '../llm/api-registry.js';
 import { InferenceEngine } from '../llm/engine.js';
+import { log } from '../shared/debug-log.js';
 
 export interface ReasonParams {
   provider: string;
@@ -34,7 +35,11 @@ export async function reason(
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      log('reason', 'retrying inference', { attempt, provider: params.provider, model: params.model });
+    }
     try {
+      log('reason', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
       const result = await engine.infer({
         messages: params.messages,
         stream: llmProvider.stream({
@@ -80,9 +85,11 @@ export async function reason(
         finishReason: result.finishReason ?? 'stop',
       };
     } catch (error) {
+      const category = params.errorHandler?.classify(error) ?? 'unknown';
+      const message = error instanceof Error ? error.message : String(error);
+      log('reason', 'inference error', { attempt, provider: params.provider, model: params.model, category, error: message });
       lastError = error;
       if (!params.errorHandler) throw error;
-      const category = params.errorHandler.classify(error);
       if (!params.errorHandler.isRetryable(category)) throw error;
       if (attempt === maxAttempts - 1) throw error;
     }

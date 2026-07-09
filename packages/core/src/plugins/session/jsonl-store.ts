@@ -3,6 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
 import type { ModelMessage } from '../../types.js';
+import { log } from '../../shared/debug-log.js';
 
 const SAVE_DEBOUNCE_MS = 100;
 
@@ -30,11 +31,19 @@ export class JsonlSessionStore {
   }
 
   async load(sessionId: string): Promise<Session | null> {
+    log('session', 'loading session', { sessionId });
     const conversation = await this.readMessages(sessionId);
     const meta = await this.readMeta(sessionId);
-    if (conversation === null && (await this.jsonlExists(sessionId))) return null;
-    if (conversation === null && !meta) return null;
+    if (conversation === null && (await this.jsonlExists(sessionId))) {
+      log('session', 'load failed: corrupted jsonl', { sessionId });
+      return null;
+    }
+    if (conversation === null && !meta) {
+      log('session', 'load failed: not found', { sessionId });
+      return null;
+    }
     this.counts.set(sessionId, conversation?.length ?? 0);
+    log('session', 'session loaded', { sessionId, messageCount: conversation?.length ?? 0 });
     return {
       sessionId,
       conversation: conversation ?? [],
@@ -46,6 +55,7 @@ export class JsonlSessionStore {
   }
 
   async save(session: Session): Promise<void> {
+    log('session', 'save scheduled', { sessionId: session.sessionId, messageCount: session.conversation.length });
     let deferred = this.savePromises.get(session.sessionId);
     if (!deferred) {
       let resolve!: () => void;
@@ -89,7 +99,10 @@ export class JsonlSessionStore {
       }
 
       this.savePromises.get(sessionId)?.resolve();
+      log('session', 'save flushed', { sessionId, messageCount: pending.session.conversation.length });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log('session', 'save failed', { sessionId, error: message });
       this.savePromises.get(sessionId)?.reject(err);
       throw err;
     } finally {
@@ -109,9 +122,11 @@ export class JsonlSessionStore {
     this.counts.set(session.sessionId, session.conversation.length);
     session.updatedAt = new Date();
     await this.writeMeta(session);
+    log('session', 'atomic write completed', { sessionId: session.sessionId, messageCount: session.conversation.length });
   }
 
   async delete(sessionId: string): Promise<void> {
+    log('session', 'deleting session', { sessionId });
     this.counts.delete(sessionId);
     const pending = this.pendingSaves.get(sessionId);
     if (pending) {

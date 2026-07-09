@@ -1,5 +1,5 @@
 import type { ApprovalDecision, ApprovalRequest, AgentContext } from 'rem-agent-core';
-import { runAgent as coreRunAgent, buildAgentContext, AgentState } from 'rem-agent-core';
+import { runAgent as coreRunAgent, buildAgentContext, AgentState, log } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
@@ -70,6 +70,7 @@ export class AgentService implements IAgentService {
     }
 
     const abortController = this.agentState.startRun(sessionId, workspace);
+    log('agent:lifecycle', 'run started', { sessionId, workspace, inputLength: input.length });
 
     let result: ReturnType<typeof coreRunAgent>;
     try {
@@ -93,10 +94,15 @@ export class AgentService implements IAgentService {
   }
 
   private async drive(sessionId: string, workspace: string, signal: AbortSignal, result: ReturnType<typeof coreRunAgent>): Promise<void> {
+    log('agent:lifecycle', 'consuming stream', { sessionId, workspace });
+
     const consume = (async () => {
+      let chunkCount = 0;
       for await (const chunk of result.stream.fullStream) {
         this.agentState.applyChunk(workspace, sessionId, chunk);
+        chunkCount++;
       }
+      log('agent:lifecycle', 'stream consumed', { sessionId, workspace, chunkCount });
     })();
 
     const outputGuard = result.output.then(
@@ -106,12 +112,15 @@ export class AgentService implements IAgentService {
 
     try {
       await Promise.race([consume, outputGuard]);
+      log('agent:lifecycle', 'run finished normally', { sessionId, workspace });
     } catch (err) {
       // 主动中断（interrupt/reset）触发的 abort 算正常收尾，不算 error
       if (signal.aborted) {
+        log('agent:lifecycle', 'run aborted by signal', { sessionId, workspace });
         this.agentState.finishRun(sessionId, workspace);
       } else {
         const message = err instanceof Error ? err.message : String(err);
+        log('agent:lifecycle', 'run failed', { sessionId, workspace, error: message });
         this.agentState.finishRun(sessionId, workspace, { error: message });
       }
     }
@@ -124,10 +133,12 @@ export class AgentService implements IAgentService {
   }
 
   async interrupt(_workspace: string, sessionId: string): Promise<void> {
+    log('agent:lifecycle', 'interrupt requested', { sessionId });
     this.agentState.abortRun(sessionId);
   }
 
   async reset(_workspace: string, sessionId: string): Promise<void> {
+    log('agent:lifecycle', 'reset requested', { sessionId });
     this.agentState.abortRun(sessionId);
     const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
     this.agentState.finishRun(sessionId, ws);
@@ -195,10 +206,13 @@ export class AgentService implements IAgentService {
       // Replay in-flight snapshots for ALL workspaces to this new subscriber.
       // subscribe() above already ran synchronously, so any chunk published
       // after this point is queued — snapshot + queue are gap-free.
-      for (const sessionId of this.agentState.runningSessionIds()) {
+      const runningIds = this.agentState.runningSessionIds();
+      log('sse', 'new bus subscriber', { runningSessions: runningIds.length });
+      for (const sessionId of runningIds) {
         const snapshot = this.agentState.getSnapshot(sessionId);
         const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
         if (snapshot) {
+          log('sse', 'replaying snapshot', { sessionId, workspace: ws, messageId: snapshot.messageId, partCount: snapshot.parts.length });
           yield {
             workspace: ws,
             sessionId,

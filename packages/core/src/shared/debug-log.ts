@@ -1,12 +1,24 @@
 import { appendFile } from 'fs/promises';
 
 let debugFile: string | null = null;
+let consoleOutputEnabled = false;
 let buffer: string[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushing = false;
 
 const FLUSH_INTERVAL_MS = 100;
 const MAX_BUFFER_SIZE = 1000;
+
+/** 日志上下文，会自动拼接到消息里 */
+export interface LogContext {
+  sessionId?: string;
+  workspace?: string;
+  step?: number;
+  messageId?: string;
+  chunkType?: string;
+  toolName?: string;
+  [key: string]: string | number | boolean | undefined;
+}
 
 /**
  * 配置调试日志输出文件。传入 null 禁用。
@@ -23,8 +35,25 @@ export function configureDebugLog(file: string | null): void {
   }
 }
 
+/**
+ * 是否同时把日志输出到控制台（开发环境实时可见）。
+ */
+export function configureConsoleOutput(enabled: boolean): void {
+  consoleOutputEnabled = enabled;
+}
+
 function timestamp(): string {
   return new Date().toISOString().replace('T', ' ').slice(0, 23);
+}
+
+function formatContext(context?: LogContext): string {
+  if (!context) return '';
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(context)) {
+    if (value === undefined) continue;
+    parts.push(`${key}=${String(value)}`);
+  }
+  return parts.length > 0 ? ` ${parts.join(' ')}` : '';
 }
 
 async function flushBuffer(): Promise<void> {
@@ -51,14 +80,38 @@ function scheduleFlush(): void {
   }, FLUSH_INTERVAL_MS);
 }
 
-export function debugLog(tag: string, message: string): void {
+function writeToConsole(tag: string, message: string, context?: LogContext): void {
+  if (!consoleOutputEnabled) return;
+  const ctx = formatContext(context);
+  // eslint-disable-next-line no-console
+  console.log(`[${tag}]${ctx} ${message}`);
+}
+
+function writeToFile(line: string): void {
   if (!debugFile) return;
-  buffer.push(`[${timestamp()}] [${tag}] ${message}\n`);
+  buffer.push(line);
   if (buffer.length >= MAX_BUFFER_SIZE) {
     void flushBuffer();
   } else {
     scheduleFlush();
   }
+}
+
+/**
+ * 输出结构化日志。优先使用此函数，便于统一携带上下文。
+ */
+export function log(tag: string, message: string, context?: LogContext): void {
+  const ctx = formatContext(context);
+  const fileLine = `[${timestamp()}] [${tag}]${ctx} ${message}\n`;
+  writeToFile(fileLine);
+  writeToConsole(tag, message, context);
+}
+
+/**
+ * 原始 debug 日志接口，保持向后兼容。
+ */
+export function debugLog(tag: string, message: string): void {
+  log(tag, message);
 }
 
 /**

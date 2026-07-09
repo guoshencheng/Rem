@@ -6,6 +6,7 @@ import { IterationBudget } from './budget.js';
 import { ApprovalRegistry } from './execute/approval-registry.js';
 import { reduceStreamChunk } from './stream/stream-aggregators.js';
 import { addUsage, emptyUsage } from './token-usage.js';
+import { log } from './shared/debug-log.js';
 
 export interface StreamingSnapshot {
   messageId: string;
@@ -87,6 +88,7 @@ export class AgentLiveState {
     }
 
     this._status = 'running';
+    log('state', 'status changed to running', { prevStatus: prev });
     void this._events?.emit('agent:state-change', {
       agent: this,
       liveState: this,
@@ -104,6 +106,7 @@ export class AgentLiveState {
     this.runController = undefined;
     this.activity = 'idle';
     this.pendingToolCalls.clear();
+    log('state', 'status changed to idle');
     void this._events?.emit('agent:state-change', {
       agent: this,
       liveState: this,
@@ -121,6 +124,8 @@ export class AgentLiveState {
     this.runController = undefined;
     this.activity = 'idle';
     this.pendingToolCalls.clear();
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    log('state', 'status changed to error', { error: message });
     void this._events?.emit('agent:state-change', {
       agent: this,
       liveState: this,
@@ -190,6 +195,10 @@ export class AgentLiveState {
       this.pendingToolCalls.clear();
     } else if (chunk.type === 'text-finish' || chunk.type === 'reasoning-finish') {
       this.activity = this.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
+    }
+
+    if (this.activity !== prev) {
+      log('state', 'activity changed', { prevActivity: prev, activity: this.activity, chunkType: chunk.type });
     }
 
     return this.activity === prev ? undefined : this.activity;

@@ -12,6 +12,7 @@ import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';
 import type { TokenUsageDetail } from './token-usage.js';
+import { log } from './shared/debug-log.js';
 
 export interface RunAgentParams {
   input: UserInput;
@@ -190,15 +191,19 @@ function forkTitleGeneration(
   controller: AgentStreamController,
   sessionProvider: SessionProvider,
 ): void {
-  console.log(session.metadata.title, 'session.metadata.title');
   if (session.metadata.title) return;
   (async () => {
     try {
       const title = await titleProvider.generateTitle(session.conversation);
-      console.log(title, 'title');
-      if (title) { session.metadata.title = title; controller.pushTitle(title); await sessionProvider.save(session); }
-    } catch { /* best-effort */
-      console.log('Failed to generate title for session', session.sessionId);
-     }
+      if (title) {
+        log('title', 'generated', { sessionId: session.sessionId, title });
+        session.metadata.title = title;
+        controller.pushTitle(title);
+        await sessionProvider.save(session);
+      }
+    } catch {
+      /* best-effort */
+      log('title', 'failed', { sessionId: session.sessionId });
+    }
   })();
 }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   configureDebugLog,
+  configureConsoleOutput,
   debugLog,
   flushDebugLog,
   isDebugEnabled,
@@ -20,6 +21,7 @@ describe('debugLog async batching', () => {
 
   afterEach(async () => {
     configureDebugLog(null);
+    configureConsoleOutput(false);
     vi.useRealTimers();
     await rm(dir, { recursive: true, force: true });
   });
@@ -40,6 +42,7 @@ describe('debugLog async batching', () => {
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain('[tag]');
     expect(lines[0]).toContain('first message');
+    expect(lines[1]).toContain('[tag]');
     expect(lines[1]).toContain('second message');
   });
 
@@ -62,5 +65,17 @@ describe('debugLog async batching', () => {
 
     await flushDebugLog();
     await expect(readFile(file, 'utf-8')).rejects.toThrow();
+  });
+
+  it('writes to console when console output is enabled', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    configureDebugLog(file);
+    configureConsoleOutput(true);
+
+    debugLog('tag', 'console message');
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[tag]'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('console message'));
+    consoleSpy.mockRestore();
   });
 });

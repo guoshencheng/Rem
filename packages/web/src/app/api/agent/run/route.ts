@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ServiceError, type IAgentService } from 'rem-agent-bridge';
+import { log } from 'rem-agent-core';
 import { getContainer } from '@/lib/container';
 
 function errorResponse(err: unknown) {
@@ -30,10 +31,13 @@ export async function POST(request: NextRequest) {
 
     // Fire-and-forget command: the server drives the run in the background and
     // broadcasts progress over the bus (/api/agent/stream). No stream returned here.
+    log('api:run', 'run request', { sessionId, workspace, contentLength: content.length });
     await agentService.run(workspace, sessionId, content);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error';
+    log('api:run', 'run failed', { sessionId: body?.sessionId, workspace, error: message });
     return errorResponse(err);
   }
 }

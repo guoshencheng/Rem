@@ -5,6 +5,6 @@ export class BaseRuleEvaluator {
   constructor(private ruleEngine: RuleEngine) {}
 
   evaluateRules(toolName: string, derivedPatterns: string[]): RuleAction {
-    return this.ruleEngine.evaluate({ toolName, derivedPatterns });
+    return this.ruleEngine.evaluate({ toolName, input: {}, derivedPatterns });
   }
 }

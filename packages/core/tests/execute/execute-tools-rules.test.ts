@@ -4,6 +4,7 @@ import { AgentToolRegistry } from '../../src/registry/tool-registry.js';
 import { AgentState } from '../../src/agent-state.js';
 import { RuleEngine } from '../../src/security/rules/rule-engine.js';
 import { RuleStore } from '../../src/security/rules/rule-store.js';
+import { createPermissionEvaluator } from '../../src/security/permissions/factory.js';
 import type { ToolDefinition, ToolExecutor } from '../../src/sdk/tool-provider.js';
 import { Type } from '@sinclair/typebox';
 
@@ -42,9 +43,11 @@ describe('executeTools with rules', () => {
 
   it('allows when rule matches allow', async () => {
     const engine = new RuleEngine([{ permission: 'echo', pattern: 'echo:hello*', action: 'allow', source: 'user-config' }]);
+    const evaluator = createPermissionEvaluator('interactive', engine, { create: (i) => i });
     const results = await executeTools({
       toolCalls: [{ toolCallId: 'tc-1', toolName: 'echo', input: { text: 'hello-world' } }],
       toolProvider: registry,
+      permissionEvaluator: evaluator,
       agentState,
       ruleEngine: engine,
       ruleStore,
@@ -59,9 +62,11 @@ describe('executeTools with rules', () => {
 
   it('denies when rule matches deny', async () => {
     const engine = new RuleEngine([{ permission: 'echo', pattern: 'echo:secret*', action: 'deny', source: 'user-config' }]);
+    const evaluator = createPermissionEvaluator('interactive', engine, { create: (i) => i });
     const results = await executeTools({
       toolCalls: [{ toolCallId: 'tc-1', toolName: 'echo', input: { text: 'secret-key' } }],
       toolProvider: registry,
+      permissionEvaluator: evaluator,
       agentState,
       ruleEngine: engine,
       ruleStore,
@@ -77,9 +82,11 @@ describe('executeTools with rules', () => {
   it('auto-approves read-only tools without asking (no rule needed)', async () => {
     // 无任何 allow 规则；只读工具仍应直接执行，不触发审批
     const engine = new RuleEngine([]);
+    const evaluator = createPermissionEvaluator('interactive', engine, { create: (i) => i });
     const results = await executeTools({
       toolCalls: [{ toolCallId: 'tc-1', toolName: 'read', input: { path: '/abs/path/with/slashes.md' } }],
       toolProvider: registry,
+      permissionEvaluator: evaluator,
       agentState,
       ruleEngine: engine,
       ruleStore,
@@ -97,9 +104,11 @@ describe('executeTools with rules', () => {
     const engine = new RuleEngine([
       { permission: 'read', pattern: '**', action: 'deny', source: 'user-config' },
     ]);
+    const evaluator = createPermissionEvaluator('interactive', engine, { create: (i) => i });
     const results = await executeTools({
       toolCalls: [{ toolCallId: 'tc-1', toolName: 'read', input: { path: '/abs/secret.md' } }],
       toolProvider: registry,
+      permissionEvaluator: evaluator,
       agentState,
       ruleEngine: engine,
       ruleStore,

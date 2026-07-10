@@ -15,6 +15,7 @@ import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-m
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { RuleStore } from './security/rules/rule-store.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
+import type { SecurityMode } from './security/permissions/factory.js';
 
 export interface AgentContext {
   configProvider: ConfigProvider;
@@ -35,4 +36,5 @@ export interface AgentContext {
   ruleEngine: RuleEngine;
   ruleStore: RuleStore;
   permissionEvaluator: ToolPermissionEvaluator;
+  securityMode: SecurityMode;
 }

@@ -1,6 +1,7 @@
 import type { ModelMessage, ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
+import type { SecurityMode } from '../security/permissions/factory.js';
 import type { Rule } from '../security/rules/rule.js';
 import { AgentState } from '../agent-state.js';
 import { RuleEngine } from '../security/rules/rule-engine.js';
@@ -14,6 +15,7 @@ export interface ExecuteParams {
   agentState: AgentState;
   ruleEngine: RuleEngine;
   ruleStore: RuleStore;
+  securityMode: SecurityMode;
   addMessage: (role: 'tool') => ModelMessage;
   appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
   workspaceRoot: string;

@@ -159,6 +159,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,
           ruleStore: ctx.ruleStore,
+          securityMode: ctx.securityMode,
           workspaceRoot, agentName: behavior.name,
           readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
           emit: (chunk) => trackMessageStart(chunk),

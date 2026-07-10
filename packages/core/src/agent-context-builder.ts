@@ -144,8 +144,10 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     create: (input) => input,
   };
 
+  const securityMode = options?.securityMode ?? 'interactive';
+
   const permissionEvaluator = createPermissionEvaluator(
-    options?.securityMode ?? 'interactive',
+    securityMode,
     ruleEngine,
     approvalFactory,
   );
@@ -169,5 +171,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     ruleEngine,
     ruleStore,
     permissionEvaluator,
+    securityMode,
   };
 }

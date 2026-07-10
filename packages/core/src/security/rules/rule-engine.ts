@@ -14,7 +14,7 @@ export class RuleEngine {
   checkOutsideAllowed(toolName: string, derivedPatterns: string[]): boolean {
     const outsideRules = this.rules.filter((r) => r.outside === true);
     const set = buildRuleSet(outsideRules);
-    const action = evaluate({ toolName, derivedPatterns }, set, 'deny');
+    const action = evaluate({ toolName, input: undefined, derivedPatterns }, set, 'deny');
     return action === 'allow';
   }
 

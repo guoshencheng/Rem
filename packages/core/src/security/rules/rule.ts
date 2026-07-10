@@ -21,6 +21,7 @@ export const RuleSchema = Type.Object({
   pattern: Type.String({ minLength: 1 }),
   action: RuleActionSchema,
   source: Type.Optional(RuleSourceSchema),
+  outside: Type.Optional(Type.Boolean()),
 });
 export type Rule = Static<typeof RuleSchema>;
 

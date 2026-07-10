@@ -19,4 +19,33 @@ describe('rule schema', () => {
     expect(isRuleAction('deny')).toBe(true);
     expect(isRuleAction('once')).toBe(false);
   });
+
+  it('accepts a rule with outside=true', () => {
+    const rule = {
+      permission: 'read',
+      pattern: '*',
+      action: 'allow',
+      outside: true,
+    };
+    expect(Value.Check(RuleSchema, rule)).toBe(true);
+  });
+
+  it('accepts a rule without outside field', () => {
+    const rule = {
+      permission: 'read',
+      pattern: '*',
+      action: 'allow',
+    };
+    expect(Value.Check(RuleSchema, rule)).toBe(true);
+  });
+
+  it('rejects a rule with non-boolean outside', () => {
+    const rule = {
+      permission: 'read',
+      pattern: '*',
+      action: 'allow',
+      outside: 'yes',
+    };
+    expect(Value.Check(RuleSchema, rule)).toBe(false);
+  });
 });

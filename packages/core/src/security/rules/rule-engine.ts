@@ -11,6 +11,13 @@ export class RuleEngine {
     return evaluate(toolCall, set);
   }
 
+  checkOutsideAllowed(toolName: string, derivedPatterns: string[]): boolean {
+    const outsideRules = this.rules.filter((r) => r.outside === true);
+    const set = buildRuleSet(outsideRules);
+    const action = evaluate({ toolName, derivedPatterns }, set, 'deny');
+    return action === 'allow';
+  }
+
   addRule(rule: Rule): void {
     this.rules.push(rule);
   }

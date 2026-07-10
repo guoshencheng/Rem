@@ -13,7 +13,6 @@ services:
       - ${WEB_ENV_FILE:-.env}
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - REM_AGENT_WORKSPACES_FILE=${REM_AGENT_WORKSPACES_FILE:-}
     volumes:
       - ${REM_AGENT_DATA_DIR:-./.rem-agent}:/app/packages/web/.rem-agent
       - ${USER_DATA_DIR:-./data}:/data

@@ -19,6 +19,11 @@ import { RuleStore } from './security/rules/rule-store.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import type { Rule } from './security/rules/rule.js';
 import {
+  createPermissionEvaluator,
+  type ApprovalRequestFactory,
+  type SecurityMode,
+} from './security/permissions/factory.js';
+import {
   DefaultSystemPromptAssembler,
   ProviderAwareTemplateSelector,
   ClaudeAgentPromptTemplate,
@@ -49,6 +54,7 @@ export interface AgentContextBuildOptions {
   sessionsDir?: string;
   profile?: import('./security/rules/profiles.js').ToolProfileId;
   sessionRules?: Rule[];
+  securityMode?: SecurityMode;
   paths?: AgentPaths;
 }
 
@@ -134,6 +140,16 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, paths.agentDir);
 
+  const approvalFactory: ApprovalRequestFactory = {
+    create: (input) => input,
+  };
+
+  const permissionEvaluator = createPermissionEvaluator(
+    options?.securityMode ?? 'interactive',
+    ruleEngine,
+    approvalFactory,
+  );
+
   return {
     configProvider,
     sessionProvider,
@@ -152,5 +168,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     systemPromptAssembler,
     ruleEngine,
     ruleStore,
+    permissionEvaluator,
   };
 }

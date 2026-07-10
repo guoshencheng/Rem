@@ -58,7 +58,7 @@ export function createLsToolExecutor(
   operations: LsOperations = defaultLsOperations,
 ): ToolExecutor<typeof lsSchema> {
   return async (input: LsToolInput, ctx: ToolContext) => {
-    const dirPath = resolveWorkspacePath(input.path || '.', ctx);
+    const dirPath = resolveWorkspacePath(input.path || '.', ctx, ctx.outsideAllowed);
     const effectiveLimit = normalizePositiveLimit(input.limit, DEFAULT_LIMIT);
 
     if (!(await operations.exists(dirPath))) {

@@ -110,7 +110,7 @@ export function createWriteToolExecutor(queue: FileMutationQueue): ToolExecutor<
       throw new Error('write is disabled in read-only mode');
     }
 
-    const absolutePath = resolveWorkspacePath(input.path, ctx);
+    const absolutePath = resolveWorkspacePath(input.path, ctx, ctx.outsideAllowed);
     const dir = dirname(absolutePath);
 
     return queue.withQueue(absolutePath, async () => {

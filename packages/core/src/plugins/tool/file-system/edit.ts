@@ -66,7 +66,7 @@ export function createEditToolExecutor(queue: FileMutationQueue): ToolExecutor<t
       throw new Error('edit tool input is invalid. edits must contain at least one replacement.');
     }
 
-    const absolutePath = resolveWorkspacePath(input.path, ctx);
+    const absolutePath = resolveWorkspacePath(input.path, ctx, ctx.outsideAllowed);
     await fsAccess(absolutePath, constants.R_OK | constants.W_OK);
 
     return queue.withQueue(absolutePath, async () => {

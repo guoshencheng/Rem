@@ -65,7 +65,7 @@ export function createReadToolDefinition(): ToolDefinition<typeof readSchema> {
 export function createReadToolExecutor(): ToolExecutor<typeof readSchema> {
   return async (input: ReadToolInput, ctx: ToolContext) => {
     const rawResolved = resolveReadPath(input.path, ctx.cwd);
-    const absolutePath = resolveWorkspacePath(rawResolved, ctx);
+    const absolutePath = resolveWorkspacePath(rawResolved, ctx, ctx.outsideAllowed);
 
     await fsAccess(absolutePath, constants.R_OK);
 

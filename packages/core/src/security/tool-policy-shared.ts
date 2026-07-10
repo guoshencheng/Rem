@@ -1,5 +1,5 @@
 export const TOOL_GROUPS: Record<string, string[]> = {
-  'group:fs': ['read', 'write', 'edit'],
+  'group:fs': ['read', 'write', 'edit', 'ls', 'glob', 'find', 'grep', 'apply_patch'],
   'group:runtime': ['exec', 'process'],
   'group:web': ['web_search', 'web_fetch'],
   'group:memory': ['memory_search', 'memory_get'],

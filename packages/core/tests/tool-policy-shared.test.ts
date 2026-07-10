@@ -9,7 +9,16 @@ describe('tool-policy-shared', () => {
   });
 
   it('expands group entries', () => {
-    expect(expandToolGroups(['group:fs'])).toEqual(['read', 'write', 'edit']);
+    expect(expandToolGroups(['group:fs'])).toEqual([
+      'read',
+      'write',
+      'edit',
+      'ls',
+      'glob',
+      'find',
+      'grep',
+      'apply_patch',
+    ]);
   });
 
   it('keeps non-group entries as-is', () => {
@@ -25,8 +34,13 @@ describe('tool-policy-profile', () => {
   it('resolves coding profile', () => {
     const policy = resolveProfilePolicy('coding');
     expect(policy.allow?.sort()).toEqual([
+      'apply_patch',
       'edit',
       'exec',
+      'find',
+      'glob',
+      'grep',
+      'ls',
       'memory_get',
       'memory_search',
       'process',

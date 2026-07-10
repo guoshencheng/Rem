@@ -7,6 +7,30 @@ import { createWriteToolDefinition, createWriteToolExecutor } from './write.js';
 import { createEditToolDefinition, createEditToolExecutor } from './edit.js';
 import { createLsToolDefinition, createLsToolExecutor } from './ls.js';
 import { createExecToolDefinition, createExecToolExecutor } from './exec.js';
+import {
+  createGlobToolDefinition,
+  createGlobToolExecutor,
+  deriveGlobPatterns,
+  deriveGlobAlwaysOptions,
+} from './glob.js';
+import {
+  createFindToolDefinition,
+  createFindToolExecutor,
+  deriveFindPatterns,
+  deriveFindAlwaysOptions,
+} from './find.js';
+import {
+  createGrepToolDefinition,
+  createGrepToolExecutor,
+  deriveGrepPatterns,
+  deriveGrepAlwaysOptions,
+} from './grep.js';
+import {
+  createApplyPatchToolDefinition,
+  createApplyPatchToolExecutor,
+  deriveApplyPatchPatterns,
+  deriveApplyPatchAlwaysOptions,
+} from './apply-patch.js';
 import { classifyCommand } from '../../../security/exec-classifier.js';
 
 function deriveFilePatterns(input: { path?: string }): string[] {
@@ -82,6 +106,36 @@ export function createFileSystemTools(
     createExecToolExecutor(),
   );
 
+  const globDef = createGlobToolDefinition();
+  registry.register(
+    {
+      ...globDef,
+      derivePatterns: deriveGlobPatterns,
+      deriveAlwaysOptions: deriveGlobAlwaysOptions,
+    },
+    createGlobToolExecutor(),
+  );
+
+  const findDef = createFindToolDefinition();
+  registry.register(
+    {
+      ...findDef,
+      derivePatterns: deriveFindPatterns,
+      deriveAlwaysOptions: deriveFindAlwaysOptions,
+    },
+    createFindToolExecutor(),
+  );
+
+  const grepDef = createGrepToolDefinition();
+  registry.register(
+    {
+      ...grepDef,
+      derivePatterns: deriveGrepPatterns,
+      deriveAlwaysOptions: deriveGrepAlwaysOptions,
+    },
+    createGrepToolExecutor(),
+  );
+
   if (!behavior.readOnly) {
     const writeDef = createWriteToolDefinition();
     registry.register(
@@ -101,6 +155,16 @@ export function createFileSystemTools(
         deriveAlwaysOptions: deriveFileAlwaysOptions,
       },
       createEditToolExecutor(fileMutationQueue),
+    );
+
+    const applyPatchDef = createApplyPatchToolDefinition();
+    registry.register(
+      {
+        ...applyPatchDef,
+        derivePatterns: deriveApplyPatchPatterns,
+        deriveAlwaysOptions: deriveApplyPatchAlwaysOptions,
+      },
+      createApplyPatchToolExecutor(fileMutationQueue),
     );
   }
 

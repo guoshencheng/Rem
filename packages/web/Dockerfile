@@ -26,11 +26,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/packages/core ./packages/core
 COPY --from=builder /app/packages/bridge ./packages/bridge
 COPY --from=builder /app/packages/web/.next ./packages/web/.next
 COPY --from=builder /app/packages/web/package.json ./packages/web/
+RUN pnpm install --frozen-lockfile --prod
 WORKDIR /app/packages/web
 EXPOSE 3000
 CMD ["pnpm", "next", "start", "--port", "3000"]

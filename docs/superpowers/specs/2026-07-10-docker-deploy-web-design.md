@@ -139,7 +139,7 @@ services:
       - ${USER_DATA_DIR:-./data}:/data
     restart: ${WEB_RESTART_POLICY:-unless-stopped}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r=>process.exit(r.statusCode==200?0:1)).on('error',()=>process.exit(1))"]
       interval: ${WEB_HEALTH_INTERVAL:-30s}
       timeout: ${WEB_HEALTH_TIMEOUT:-5s}
       retries: ${WEB_HEALTH_RETRIES:-3}

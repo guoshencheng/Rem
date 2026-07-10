@@ -7,6 +7,7 @@ import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js'
 import {
   clearProviders,
   registerProvider,
+  SqliteStorageProvider,
   type AgentState,
   type StreamChunk,
   type GenerateResult,
@@ -39,9 +40,12 @@ export function registerMockProvider(config: MockProviderConfig): void {
   });
 }
 
+import { SqliteStorageProvider } from 'rem-agent-core';
+
 export interface TestService {
   service: AgentService;
   dir: string;
+  storageProvider: SqliteStorageProvider;
   cleanup: () => Promise<void>;
 }
 
@@ -58,9 +62,9 @@ export async function createTestService(options: {
 
   const workspaceRepo = new JsonWorkspaceRepository(join(dir, 'workspaces.json'));
   const workspace = options.workspace ?? DEFAULT_WORKSPACE;
-  // Seed the repository with the test workspace so workspace management APIs work,
-  // but tolerate failures because the workspace string may not be a real directory.
   await workspaceRepo.add(workspace).catch(() => {});
+
+  const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
 
   const service = new AgentService(
     {
@@ -68,7 +72,7 @@ export async function createTestService(options: {
       provider: options.provider?.name ?? 'mock-default',
       model: 'mock-model',
       workspaceRoot: dir,
-      sessionsDir: dir,
+      storageProvider,
       ...options.agentOptions,
     },
     workspaceRepo,
@@ -79,7 +83,9 @@ export async function createTestService(options: {
   return {
     service,
     dir,
+    storageProvider,
     cleanup: async () => {
+      await storageProvider.close();
       await rm(dir, { recursive: true, force: true });
     },
   };

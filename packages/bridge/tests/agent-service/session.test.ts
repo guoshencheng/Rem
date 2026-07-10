@@ -153,7 +153,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
   });
 
   it('persists sessions across AgentService instances using the same sessionsDir', async () => {
-    const { service, dir, cleanup } = await createTestService();
+    const { service, dir, cleanup, storageProvider } = await createTestService();
     try {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
       await service.updateSession(DEFAULT_WORKSPACE, summary.sessionId, { title: 'Persisted' });
@@ -170,7 +170,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
 
       const newRepo = new JsonWorkspaceRepository(join(dir, 'workspaces2.json'));
       await newRepo.add(DEFAULT_WORKSPACE).catch(() => {});
-      const newService = new AgentService({ workspaceRoot: dir, sessionsDir: dir }, newRepo);
+      const newService = new AgentService({ workspaceRoot: dir, storageProvider }, newRepo);
       await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);

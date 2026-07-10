@@ -467,7 +467,30 @@
 
 ---
 
-### 1.12 Core 内部依赖图
+### 1.12 Storage 层
+
+新增统一持久化基建，位于 `src/storage/`。
+
+| 文件 | 行数 | 导出 | 说明 |
+|------|------|------|------|
+| `storage/types.ts` | ~45 | `StorageProvider`, `SessionStore`, `RuleStorage` | 存储层抽象接口 |
+| `storage/errors.ts` | ~25 | `StorageError`, `wrapSqliteError` | 存储错误封装 |
+| `storage/schema.ts` | ~80 | `SqliteSchemaManager`, `CURRENT_SCHEMA_VERSION` | SQLite schema 与版本管理 |
+| `storage/sqlite/provider.ts` | ~55 | `SqliteStorageProvider` | SQLite 存储门面，管理连接与生命周期 |
+| `storage/sqlite/session-store.ts` | ~160 | `SqliteSessionStore` | 基于 SQLite 的 `SessionStore` 实现 |
+| `storage/sqlite/session-converter.ts` | ~70 | `toSession`, `toSessionSummary` | session 数据转换辅助 |
+| `storage/sqlite/rule-store.ts` | ~70 | `SqliteRuleStore` | 基于 SQLite 的 `RuleStorage` 实现 |
+| `plugins/session/sqlite/index.ts` | ~40 | `SqliteSessionProvider` | 实现 `SessionProvider` 接口，包装 `SessionStore` |
+
+说明：
+
+- `buildAgentContext()` 默认构造 `SqliteStorageProvider`，使用 `~/.rem-agent/rem-agent.db`。
+- 可通过 `AgentContextBuildOptions.storageProvider` 传入自定义 `StorageProvider`。
+- 现有 `FileSessionProvider`/`LocalSessionProvider`/`InMemorySessionProvider` 和 `RuleStore` 保留作为可选兼容实现。
+
+---
+
+### 1.13 Core 内部依赖图
 
 ```
 types.ts (叶子)

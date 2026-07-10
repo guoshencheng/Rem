@@ -44,7 +44,8 @@ function extractCommandFromPatterns(patterns: string[]): string | undefined {
 
 function isSensitiveRead(patterns: string[]): boolean {
   for (const p of patterns) {
-    if (BUILT_IN_SENSITIVE_READ_PATTERNS.some((sp) => matchPattern(p, sp))) {
+    const pathPart = p.startsWith('file:') ? p.slice('file:'.length) : p;
+    if (BUILT_IN_SENSITIVE_READ_PATTERNS.some((sp) => matchPattern(pathPart, sp))) {
       return true;
     }
   }

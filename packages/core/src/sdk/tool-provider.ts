@@ -9,6 +9,7 @@ export interface ToolContext {
   agentName?: string;
   readOnly?: boolean;
   sessionId?: string;
+  outsideAllowed?: boolean;
 }
 
 export interface ToolDefinition<T extends TObject = TObject> {

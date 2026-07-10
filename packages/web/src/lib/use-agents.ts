@@ -6,6 +6,7 @@ import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
 import { useAgentBus } from './use-agent-bus';
+import { generateUUID } from './utils';
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -428,7 +429,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       if (!state) return;
 
       const userMsg: UIMessage = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         role: 'user',
         parts: [{ type: 'text', text: content }],
         status: 'done',

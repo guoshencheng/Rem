@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveToCwd, resolveReadPath, resolveWorkspacePath, assertWithinWorkspaceRoot } from '../src/security/workspace-root-guard.js';
+import { resolveToCwd, resolveReadPath, resolveWorkspacePath, assertWithinWorkspaceRoot, WorkspaceOutsideError } from '../src/security/workspace-root-guard.js';
 
 describe('workspace-root-guard', () => {
   it('resolves relative paths against cwd', () => {
@@ -38,5 +38,30 @@ describe('workspace-root-guard', () => {
     expect(() =>
       resolveWorkspacePath('/outside/foo.txt', { cwd: '/workspace', workspaceRoot: '/workspace' }),
     ).toThrow('resolves outside workspace root');
+  });
+
+  it('throws WorkspaceOutsideError when path is outside workspace', () => {
+    expect(() =>
+      resolveWorkspacePath('/outside/path', { cwd: '/workspace', workspaceRoot: '/workspace' }),
+    ).toThrow(WorkspaceOutsideError);
+  });
+
+  it('returns path when outsideAllowed is true', () => {
+    const result = resolveWorkspacePath(
+      '/outside/path',
+      { cwd: '/workspace', workspaceRoot: '/workspace' },
+      true,
+    );
+    expect(result).toBe('/outside/path');
+  });
+
+  it('includes path and workspace root in WorkspaceOutsideError', () => {
+    try {
+      resolveWorkspacePath('/outside/path', { cwd: '/workspace', workspaceRoot: '/workspace' });
+    } catch (err) {
+      expect(err).toBeInstanceOf(WorkspaceOutsideError);
+      expect((err as WorkspaceOutsideError).absolutePath).toBe('/outside/path');
+      expect((err as WorkspaceOutsideError).workspaceRoot).toBe('/workspace');
+    }
   });
 });

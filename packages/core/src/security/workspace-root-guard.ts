@@ -6,6 +6,16 @@ import * as os from 'node:os';
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 const NARROW_NO_BREAK_SPACE = '\u202F';
 
+export class WorkspaceOutsideError extends Error {
+  constructor(
+    public readonly absolutePath: string,
+    public readonly workspaceRoot: string,
+  ) {
+    super(`Path "${absolutePath}" resolves outside workspace root "${workspaceRoot}"`);
+    this.name = 'WorkspaceOutsideError';
+  }
+}
+
 export function expandPath(filePath: string): string {
   const normalized = filePath.replace(UNICODE_SPACES, ' ').trim();
   if (normalized.startsWith('file://')) {
@@ -75,9 +85,7 @@ export function assertWithinWorkspaceRoot(
   const realPath = safeRealpath(absolutePath);
   const rel = relative(realRoot, realPath);
   if (rel.startsWith('..') || isAbsolute(rel)) {
-    throw new Error(
-      `Path "${absolutePath}" resolves outside workspace root "${workspaceRoot}"`,
-    );
+    throw new WorkspaceOutsideError(absolutePath, workspaceRoot);
   }
 }
 
@@ -92,10 +100,14 @@ function safeRealpath(filePath: string): string {
 export function resolveWorkspacePath(
   filePath: string,
   ctx: { cwd: string; workspaceRoot: string },
+  outsideAllowed: boolean = false,
 ): string {
   const cwd = safeRealpath(ctx.cwd);
   const root = safeRealpath(ctx.workspaceRoot);
   const resolved = resolveToCwd(filePath, cwd);
+  if (outsideAllowed) {
+    return resolved;
+  }
   assertWithinWorkspaceRoot(resolved, root);
   return resolved;
 }

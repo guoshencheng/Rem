@@ -4,6 +4,7 @@ import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall,
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
 import type { ToolSchema, ToolSet } from '../llm/types.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
+import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;
@@ -99,6 +100,9 @@ export class AgentToolRegistry implements ToolProvider {
           details,
         });
       } catch (err) {
+        if (err instanceof WorkspaceOutsideError) {
+          throw err;
+        }
         results.push({
           toolCallId: call.toolCallId,
           toolName: call.toolName,

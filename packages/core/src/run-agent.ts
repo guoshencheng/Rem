@@ -156,6 +156,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
           toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
           agentState: params.agentState,
+          permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,
           ruleStore: ctx.ruleStore,
           workspaceRoot, agentName: behavior.name,

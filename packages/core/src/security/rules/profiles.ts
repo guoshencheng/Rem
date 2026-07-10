@@ -13,6 +13,9 @@ const PROFILES: Record<ToolProfileId, Rule[]> = {
   coding: [
     rule('read', '*', 'allow'),
     rule('ls', '*', 'allow'),
+    rule('glob', '*', 'allow'),
+    rule('find', '*', 'allow'),
+    rule('grep', '*', 'allow'),
     rule('exec', 'git *', 'allow'),
     rule('exec', 'ls *', 'allow'),
     rule('exec', 'cat *', 'allow'),
@@ -20,6 +23,7 @@ const PROFILES: Record<ToolProfileId, Rule[]> = {
     rule('exec', 'find *', 'allow'),
     rule('exec', 'pwd', 'allow'),
     rule('exec', 'echo *', 'allow'),
+    rule('apply_patch', '*', 'ask'),
     // write/edit default ask via default rules
   ],
   messaging: [

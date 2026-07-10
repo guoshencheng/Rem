@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import type { Rule, RuleSource } from '../../security/rules/rule.js';
-import type { RuleStore } from '../types.js';
+import type { RuleStorage } from '../types.js';
 import { wrapSqliteError } from '../errors.js';
 
 interface RuleRow {
@@ -13,7 +13,7 @@ interface RuleRow {
   created_at: string;
 }
 
-export class SqliteRuleStore implements RuleStore {
+export class SqliteRuleStore implements RuleStorage {
   constructor(private db: Database.Database) {}
 
   async loadAll(): Promise<Rule[]> {

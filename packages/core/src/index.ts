@@ -26,6 +26,7 @@ export { classifyCommand } from './security/exec-classifier.js';
 export { ApprovalEngine, type ApprovalResolution } from './execute/approval-engine.js';
 export * from './sdk/index.js';
 export * from './plugins/index.js';
+export * from './storage/index.js';
 export * from './registry/tool-registry.js';
 export * from './llm/types.js';
 export * from './llm/stream-collector.js';

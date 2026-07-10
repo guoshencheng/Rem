@@ -3,9 +3,9 @@ import type { ToolCall, ToolProvider, ToolResult, ToolContext } from '../sdk/too
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';
 import type { Rule } from '../security/rules/rule.js';
+import type { RuleStorage } from '../storage/types.js';
 import { AgentState } from '../agent-state.js';
 import { RuleEngine } from '../security/rules/rule-engine.js';
-import { RuleStore } from '../security/rules/rule-store.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 import { classifyTool } from '../security/permissions/tool-classifier.js';
 import type { ToolCategory } from '../security/permissions/tool-classifier.js';
@@ -17,7 +17,7 @@ export interface ExecuteParams {
   permissionEvaluator: ToolPermissionEvaluator;
   agentState: AgentState;
   ruleEngine: RuleEngine;
-  ruleStore: RuleStore;
+  ruleStore: RuleStorage;
   securityMode: SecurityMode;
   addMessage: (role: 'tool') => ModelMessage;
   appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;

@@ -13,7 +13,7 @@ import type { McpConnectionManager } from './mcp/connection-manager.js';
 import type { ToolComposer } from './sdk/tool-composer.js';
 import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
-import type { RuleStore } from './security/rules/rule-store.js';
+import type { RuleStorage } from './storage/types.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 
@@ -34,7 +34,7 @@ export interface AgentContext {
   fileMutationQueue: FileMutationQueue;
   systemPromptAssembler: SystemPromptAssembler; // 新增
   ruleEngine: RuleEngine;
-  ruleStore: RuleStore;
+  ruleStore: RuleStorage;
   permissionEvaluator: ToolPermissionEvaluator;
   securityMode: SecurityMode;
 }

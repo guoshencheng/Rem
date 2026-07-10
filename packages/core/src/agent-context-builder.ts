@@ -1,8 +1,9 @@
+import { join } from 'node:path';
 import { registerBuiltInProviders } from './llm/providers/index.js';
 import { createDefaultAgentPaths } from './config/paths.js';
 import { configureDebugLog, configureConsoleOutput } from './shared/debug-log.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
-import { FileSessionProvider } from './plugins/session/file/index.js';
+import { SqliteSessionProvider } from './plugins/session/sqlite/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
 import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import { SimpleContextProvider } from './plugins/memory/simple/index.js';
@@ -18,6 +19,7 @@ import { RuleEngine } from './security/rules/rule-engine.js';
 import { RuleStore } from './security/rules/rule-store.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import type { Rule } from './security/rules/rule.js';
+import { SqliteStorageProvider, type RuleStorage, type StorageProvider } from './storage/index.js';
 import {
   createPermissionEvaluator,
   type ApprovalRequestFactory,
@@ -56,13 +58,13 @@ export interface AgentContextBuildOptions {
   sessionRules?: Rule[];
   securityMode?: SecurityMode;
   paths?: AgentPaths;
+  storageProvider?: StorageProvider;
 }
 
 async function buildRuleSecurity(
   configProvider: ConfigProvider,
-  agentDir: string,
-): Promise<{ ruleEngine: RuleEngine; ruleStore: RuleStore }> {
-  const ruleStore = new RuleStore(agentDir);
+  ruleStore: RuleStorage,
+): Promise<{ ruleEngine: RuleEngine; ruleStore: RuleStorage }> {
   const userRules = await ruleStore.loadAll();
   const config = configProvider.getConfig();
   const profileRules = getProfileRules(config.profile ?? 'coding');
@@ -103,7 +105,11 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   });
   await configProvider.init();
 
-  const sessionProvider = new FileSessionProvider(paths.sessionsDir);
+  const storageProvider = options?.storageProvider
+    ?? new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
+  await storageProvider.init();
+
+  const sessionProvider = new SqliteSessionProvider(storageProvider.sessionStore);
   const fileMutationQueue = createFileMutationQueue();
   const toolProvider = createFileSystemTools(configProvider, fileMutationQueue);
   const contextProvider = new SimpleContextProvider(configProvider);
@@ -138,7 +144,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     ],
   );
 
-  const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, paths.agentDir);
+  const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, storageProvider.ruleStore);
 
   const approvalFactory: ApprovalRequestFactory = {
     create: (input) => input,

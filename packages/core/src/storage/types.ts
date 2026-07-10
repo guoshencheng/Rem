@@ -5,7 +5,7 @@ export interface StorageProvider {
   init(): Promise<void>;
   close(): Promise<void>;
   readonly sessionStore: SessionStore;
-  readonly ruleStore: RuleStore;
+  readonly ruleStore: RuleStorage;
 }
 
 export interface SessionStore {
@@ -17,7 +17,7 @@ export interface SessionStore {
   listAll(): Promise<SessionSummary[]>;
 }
 
-export interface RuleStore {
+export interface RuleStorage {
   loadAll(): Promise<Rule[]>;
   loadBySource(source: RuleSource): Promise<Rule[]>;
   saveApproved(rule: Omit<Rule, 'source'>): Promise<void>;

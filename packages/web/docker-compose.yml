@@ -1,0 +1,25 @@
+version: "3.7"
+
+services:
+  web:
+    build:
+      context: ${COMPOSE_BUILD_CONTEXT:-../..}
+      dockerfile: ${COMPOSE_DOCKERFILE:-packages/web/Dockerfile}
+    container_name: ${WEB_CONTAINER_NAME:-rem-agent-web}
+    image: ${WEB_IMAGE_NAME:-rem-agent-web:latest}
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    env_file:
+      - ${WEB_ENV_FILE:-.env}
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - REM_AGENT_WORKSPACES_FILE=${REM_AGENT_WORKSPACES_FILE:-}
+    volumes:
+      - ${REM_AGENT_DATA_DIR:-./.rem-agent}:/app/packages/web/.rem-agent
+      - ${USER_DATA_DIR:-./data}:/data
+    restart: ${WEB_RESTART_POLICY:-unless-stopped}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r=>process.exit(r.statusCode==200?0:1)).on('error',()=>process.exit(1))"]
+      interval: ${WEB_HEALTH_INTERVAL:-30s}
+      timeout: ${WEB_HEALTH_TIMEOUT:-5s}
+      retries: ${WEB_HEALTH_RETRIES:-3}

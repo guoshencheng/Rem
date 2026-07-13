@@ -74,6 +74,7 @@ async function buildRuleSecurity(
     { permission: 'read', pattern: '**', action: 'allow', source: 'default' },
     { permission: 'ls', pattern: '**', action: 'allow', source: 'default' },
     { permission: 'session_status', pattern: '*', action: 'allow', source: 'default' },
+    { permission: 'todowrite', pattern: '*', action: 'allow', source: 'default' },
   ];
   const sessionRules = config.sessionRules ?? [];
   const ruleEngine = new RuleEngine([...defaultRules, ...profileRules, ...userRules, ...sessionRules]);

@@ -7,6 +7,7 @@ import type {
   ResolvedAgentConfig,
   ResolvedModelConfig,
 } from '../../../sdk/config-provider.js';
+import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
 import type { AgentPaths } from '../../../config/paths.js';
 import { resolveConfigPath, loadConfigFile, resolveConfigPaths } from './config-loader.js';
@@ -18,6 +19,7 @@ import {
   mergeDeepConfig,
   mergeOverrides,
 } from './config-merger.js';
+import { DefaultAgentResolver } from '../../../agent-resolver.js';
 
 export interface ConfigFileData {
   [key: string]: unknown;
@@ -35,6 +37,7 @@ export class DefaultConfigProvider implements ConfigProvider {
   private raw?: AgentConfig;
   private env: NodeJS.ProcessEnv;
   private _paths?: AgentPaths;
+  private agentResolver?: AgentResolver;
 
   constructor(private options: DefaultConfigProviderOptions = {}) {
     this.env = options.env ?? process.env;
@@ -75,6 +78,15 @@ export class DefaultConfigProvider implements ConfigProvider {
     }
 
     this.raw = config;
+
+    this.agentResolver = new DefaultAgentResolver({
+      behavior: this.getBehaviorConfig(),
+      agents: this.raw.agents,
+      resolveModel: (model) => {
+        if (!model || !model.provider || !model.model) return undefined;
+        return this.resolveModelConfig(model);
+      },
+    });
   }
 
   private getRawConfig(): AgentConfig {
@@ -96,12 +108,14 @@ export class DefaultConfigProvider implements ConfigProvider {
     const cfg = this.getRawConfig();
     const id = modelId ?? cfg.activeModel ?? 'default';
     const model = cfg.models?.[id] ?? cfg.model ?? { provider: 'openai', model: '' };
+    return this.resolveModelConfig(model);
+  }
 
+  private resolveModelConfig(model: AgentModelConfig): ResolvedModelConfig {
     const resolvedModel = model.model || this.readProviderEnv(model.provider, 'MODEL') || '';
     const resolvedBaseURL =
       resolveOptionalTemplate(model.baseURL, this.env) ??
       this.readProviderEnv(model.provider, 'BASE_URL');
-
     return {
       provider: model.provider,
       model: resolvedModel,
@@ -138,6 +152,13 @@ export class DefaultConfigProvider implements ConfigProvider {
       resolved[key] = this.resolveMcpServerConfig(config);
     }
     return resolved;
+  }
+
+  resolveAgent(id?: string): ResolvedAgentRole {
+    if (!this.agentResolver) {
+      throw new Error('DefaultConfigProvider must be initialized before resolving agent');
+    }
+    return this.agentResolver.resolveAgent(id);
   }
 
   private resolveMcpServerConfig(config: McpServerConfig): McpServerConfig {

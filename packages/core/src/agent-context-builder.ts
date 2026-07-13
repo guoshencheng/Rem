@@ -20,6 +20,7 @@ import { RuleStore } from './security/rules/rule-store.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import type { Rule } from './security/rules/rule.js';
 import { SqliteStorageProvider, type RuleStorage, type StorageProvider } from './storage/index.js';
+import { DefaultTodoService } from './todo/service.js';
 import {
   createPermissionEvaluator,
   type ApprovalRequestFactory,
@@ -110,6 +111,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   await storageProvider.init();
 
   const sessionProvider = new SqliteSessionProvider(storageProvider.sessionStore);
+  const todoService = new DefaultTodoService(storageProvider.todoStore);
   const fileMutationQueue = createFileMutationQueue();
   const toolProvider = createFileSystemTools(configProvider, fileMutationQueue);
   const contextProvider = new SimpleContextProvider(configProvider);
@@ -176,6 +178,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     systemPromptAssembler,
     ruleEngine,
     ruleStore,
+    todoService,
     permissionEvaluator,
     securityMode,
   };

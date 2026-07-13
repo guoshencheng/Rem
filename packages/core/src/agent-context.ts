@@ -14,6 +14,7 @@ import type { ToolComposer } from './sdk/tool-composer.js';
 import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { RuleStorage } from './storage/types.js';
+import type { TodoService } from './todo/service.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 
@@ -35,6 +36,7 @@ export interface AgentContext {
   systemPromptAssembler: SystemPromptAssembler; // 新增
   ruleEngine: RuleEngine;
   ruleStore: RuleStorage;
+  todoService: TodoService;
   permissionEvaluator: ToolPermissionEvaluator;
   securityMode: SecurityMode;
 }

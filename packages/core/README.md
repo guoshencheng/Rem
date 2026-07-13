@@ -424,3 +424,29 @@ Configure external MCP servers in `rem-agent.config.json`:
 ```
 
 MCP tools are prefixed with the server key, e.g. `fs__read_file`, and require approval by default.
+
+---
+
+## Custom Agents
+
+You can define multiple agents in `rem-agent.config.json`:
+
+```json
+{
+  "agents": {
+    "coder": {
+      "name": "Code Assistant",
+      "corePrompt": "You focus on writing clean, concise code and follow existing conventions.",
+      "model": { "provider": "openai", "model": "gpt-4o" }
+    }
+  }
+}
+```
+
+Switch at runtime:
+
+```typescript
+runAgent({ ..., agent: 'coder' });
+```
+
+If the agent is not found or no `agent` is provided, the built-in default agent is used.

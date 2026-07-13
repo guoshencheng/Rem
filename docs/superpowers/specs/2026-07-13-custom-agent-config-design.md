@@ -1,6 +1,6 @@
 # REM 自定义 Agent 配置设计
 
-> 状态：设计完成，待实现  
+> 状态：已实现  
 > 日期：2026-07-13  
 > 方案：方案 A（扩展 ConfigProvider + AgentResolver + SystemPromptAssembler）
 

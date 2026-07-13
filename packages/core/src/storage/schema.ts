@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -49,6 +49,21 @@ export class SqliteSchemaManager {
 
       CREATE INDEX IF NOT EXISTS idx_rules_source
         ON rules(source);
+
+      CREATE TABLE IF NOT EXISTS todos (
+        session_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, position),
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_todos_session
+        ON todos(session_id);
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
@@ -57,8 +72,36 @@ export class SqliteSchemaManager {
 
     if (!row) {
       this.db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(CURRENT_SCHEMA_VERSION);
-    } else if (row.version !== CURRENT_SCHEMA_VERSION) {
+      return;
+    }
+
+    if (row.version === CURRENT_SCHEMA_VERSION) return;
+    if (row.version > CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported schema version: ${row.version}`);
+    }
+
+    this.migrateFrom(row.version);
+    this.db.prepare('UPDATE schema_version SET version = ?').run(CURRENT_SCHEMA_VERSION);
+  }
+
+  private migrateFrom(version: number): void {
+    if (version < 2) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS todos (
+          session_id TEXT NOT NULL,
+          position INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          status TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (session_id, position),
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_todos_session
+          ON todos(session_id);
+      `);
     }
   }
 }

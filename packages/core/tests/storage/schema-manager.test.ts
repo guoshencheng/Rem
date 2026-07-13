@@ -28,10 +28,10 @@ describe('SqliteSchemaManager', () => {
 
     const tables = db
       .prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('sessions', 'messages', 'rules')"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('sessions', 'messages', 'rules', 'todos')"
       )
       .all() as { name: string }[];
-    expect(tables.map((t) => t.name).sort()).toEqual(['messages', 'rules', 'sessions']);
+    expect(tables.map((t) => t.name).sort()).toEqual(['messages', 'rules', 'sessions', 'todos']);
 
     db.close();
   });
@@ -54,6 +54,53 @@ describe('SqliteSchemaManager', () => {
 
     const manager = new SqliteSchemaManager(db);
     expect(() => manager.migrate()).toThrow('Unsupported schema version: 999');
+
+    db.close();
+  });
+
+  it('should migrate from version 1 to current', () => {
+    const db = new Database(dbPath);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
+      INSERT INTO schema_version (version) VALUES (1);
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        workspace TEXT NOT NULL,
+        title TEXT,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        current_turn INTEGER NOT NULL DEFAULT 0,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content_json TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS rules (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        permission TEXT NOT NULL,
+        pattern TEXT NOT NULL,
+        action TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    const manager = new SqliteSchemaManager(db);
+    manager.migrate();
+
+    const version = db.prepare('SELECT version FROM schema_version').get() as { version: number };
+    expect(version.version).toBe(CURRENT_SCHEMA_VERSION);
+
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = 'todos'")
+      .all() as { name: string }[];
+    expect(tables.map((t) => t.name)).toContain('todos');
 
     db.close();
   });

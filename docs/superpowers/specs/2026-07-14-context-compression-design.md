@@ -315,7 +315,7 @@ CREATE INDEX idx_archived_messages_version ON archived_messages(session_id, vers
 | 归档写入 SQLite 失败 | 中断本次 run，emit `compress-error` chunk，session 保持原样（因为不能丢原始消息） |
 | session 保存失败 | 中断本次 run，emit `compress-error` chunk |
 | 压缩后仍超阈值 | 本次 run 继续，下一轮再检查；不递归压缩 |
-| 首次运行长会话、无历史 usage | 使用字符数估算（`content.length / 4`）作为 fallback，避免永远不触发 |
+| 首次运行长会话、无历史 usage | 遍历所有消息的 text content，按 `总字符数 / 4` 估算 token 数作为 fallback，避免永远不触发 |
 
 ---
 

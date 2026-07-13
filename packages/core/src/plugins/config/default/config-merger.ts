@@ -1,7 +1,7 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { Rule } from '../../../security/rules/rule.js';
-import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig } from './config-parser.js';
+import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig, pickAgents } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
   const merged: AgentConfig = { ...base };
@@ -24,6 +24,8 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (typeof file.activeModel === 'string') merged.activeModel = file.activeModel;
   const mcpServers = pickMcpConfig(file.mcpServers);
   if (mcpServers) merged.mcpServers = { ...merged.mcpServers, ...mcpServers };
+  const agents = pickAgents(file.agents);
+  if (agents) merged.agents = { ...merged.agents, ...agents };
   return merged;
 }
 
@@ -62,6 +64,9 @@ export function mergeDeepConfig(base: AgentConfig, file: Record<string, unknown>
   if (toolPolicy && base.toolPolicy) {
     merged.toolPolicy = mergeToolPolicy(base.toolPolicy, toolPolicy);
   }
+  if (base.agents && merged.agents) {
+    merged.agents = { ...base.agents, ...merged.agents };
+  }
   return merged;
 }
 
@@ -79,6 +84,9 @@ export function mergeOverrides(base: AgentConfig, overrides: AgentConfig): Agent
   }
   if (overrides.mcpServers && base.mcpServers) {
     merged.mcpServers = { ...base.mcpServers, ...overrides.mcpServers };
+  }
+  if (overrides.agents && base.agents) {
+    merged.agents = { ...base.agents, ...overrides.agents };
   }
   return merged;
 }

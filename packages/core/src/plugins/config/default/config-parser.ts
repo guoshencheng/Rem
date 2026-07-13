@@ -1,4 +1,5 @@
 import type { AgentModelConfig } from '../../../sdk/config-provider.js';
+import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
 
@@ -59,6 +60,29 @@ export function pickModels(raw: unknown): Record<string, AgentModelConfig> | und
   for (const [key, value] of Object.entries(raw)) {
     const model = pickModelConfig(value);
     if (model) result[key] = model;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+export function pickCustomAgentConfig(raw: unknown): CustomAgentConfig | undefined {
+  if (!isObject(raw)) return undefined;
+  if (typeof raw.name !== 'string') return undefined;
+  if (typeof raw.corePrompt !== 'string') return undefined;
+  const cfg: CustomAgentConfig = {
+    name: raw.name,
+    corePrompt: raw.corePrompt,
+  };
+  const model = pickModelConfig(raw.model);
+  if (model) cfg.model = model;
+  return cfg;
+}
+
+export function pickAgents(raw: unknown): Record<string, CustomAgentConfig> | undefined {
+  if (!isObject(raw)) return undefined;
+  const result: Record<string, CustomAgentConfig> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const agent = pickCustomAgentConfig(value);
+    if (agent) result[key] = agent;
   }
   return Object.keys(result).length > 0 ? result : undefined;
 }

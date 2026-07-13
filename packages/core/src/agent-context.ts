@@ -17,6 +17,7 @@ import type { RuleStorage } from './storage/types.js';
 import type { TodoService } from './todo/service.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
 import type { SecurityMode } from './security/permissions/factory.js';
+import type { ArchiveStore } from './storage/types.js';
 
 export interface AgentContext {
   configProvider: ConfigProvider;
@@ -39,4 +40,5 @@ export interface AgentContext {
   todoService: TodoService;
   permissionEvaluator: ToolPermissionEvaluator;
   securityMode: SecurityMode;
+  archiveStore: ArchiveStore;
 }

@@ -1,5 +1,6 @@
 export { FixedBudgetPolicy } from './budget/fixed/index.js';
 export { NoOpCompressor } from './compressor/no-op/index.js';
+export { LLMSummarizingCompressor } from './compressor/llm-summary/index.js';
 export { DefaultConfigProvider } from './config/default/index.js';
 export { SimpleErrorHandler } from './error/simple/index.js';
 export { SimpleMemoryProvider } from './memory/simple/index.js';

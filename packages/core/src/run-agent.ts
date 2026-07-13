@@ -9,6 +9,8 @@ import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolCall, ToolResult } from './sdk/tool-provider.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import type { AgentContext } from './agent-context.js';
+import type { ArchiveRecord } from './storage/types.js';
+import { resolveContextWindow } from './llm/context-window.js';
 import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
@@ -118,7 +120,53 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
       const { messages } = await contextProvider.build(session, behavior.name);
 
-      let msgs = compressor.shouldCompress(session) ? await compressor.compress(messages) : messages;
+      let msgs = messages;
+      if (compressor.shouldCompress(session)) {
+        const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
+        const accumulated = history.reduce((sum, entry) => sum + entry.totalTokens, 0);
+        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model);
+        const compressionCfg = ctx.configProvider.getCompressionConfig();
+        const threshold = maxTokens * compressionCfg.thresholdRatio;
+
+        controller.emit({ type: 'compress-start', sessionId: params.sessionId, estimatedTokens: accumulated, threshold });
+
+        const previousArchive = await ctx.archiveStore.getLatest(params.sessionId);
+        const version = previousArchive ? previousArchive.version + 1 : 1;
+        const parentArchiveId = previousArchive?.id;
+
+        const compressed = await compressor.compress(messages);
+        const removedCount = messages.length - compressed.length;
+
+        const archiveId = generateId();
+        const summaryText = compressed
+          .find((m) => m.role === 'system')
+          ?.content.filter((p) => p.type === 'text')
+          .map((p) => (p as { type: 'text'; text: string }).text)
+          .join('') ?? '';
+
+        const archiveRecord: ArchiveRecord = {
+          id: archiveId,
+          sessionId: params.sessionId,
+          compressedAt: new Date(),
+          version,
+          parentArchiveId,
+          conversationSnapshot: messages,
+          summary: summaryText,
+          tokenUsageBefore: accumulated > 0 ? { totalTokens: accumulated, inputTokens: 0, outputTokens: 0 } : undefined,
+        };
+        await ctx.archiveStore.save(archiveRecord);
+
+        session.conversation = compressed;
+        session.metadata.compressionTokenOffset = accumulated;
+        session.metadata.compressionHistory = [
+          ...((session.metadata.compressionHistory as unknown[]) ?? []),
+          { archiveId, version, compressedAt: new Date().toISOString(), removedMessageCount: removedCount },
+        ];
+        await sessionProvider.save(session);
+
+        controller.emit({ type: 'compress-end', sessionId: params.sessionId, archiveId, removedMessageCount: removedCount });
+        msgs = compressed;
+      }
 
       const effectiveToolProvider = toolComposer.compose({
         toolProvider,
@@ -225,6 +273,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('compress') || message.includes('summary')) {
+        controller.emit({ type: 'compress-error', sessionId: params.sessionId, error: message });
+      }
       const output: AgentOutput = { content: `Error: ${message}`, completed: true };
       controller.fail(error instanceof Error ? error : new Error(message));
       params.agentState.publishSessionError(workspace, params.sessionId, message);

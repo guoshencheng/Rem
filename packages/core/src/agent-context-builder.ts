@@ -9,7 +9,7 @@ import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-
 import { SimpleContextProvider } from './plugins/memory/simple/index.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
 import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
-import { NoOpCompressor } from './plugins/compressor/no-op/index.js';
+import { LLMSummarizingCompressor } from './plugins/compressor/llm-summary/index.js';
 import { SimpleErrorHandler } from './plugins/error/simple/index.js';
 import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
@@ -118,7 +118,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   const contextProvider = new SimpleContextProvider(configProvider);
   const skillProvider = new FileSkillProvider(configProvider, paths);
   const budgetPolicy = new FixedBudgetPolicy(configProvider);
-  const compressor = new NoOpCompressor();
+  const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig());
   const errorHandler = new SimpleErrorHandler();
   const titleProvider = new LLMTitleProvider(configProvider);
   const loopStrategy = new ReactLoop();
@@ -182,5 +182,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     todoService,
     permissionEvaluator,
     securityMode,
+    archiveStore: storageProvider.archiveStore,
   };
 }

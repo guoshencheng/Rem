@@ -1,11 +1,18 @@
 import type { Session, SessionSummary } from '../session.js';
 import type { Rule, RuleSource } from '../security/rules/rule.js';
+import type { TodoItem } from '../todo/types.js';
 
 export interface StorageProvider {
   init(): Promise<void>;
   close(): Promise<void>;
   readonly sessionStore: SessionStore;
   readonly ruleStore: RuleStorage;
+  readonly todoStore: TodoStore;
+}
+
+export interface TodoStore {
+  getBySession(sessionId: string): Promise<TodoItem[]>;
+  replaceForSession(sessionId: string, todos: TodoItem[]): Promise<void>;
 }
 
 export interface SessionStore {

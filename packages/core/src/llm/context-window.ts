@@ -51,7 +51,7 @@ export function resolveContextWindow(
     return builtIn.maxTokens;
   }
 
-  return 128_000;
+  return 1_000_000;
 }
 
 export function computeWindowRatio(usage: { totalTokens: number }, maxTokens: number): number {

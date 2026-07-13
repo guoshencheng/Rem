@@ -12,7 +12,7 @@ describe('resolveContextWindow', () => {
   });
 
   it('falls back for unknown model', () => {
-    expect(resolveContextWindow('openai', 'unknown-model')).toBe(128_000);
+    expect(resolveContextWindow('openai', 'unknown-model')).toBe(1_000_000);
   });
 
   it('respects env override', () => {

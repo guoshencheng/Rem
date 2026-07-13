@@ -2,6 +2,7 @@ import type { ToolPolicyConfig } from './tool-policy.js';
 import type { McpServerConfig } from '../mcp/types.js';
 import type { ToolProfileId } from '../security/rules/profiles.js';
 import type { Rule } from '../security/rules/rule.js';
+import type { CustomAgentConfig, ResolvedAgentRole } from './agent-role.js';
 
 export interface AgentModelConfig {
   provider: string;
@@ -32,6 +33,7 @@ export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {
   model?: AgentModelConfig;
   toolPolicy?: ToolPolicyConfig;
   mcpServers?: Record<string, McpServerConfig>;
+  agents?: Record<string, CustomAgentConfig>;
 }
 
 export interface ResolvedModelConfig {
@@ -51,4 +53,5 @@ export interface ConfigProvider {
   getToolConfig(): AgentToolConfig;
   getBehaviorConfig(): Required<AgentBehaviorConfig>;
   getMcpConfig(): Record<string, McpServerConfig>;
+  resolveAgent(id?: string): ResolvedAgentRole;
 }

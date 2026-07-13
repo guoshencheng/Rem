@@ -155,8 +155,7 @@ export class DefaultConfigProvider implements ConfigProvider {
   }
 
   getCompressionConfig(): Required<import('../../../sdk/config-provider.js').CompressionConfig> {
-    const behavior = this.getBehaviorConfig();
-    return behavior.compression;
+    return this.getBehaviorConfig().compression as Required<import('../../../sdk/config-provider.js').CompressionConfig>;
   }
 
   resolveAgent(id?: string): ResolvedAgentRole {

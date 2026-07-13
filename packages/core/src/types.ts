@@ -60,6 +60,9 @@ export type AgentStreamChunk =
   | { type: 'session-title'; title: string }
   | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
   | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
+  | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
+  | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
+  | { type: 'compress-error'; sessionId: string; error: string }
   | {
       type: 'usage';
       inputTokens: number;

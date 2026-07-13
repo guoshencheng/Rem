@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -64,6 +64,26 @@ export class SqliteSchemaManager {
 
       CREATE INDEX IF NOT EXISTS idx_todos_session
         ON todos(session_id);
+
+      CREATE TABLE IF NOT EXISTS archived_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        compressed_at TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        parent_archive_id TEXT,
+        conversation_snapshot TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        token_usage_before TEXT,
+        token_usage_after TEXT,
+        metadata TEXT,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_archived_messages_session
+        ON archived_messages(session_id);
+
+      CREATE INDEX IF NOT EXISTS idx_archived_messages_version
+        ON archived_messages(session_id, version);
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
@@ -101,6 +121,30 @@ export class SqliteSchemaManager {
 
         CREATE INDEX IF NOT EXISTS idx_todos_session
           ON todos(session_id);
+      `);
+    }
+
+    if (version < 3) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS archived_messages (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          compressed_at TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          parent_archive_id TEXT,
+          conversation_snapshot TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          token_usage_before TEXT,
+          token_usage_after TEXT,
+          metadata TEXT,
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_archived_messages_session
+          ON archived_messages(session_id);
+
+        CREATE INDEX IF NOT EXISTS idx_archived_messages_version
+          ON archived_messages(session_id, version);
       `);
     }
   }

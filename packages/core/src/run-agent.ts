@@ -15,6 +15,11 @@ import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';
 import type { TokenUsageDetail } from './token-usage.js';
 import { log } from './shared/debug-log.js';
+import { OverlayToolProvider } from './overlay-tool-provider.js';
+import {
+  createDelegateTaskToolDefinition,
+  createDelegateTaskToolExecutor,
+} from './plugins/tool/builtin/delegate-task.js';
 
 export interface RunAgentParams {
   input: UserInput;
@@ -114,7 +119,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         skillProvider,
       });
 
-      const toolSet = effectiveToolProvider.getToolSet();
+      const toolProviderWithDelegate = new OverlayToolProvider(effectiveToolProvider);
+      const delegateToolDefinition = createDelegateTaskToolDefinition();
+      const delegateToolExecutor = createDelegateTaskToolExecutor(ctx, params.agentState, workspace);
+      toolProviderWithDelegate.register(delegateToolDefinition, delegateToolExecutor);
+
+      const toolSet = toolProviderWithDelegate.getToolSet();
       const tools = Object.entries(toolSet).map(([name, schema]) => ({
         name,
         description: schema.description,
@@ -149,12 +159,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           {
             provider: modelConfig.provider, model: modelConfig.model, apiKey: modelConfig.apiKey,
             baseURL: modelConfig.baseURL, system: systemPrompt, messages: msgs,
-            tools: effectiveToolProvider.getToolSet(), signal: params.signal, errorHandler,
+            tools: toolProviderWithDelegate.getToolSet(), signal: params.signal, errorHandler,
           },
           (chunk) => trackMessageStart(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider: effectiveToolProvider, addMessage, appendContent,
+          toolCalls: calls, toolProvider: toolProviderWithDelegate, addMessage, appendContent,
           agentState: params.agentState,
           permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,
@@ -201,6 +211,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const message = error instanceof Error ? error.message : String(error);
       const output: AgentOutput = { content: `Error: ${message}`, completed: true };
       controller.fail(error instanceof Error ? error : new Error(message));
+      params.agentState.publishSessionError(workspace, params.sessionId, message);
       await sessionProvider.save(session);
       return output;
     }

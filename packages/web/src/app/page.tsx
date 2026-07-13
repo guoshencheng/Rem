@@ -85,6 +85,10 @@ export default function Home() {
     }
   }, [agentService, activeWorkspace]);
 
+  const handleOpenChild = useCallback((sessionId: string) => {
+    switchSession(sessionId);
+  }, [switchSession]);
+
   if (!loaded) {
     return <div className="flex h-full items-center justify-center text-tx2 text-sm">Loading...</div>;
   }
@@ -114,6 +118,8 @@ export default function Home() {
           pendingApprovals={currentSession.pendingApprovals}
           initialized={initialized}
           tokenUsage={currentSession.tokenUsage}
+          childAgents={currentSession.childAgents}
+          onOpenChild={handleOpenChild}
           onSend={send}
           onInterrupt={interrupt}
           onResolveApproval={resolveApproval}

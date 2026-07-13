@@ -16,4 +16,5 @@ export interface SessionSummary {
   pinned?: boolean;
   updatedAt: Date;
   messageCount: number;
+  parentSessionId?: string;
 }

@@ -18,16 +18,24 @@ interface SessionState {
   pendingToolCalls: Set<string>;
   pendingApprovals: ApprovalRequest[];
   tokenUsage?: LanguageModelUsage;
+  childAgents: Map<string, {
+    childSessionId: string;
+    summary: string;
+    status: 'running' | 'completed' | 'failed';
+    tokenUsage?: LanguageModelUsage;
+  }>;
 }
 
 export interface SessionSummary {
   sessionId: string;
+  workspace?: string;
   title?: string;
   updatedAt: number;
   messageCount: number;
   pinned?: boolean;
   activity?: SessionActivity;
   tokenUsage?: LanguageModelUsage;
+  parentSessionId?: string;
 }
 
 interface UseAgentsOptions {
@@ -104,6 +112,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           pendingToolCalls: new Set(),
           pendingApprovals,
           tokenUsage: initialTokenUsage,
+          childAgents: new Map(),
         });
       } catch {
         sessionMapRef.current.set(sessionId, {
@@ -112,6 +121,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           error: null,
           pendingToolCalls: new Set(),
           pendingApprovals: [],
+          childAgents: new Map(),
         });
       }
       notifyChange();
@@ -385,6 +395,36 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           notifyChange();
           break;
         }
+        case 'child-agent-update': {
+          if (!state) {
+            bufferEvent(event);
+            return;
+          }
+          state.childAgents.set(event.childSessionId, {
+            childSessionId: event.childSessionId,
+            summary: event.summary,
+            status: event.status,
+            tokenUsage: event.tokenUsage,
+          });
+
+          setSessionList((prev) => {
+            if (prev.some((s) => s.sessionId === event.childSessionId)) return prev;
+            return [
+              {
+                sessionId: event.childSessionId,
+                workspace: event.workspace,
+                title: event.summary,
+                updatedAt: Date.now(),
+                messageCount: 0,
+                parentSessionId: event.sessionId,
+              },
+              ...prev,
+            ];
+          });
+
+          notifyChange();
+          break;
+        }
       }
     };
 
@@ -417,6 +457,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       activity: state.activity,
       pendingApprovals: state.pendingApprovals,
       tokenUsage: state.tokenUsage,
+      childAgents: state.childAgents,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);

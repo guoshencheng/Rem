@@ -56,6 +56,7 @@ export interface SessionSummary {
   messageCount: number;
   activity?: SessionActivity;
   tokenUsage?: LanguageModelUsage;
+  parentSessionId?: string;
 }
 
 export type ServerStreamEvent = import('rem-agent-core').AgentStreamChunk;

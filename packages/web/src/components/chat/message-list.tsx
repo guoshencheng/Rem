@@ -3,13 +3,21 @@
 import { useRef, useEffect } from 'react';
 import { MessageItem } from './message-item';
 import type { UIMessage } from '@/lib/types';
+import type { LanguageModelUsage } from 'rem-agent-core';
 
 interface MessageListProps {
   messages: UIMessage[];
   onSend(content: string): void;
+  childAgents?: Map<string, {
+    childSessionId: string;
+    summary: string;
+    status: 'running' | 'completed' | 'failed';
+    tokenUsage?: LanguageModelUsage;
+  }>;
+  onOpenChild?: (sessionId: string) => void;
 }
 
-export function MessageList({ messages, onSend }: MessageListProps) {
+export function MessageList({ messages, onSend, childAgents, onOpenChild }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMessage = messages[messages.length - 1];
 
@@ -43,7 +51,7 @@ export function MessageList({ messages, onSend }: MessageListProps) {
     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin pb-6">
       <div className="max-w-3xl mx-auto px-4">
         {messages.map((msg, index) => (
-          <MessageItem key={msg.id ?? index} message={msg} />
+          <MessageItem key={msg.id ?? index} message={msg} childAgents={childAgents} onOpenChild={onOpenChild} />
         ))}
         <div ref={bottomRef} />
       </div>

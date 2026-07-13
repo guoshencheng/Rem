@@ -16,6 +16,13 @@ interface ChatPanelProps {
   initialized: boolean;
   tokenUsage?: LanguageModelUsage;
   maxTokens?: number;
+  childAgents?: Map<string, {
+    childSessionId: string;
+    summary: string;
+    status: 'running' | 'completed' | 'failed';
+    tokenUsage?: LanguageModelUsage;
+  }>;
+  onOpenChild?: (sessionId: string) => void;
   onSend(content: string): void;
   onInterrupt(): void;
   onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
@@ -30,6 +37,8 @@ export function ChatPanel({
   initialized,
   tokenUsage,
   maxTokens = 128_000,
+  childAgents,
+  onOpenChild,
   onSend,
   onInterrupt,
   onResolveApproval,
@@ -44,7 +53,7 @@ export function ChatPanel({
           <span className="text-xs text-err bg-err-bg px-2 py-0.5 rounded-chip">{error}</span>
         )}
       </header>
-      <MessageList messages={messages} onSend={onSend} />
+      <MessageList messages={messages} onSend={onSend} childAgents={childAgents} onOpenChild={onOpenChild} />
       <div className="max-w-3xl mx-auto w-full px-4 pb-4">
         <ChatComposer
           streaming={streaming}

@@ -30,6 +30,7 @@ export class AgentSessionManager {
           workspace: sessionWorkspace,
           title: s.title ?? 'New Chat',
           pinned: s.pinned,
+          parentSessionId: (session.metadata?.parentSessionId as string | undefined),
           updatedAt: s.updatedAt.getTime(),
           messageCount: s.messageCount,
           tokenUsage,
@@ -131,6 +132,7 @@ export class AgentSessionManager {
       workspace: workspace ?? (session.metadata?.workspace as string | undefined) ?? 'default',
       title: (session.metadata?.title as string | undefined) ?? 'New Chat',
       pinned: session.metadata?.pinned as boolean | undefined,
+      parentSessionId: (session.metadata?.parentSessionId as string | undefined),
       updatedAt: session.updatedAt.getTime(),
       messageCount: Array.isArray(session.conversation) ? session.conversation.length : 0,
     };

@@ -2,15 +2,24 @@
 
 import { cn } from '@/lib/utils';
 import { MarkdownContent } from './markdown-content';
+import { ChildAgentCard } from './child-agent-card';
 import type { UIMessage } from 'rem-agent-bridge';
+import type { LanguageModelUsage } from 'rem-agent-core';
 import { ReasoningBlock } from './reasoning-block';
 import { ToolCallBlock } from './tool-call-block';
 
 interface MessageItemProps {
   message: UIMessage;
+  childAgents?: Map<string, {
+    childSessionId: string;
+    summary: string;
+    status: 'running' | 'completed' | 'failed';
+    tokenUsage?: LanguageModelUsage;
+  }>;
+  onOpenChild?: (sessionId: string) => void;
 }
 
-export function MessageItem({ message }: MessageItemProps) {
+export function MessageItem({ message, childAgents, onOpenChild }: MessageItemProps) {
   const isUser = message.role === 'user';
 
   if (isUser) {
@@ -62,6 +71,19 @@ export function MessageItem({ message }: MessageItemProps) {
           }
           return null;
         })}
+        {childAgents && childAgents.size > 0 && (
+          <div className="mt-3 flex flex-col gap-2">
+            {Array.from(childAgents.values()).map((child) => (
+              <ChildAgentCard
+                key={child.childSessionId}
+                summary={child.summary}
+                status={child.status}
+                tokenUsage={child.tokenUsage}
+                onClick={() => onOpenChild?.(child.childSessionId)}
+              />
+            ))}
+          </div>
+        )}
         {message.status === 'error' && message.error && (
           <div className="mt-2 px-3 py-2 rounded-btn bg-err-bg text-err text-xs border border-err/30">{message.error}</div>
         )}

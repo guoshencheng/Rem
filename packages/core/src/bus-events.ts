@@ -1,4 +1,5 @@
 import type { AgentStreamChunk, ContentPart, LanguageModelUsage } from './types.js';
+import type { TodoItem } from './todo/types.js';
 
 export type SessionActivity =
   | 'idle'
@@ -23,4 +24,10 @@ export type BusEvent =
       summary: string;
       status: 'running' | 'completed' | 'failed';
       tokenUsage?: LanguageModelUsage;
+    }
+  | {
+      workspace: string;
+      sessionId: string;
+      type: 'todo-updated';
+      todos: TodoItem[];
     };

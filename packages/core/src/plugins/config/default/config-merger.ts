@@ -1,7 +1,7 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { Rule } from '../../../security/rules/rule.js';
-import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig, pickAgents } from './config-parser.js';
+import { pickToolPolicy, pickModels, pickModelConfig, pickMcpConfig, pickAgents, pickCompressionConfig } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
   const merged: AgentConfig = { ...base };
@@ -26,6 +26,12 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (mcpServers) merged.mcpServers = { ...merged.mcpServers, ...mcpServers };
   const agents = pickAgents(file.agents);
   if (agents) merged.agents = { ...merged.agents, ...agents };
+  const compression = pickCompressionConfig(file.compression);
+  if (compression) {
+    merged.compression = merged.compression
+      ? { ...merged.compression, ...compression }
+      : compression;
+  }
   return merged;
 }
 
@@ -39,6 +45,10 @@ export function mergeEnvConfig(base: AgentConfig, env: NodeJS.ProcessEnv): Agent
   if (env.REM_AGENT_SESSIONS_DIR) merged.sessionsDir = env.REM_AGENT_SESSIONS_DIR;
   if (env.REM_AGENT_ACTIVE_MODEL) merged.activeModel = env.REM_AGENT_ACTIVE_MODEL;
   if (env.REM_AGENT_PROFILE) merged.profile = env.REM_AGENT_PROFILE as AgentBehaviorConfig['profile'];
+  if (env.REM_COMPRESSION_ENABLED) merged.compression = { ...merged.compression, enabled: env.REM_COMPRESSION_ENABLED === 'true' };
+  if (env.REM_COMPRESSION_THRESHOLD_RATIO) merged.compression = { ...merged.compression, thresholdRatio: parseFloat(env.REM_COMPRESSION_THRESHOLD_RATIO) };
+  if (env.REM_COMPRESSION_PROTECT_HEAD) merged.compression = { ...merged.compression, protectHead: parseInt(env.REM_COMPRESSION_PROTECT_HEAD, 10) };
+  if (env.REM_COMPRESSION_PROTECT_TAIL) merged.compression = { ...merged.compression, protectTail: parseInt(env.REM_COMPRESSION_PROTECT_TAIL, 10) };
   return merged;
 }
 
@@ -55,6 +65,12 @@ export function applyBehaviorDefaults(
     sessionsDir: config.sessionsDir ?? sessionsDir,
     profile: config.profile ?? 'coding',
     sessionRules: config.sessionRules ?? [],
+    compression: {
+      enabled: config.compression?.enabled ?? true,
+      thresholdRatio: config.compression?.thresholdRatio ?? 0.8,
+      protectHead: config.compression?.protectHead ?? 3,
+      protectTail: config.compression?.protectTail ?? 20,
+    },
   };
 }
 

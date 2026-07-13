@@ -1,4 +1,4 @@
-import type { AgentModelConfig } from '../../../sdk/config-provider.js';
+import type { AgentModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
@@ -85,6 +85,16 @@ export function pickAgents(raw: unknown): Record<string, CustomAgentConfig> | un
     if (agent) result[key] = agent;
   }
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+export function pickCompressionConfig(raw: unknown): CompressionConfig | undefined {
+  if (!isObject(raw)) return undefined;
+  const cfg: CompressionConfig = {};
+  if (typeof raw.enabled === 'boolean') cfg.enabled = raw.enabled;
+  if (typeof raw.thresholdRatio === 'number') cfg.thresholdRatio = raw.thresholdRatio;
+  if (typeof raw.protectHead === 'number') cfg.protectHead = raw.protectHead;
+  if (typeof raw.protectTail === 'number') cfg.protectTail = raw.protectTail;
+  return Object.keys(cfg).length > 0 ? cfg : undefined;
 }
 
 export function pickMcpConfig(raw: unknown): Record<string, McpServerConfig> | undefined {

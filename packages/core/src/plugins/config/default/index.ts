@@ -154,6 +154,11 @@ export class DefaultConfigProvider implements ConfigProvider {
     return resolved;
   }
 
+  getCompressionConfig(): Required<import('../../../sdk/config-provider.js').CompressionConfig> {
+    const behavior = this.getBehaviorConfig();
+    return behavior.compression;
+  }
+
   resolveAgent(id?: string): ResolvedAgentRole {
     if (!this.agentResolver) {
       throw new Error('DefaultConfigProvider must be initialized before resolving agent');

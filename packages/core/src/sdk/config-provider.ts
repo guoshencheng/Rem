@@ -16,6 +16,13 @@ export interface AgentToolConfig {
   policy?: ToolPolicyConfig;
 }
 
+export interface CompressionConfig {
+  enabled?: boolean;
+  thresholdRatio?: number;
+  protectHead?: number;
+  protectTail?: number;
+}
+
 export interface AgentBehaviorConfig {
   name?: string;
   maxTurns?: number;
@@ -25,6 +32,7 @@ export interface AgentBehaviorConfig {
   sessionsDir?: string;
   profile?: ToolProfileId;
   sessionRules?: Rule[];
+  compression?: CompressionConfig;
 }
 
 export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {
@@ -52,6 +60,7 @@ export interface ConfigProvider {
   getModelConfig(modelId?: string): ResolvedModelConfig;
   getToolConfig(): AgentToolConfig;
   getBehaviorConfig(): Required<AgentBehaviorConfig>;
+  getCompressionConfig(): Required<CompressionConfig>;
   getMcpConfig(): Record<string, McpServerConfig>;
   resolveAgent(id?: string): ResolvedAgentRole;
 }

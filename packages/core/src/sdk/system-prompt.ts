@@ -16,6 +16,7 @@ export interface PromptBuildContext {
     today: string;
     cwd: string;
   };
+  agentCorePrompt: string;
 }
 
 export interface AgentPromptTemplate {

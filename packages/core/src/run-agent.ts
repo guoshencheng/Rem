@@ -20,6 +20,10 @@ import {
   createDelegateTaskToolDefinition,
   createDelegateTaskToolExecutor,
 } from './plugins/tool/builtin/delegate-task.js';
+import {
+  createTodoWriteToolDefinition,
+  createTodoWriteToolExecutor,
+} from './plugins/tool/builtin/todo-write.js';
 
 export interface RunAgentParams {
   input: UserInput;
@@ -123,6 +127,14 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const delegateToolDefinition = createDelegateTaskToolDefinition();
       const delegateToolExecutor = createDelegateTaskToolExecutor(ctx, params.agentState, workspace);
       toolProviderWithDelegate.register(delegateToolDefinition, delegateToolExecutor);
+
+      const todoWriteDefinition = createTodoWriteToolDefinition();
+      const todoWriteExecutor = createTodoWriteToolExecutor(
+        ctx.todoService,
+        (event) => params.agentState.publish(event),
+        workspace,
+      );
+      toolProviderWithDelegate.register(todoWriteDefinition, todoWriteExecutor);
 
       const toolSet = toolProviderWithDelegate.getToolSet();
       const tools = Object.entries(toolSet).map(([name, schema]) => ({

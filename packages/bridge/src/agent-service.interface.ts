@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem } from 'rem-agent-core';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 
 export interface IAgentService {
@@ -21,4 +21,5 @@ export interface IAgentService {
   stream(): AsyncIterable<BusEvent>;
   listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]>;
   resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean>;
+  getTodos(workspace: string, sessionId: string): Promise<TodoItem[]>;
 }

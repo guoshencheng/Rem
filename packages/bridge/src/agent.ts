@@ -151,6 +151,11 @@ export class AgentService implements IAgentService {
     return this.sessionManager!.getMessages(sessionId);
   }
 
+  async getTodos(_workspace: string, sessionId: string): Promise<import('rem-agent-core').TodoItem[]> {
+    this.ensureInitialized();
+    return this.ctx!.todoService.get(sessionId);
+  }
+
   async createSession(workspace: string): Promise<SessionSummary> {
     this.ensureInitialized();
     return this.sessionManager!.createSession(workspace);

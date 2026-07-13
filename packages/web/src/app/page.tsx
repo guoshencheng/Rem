@@ -123,6 +123,9 @@ export default function Home() {
           onSend={send}
           onInterrupt={interrupt}
           onResolveApproval={resolveApproval}
+          agentService={agentService}
+          workspace={activeWorkspace}
+          sessionId={currentSession.id}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center text-tx3 text-sm">

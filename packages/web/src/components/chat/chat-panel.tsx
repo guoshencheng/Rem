@@ -2,8 +2,11 @@
 
 import { MessageList } from './message-list';
 import { ChatComposer } from './chat-composer';
+import { TodoPanel } from './todo-panel';
+import { useTodos } from '@/lib/use-todos';
 import type { UIMessage, SessionActivity } from '@/lib/types';
 import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
+import type { IAgentService } from 'rem-agent-bridge/client';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -26,6 +29,9 @@ interface ChatPanelProps {
   onSend(content: string): void;
   onInterrupt(): void;
   onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
+  agentService: IAgentService;
+  workspace: string;
+  sessionId: string;
 }
 
 export function ChatPanel({
@@ -42,8 +48,12 @@ export function ChatPanel({
   onSend,
   onInterrupt,
   onResolveApproval,
+  agentService,
+  workspace,
+  sessionId,
 }: ChatPanelProps) {
   const streaming = status === 'streaming' || status === 'loading';
+  const { todos } = useTodos(agentService, workspace, sessionId);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -55,6 +65,7 @@ export function ChatPanel({
       </header>
       <MessageList messages={messages} onSend={onSend} childAgents={childAgents} onOpenChild={onOpenChild} />
       <div className="max-w-3xl mx-auto w-full px-4 pb-4">
+        <TodoPanel todos={todos} />
         <ChatComposer
           streaming={streaming}
           initialized={initialized}

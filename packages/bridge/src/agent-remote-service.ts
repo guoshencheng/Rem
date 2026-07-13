@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
@@ -117,6 +117,16 @@ export class AgentRemoteService implements IAgentService {
       throw new Error(`Failed to resolve approval: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as boolean;
+  }
+
+  async getTodos(workspace: string, sessionId: string): Promise<TodoItem[]> {
+    const response = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/todos?${AgentRemoteService.wsQuery(workspace)}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get todos: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as TodoItem[];
   }
 
   async *stream(): AsyncIterable<BusEvent> {

@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`system prompt integration > generates full prompt for Claude model 1`] = `
-"You are Rem, a general-purpose assistant running inside Rem Agent, powered by Claude.
+"You are Rem, an agent running inside Rem Agent, powered by Claude.
 
 You help users with software engineering and daily tasks by using the tools available to you.
 
@@ -64,7 +64,7 @@ Agent: Rem | Provider: anthropic | Model: claude-sonnet-4-6 | Platform: darwin |
 `;
 
 exports[`system prompt integration > generates full prompt for OpenAI model 1`] = `
-"You are Rem, a general-purpose assistant running inside Rem Agent, powered by an OpenAI model.
+"You are Rem, an agent running inside Rem Agent, powered by an OpenAI model.
 
 You help users with software engineering and daily tasks by using the tools available to you.
 

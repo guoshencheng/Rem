@@ -10,6 +10,7 @@ const createMockContextBase = () => ({
     getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
     getToolConfig: () => ({}),
     getMcpConfig: () => ({}),
+    resolveAgent: () => ({ id: 'default', name: 'test', corePrompt: 'Default prompt.' }),
   },
   sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
   toolProvider: { getToolSet: () => ({}), register: () => {} },

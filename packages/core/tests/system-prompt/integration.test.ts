@@ -46,6 +46,7 @@ const baseCtx: PromptBuildContext = {
   skills: [{ name: 'test', description: 'A skill', location: '/tmp/test', content: '' }],
   model: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   runtime: { platform: 'darwin', nodeVersion: 'v20.0.0', today: '2026-07-09', cwd: '/tmp' },
+  agentCorePrompt: 'You help users with software engineering and daily tasks by using the tools available to you.',
 };
 
 describe('system prompt integration', () => {

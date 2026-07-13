@@ -1,5 +1,6 @@
 import type { AgentContext } from '../agent-context.js';
 import type { ConfigProvider, AgentToolConfig, ResolvedModelConfig, ResolvedAgentConfig, AgentBehaviorConfig } from '../sdk/config-provider.js';
+import type { ResolvedAgentRole } from '../sdk/agent-role.js';
 import type { McpServerConfig } from '../mcp/types.js';
 import type { SystemPromptAssembler, PromptBuildContext } from '../sdk/system-prompt.js';
 import { createPermissionEvaluator, type SecurityMode } from '../security/permissions/factory.js';
@@ -34,6 +35,10 @@ class ChildConfigProvider implements ConfigProvider {
 
   getMcpConfig(): Record<string, McpServerConfig> {
     return this.parent.getMcpConfig();
+  }
+
+  resolveAgent(id?: string): ResolvedAgentRole {
+    return this.parent.resolveAgent(id);
   }
 }
 

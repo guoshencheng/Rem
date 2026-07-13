@@ -33,6 +33,7 @@ export interface RunAgentParams {
   agentState: AgentState;
   workspace?: string;
   workspaceRoot?: string;
+  agent?: string;
 }
 
 export interface RunAgentResult {
@@ -48,6 +49,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     const ctx = params.ctx;
     const behavior = ctx.configProvider.getBehaviorConfig();
     const modelConfig = ctx.configProvider.getModelConfig();
+    const agentRole = ctx.configProvider.resolveAgent(params.agent);
+    const effectiveModel = agentRole.model ?? modelConfig;
     const workspace = params.workspace ?? 'default';
     const workspaceRoot = params.workspaceRoot ?? (params.workspace ? params.workspace : behavior.workspaceRoot);
 
@@ -145,18 +148,19 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const skills = await skillProvider.loadSkills().catch(() => [] as Skill[]);
 
       const buildCtx: PromptBuildContext = {
-        agentName: behavior.name,
+        agentName: agentRole.name,
         workspaceRoot,
         readOnly: behavior.readOnly,
         tools,
         skills,
-        model: { provider: modelConfig.provider, model: modelConfig.model },
+        model: { provider: effectiveModel.provider, model: effectiveModel.model },
         runtime: {
           platform: process.platform,
           nodeVersion: process.version,
           today: new Date().toISOString().split('T')[0],
           cwd: process.cwd(),
         },
+        agentCorePrompt: agentRole.corePrompt,
       };
 
       const systemPrompt = await ctx.systemPromptAssembler.assemble(buildCtx);
@@ -169,8 +173,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         system: systemPrompt,
         reason: () => reason(
           {
-            provider: modelConfig.provider, model: modelConfig.model, apiKey: modelConfig.apiKey,
-            baseURL: modelConfig.baseURL, system: systemPrompt, messages: msgs,
+            provider: effectiveModel.provider, model: effectiveModel.model, apiKey: effectiveModel.apiKey,
+            baseURL: effectiveModel.baseURL, system: systemPrompt, messages: msgs,
             tools: toolProviderWithDelegate.getToolSet(), signal: params.signal, errorHandler,
           },
           (chunk) => trackMessageStart(chunk),

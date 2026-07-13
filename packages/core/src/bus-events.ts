@@ -6,7 +6,8 @@ export type SessionActivity =
   | 'pending'
   | 'thinking'
   | 'calling-function'
-  | 'outputting';
+  | 'outputting'
+  | 'compressing';
 
 export type BusEvent =
   | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamChunk }

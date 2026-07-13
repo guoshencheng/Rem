@@ -4,6 +4,7 @@ import { MessageList } from './message-list';
 import { ChatComposer } from './chat-composer';
 import { TodoPanel } from './todo-panel';
 import { useTodos } from '@/lib/use-todos';
+import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
 import type { UIMessage, SessionActivity } from '@/lib/types';
 import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 import type { IAgentService } from 'rem-agent-bridge/client';
@@ -42,7 +43,7 @@ export function ChatPanel({
   pendingApprovals,
   initialized,
   tokenUsage,
-  maxTokens = 128_000,
+  maxTokens = DEFAULT_CONTEXT_WINDOW,
   childAgents,
   onOpenChild,
   onSend,

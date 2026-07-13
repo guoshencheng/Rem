@@ -245,6 +245,38 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             return;
           }
 
+          if (chunk.type === 'compress-start') {
+            if (!state) {
+              bufferEvent(event);
+              return;
+            }
+            state.activity = 'compressing';
+            notifyChange();
+            return;
+          }
+
+          if (chunk.type === 'compress-end') {
+            if (!state) {
+              bufferEvent(event);
+              return;
+            }
+            state.activity = undefined;
+            notifyChange();
+            return;
+          }
+
+          if (chunk.type === 'compress-error') {
+            if (!state) {
+              bufferEvent(event);
+              return;
+            }
+            state.activity = undefined;
+            state.error = String(chunk.error);
+            state.status = 'error';
+            notifyChange();
+            return;
+          }
+
           if (!state) {
             bufferEvent(event);
             return;

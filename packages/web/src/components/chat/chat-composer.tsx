@@ -4,6 +4,7 @@ import type { SessionActivity } from 'rem-agent-bridge';
 import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
 import { ActivityBar } from './activity-bar';
 import { InputBox } from './input-box';
+import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
 
 export interface ChatComposerProps {
   streaming: boolean;
@@ -22,7 +23,7 @@ export function ChatComposer({
   initialized,
   activity,
   tokenUsage,
-  maxTokens = 128_000,
+  maxTokens = DEFAULT_CONTEXT_WINDOW,
   pendingApprovals,
   onSend,
   onInterrupt,

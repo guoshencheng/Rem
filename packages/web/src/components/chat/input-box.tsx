@@ -6,6 +6,7 @@ import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from
 import { cn } from '@/lib/utils';
 import { ApprovalBar } from './approval-bar';
 import { TokenStatsBadge } from './token-stats';
+import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
 
 interface InputBoxProps {
   streaming: boolean;
@@ -23,7 +24,7 @@ export function InputBox({
   initialized,
   pendingApprovals,
   tokenUsage,
-  maxTokens = 128_000,
+  maxTokens = DEFAULT_CONTEXT_WINDOW,
   onResolveApproval,
   onSend,
   onInterrupt,

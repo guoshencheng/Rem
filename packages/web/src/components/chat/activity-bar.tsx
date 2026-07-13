@@ -30,6 +30,11 @@ const config: Record<Exclude<SessionActivity, 'idle'>, { label: string; icon: Re
     icon: <PenLine size={14} />,
     color: 'text-success',
   },
+  compressing: {
+    label: 'Compressing context...',
+    icon: <Loader2 size={14} className="animate-spin" />,
+    color: 'text-ac',
+  },
 };
 
 export function ActivityBar({ activity, showIdle }: ActivityBarProps) {

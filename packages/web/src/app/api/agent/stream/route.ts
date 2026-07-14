@@ -10,9 +10,10 @@ async function getAgentService(): Promise<IAgentService> {
 }
 
 export async function GET() {
+  const reqId = Math.random().toString(36).slice(2, 8);
   try {
     const service = await getAgentService();
-    log('api:stream', 'SSE connection established');
+    log('api:stream', 'SSE connection established', { reqId });
     return createBusSSEResponse(service.stream());
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal error';

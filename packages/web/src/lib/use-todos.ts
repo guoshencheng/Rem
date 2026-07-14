@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { IAgentService } from 'rem-agent-bridge/client';
 import type { TodoItem } from 'rem-agent-core';
-import { useAgentBus } from './use-agent-bus';
+import { useAgentBus } from './agent-bus';
 
 export function useTodos(agentService: IAgentService, workspace: string, sessionId: string | null) {
-  const { onEvent } = useAgentBus(agentService, workspace);
+  const { onEvent } = useAgentBus(agentService);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 

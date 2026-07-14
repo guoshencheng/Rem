@@ -129,8 +129,8 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as TodoItem[];
   }
 
-  async *stream(): AsyncIterable<BusEvent> {
-    const response = await fetch(`${this.baseUrl}/api/agent/stream`);
+  async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
+    const response = await fetch(`${this.baseUrl}/api/agent/stream`, { signal });
     if (!response.ok || !response.body) {
       throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
     }
@@ -139,6 +139,7 @@ export class AgentRemoteService implements IAgentService {
     const events = parseSSEStream(reader);
 
     for await (const event of events) {
+      if (signal?.aborted) break;
       if (event.event === 'bus' && event.data) {
         try {
           const parsed = JSON.parse(event.data) as BusEvent;

@@ -200,7 +200,9 @@ export class AgentService implements IAgentService {
 
   /* ---- Broadcast stream ---- */
 
-  async *stream(): AsyncIterable<BusEvent> {
+  async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
+    const streamId = Math.random().toString(36).slice(2, 8);
+    log('sse', 'stream() called', { streamId });
     const queue: BusEvent[] = [];
     let resolveNext: ((event: BusEvent) => void) | null = null;
 
@@ -218,7 +220,7 @@ export class AgentService implements IAgentService {
       // subscribe() above already ran synchronously, so any chunk published
       // after this point is queued — snapshot + queue are gap-free.
       const runningIds = this.agentState.runningSessionIds();
-      log('sse', 'new bus subscriber', { runningSessions: runningIds.length });
+      log('sse', 'new bus subscriber', { streamId, runningSessions: runningIds.length });
       for (const sessionId of runningIds) {
         const snapshot = this.agentState.getSnapshot(sessionId);
         const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
@@ -235,10 +237,16 @@ export class AgentService implements IAgentService {
       }
 
       while (true) {
+        if (signal?.aborted) break;
         if (queue.length > 0) {
           yield queue.shift()!;
         } else {
-          yield await new Promise<BusEvent>((r) => { resolveNext = r; });
+          const event = await new Promise<BusEvent | null>((resolve) => {
+            resolveNext = resolve;
+            signal?.addEventListener('abort', () => resolve(null), { once: true });
+          });
+          if (event === null) break; // aborted
+          yield event;
         }
       }
     } finally {

@@ -5,7 +5,7 @@ import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamChunk } from 'rem-agent-bridge/client';
-import { useAgentBus } from './use-agent-bus';
+import { useAgentBus } from './agent-bus';
 import { generateUUID } from './utils';
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
@@ -44,7 +44,7 @@ interface UseAgentsOptions {
 
 export function useAgents(agentService: IAgentService, options: UseAgentsOptions) {
   const workspace = options.workspace;
-  const bus = useAgentBus(agentService, workspace);
+  const bus = useAgentBus(agentService);
 
   const [sessionList, setSessionList] = useState<SessionSummary[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -515,25 +515,25 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       notifyChange();
 
       try {
-        await bus.send(currentId, content);
+        await bus.send(workspace, currentId, content);
       } catch (err) {
         state.status = 'error';
         state.error = err instanceof Error ? err.message : 'Send failed';
         notifyChange();
       }
     },
-    [currentId, bus, notifyChange],
+    [currentId, bus, notifyChange, workspace],
   );
 
   const interrupt = useCallback(async () => {
     if (!currentId) return;
-    await bus.interrupt(currentId);
+    await bus.interrupt(workspace, currentId);
     const state = sessionMapRef.current.get(currentId);
     if (state) {
       state.status = 'done';
       notifyChange();
     }
-  }, [currentId, bus, notifyChange]);
+  }, [currentId, bus, notifyChange, workspace]);
 
   const switchSession = useCallback(
     async (id: string) => {

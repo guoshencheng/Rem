@@ -12,7 +12,7 @@ describe('todowrite tool registration (end-to-end)', () => {
     // 1. in-memory todo store
     const stored: Record<string, any[]> = {};
     const todoStore = {
-      async getForSession(sessionId: string) {
+      async getBySession(sessionId: string) {
         return stored[sessionId] ?? [];
       },
       async replaceForSession(sessionId: string, todos: any[]) {
@@ -81,7 +81,7 @@ describe('todowrite tool registration (end-to-end)', () => {
 
   it('rejects invalid input via schema check', async () => {
     const todoStore = {
-      async getForSession() { return []; },
+      async getBySession() { return []; },
       async replaceForSession() {},
     };
     const todoService = new DefaultTodoService(todoStore as any);

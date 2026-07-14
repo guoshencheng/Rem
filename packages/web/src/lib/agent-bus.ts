@@ -107,7 +107,7 @@ export function getAgentBus(service: IAgentService) {
  * can call this hook without creating duplicate SSE connections.
  */
 export function useAgentBus(agentService: IAgentService) {
-  const busRef = useRef(getAgentBus(agentService));
+  const busRef = useRef<ReturnType<typeof getAgentBus> | null>(null);
 
   useEffect(() => {
     busRef.current = getAgentBus(agentService);
@@ -117,15 +117,18 @@ export function useAgentBus(agentService: IAgentService) {
     };
   }, [agentService]);
 
-  const onEvent = useCallback((listener: Listener) => busRef.current.onEvent(listener), []);
-  const onReconnect = useCallback((listener: ReconnectListener) => busRef.current.onReconnect(listener), []);
+  const onEvent = useCallback((listener: Listener) => busRef.current?.onEvent(listener) ?? (() => {}), []);
+  const onReconnect = useCallback((listener: ReconnectListener) => busRef.current?.onReconnect(listener) ?? (() => {}), []);
   const send = useCallback(
-    (workspace: string, sessionId: string, content: string) =>
-      busRef.current.send(workspace, sessionId, content),
+    async (workspace: string, sessionId: string, content: string) => {
+      await busRef.current?.send(workspace, sessionId, content);
+    },
     [],
   );
   const interrupt = useCallback(
-    (workspace: string, sessionId: string) => busRef.current.interrupt(workspace, sessionId),
+    async (workspace: string, sessionId: string) => {
+      await busRef.current?.interrupt(workspace, sessionId);
+    },
     [],
   );
 

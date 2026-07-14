@@ -12,7 +12,21 @@ import type {
 import { parseSSEStream } from './sse.js';
 
 export class AgentRemoteService implements IAgentService {
-  constructor(private baseUrl: string) {}
+  private resolvedBaseUrl: string;
+
+  constructor(private baseUrl: string) {
+    this.resolvedBaseUrl = this.resolveBaseUrl(baseUrl);
+  }
+
+  private resolveBaseUrl(url: string): string {
+    if (url) return url.replace(/\/$/, '');
+    // Browser: use current origin
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    // Node.js (SSR, tests, scripts): default to localhost:3000
+    return 'http://localhost:3000';
+  }
 
   async init(): Promise<void> {
     // Remote client requires no local initialization.
@@ -23,7 +37,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async run(workspace: string, sessionId: string, input: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/run?${AgentRemoteService.wsQuery(workspace)}`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/agent/run?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, content: input }),
@@ -35,7 +49,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async interrupt(workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/interrupt?${AgentRemoteService.wsQuery(workspace)}`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/agent/interrupt?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId } satisfies InterruptRequest),
@@ -46,7 +60,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async reset(workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/agent/reset?${AgentRemoteService.wsQuery(workspace)}`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/agent/reset?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId } satisfies ResetRequest),
@@ -57,7 +71,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async createSession(workspace: string): Promise<SessionSummary> {
-    const response = await fetch(`${this.baseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`, { method: 'POST' });
+    const response = await fetch(`${this.resolvedBaseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`, { method: 'POST' });
     if (!response.ok) {
       throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
     }
@@ -65,7 +79,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async listSessions(workspace: string): Promise<SessionSummary[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`);
+    const response = await fetch(`${this.resolvedBaseUrl}/api/sessions?${AgentRemoteService.wsQuery(workspace)}`);
     if (!response.ok) {
       throw new Error(`Failed to list sessions: ${response.status} ${response.statusText}`);
     }
@@ -73,7 +87,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async getMessages(workspace: string, sessionId: string): Promise<UIMessage[]> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`);
+    const response = await fetch(`${this.resolvedBaseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`);
     if (!response.ok) {
       throw new Error(`Failed to get messages: ${response.status} ${response.statusText}`);
     }
@@ -82,7 +96,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -93,14 +107,14 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async deleteSession(workspace: string, sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, { method: 'DELETE' });
+    const response = await fetch(`${this.resolvedBaseUrl}/api/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, { method: 'DELETE' });
     if (!response.ok) {
       throw new Error(`Failed to delete session: ${response.status} ${response.statusText}`);
     }
   }
 
   async listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
-    const response = await fetch(`${this.baseUrl}/api/approvals?${AgentRemoteService.wsQuery(workspace)}&sessionId=${encodeURIComponent(sessionId)}`);
+    const response = await fetch(`${this.resolvedBaseUrl}/api/approvals?${AgentRemoteService.wsQuery(workspace)}&sessionId=${encodeURIComponent(sessionId)}`);
     if (!response.ok) {
       throw new Error(`Failed to list pending approvals: ${response.status} ${response.statusText}`);
     }
@@ -108,7 +122,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
-    const response = await fetch(`${this.baseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve?${AgentRemoteService.wsQuery(workspace)}`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/approvals/${encodeURIComponent(approvalId)}/resolve?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, decision, rule }),
@@ -121,7 +135,7 @@ export class AgentRemoteService implements IAgentService {
 
   async getTodos(workspace: string, sessionId: string): Promise<TodoItem[]> {
     const response = await fetch(
-      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/todos?${AgentRemoteService.wsQuery(workspace)}`,
+      `${this.resolvedBaseUrl}/api/sessions/${encodeURIComponent(sessionId)}/todos?${AgentRemoteService.wsQuery(workspace)}`,
     );
     if (!response.ok) {
       throw new Error(`Failed to get todos: ${response.status} ${response.statusText}`);
@@ -130,7 +144,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
-    const response = await fetch(`${this.baseUrl}/api/agent/stream`, { signal });
+    const response = await fetch(`${this.resolvedBaseUrl}/api/agent/stream`, { signal });
     if (!response.ok || !response.body) {
       throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
     }
@@ -152,7 +166,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async listWorkspaces(): Promise<Workspace[]> {
-    const response = await fetch(`${this.baseUrl}/api/workspaces`);
+    const response = await fetch(`${this.resolvedBaseUrl}/api/workspaces`);
     if (!response.ok) {
       throw new Error(`Failed to list workspaces: ${response.status} ${response.statusText}`);
     }
@@ -160,7 +174,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async addWorkspace(path: string): Promise<Workspace> {
-    const response = await fetch(`${this.baseUrl}/api/workspaces`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),
@@ -179,7 +193,7 @@ export class AgentRemoteService implements IAgentService {
   }
 
   async removeWorkspace(path: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/workspaces`, {
+    const response = await fetch(`${this.resolvedBaseUrl}/api/workspaces`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),

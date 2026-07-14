@@ -19,7 +19,8 @@ import { RuleEngine } from './security/rules/rule-engine.js';
 import { RuleStore } from './security/rules/rule-store.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import type { Rule } from './security/rules/rule.js';
-import { SqliteStorageProvider, type RuleStorage, type StorageProvider } from './storage/index.js';
+import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
+import type { RuleStorage, StorageProvider } from './sdk/storage-provider.js';
 import { DefaultTodoService } from './todo/service.js';
 import {
   createPermissionEvaluator,
@@ -183,5 +184,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     permissionEvaluator,
     securityMode,
     archiveStore: storageProvider.archiveStore,
+    workspaceStore: storageProvider.workspaceStore,
   };
 }

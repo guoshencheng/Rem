@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
-import type { TodoItem } from '../../todo/types.js';
-import type { TodoStore } from '../types.js';
-import { wrapSqliteError } from '../errors.js';
+import type { TodoItem } from '../../../todo/types.js';
+import type { TodoStore } from '../../../sdk/storage-provider.js';
+import { wrapSqliteError } from './errors.js';
 
 export class SqliteTodoStore implements TodoStore {
   constructor(private db: Database.Database) {}

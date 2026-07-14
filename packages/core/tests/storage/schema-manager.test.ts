@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
-import { SqliteSchemaManager, CURRENT_SCHEMA_VERSION } from '../../src/storage/schema.js';
+import { SqliteSchemaManager, CURRENT_SCHEMA_VERSION } from '../../src/plugins/storage/sqlite/schema.js';
 
 describe('SqliteSchemaManager', () => {
   let dir: string;

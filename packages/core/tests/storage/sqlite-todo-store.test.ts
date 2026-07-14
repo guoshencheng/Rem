@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { SqliteSchemaManager } from '../../src/storage/schema.js';
-import { SqliteTodoStore } from '../../src/storage/sqlite/todo-store.js';
+import { SqliteSchemaManager } from '../../src/plugins/storage/sqlite/schema.js';
+import { SqliteTodoStore } from '../../src/plugins/storage/sqlite/todo-store.js';
 import type { TodoItem } from '../../src/todo/types.js';
 
 describe('SqliteTodoStore', () => {

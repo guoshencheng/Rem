@@ -3,7 +3,7 @@ import type { ToolCall, ToolProvider, ToolResult, ToolContext } from '../sdk/too
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';
 import type { Rule } from '../security/rules/rule.js';
-import type { RuleStorage } from '../storage/types.js';
+import type { RuleStorage } from '../sdk/storage-provider.js';
 import { AgentState } from '../agent-state.js';
 import { RuleEngine } from '../security/rules/rule-engine.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';

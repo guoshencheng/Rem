@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
-import type { ArchiveRecord, ArchiveStore } from '../types.js';
-import type { ModelMessage, LanguageModelUsage } from '../../types.js';
-import { wrapSqliteError } from '../errors.js';
+import type { ArchiveRecord, ArchiveStore } from '../../../sdk/storage-provider.js';
+import type { ModelMessage, LanguageModelUsage } from '../../../types.js';
+import { wrapSqliteError } from './errors.js';
 
 interface ArchiveRow {
   id: string;

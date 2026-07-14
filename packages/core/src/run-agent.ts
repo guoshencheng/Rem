@@ -9,7 +9,7 @@ import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolCall, ToolResult } from './sdk/tool-provider.js';
 import { AgentStreamController } from './stream/agent-stream.js';
 import type { AgentContext } from './agent-context.js';
-import type { ArchiveRecord } from './storage/types.js';
+import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
 import { generateId } from './shared/generate-id.js';
 import { reason } from './reason/reason.js';

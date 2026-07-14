@@ -13,11 +13,10 @@ import type { McpConnectionManager } from './mcp/connection-manager.js';
 import type { ToolComposer } from './sdk/tool-composer.js';
 import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
-import type { RuleStorage } from './storage/types.js';
+import type { RuleStorage, ArchiveStore, WorkspaceStore } from './sdk/storage-provider.js';
 import type { TodoService } from './todo/service.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
 import type { SecurityMode } from './security/permissions/factory.js';
-import type { ArchiveStore } from './storage/types.js';
 
 export interface AgentContext {
   configProvider: ConfigProvider;
@@ -41,4 +40,5 @@ export interface AgentContext {
   permissionEvaluator: ToolPermissionEvaluator;
   securityMode: SecurityMode;
   archiveStore: ArchiveStore;
+  workspaceStore: WorkspaceStore;
 }

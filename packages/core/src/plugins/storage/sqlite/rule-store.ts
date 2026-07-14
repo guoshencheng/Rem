@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import type { Rule, RuleSource } from '../../security/rules/rule.js';
-import type { RuleStorage } from '../types.js';
-import { wrapSqliteError } from '../errors.js';
+import type { Rule, RuleSource } from '../../../security/rules/rule.js';
+import type { RuleStorage } from '../../../sdk/storage-provider.js';
+import { wrapSqliteError } from './errors.js';
 
 interface RuleRow {
   id: string;

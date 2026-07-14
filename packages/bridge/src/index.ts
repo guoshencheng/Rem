@@ -27,4 +27,5 @@ export { BridgeAgentStateProvider } from './agent-state-provider.js';
 export { ServiceError } from './errors.js';
 export { BroadcastBus, createBroadcastBus } from './broadcast-bus.js';
 export { JsonWorkspaceRepository } from './workspace-repository-json.js';
+export { SqliteWorkspaceRepository } from './workspace-repository-sqlite.js';
 export type { WorkspaceRepository } from './workspace-repository.js';

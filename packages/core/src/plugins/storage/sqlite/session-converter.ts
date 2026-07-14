@@ -1,5 +1,5 @@
-import type { Session, SessionSummary } from '../../session.js';
-import type { ModelMessage } from '../../types.js';
+import type { Session, SessionSummary } from '../../../session.js';
+import type { ModelMessage } from '../../../types.js';
 
 export interface SessionRow {
   id: string;

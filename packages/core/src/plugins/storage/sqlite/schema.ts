@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -84,6 +84,11 @@ export class SqliteSchemaManager {
 
       CREATE INDEX IF NOT EXISTS idx_archived_messages_version
         ON archived_messages(session_id, version);
+
+      CREATE TABLE IF NOT EXISTS workspaces (
+        path TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL
+      );
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
@@ -145,6 +150,15 @@ export class SqliteSchemaManager {
 
         CREATE INDEX IF NOT EXISTS idx_archived_messages_version
           ON archived_messages(session_id, version);
+      `);
+    }
+
+    if (version < 4) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS workspaces (
+          path TEXT PRIMARY KEY,
+          created_at INTEGER NOT NULL
+        );
       `);
     }
   }

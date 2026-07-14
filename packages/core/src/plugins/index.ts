@@ -11,3 +11,17 @@ export { SqliteSessionProvider } from './session/sqlite/index.js';
 export { FileSkillProvider } from './skill/file/index.js';
 export { createFileSystemTools } from './tool/file-system/index.js';
 export { InMemoryToolProvider } from './tool/in-memory/index.js';
+export {
+  SqliteStorageProvider,
+  type SqliteStorageProviderOptions,
+  SqliteSessionStore,
+  SqliteRuleStore,
+  SqliteTodoStore,
+  SqliteArchiveStore,
+  SqliteWorkspaceStore,
+  SqliteSchemaManager,
+  CURRENT_SCHEMA_VERSION,
+  StorageError,
+  wrapSqliteError,
+  type StorageErrorCode,
+} from './storage/sqlite/index.js';

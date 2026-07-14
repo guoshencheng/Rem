@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 import type { ContentPart, ModelMessage } from '../../../types.js';
-import type { SessionStore } from '../../../storage/types.js';
+import type { SessionStore } from '../../../sdk/storage-provider.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 export class SqliteSessionProvider implements SessionProvider {

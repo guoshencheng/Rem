@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { SqliteArchiveStore } from '../../src/storage/sqlite/archive-store.js';
-import { SqliteSchemaManager } from '../../src/storage/schema.js';
-import type { ArchiveRecord } from '../../src/storage/types.js';
+import { SqliteArchiveStore } from '../../src/plugins/storage/sqlite/archive-store.js';
+import { SqliteSchemaManager } from '../../src/plugins/storage/sqlite/schema.js';
+import type { ArchiveRecord } from '../../src/sdk/storage-provider.js';
 
 describe('SqliteArchiveStore', () => {
   let db: Database.Database;

@@ -1,6 +1,6 @@
 import type { TodoItem, TodoPriority, TodoStatus } from './types.js';
 import { TodoValidationError } from './errors.js';
-import type { TodoStore } from '../storage/types.js';
+import type { TodoStore } from '../sdk/storage-provider.js';
 
 export interface TodoService {
   get(sessionId: string): Promise<TodoItem[]>;

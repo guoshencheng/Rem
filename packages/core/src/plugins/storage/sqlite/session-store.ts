@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import type { Session, SessionSummary } from '../../session.js';
-import type { SessionStore } from '../types.js';
-import { wrapSqliteError } from '../errors.js';
+import type { Session, SessionSummary } from '../../../session.js';
+import type { SessionStore } from '../../../sdk/storage-provider.js';
+import { wrapSqliteError } from './errors.js';
 import { toSession, toSessionSummary } from './session-converter.js';
 
 export class SqliteSessionStore implements SessionStore {

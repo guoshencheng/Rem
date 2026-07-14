@@ -23,6 +23,17 @@ export interface ArchiveStore {
   getLatest(sessionId: string): Promise<ArchiveRecord | null>;
 }
 
+export interface WorkspaceRecord {
+  path: string;
+  createdAt: number;
+}
+
+export interface WorkspaceStore {
+  list(): Promise<WorkspaceRecord[]>;
+  add(path: string): Promise<WorkspaceRecord>;
+  remove(path: string): Promise<void>;
+}
+
 export interface StorageProvider {
   init(): Promise<void>;
   close(): Promise<void>;
@@ -30,6 +41,7 @@ export interface StorageProvider {
   readonly ruleStore: RuleStorage;
   readonly todoStore: TodoStore;
   readonly archiveStore: ArchiveStore;
+  readonly workspaceStore: WorkspaceStore;
 }
 
 export interface TodoStore {

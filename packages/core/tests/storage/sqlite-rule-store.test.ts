@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
-import { SqliteSchemaManager } from '../../src/storage/schema.js';
-import { SqliteRuleStore } from '../../src/storage/sqlite/rule-store.js';
+import { SqliteSchemaManager } from '../../src/plugins/storage/sqlite/schema.js';
+import { SqliteRuleStore } from '../../src/plugins/storage/sqlite/rule-store.js';
 
 describe('SqliteRuleStore', () => {
   let dir: string;

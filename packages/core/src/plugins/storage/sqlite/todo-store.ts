@@ -46,10 +46,6 @@ export class SqliteTodoStore implements TodoStore {
              updated_at = excluded.updated_at`,
         )
         .run(sessionId, todosJson, now, now);
-        /**
-         *  [{"content":"探索项目上下文(诗词相关的现有内容)","status":"completed","priority":"high"},{"content":"询问澄清问题:主题、情感、场景等","status":"completed","priority":"high"},{"content":"提出 2-3 种创作方向","status":"completed","priority":"medium"},{"content":"等待用户选择方向(雨后空山/暮色归田/春山新霁)","status":"in_progress","priority":"high"},{"content":"若需:提供该方向下的场景细节选项","status":"pending","priority":"medium"},{"content":"呈现设计(诗作方案)并获得用户批准","status":"pending","priority":"high"},{"content":"执行:创作并打磨诗作","status":"pending","priority":"high"},{"content":"交付成果(可选择归档到 docs/)","status":"pending","priority":"medium"}]
-         */
-      console.log(`Replaced todos for session ${sessionId}: ${todosJson}`);
       return todos;
     } catch (err) {
       throw wrapSqliteError(err, 'DB_QUERY', `Failed to replace todos for session ${sessionId}`);

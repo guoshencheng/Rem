@@ -10,8 +10,9 @@ class MemoryTodoStore implements TodoStore {
     return this.data.get(sessionId) ?? [];
   }
 
-  async replaceForSession(sessionId: string, todos: TodoItem[]): Promise<void> {
+  async replaceForSession(sessionId: string, todos: TodoItem[]): Promise<TodoItem[]> {
     this.data.set(sessionId, todos);
+    return todos;
   }
 }
 

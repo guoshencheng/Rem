@@ -115,6 +115,8 @@ export class SqliteSessionStore implements SessionStore {
 
   async delete(sessionId: string): Promise<void> {
     try {
+      // todos has no FK to sessions (see schema v7), so clean it up explicitly.
+      this.db.prepare('DELETE FROM todos WHERE session_id = ?').run(sessionId);
       this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
     } catch (err) {
       throw wrapSqliteError(err, 'DB_QUERY', `Failed to delete session ${sessionId}`);

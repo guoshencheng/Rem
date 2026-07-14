@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { SqliteSchemaManager } from '../src/plugins/storage/sqlite/schema.js';
 import { SqliteTodoStore } from '../src/plugins/storage/sqlite/todo-store.js';
+import { SqliteSessionStore } from '../src/plugins/storage/sqlite/session-store.js';
 import { DefaultTodoService } from '../src/todo/service.js';
 import { OverlayToolProvider } from '../src/overlay-tool-provider.js';
 import {
@@ -107,6 +108,49 @@ describe('todowrite → sqlite integration', () => {
     // 数据库中只有一行
     const rows = db.prepare('SELECT * FROM todos WHERE session_id = ?').all('sess-2');
     expect(rows).toHaveLength(1);
+
+    db.close();
+  });
+
+  it('writes todos even when the session row does not exist yet', async () => {
+    const db = new Database(':memory:');
+    new SqliteSchemaManager(db).migrate();
+
+    // 故意不插入 sessions 行：todowrite 不应因外键约束而丢失写入
+    const todoStore = new SqliteTodoStore(db);
+    const todoService = new DefaultTodoService(todoStore);
+
+    await todoService.update('sess-orphan', [
+      { content: 'task 1', status: 'in_progress', priority: 'high' },
+    ]);
+
+    const todos = await todoService.get('sess-orphan');
+    expect(todos).toHaveLength(1);
+    expect(todos[0].content).toBe('task 1');
+
+    db.close();
+  });
+
+  it('removes todos when the session is deleted', async () => {
+    const db = new Database(':memory:');
+    new SqliteSchemaManager(db).migrate();
+
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO sessions (id, workspace, title, pinned, current_turn, metadata_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run('sess-del', 'default', 'test', 0, 0, '{}', now, now);
+
+    const sessionStore = new SqliteSessionStore(db);
+    const todoService = new DefaultTodoService(new SqliteTodoStore(db));
+
+    await todoService.update('sess-del', [
+      { content: 'task 1', status: 'pending', priority: 'high' },
+    ]);
+    expect(await todoService.get('sess-del')).toHaveLength(1);
+
+    await sessionStore.delete('sess-del');
+    expect(await todoService.get('sess-del')).toHaveLength(0);
 
     db.close();
   });

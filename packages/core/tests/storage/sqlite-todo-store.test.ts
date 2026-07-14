@@ -45,12 +45,15 @@ describe('SqliteTodoStore', () => {
     expect(result[0].content).toBe('New');
   });
 
-  it('cascades delete with session', async () => {
+  it('is decoupled from the sessions row (no FK cascade)', async () => {
+    // schema v7 removed the FK to sessions so todowrite never fails when the
+    // session row is not persisted yet. A raw sessions delete therefore leaves
+    // todos intact; cleanup is done explicitly in SqliteSessionStore.delete.
     await store.replaceForSession('session-1', [
       { content: 'Task', status: 'pending', priority: 'low' },
     ]);
     db.prepare('DELETE FROM sessions WHERE id = ?').run('session-1');
     const result = await store.getBySession('session-1');
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(1);
   });
 });

@@ -25,6 +25,7 @@ export class SqliteStorageProvider implements StorageProvider {
   constructor(private options: SqliteStorageProviderOptions) {}
 
   async init(): Promise<void> {
+    if (this.db) return;
     try {
       mkdirSync(dirname(this.options.dbPath), { recursive: true });
       this.db = new Database(this.options.dbPath);

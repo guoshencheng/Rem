@@ -12,3 +12,4 @@ vitest.config.js
 .next
 .sessions
 *.cpuprofile
+coverage

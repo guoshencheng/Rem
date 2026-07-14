@@ -56,10 +56,13 @@ describe('todowrite → sqlite integration', () => {
 
     expect(results[0].error).toBeUndefined();
 
-    // 直接查数据库
-    const rows = db.prepare('SELECT * FROM todos WHERE session_id = ?').all('sess-1');
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ content: 'task 1', status: 'in_progress', priority: 'high' });
+    // 直接查数据库：一行 JSON
+    const row = db.prepare('SELECT * FROM todos WHERE session_id = ?').get('sess-1') as any;
+    expect(row).toBeDefined();
+    expect(row.session_id).toBe('sess-1');
+    const items = JSON.parse(row.todos_json);
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ content: 'task 1', status: 'in_progress', priority: 'high' });
 
     // 通过 service 读
     const todos = await todoService.get('sess-1');
@@ -68,6 +71,42 @@ describe('todowrite → sqlite integration', () => {
     // 事件发布
     expect(published).toHaveLength(1);
     expect(published[0].type).toBe('todo-updated');
+
+    db.close();
+  });
+
+  it('replaces entire list on each call', async () => {
+    const db = new Database(':memory:');
+    new SqliteSchemaManager(db).migrate();
+
+    db.prepare(
+      `INSERT INTO sessions (id, workspace, title, pinned, current_turn, metadata_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run('sess-2', 'default', 'test', 0, 0, '{}', new Date().toISOString(), new Date().toISOString());
+
+    const todoStore = new SqliteTodoStore(db);
+    const todoService = new DefaultTodoService(todoStore);
+
+    // 第一次写入
+    await todoService.update('sess-2', [
+      { content: 'task A', status: 'pending', priority: 'high' },
+      { content: 'task B', status: 'pending', priority: 'medium' },
+    ]);
+
+    // 第二次写入：全量替换（删除 B，新增 C）
+    await todoService.update('sess-2', [
+      { content: 'task A updated', status: 'in_progress', priority: 'high' },
+      { content: 'task C', status: 'pending', priority: 'low' },
+    ]);
+
+    const todos = await todoService.get('sess-2');
+    expect(todos).toHaveLength(2);
+    expect(todos[0].content).toBe('task A updated');
+    expect(todos[1].content).toBe('task C');
+
+    // 数据库中只有一行
+    const rows = db.prepare('SELECT * FROM todos WHERE session_id = ?').all('sess-2');
+    expect(rows).toHaveLength(1);
 
     db.close();
   });

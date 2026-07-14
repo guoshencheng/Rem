@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -51,19 +51,12 @@ export class SqliteSchemaManager {
         ON rules(source);
 
       CREATE TABLE IF NOT EXISTS todos (
-        session_id TEXT NOT NULL,
-        position INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        status TEXT NOT NULL,
-        priority TEXT NOT NULL,
+        session_id TEXT PRIMARY KEY,
+        todos_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        PRIMARY KEY (session_id, position),
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       );
-
-      CREATE INDEX IF NOT EXISTS idx_todos_session
-        ON todos(session_id);
 
       CREATE TABLE IF NOT EXISTS archived_messages (
         id TEXT PRIMARY KEY,
@@ -153,12 +146,58 @@ export class SqliteSchemaManager {
       `);
     }
 
-    if (version < 4) {
+    if (version < 5) {
+      // SQLite does not support ALTER TABLE ... ADD PRIMARY KEY.
+      // Rebuild the todos table with id as PRIMARY KEY.
       this.db.exec(`
-        CREATE TABLE IF NOT EXISTS workspaces (
-          path TEXT PRIMARY KEY,
-          created_at INTEGER NOT NULL
+        CREATE TABLE IF NOT EXISTS todos_new (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          position INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          status TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_todos_new_session_position
+          ON todos_new(session_id, position);
+
+        CREATE INDEX IF NOT EXISTS idx_todos_new_session
+          ON todos_new(session_id);
+
+        INSERT OR IGNORE INTO todos_new (id, session_id, position, content, status, priority, created_at, updated_at)
+        SELECT lower(hex(randomblob(16))), session_id, position, content, status, priority, created_at, updated_at
+        FROM todos;
+
+        DROP TABLE todos;
+        ALTER TABLE todos_new RENAME TO todos;
+      `);
+    }
+
+    if (version < 6) {
+      // Rebuild todos as one JSON row per session.
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS todos_new (
+          session_id TEXT PRIMARY KEY,
+          todos_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        INSERT OR IGNORE INTO todos_new (session_id, todos_json, created_at, updated_at)
+        SELECT session_id,
+               json_group_array(json_object('content', content, 'status', status, 'priority', priority)),
+               MIN(created_at),
+               MAX(updated_at)
+        FROM todos
+        GROUP BY session_id;
+
+        DROP TABLE todos;
+        ALTER TABLE todos_new RENAME TO todos;
       `);
     }
   }

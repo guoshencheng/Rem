@@ -7,6 +7,50 @@ import {
 import { DefaultTodoService } from '../src/todo/service.js';
 import type { ToolCall } from '../src/sdk/tool-provider.js';
 
+describe('todowrite tool registration', () => {
+  it('is registered on OverlayToolProvider and executable', async () => {
+    const stored: Record<string, any[]> = {};
+    const todoStore = {
+      async getBySession(sessionId: string) {
+        return stored[sessionId] ?? [];
+      },
+      async replaceForSession(sessionId: string, todos: any[]) {
+        stored[sessionId] = todos;
+        return todos;
+      },
+    };
+    const todoService = new DefaultTodoService(todoStore as any);
+
+    const baseProvider = {
+      getToolSet: () => ({}),
+      register: () => {},
+      execute: async () => [],
+      isDangerous: () => false,
+    } as any;
+
+    const overlay = new OverlayToolProvider(baseProvider);
+    const def = createTodoWriteToolDefinition();
+    const exec = createTodoWriteToolExecutor(todoService, () => {}, '/tmp');
+    overlay.register(def, exec);
+
+    const toolSet = overlay.getToolSet();
+    expect(Object.keys(toolSet)).toContain('todowrite');
+    expect(toolSet.todowrite.description).toMatch(/todo/i);
+
+    const result = await exec(
+      {
+        todos: [
+          { content: 'verify todowrite', status: 'in_progress', priority: 'high' },
+        ],
+      },
+      { sessionId: 'test-session-1' } as any,
+    );
+    expect(result.output).toContain('verify todowrite');
+    expect(stored['test-session-1']).toHaveLength(1);
+    expect(stored['test-session-1'][0].status).toBe('in_progress');
+  });
+});
+
 describe('todowrite tool registration (end-to-end)', () => {
   it('is registered, appears in toolSet, and executes via OverlayToolProvider.execute', async () => {
     // 1. in-memory todo store
@@ -17,6 +61,7 @@ describe('todowrite tool registration (end-to-end)', () => {
       },
       async replaceForSession(sessionId: string, todos: any[]) {
         stored[sessionId] = todos;
+        return todos;
       },
     };
     const todoService = new DefaultTodoService(todoStore as any);
@@ -82,7 +127,7 @@ describe('todowrite tool registration (end-to-end)', () => {
   it('rejects invalid input via schema check', async () => {
     const todoStore = {
       async getBySession() { return []; },
-      async replaceForSession() {},
+      async replaceForSession() { return []; },
     };
     const todoService = new DefaultTodoService(todoStore as any);
     const baseProvider = {

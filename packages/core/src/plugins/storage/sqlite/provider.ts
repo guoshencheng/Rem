@@ -80,4 +80,8 @@ export class SqliteStorageProvider implements StorageProvider {
     if (!this._workspaceStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
     return this._workspaceStore;
   }
+
+  clean() {
+    this.db?.close();
+  }
 }

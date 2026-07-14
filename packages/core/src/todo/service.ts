@@ -4,7 +4,7 @@ import type { TodoStore } from '../sdk/storage-provider.js';
 
 export interface TodoService {
   get(sessionId: string): Promise<TodoItem[]>;
-  update(sessionId: string, todos: TodoItem[]): Promise<void>;
+  update(sessionId: string, todos: TodoItem[]): Promise<TodoItem[]>;
 }
 
 const VALID_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed', 'cancelled'];
@@ -18,7 +18,7 @@ export class DefaultTodoService implements TodoService {
     return this.store.getBySession(sessionId);
   }
 
-  async update(sessionId: string, todos: TodoItem[]): Promise<void> {
+  async update(sessionId: string, todos: TodoItem[]): Promise<TodoItem[]> {
     if (todos.length > MAX_TODOS) {
       throw new TodoValidationError(`Cannot store more than ${MAX_TODOS} todos`);
     }
@@ -45,7 +45,7 @@ export class DefaultTodoService implements TodoService {
       throw new TodoValidationError('At most one todo can be in_progress at a time');
     }
 
-    await this.store.replaceForSession(
+    return this.store.replaceForSession(
       sessionId,
       todos.map((todo) => ({ ...todo, content: todo.content.trim() })),
     );

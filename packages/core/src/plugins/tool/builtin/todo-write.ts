@@ -59,7 +59,7 @@ Priority semantics:
 - medium: normal priority.
 - low: can be deferred.
 
-The list is ordered: position 0 is the current/next task. Always send the full updated list.`,
+The list is ordered: position 0 is the current/next task. Always send the full updated list. Each call replaces the entire list for the session.`,
     parameters: TodoWriteSchema,
     readOnly: false,
   };
@@ -75,18 +75,18 @@ export function createTodoWriteToolExecutor(
       throw new Error('todowrite requires a sessionId in tool context');
     }
 
-    await todoService.update(ctx.sessionId, input.todos);
+    const updatedTodos = await todoService.update(ctx.sessionId, input.todos);
 
     publish({
       workspace,
       sessionId: ctx.sessionId,
       type: 'todo-updated',
-      todos: input.todos,
+      todos: updatedTodos,
     });
 
     return {
-      output: JSON.stringify(input.todos, null, 2),
-      details: { todos: input.todos },
+      output: JSON.stringify(updatedTodos, null, 2),
+      details: { todos: updatedTodos },
     };
   };
 }

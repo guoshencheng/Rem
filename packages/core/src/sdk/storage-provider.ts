@@ -46,7 +46,7 @@ export interface StorageProvider {
 
 export interface TodoStore {
   getBySession(sessionId: string): Promise<TodoItem[]>;
-  replaceForSession(sessionId: string, todos: TodoItem[]): Promise<void>;
+  replaceForSession(sessionId: string, todos: TodoItem[]): Promise<TodoItem[]>;
 }
 
 export interface SessionStore {

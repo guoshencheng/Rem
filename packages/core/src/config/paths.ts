@@ -101,9 +101,6 @@ function resolveAgentDir(env: Partial<NodeJS.ProcessEnv>): string {
   if (raw) {
     return resolveTilde(raw);
   }
-  if (env.NODE_ENV === 'development') {
-    return join(process.cwd(), '.rem-agent');
-  }
   return join(homedir(), '.rem-agent');
 }
 

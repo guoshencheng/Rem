@@ -16,9 +16,11 @@ export async function GET() {
     return createBusSSEResponse(service.stream());
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal error';
-    log('api:stream', 'SSE connection failed', { error: message });
+    const cause = err instanceof Error && 'cause' in err ? String((err as { cause?: unknown }).cause) : undefined;
+    const stack = err instanceof Error ? err.stack : undefined;
+    log('api:stream', 'SSE connection failed', { error: message, cause, stack });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
+      { error: message, cause },
       { status: 500 },
     );
   }

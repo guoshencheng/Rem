@@ -165,7 +165,14 @@ export class AgentRemoteService implements IAgentService {
       body: JSON.stringify({ path }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to add workspace: ${response.status} ${response.statusText}`);
+      let message = `Failed to add workspace: ${response.status} ${response.statusText}`;
+      try {
+        const data = (await response.json()) as { error?: string };
+        if (data.error) message = data.error;
+      } catch {
+        // ignore JSON parse failure
+      }
+      throw new Error(message);
     }
     return (await response.json()) as Workspace;
   }

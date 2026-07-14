@@ -43,11 +43,14 @@ export async function getContainer(): Promise<AwilixContainer> {
   }
 
   if (!_initPromise) {
-    _initPromise = configureContainer().then((c) => {
-      globalAny[GLOBAL_CONTAINER_KEY] = c;
-      _initPromise = null;
-      return c;
-    });
+    _initPromise = configureContainer()
+      .then((c) => {
+        globalAny[GLOBAL_CONTAINER_KEY] = c;
+        return c;
+      })
+      .finally(() => {
+        _initPromise = null;
+      });
   }
   return _initPromise;
 }

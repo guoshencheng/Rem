@@ -28,4 +28,22 @@ describe('find tool', () => {
     const result = await executor({ pattern: '**/*.js' }, ctx(workspaceRoot));
     expect(result.output).toContain('no matches');
   });
+
+  it('excludes files matching exclude pattern', async () => {
+    await writeFile(join(workspaceRoot, 'foo.js'), '', 'utf8');
+    const executor = createFindToolExecutor();
+    const result = await executor({ pattern: '**/*', exclude: '*.js' }, ctx(workspaceRoot));
+    expect(result.output).not.toContain('foo.js');
+    expect(result.output).toContain('foo.ts');
+  });
+
+  it('excludes files matching exclude array', async () => {
+    await writeFile(join(workspaceRoot, 'foo.js'), '', 'utf8');
+    await writeFile(join(workspaceRoot, 'foo.css'), '', 'utf8');
+    const executor = createFindToolExecutor();
+    const result = await executor({ pattern: '**/*', exclude: ['*.js', '*.css'] }, ctx(workspaceRoot));
+    expect(result.output).not.toContain('foo.js');
+    expect(result.output).not.toContain('foo.css');
+    expect(result.output).toContain('foo.ts');
+  });
 });

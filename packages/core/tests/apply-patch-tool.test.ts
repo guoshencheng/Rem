@@ -77,4 +77,17 @@ describe('apply_patch tool', () => {
       ),
     ).rejects.toThrow('File already exists');
   });
+
+  it('moves a file', async () => {
+    await writeFile(join(workspaceRoot, 'foo.ts'), 'hello\nworld\n', 'utf8');
+    const executor = createApplyPatchToolExecutor(createFileMutationQueue());
+    const result = await executor(
+      { patchText: '*** Begin Patch\n*** Update File: foo.ts\n*** Move to: bar.ts\n@@ hello\n- world\n+ there\n*** End File\n*** End Patch' },
+      ctx(workspaceRoot),
+    );
+    expect(result.output).toContain('Moved: foo.ts -> bar.ts');
+    const content = await readFile(join(workspaceRoot, 'bar.ts'), 'utf8');
+    expect(content).toBe('hello\nthere\n');
+    await expect(readFile(join(workspaceRoot, 'foo.ts'), 'utf8')).rejects.toThrow();
+  });
 });

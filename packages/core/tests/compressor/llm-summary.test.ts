@@ -36,13 +36,13 @@ describe('splitHeadTail', () => {
 });
 
 describe('buildSummaryPrompt', () => {
-  it('includes template and serialized messages', () => {
+  it('includes tool instruction and serialized messages', () => {
     const middle = [
       makeMsg('m1', 'user', 'help me refactor'),
       makeMsg('m2', 'assistant', 'sure, I will read the file'),
     ];
     const prompt = buildSummaryPrompt(middle);
-    expect(prompt).toContain('## Objective');
+    expect(prompt).toContain('submit_summary');
     expect(prompt).toContain('[User]: help me refactor');
     expect(prompt).toContain('[Assistant]: sure, I will read the file');
   });

@@ -25,6 +25,83 @@ export interface ReasonResult {
   finishReason: string;
 }
 
+export interface GenerateParams {
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseURL?: string;
+  system: string;
+  messages: ModelMessage[];
+  tools?: ToolSet;
+  signal?: AbortSignal;
+  errorHandler?: ErrorHandler;
+  responseFormat?: {
+    type: 'json_schema' | 'json_object';
+    json_schema?: {
+      name: string;
+      schema: Record<string, unknown>;
+      strict?: boolean;
+    };
+  };
+}
+
+export interface GenerateResult {
+  text: string;
+  toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
+  reasoning?: string;
+  usage: LanguageModelUsage;
+  finishReason: string;
+}
+
+export async function generate(params: GenerateParams): Promise<GenerateResult> {
+  const llmProvider = resolveProvider(params.provider);
+  const maxAttempts = 3;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      log('generate', 'retrying inference', { attempt, provider: params.provider, model: params.model });
+    }
+    try {
+      log('generate', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
+      const result = await llmProvider.generate({
+        model: params.model,
+        apiKey: params.apiKey,
+        baseURL: params.baseURL,
+        system: params.system,
+        messages: params.messages,
+        tools: params.tools,
+        signal: params.signal,
+        responseFormat: params.responseFormat,
+      });
+
+      return {
+        text: result.text,
+        toolCalls: result.toolCalls,
+        reasoning: result.reasoning,
+        usage: {
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          inputTokenDetails: result.usage.inputTokenDetails ?? { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+          outputTokenDetails: result.usage.outputTokenDetails ?? { textTokens: undefined, reasoningTokens: undefined },
+        },
+        finishReason: result.finishReason ?? 'stop',
+      };
+    } catch (error) {
+      const category = params.errorHandler?.classify(error) ?? 'unknown';
+      const message = error instanceof Error ? error.message : String(error);
+      log('generate', 'inference error', { attempt, provider: params.provider, model: params.model, category, error: message });
+      lastError = error;
+      if (!params.errorHandler) throw error;
+      if (!params.errorHandler.isRetryable(category)) throw error;
+      if (attempt === maxAttempts - 1) throw error;
+    }
+  }
+
+  throw lastError;
+}
+
 export async function reason(
   params: ReasonParams,
   emit: (chunk: ProviderChunk) => void,

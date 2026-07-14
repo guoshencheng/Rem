@@ -4,9 +4,16 @@ import type { Session } from '../../../session.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { TokenUsageDetail } from '../../../token-usage.js';
 import { resolveContextWindow } from '../../../llm/context-window.js';
-import { reason } from '../../../reason/reason.js';
+import { generate } from '../../../reason/reason.js';
 import { splitHeadTail } from './split.js';
-import { buildSummaryPrompt, SUMMARY_SYSTEM_PROMPT } from './prompt.js';
+import {
+  buildSummaryPrompt,
+  SUMMARY_SYSTEM_PROMPT,
+  SUMMARY_TOOL_NAME,
+  SUMMARY_TOOL_SCHEMA,
+  formatSummaryAsMarkdown,
+  type SummaryData,
+} from './prompt.js';
 import { generateId } from '../../../shared/generate-id.js';
 
 export class LLMSummarizingCompressor implements ContextCompressor {
@@ -53,25 +60,31 @@ export class LLMSummarizingCompressor implements ContextCompressor {
     }
 
     const prompt = buildSummaryPrompt(middle);
-    const result = await reason(
-      {
-        provider: this.modelConfig.provider,
-        model: this.modelConfig.model,
-        apiKey: this.modelConfig.apiKey,
-        baseURL: this.modelConfig.baseURL,
-        system: SUMMARY_SYSTEM_PROMPT,
-        messages: [{ id: generateId(), role: 'user', content: [{ type: 'text', text: prompt }] }],
-        tools: {},
-        signal: undefined,
-        errorHandler: undefined,
+    const result = await generate({
+      provider: this.modelConfig.provider,
+      model: this.modelConfig.model,
+      apiKey: this.modelConfig.apiKey,
+      baseURL: this.modelConfig.baseURL,
+      system: SUMMARY_SYSTEM_PROMPT,
+      messages: [{ id: generateId(), role: 'user', content: [{ type: 'text', text: prompt }] }],
+      tools: {
+        [SUMMARY_TOOL_NAME]: SUMMARY_TOOL_SCHEMA,
       },
-      () => {},
-    );
+      signal: undefined,
+      errorHandler: undefined,
+    });
+
+    const summaryCall = result.toolCalls.find((tc) => tc.toolName === SUMMARY_TOOL_NAME);
+    const summaryData = summaryCall?.input as SummaryData | undefined;
+
+    const summaryText = summaryData
+      ? formatSummaryAsMarkdown(summaryData)
+      : result.text;
 
     const summaryMsg: ModelMessage = {
       id: generateId(),
       role: 'system',
-      content: [{ type: 'text', text: `[上下文压缩摘要]\n\n${result.text}` }],
+      content: [{ type: 'text', text: `[上下文压缩摘要]\n\n${summaryText}` }],
     };
 
     return [...head, summaryMsg, ...tail];

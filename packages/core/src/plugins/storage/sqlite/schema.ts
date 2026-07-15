@@ -146,6 +146,26 @@ export class SqliteSchemaManager {
     }
 
     if (version < 5) {
+      // If the existing todos table lacks the position column (e.g. it was created
+      // prematurely by the current-schema CREATE TABLE IF NOT EXISTS), drop it so
+      // we can rebuild from the correct shape.
+      const columns = this.db.prepare('PRAGMA table_info(todos)').all() as { name: string }[];
+      const hasPosition = columns.some((c) => c.name === 'position');
+      if (!hasPosition) {
+        this.db.exec('DROP TABLE IF EXISTS todos;');
+        this.db.exec(`
+          CREATE TABLE todos (
+            session_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            status TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, position)
+          );
+        `);
+      }
       // SQLite does not support ALTER TABLE ... ADD PRIMARY KEY.
       // Rebuild the todos table with id as PRIMARY KEY.
       this.db.exec(`

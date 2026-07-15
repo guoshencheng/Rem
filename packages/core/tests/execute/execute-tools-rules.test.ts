@@ -52,10 +52,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].output).toBe('hello-world');
@@ -72,10 +71,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].error).toBe('denied by rule');
@@ -93,10 +91,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].output).toBe('ok');
@@ -116,10 +113,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].error).toBe('denied by rule');

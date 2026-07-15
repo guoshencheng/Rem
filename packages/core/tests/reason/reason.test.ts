@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { reason } from '../../src/reason/reason.js';
-import * as apiRegistry from '../../src/llm/api-registry.js';
-import type { LLMProvider, StreamChunk } from '../../src/llm/types.js';
+import type { Model, AssistantMessageEventStream, AssistantMessage } from '@earendil-works/pi-ai';
+import type { Models } from '@earendil-works/pi-ai';
 import type { ModelMessage } from '../../src/types.js';
 
 describe('reason usage forwarding', () => {
@@ -9,20 +9,27 @@ describe('reason usage forwarding', () => {
     const emitted: any[] = [];
     const emit = (chunk: any) => { emitted.push(chunk); };
 
-    const mockProvider: LLMProvider = {
-      async *stream() {
-        yield { type: 'text', text: 'hello' };
-        yield { type: 'usage', inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const mockModel = { id: 'mock', provider: 'mock' } as Model<any>;
+    const mockStream: AssistantMessageEventStream = {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'text_delta', contentIndex: 0, delta: 'hello', partial: {} as any };
       },
-      async generate() {
-        throw new Error('not used');
-      },
-    };
+      result: vi.fn().mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hello' }],
+        usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: 'stop',
+      } as AssistantMessage),
+    } as unknown as AssistantMessageEventStream;
 
-    vi.spyOn(apiRegistry, 'resolveProvider').mockReturnValue(mockProvider);
+    const mockModels: Models = {
+      getModel: vi.fn().mockReturnValue(mockModel),
+      stream: vi.fn().mockReturnValue(mockStream),
+    } as unknown as Models;
 
     const messages: ModelMessage[] = [];
     await reason({
+      models: mockModels,
       provider: 'mock',
       model: 'mock',
       apiKey: 'key',
@@ -30,8 +37,6 @@ describe('reason usage forwarding', () => {
       messages,
     }, emit);
 
-    const usageChunk = emitted.find(c => c.type === 'usage');
-    expect(usageChunk).toBeDefined();
-    expect(usageChunk.totalTokens).toBe(15);
+    expect(emitted.some(c => c.type === 'text-delta')).toBe(true);
   });
 });

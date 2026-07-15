@@ -3,9 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
+import type { Message } from '@earendil-works/pi-ai';
 import { SqliteSchemaManager } from '../../src/plugins/storage/sqlite/schema.js';
 import { SqliteSessionStore } from '../../src/plugins/storage/sqlite/session-store.js';
-import type { ModelMessage } from '../../../src/types.js';
 
 describe('SqliteSessionStore', () => {
   let dir: string;
@@ -29,7 +29,7 @@ describe('SqliteSessionStore', () => {
     expect(session.sessionId).toBeDefined();
     expect(session.conversation).toEqual([]);
     expect(session.currentTurn).toBe(0);
-    expect(session.metadata).toEqual({ workspace: 'default' });
+    expect(session.metadata).toEqual({ workspace: 'default', schemaVersion: 2 });
   });
 
   it('should save and load a session with messages', async () => {
@@ -37,11 +37,11 @@ describe('SqliteSessionStore', () => {
     session.metadata.title = 'Test';
     session.metadata.pinned = true;
     session.currentTurn = 1;
-    const msg: ModelMessage = {
-      id: 'm1',
+    const msg: Message = {
       role: 'user',
       content: [{ type: 'text', text: 'hello' }],
-    };
+      timestamp: Date.now(),
+    } as Message;
     session.conversation.push(msg);
 
     await store.save(session);
@@ -88,15 +88,15 @@ describe('SqliteSessionStore', () => {
     expect(list[1].title).toBe('A');
   });
 
-  it('should keep message order and ids after save', async () => {
+  it('should keep message order after save', async () => {
     const session = await store.create('default');
-    const m1: ModelMessage = { id: 'id-1', role: 'user', content: [{ type: 'text', text: 'first' }] };
-    const m2: ModelMessage = { id: 'id-2', role: 'assistant', content: [{ type: 'text', text: 'second' }] };
+    const m1: Message = { role: 'user', content: [{ type: 'text', text: 'first' }], timestamp: Date.now() } as Message;
+    const m2: Message = { role: 'assistant', content: [{ type: 'text', text: 'second' }], timestamp: Date.now() } as Message;
     session.conversation.push(m1, m2);
     await store.save(session);
 
     const loaded = await store.load(session.sessionId);
-    expect(loaded!.conversation[0].id).toBe('id-1');
-    expect(loaded!.conversation[1].id).toBe('id-2');
+    expect(loaded!.conversation[0].role).toBe('user');
+    expect(loaded!.conversation[1].role).toBe('assistant');
   });
 });

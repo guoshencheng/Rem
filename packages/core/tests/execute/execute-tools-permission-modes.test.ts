@@ -52,10 +52,9 @@ describe('executeTools permission modes', () => {
       ruleEngine,
       ruleStore,
       securityMode: mode,
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c: any) => chunks.push(c),
     };
   }

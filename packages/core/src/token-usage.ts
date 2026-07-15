@@ -1,8 +1,42 @@
 import type { LanguageModelUsage } from './types.js';
+import type { Usage } from '@earendil-works/pi-ai';
 
 export interface TokenUsageDetail extends LanguageModelUsage {
   runAt: Date;
   turns: LanguageModelUsage[];
+}
+
+export function emptyPiUsage(): Usage {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  };
+}
+
+export function addCost(a: Usage['cost'], b: Usage['cost']): Usage['cost'] {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    total: a.total + b.total,
+  };
+}
+
+export function addPiUsage(a: Usage, b: Usage): Usage {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    totalTokens: a.totalTokens + b.totalTokens,
+    cost: addCost(a.cost, b.cost),
+    reasoning: a.reasoning ?? b.reasoning,
+  };
 }
 
 export function emptyUsage(): LanguageModelUsage {

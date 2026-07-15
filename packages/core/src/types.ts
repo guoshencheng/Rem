@@ -1,4 +1,32 @@
 import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
+import type { Message, AssistantMessageEvent, Usage } from '@earendil-works/pi-ai';
+
+export interface StreamErrorInfo {
+  name: string;
+  message: string;
+  reason?: 'error' | 'aborted';
+  stack?: string;
+}
+
+export interface RemMessage {
+  messageId: string;
+  message: Message;
+  tokenUsage?: Usage;
+}
+
+export type RemMetaEvent =
+  | { type: 'step-start'; step: number }
+  | { type: 'step-finish'; step: number }
+  | { type: 'session-title'; title: string }
+  | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
+  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
+  | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
+  | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
+  | { type: 'compress-error'; sessionId: string; error: string }
+  | { type: 'finish'; output: AgentOutput }
+  | { type: 'error'; error: StreamErrorInfo };
+
+export type AgentStreamEvent = AssistantMessageEvent | RemMetaEvent;
 
 export type ContentPart =
   | { type: 'text';        text: string }

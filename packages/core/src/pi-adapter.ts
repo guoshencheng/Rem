@@ -20,7 +20,7 @@ export function toPiMessage(message: ModelMessage): Message {
         .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
         .map((p) => p.text)
         .join('\n');
-      return { role: 'user', content: text, timestamp: Date.now() } satisfies UserMessage;
+      return { role: 'user', content: text, timestamp: Date.now() } as UserMessage;
     }
     case 'assistant': {
       const content: AssistantMessage['content'] = [];
@@ -28,10 +28,15 @@ export function toPiMessage(message: ModelMessage): Message {
         if (part.type === 'text') content.push({ type: 'text', text: part.text });
         else if (part.type === 'reasoning') content.push({ type: 'thinking', thinking: part.text });
         else if (part.type === 'tool-call') {
-          content.push({ type: 'toolCall', id: part.toolCallId, name: part.toolName, arguments: part.arguments });
+          content.push({
+            type: 'toolCall',
+            id: part.toolCallId,
+            name: part.toolName,
+            arguments: part.arguments as Record<string, any>,
+          });
         }
       }
-      return { role: 'assistant', content, timestamp: Date.now() } satisfies AssistantMessage;
+      return { role: 'assistant', content, timestamp: Date.now() } as AssistantMessage;
     }
     case 'tool': {
       // tool-result parts 应该已经在 execute-tools 处理为 ToolResultMessage，这里做兜底转换
@@ -46,7 +51,7 @@ export function toPiMessage(message: ModelMessage): Message {
         content: [{ type: 'text', text: results[0].output }],
         isError: !!results[0].error,
         timestamp: Date.now(),
-      } satisfies ToolResultMessage;
+      } as ToolResultMessage;
     }
     case 'system':
       // system 消息不应出现在 conversation 中，应进入 Context.systemPrompt
@@ -70,7 +75,7 @@ export function fromPiMessage(message: Message, messageId: string): ModelMessage
         if (block.type === 'text') content.push({ type: 'text', text: block.text });
         else if (block.type === 'thinking') content.push({ type: 'reasoning', text: block.thinking });
         else if (block.type === 'toolCall') {
-          content.push({ type: 'tool-call', toolCallId: block.id, toolName: block.name, arguments: block.arguments });
+          content.push({ type: 'tool-call', toolCallId: block.id, toolName: block.name, arguments: block.arguments as unknown });
         }
       }
       return { id: messageId, role: 'assistant', content };
@@ -87,7 +92,7 @@ export function fromPiMessage(message: Message, messageId: string): ModelMessage
 }
 
 export function toPiTool(name: string, schema: ToolSchema): Tool {
-  return { name, description: schema.description, parameters: schema.parameters };
+  return { name, description: schema.description, parameters: schema.parameters } as Tool;
 }
 
 export function toPiToolResultMessage(result: { toolCallId: string; toolName: string; output: string; error?: string }): ToolResultMessage {
@@ -98,7 +103,7 @@ export function toPiToolResultMessage(result: { toolCallId: string; toolName: st
     content: [{ type: 'text', text: result.output }],
     isError: !!result.error,
     timestamp: Date.now(),
-  };
+  } as ToolResultMessage;
 }
 
 export function* toLegacyProviderChunks(event: AssistantMessageEvent): Generator<ProviderChunk> {
@@ -145,7 +150,7 @@ export function fromPiAssistantMessage(message: AssistantMessage): {
     .join('\n') || undefined;
   const toolCalls = message.content
     .filter((b): b is ToolCall => b.type === 'toolCall')
-    .map((b) => ({ toolCallId: b.id, toolName: b.name, input: b.arguments }));
+    .map((b) => ({ toolCallId: b.id, toolName: b.name, input: b.arguments as unknown }));
   return {
     text,
     reasoning,
@@ -182,4 +187,30 @@ export function languageModelUsageToPiUsage(usage: LanguageModelUsage): Usage {
     totalTokens: usage.totalTokens,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   };
+}
+
+export interface LegacyModelMessage {
+  id: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: ContentPart[];
+}
+
+export function migrateConversationToPiAi(
+  conversation: LegacyModelMessage[],
+): { messages: Message[]; messageIds: Map<string, string> } {
+  const messageIds = new Map<string, string>();
+  const messages: Message[] = [];
+  for (const legacy of conversation) {
+    if (legacy.role === 'system') continue;
+    const message = toPiMessage(legacy as ModelMessage);
+    messages.push(message);
+    if (legacy.id) {
+      messageIds.set(legacy.id, legacy.id);
+    }
+  }
+  return { messages, messageIds };
+}
+
+export function resolveMessageIdFromMeta(message: Message, meta?: Map<Message, string>): string | undefined {
+  return meta?.get(message);
 }

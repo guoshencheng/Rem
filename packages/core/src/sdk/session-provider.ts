@@ -1,5 +1,6 @@
+import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session.js';
-import type { ModelMessage, ContentPart } from '../types.js';
+import type { RemMessage } from '../types.js';
 
 export type { Session, SessionSummary };
 
@@ -11,7 +12,7 @@ export interface SessionProvider {
   list(): Promise<SessionSummary[]>;
 
   /** 创建消息并追加到会话 */
-  addMessage(session: Session, role: 'assistant' | 'tool'): ModelMessage;
-  /** 向消息追加 content part */
-  appendContent(session: Session, msg: ModelMessage, part: ContentPart): void;
+  addMessage(session: Session, role: 'assistant' | 'tool'): RemMessage;
+  /** 向消息追加 content block */
+  appendContent(session: Session, message: Message, block: TextContent | ThinkingContent | ToolCall): void;
 }

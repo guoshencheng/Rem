@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
+import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionProvider, SessionSummary } from '../../sdk/session-provider.js';
-import type { ModelMessage, ContentPart } from '../../types.js';
+import type { RemMessage } from '../../types.js';
 import { JsonlSessionStore } from './jsonl-store.js';
+import { migrateConversationToPiAi } from '../../pi-adapter.js';
 
 export abstract class BaseSessionProvider implements SessionProvider {
   protected store: JsonlSessionStore;
@@ -16,7 +18,7 @@ export abstract class BaseSessionProvider implements SessionProvider {
       sessionId: randomUUID(),
       conversation: [],
       currentTurn: 0,
-      metadata: {},
+      metadata: { schemaVersion: 2 },
       createdAt: now,
       updatedAt: now,
     };
@@ -25,18 +27,45 @@ export abstract class BaseSessionProvider implements SessionProvider {
   }
 
   async load(sessionId: string): Promise<Session | null> {
-    return this.store.load(sessionId);
+    const session = await this.store.load(sessionId);
+    if (!session) return null;
+
+    if ((session.metadata?.schemaVersion ?? 1) < 2) {
+      const { messages, messageIds } = migrateConversationToPiAi(session.conversation as any);
+      session.conversation = messages;
+      const messageMeta: Record<string, string> = {};
+      for (const [key, value] of messageIds) {
+        messageMeta[key] = value;
+      }
+      session.metadata = {
+        ...session.metadata,
+        schemaVersion: 2,
+        messageMeta: { ...(session.metadata?.messageMeta as Record<string, string>), ...messageMeta },
+      };
+      await this.store.save(session);
+    }
+
+    return session;
   }
 
-  addMessage(session: Session, role: 'assistant' | 'tool'): ModelMessage {
-    const msg: ModelMessage = { id: randomUUID(), role, content: [] };
-    session.conversation.push(msg);
+  addMessage(session: Session, role: 'assistant' | 'tool'): RemMessage {
+    const messageId = randomUUID();
+    let message: Message;
+    if (role === 'assistant') {
+      message = { role: 'assistant', content: [], timestamp: Date.now() } as unknown as Message;
+    } else {
+      message = { role: 'toolResult', toolCallId: '', toolName: '', content: [], isError: false, timestamp: Date.now() } as unknown as Message;
+    }
+    session.conversation.push(message);
+    const messageMeta = (session.metadata.messageMeta ?? {}) as Record<string, string>;
+    messageMeta[messageId] = messageId;
+    session.metadata = { ...session.metadata, messageMeta };
     void this.save(session).catch(() => {});
-    return msg;
+    return { messageId, message };
   }
 
-  appendContent(session: Session, msg: ModelMessage, part: ContentPart): void {
-    msg.content.push(part);
+  appendContent(session: Session, message: Message, block: TextContent | ThinkingContent | ToolCall): void {
+    (message.content as unknown[]).push(block);
     void this.save(session).catch(() => {});
   }
 

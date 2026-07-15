@@ -1,8 +1,8 @@
 import { mkdir, readFile, writeFile, unlink, readdir, rename, access } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import type { Message } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
-import type { ModelMessage } from '../../types.js';
 import { log } from '../../shared/debug-log.js';
 
 const SAVE_DEBOUNCE_MS = 100;
@@ -112,9 +112,6 @@ export class JsonlSessionStore {
 
   private async writeSave(session: Session): Promise<void> {
     await this.ensureDir();
-    // Rewrite the full conversation file so that in-place content updates
-    // (e.g. appending text/reasoning parts to an assistant message) are persisted.
-    // Using temp-file + rename keeps the write atomic.
     const lines = session.conversation.map((m) => JSON.stringify(m)).join('\n') + (session.conversation.length > 0 ? '\n' : '');
     const tmpPath = `${this.jsonlPath(session.sessionId)}.${randomUUID()}.tmp`;
     await writeFile(tmpPath, lines, 'utf-8');
@@ -169,19 +166,19 @@ export class JsonlSessionStore {
     return summaries;
   }
 
-  private async readMessages(sessionId: string): Promise<ModelMessage[] | null> {
+  private async readMessages(sessionId: string): Promise<Message[] | null> {
     let raw: string;
     try {
       raw = await readFile(this.jsonlPath(sessionId), 'utf-8');
     } catch {
       return null;
     }
-    const messages: ModelMessage[] = [];
+    const messages: Message[] = [];
     for (const line of raw.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       try {
-        messages.push(JSON.parse(trimmed) as ModelMessage);
+        messages.push(JSON.parse(trimmed) as Message);
       } catch {
         return null;
       }

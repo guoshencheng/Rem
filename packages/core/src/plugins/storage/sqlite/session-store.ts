@@ -23,7 +23,7 @@ export class SqliteSessionStore implements SessionStore {
         sessionId,
         conversation: [],
         currentTurn: 0,
-        metadata: { workspace },
+        metadata: { workspace, schemaVersion: 2 },
         createdAt: now,
         updatedAt: now,
       };
@@ -79,7 +79,7 @@ export class SqliteSessionStore implements SessionStore {
           new Date().toISOString()
         );
 
-      const messageIds = session.conversation.map((m) => m.id);
+      const messageIds = session.conversation.map(() => randomUUID());
       if (messageIds.length > 0) {
         const placeholders = messageIds.map(() => '?').join(',');
         this.db
@@ -96,7 +96,7 @@ export class SqliteSessionStore implements SessionStore {
       for (let i = 0; i < session.conversation.length; i++) {
         const msg = session.conversation[i];
         insert.run(
-          msg.id,
+          messageIds[i],
           session.sessionId,
           msg.role,
           JSON.stringify(msg.content),

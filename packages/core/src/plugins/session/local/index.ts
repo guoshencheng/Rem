@@ -37,7 +37,7 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async load(sessionId: string): Promise<Session | null> {
-    const session = await this.store.load(sessionId);
+    const session = await super.load(sessionId);
     if (!session) return null;
     try {
       const raw = await readFile(this.msgPath(sessionId), 'utf-8');

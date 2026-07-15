@@ -1,5 +1,5 @@
+import type { Message } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../../../session.js';
-import type { ModelMessage } from '../../../types.js';
 
 export interface SessionRow {
   id: string;
@@ -22,16 +22,23 @@ export interface MessageRow {
 export function toSession(row: SessionRow, messages: MessageRow[]): Session {
   return {
     sessionId: row.id,
-    conversation: messages.map((m) => ({
-      id: m.id,
-      role: m.role as ModelMessage['role'],
-      content: JSON.parse(m.content_json) as ModelMessage['content'],
-    })),
+    conversation: messages.map((m) => toMessage(m)),
     currentTurn: row.current_turn,
     metadata: parseMetadata(row),
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
+}
+
+function toMessage(row: MessageRow): Message {
+  const content = JSON.parse(row.content_json);
+  if (row.role === 'user') {
+    return { role: 'user', content, timestamp: Date.parse(row.created_at) } as Message;
+  }
+  if (row.role === 'assistant') {
+    return { role: 'assistant', content, timestamp: Date.parse(row.created_at) } as Message;
+  }
+  return { role: 'toolResult', content, timestamp: Date.parse(row.created_at) } as Message;
 }
 
 export function toSessionSummary(row: {

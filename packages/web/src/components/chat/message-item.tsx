@@ -1,8 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { MarkdownContent } from './markdown-content';
 import { ChildAgentCard } from './child-agent-card';
+import { CopyButton } from './copy-button';
 import type { UIMessage } from 'rem-agent-bridge';
 import type { LanguageModelUsage } from 'rem-agent-core';
 import { ReasoningBlock } from './reasoning-block';
@@ -22,6 +24,13 @@ interface MessageItemProps {
 export function MessageItem({ message, childAgents, onOpenChild }: MessageItemProps) {
   const isUser = message.role === 'user';
 
+  const plainText = useMemo(() => {
+    return message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('\n');
+  }, [message.parts]);
+
   if (isUser) {
     return (
       <div className="flex justify-end py-3">
@@ -38,7 +47,7 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
   }
 
   return (
-    <div className="py-3" style={{
+    <div className="py-3 group relative" style={{
       padding: 0,
     }}>
       <div className={cn(
@@ -93,6 +102,11 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
           </div>
         )}
       </div>
+      {plainText && message.status !== 'streaming' && (
+        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CopyButton text={plainText} />
+        </div>
+      )}
     </div>
   );
 }

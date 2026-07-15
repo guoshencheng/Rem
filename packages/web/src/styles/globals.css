@@ -45,6 +45,10 @@
   ::selection {
     background-color: rgba(185, 169, 255, 0.3);
   }
+
+  .bg-ac ::selection {
+    background-color: Highlight;
+  }
 }
 
 @utility scrollbar-thin {

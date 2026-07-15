@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { StreamCollector } from "../src/llm/stream-collector.js";
+import { StreamCollector } from "../src/deprecated/llm/stream-collector.js";
 import type { StreamChunk } from "../src/llm/types.js";
 import { ThinkingTagPartitioner } from "../src/shared/text/thinking-tag/index.js";
 

@@ -6,7 +6,7 @@ import {
   listProviders,
   clearProviders,
   type LLMProvider,
-} from '../../src/llm/api-registry.js';
+} from '../../src/deprecated/llm/api-registry.js';
 
 const mockProvider: LLMProvider = {
   generate: async () => ({ text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }),

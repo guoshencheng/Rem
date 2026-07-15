@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StreamCollector } from '../../src/llm/stream-collector.js';
+import { StreamCollector } from '../../src/deprecated/llm/stream-collector.js';
 
 describe('StreamCollector', () => {
   it('preserves input and output token details from usage chunks', () => {

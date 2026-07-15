@@ -1,4 +1,5 @@
 export * from './types.js';
+export { createCoreModels, type CreateCoreModelsOptions } from './llm/models.js';
 export * from './config/paths.js';
 export * from './shared/debug-log.js';
 export * from './budget.js';
@@ -31,9 +32,5 @@ export * from './todo/types.js';
 export * from './todo/errors.js';
 export * from './todo/service.js';
 export * from './llm/types.js';
-export * from './llm/stream-collector.js';
-export * from './llm/api-registry.js';
-export * from './llm/engine.js';
-export * from './llm/providers/index.js';
 export * from './token-usage.js';
 export * from './llm/context-window.js';

@@ -1,13 +1,11 @@
 import type { Message, Models, Context } from '@earendil-works/pi-ai';
-import type { ModelMessage, ProviderChunk, LanguageModelUsage } from '../types.js';
+import type { ModelMessage, LanguageModelUsage } from '../types.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../llm/types.js';
-import { toPiTool, fromPiAssistantMessage, toLegacyProviderChunks } from '../pi-adapter.js';
+import { toPiTool, fromPiAssistantMessage } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
-export { generate, type GenerateParams, type GenerateResult } from './generate.js';
-
-export interface ReasonParams {
+export interface GenerateParams {
   models: Models;
   provider: string;
   model: string;
@@ -18,9 +16,17 @@ export interface ReasonParams {
   tools?: ToolSet;
   signal?: AbortSignal;
   errorHandler?: ErrorHandler;
+  responseFormat?: {
+    type: 'json_schema' | 'json_object';
+    json_schema?: {
+      name: string;
+      schema: Record<string, unknown>;
+      strict?: boolean;
+    };
+  };
 }
 
-export interface ReasonResult {
+export interface GenerateResult {
   text: string;
   toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
   reasoning?: string;
@@ -28,10 +34,7 @@ export interface ReasonResult {
   finishReason: string;
 }
 
-export async function reason(
-  params: ReasonParams,
-  emit: (chunk: ProviderChunk) => void,
-): Promise<ReasonResult> {
+export async function generate(params: GenerateParams): Promise<GenerateResult> {
   const { models } = params;
   const model = models.getModel(params.provider, params.model);
   if (!model) throw new Error(`Unknown model: ${params.provider}/${params.model}`);
@@ -47,24 +50,16 @@ export async function reason(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
-      log('reason', 'retrying inference', { attempt, provider: params.provider, model: params.model });
+      log('generate', 'retrying inference', { attempt, provider: params.provider, model: params.model });
     }
     try {
-      log('reason', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
-      const stream = models.stream(model, context, {
+      log('generate', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
+      const message = await models.complete(model, context, {
         apiKey: params.apiKey,
         baseURL: params.baseURL,
         signal: params.signal,
         maxRetries: 0,
       });
-
-      for await (const event of stream) {
-        for (const chunk of toLegacyProviderChunks(event)) {
-          emit(chunk);
-        }
-      }
-
-      const message = await stream.result();
       if (message.stopReason === 'error' || message.stopReason === 'aborted') {
         throw new Error(message.errorMessage ?? `LLM stopped: ${message.stopReason}`);
       }
@@ -73,7 +68,7 @@ export async function reason(
     } catch (error) {
       const category = params.errorHandler?.classify(error) ?? 'unknown';
       const message = error instanceof Error ? error.message : String(error);
-      log('reason', 'inference error', { attempt, provider: params.provider, model: params.model, category, error: message });
+      log('generate', 'inference error', { attempt, provider: params.provider, model: params.model, category, error: message });
       lastError = error;
       if (!params.errorHandler) throw error;
       if (!params.errorHandler.isRetryable(category)) throw error;

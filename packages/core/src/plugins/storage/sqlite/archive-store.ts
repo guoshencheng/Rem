@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
+import type { Message } from '@earendil-works/pi-ai';
 import type { ArchiveRecord, ArchiveStore } from '../../../sdk/storage-provider.js';
-import type { ModelMessage, LanguageModelUsage } from '../../../types.js';
+import type { LanguageModelUsage } from '../../../types.js';
 import { wrapSqliteError } from './errors.js';
 
 interface ArchiveRow {
@@ -87,7 +88,7 @@ export class SqliteArchiveStore implements ArchiveStore {
       compressedAt: new Date(row.compressed_at),
       version: row.version,
       parentArchiveId: row.parent_archive_id ?? undefined,
-      conversationSnapshot: JSON.parse(row.conversation_snapshot) as ModelMessage[],
+      conversationSnapshot: JSON.parse(row.conversation_snapshot) as Message[],
       summary: row.summary,
       tokenUsageBefore: row.token_usage_before
         ? (JSON.parse(row.token_usage_before) as LanguageModelUsage)

@@ -1,8 +1,9 @@
+import type { Message, Models } from '@earendil-works/pi-ai';
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { ModelMessage } from '../../../types.js';
 import type { ToolSchema } from '../../../llm/types.js';
-import { resolveProvider } from '../../../llm/api-registry.js';
+import type { ModelMessage } from '../../../types.js';
+import { generate } from '../../../reason/generate.js';
 
 const TITLE_SYSTEM_PROMPT = `You are a title generator. Generate a brief title for this conversation by calling the set_title function.
 
@@ -61,32 +62,35 @@ const TITLE_TOOL: ToolSchema = {
 
 export class LLMTitleProvider implements TitleProvider {
   private configProvider: ConfigProvider;
+  private models: Models;
 
-  constructor(configProvider: ConfigProvider) {
+  constructor(configProvider: ConfigProvider, models: Models) {
     this.configProvider = configProvider;
+    this.models = models;
   }
 
-  async generateTitle(conversation: ModelMessage[]): Promise<string | undefined> {
+  async generateTitle(conversation: Message[]): Promise<string | undefined> {
     const userMessages = conversation.filter(m => m.role === 'user');
     if (userMessages.length === 0) return undefined;
 
     const modelConfig = this.configProvider.getModelConfig();
 
-    const messages = userMessages.map(m => ({
-      role: m.role,
-      content: [{ type: 'text', text: m.content.filter(p => p.type === 'text').map(p => p.text).join(' ') || JSON.stringify(m.content) }],
-    })) as ModelMessage[];
+    const messages: ModelMessage[] = userMessages.map(m => {
+      const content = typeof m.content === 'string'
+        ? m.content
+        : m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map(p => p.text).join(' ');
+      return { id: '', role: 'user', content: [{ type: 'text', text: content }] };
+    });
 
-    const provider = resolveProvider(modelConfig.provider);
     try {
-      const result = await provider.generate({
+      const result = await generate({
+        models: this.models,
+        provider: modelConfig.provider,
         model: modelConfig.model,
         apiKey: modelConfig.apiKey,
         baseURL: modelConfig.baseURL,
         system: TITLE_SYSTEM_PROMPT,
-        messages,
-        maxTokens: 100,
-        temperature: 0.3,
+        messages: messages as any,
         tools: { set_title: TITLE_TOOL },
       });
 

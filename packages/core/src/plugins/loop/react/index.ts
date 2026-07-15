@@ -1,4 +1,5 @@
-import type { ModelMessage } from '../../../types.js';
+import type { Message } from '@earendil-works/pi-ai';
+import type { RemMessage } from '../../../types.js';
 import type {
   LoopContext,
   LoopResult,
@@ -13,8 +14,8 @@ export class ReactLoop implements LoopStrategy {
     let content = '';
     let usage = emptyUsage();
 
-    const assistantMsg = this.ensureAssistantMessage(ctx);
-    ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.id });
+    const assistantMsg = await this.ensureAssistantMessage(ctx);
+    ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.messageId });
 
     let step = 1;
     const maxSteps = ctx.maxSteps ?? DEFAULT_MAX_STEPS;
@@ -44,20 +45,23 @@ export class ReactLoop implements LoopStrategy {
     return { content, usage };
   }
 
-  private ensureAssistantMessage(ctx: LoopContext): ModelMessage {
+  private ensureAssistantMessage(ctx: LoopContext): RemMessage {
     const last = ctx.messages[ctx.messages.length - 1];
-    if (last?.role === 'assistant') return last;
+    if (last?.role === 'assistant') {
+      const messageId = ctx.resolveMessageId?.(last) ?? 'unknown';
+      return { messageId, message: last };
+    }
     return ctx.addMessage('assistant');
   }
 
   private appendToAssistantMessage(
-    ctx: LoopContext, assistantMsg: ModelMessage,
+    ctx: LoopContext, assistantMsg: RemMessage,
     result: { text: string; toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>; reasoning?: string },
   ): void {
-    if (result.reasoning) ctx.appendContent(assistantMsg, { type: 'reasoning', text: result.reasoning });
-    if (result.text) ctx.appendContent(assistantMsg, { type: 'text', text: result.text });
+    if (result.reasoning) ctx.appendContent(assistantMsg.message, { type: 'thinking', thinking: result.reasoning });
+    if (result.text) ctx.appendContent(assistantMsg.message, { type: 'text', text: result.text });
     for (const tc of result.toolCalls) {
-      ctx.appendContent(assistantMsg, { type: 'tool-call', toolCallId: tc.toolCallId, toolName: tc.toolName, arguments: tc.input });
+      ctx.appendContent(assistantMsg.message, { type: 'toolCall', id: tc.toolCallId, name: tc.toolName, arguments: tc.input as Record<string, any> });
     }
   }
 }

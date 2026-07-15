@@ -1,10 +1,10 @@
+import type { Message, Models } from '@earendil-works/pi-ai';
 import type { ContextCompressor } from '../../../sdk/compressor.js';
-import type { ModelMessage } from '../../../types.js';
 import type { Session } from '../../../session.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { TokenUsageDetail } from '../../../token-usage.js';
 import { resolveContextWindow } from '../../../llm/context-window.js';
-import { generate } from '../../../reason/reason.js';
+import { generate } from '../../../reason/generate.js';
 import { splitHeadTail } from './split.js';
 import {
   buildSummaryPrompt,
@@ -14,12 +14,12 @@ import {
   formatSummaryAsMarkdown,
   type SummaryData,
 } from './prompt.js';
-import { generateId } from '../../../shared/generate-id.js';
 
 export class LLMSummarizingCompressor implements ContextCompressor {
   constructor(
     private config: Required<CompressionConfig>,
     private modelConfig: ResolvedModelConfig,
+    private models: Models,
   ) {}
 
   shouldCompress(session: Session): boolean {
@@ -32,9 +32,10 @@ export class LLMSummarizingCompressor implements ContextCompressor {
 
     if (effectiveTokens <= 0 && history.length === 0) {
       const totalChars = session.conversation.reduce((sum, msg) => {
-        const text = msg.content
-          .filter((p) => p.type === 'text')
-          .map((p) => (p as { type: 'text'; text: string }).text)
+        const content = typeof msg.content === 'string' ? [msg.content] : msg.content;
+        const text = content
+          .filter((p): p is { type: 'text'; text: string } => typeof p === 'object' && p.type === 'text')
+          .map((p) => p.text)
           .join('');
         return sum + text.length;
       }, 0);
@@ -48,7 +49,7 @@ export class LLMSummarizingCompressor implements ContextCompressor {
     return effectiveTokens >= threshold;
   }
 
-  async compress(messages: ModelMessage[]): Promise<ModelMessage[]> {
+  async compress(messages: Message[]): Promise<Message[]> {
     const { head, middle, tail } = splitHeadTail(
       messages,
       this.config.protectHead,
@@ -61,17 +62,16 @@ export class LLMSummarizingCompressor implements ContextCompressor {
 
     const prompt = buildSummaryPrompt(middle);
     const result = await generate({
+      models: this.models,
       provider: this.modelConfig.provider,
       model: this.modelConfig.model,
       apiKey: this.modelConfig.apiKey,
       baseURL: this.modelConfig.baseURL,
       system: SUMMARY_SYSTEM_PROMPT,
-      messages: [{ id: generateId(), role: 'user', content: [{ type: 'text', text: prompt }] }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] as Message[],
       tools: {
         [SUMMARY_TOOL_NAME]: SUMMARY_TOOL_SCHEMA,
       },
-      signal: undefined,
-      errorHandler: undefined,
     });
 
     const summaryCall = result.toolCalls.find((tc) => tc.toolName === SUMMARY_TOOL_NAME);
@@ -81,11 +81,11 @@ export class LLMSummarizingCompressor implements ContextCompressor {
       ? formatSummaryAsMarkdown(summaryData)
       : result.text;
 
-    const summaryMsg: ModelMessage = {
-      id: generateId(),
-      role: 'system',
+    const summaryMsg: Message = {
+      role: 'user',
       content: [{ type: 'text', text: `[上下文压缩摘要]\n\n${summaryText}` }],
-    };
+      timestamp: Date.now(),
+    } as unknown as Message;
 
     return [...head, summaryMsg, ...tail];
   }

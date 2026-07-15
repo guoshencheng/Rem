@@ -1,4 +1,5 @@
-import type { ModelMessage, ProviderChunk } from '../types.js';
+import type { Message } from '@earendil-works/pi-ai';
+import type { ProviderChunk } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult, ToolContext } from '../sdk/tool-provider.js';
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';
@@ -9,6 +10,7 @@ import { RuleEngine } from '../security/rules/rule-engine.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 import { classifyTool } from '../security/permissions/tool-classifier.js';
 import type { ToolCategory } from '../security/permissions/tool-classifier.js';
+import { toPiToolResultMessage } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
 export interface ExecuteParams {
@@ -19,8 +21,7 @@ export interface ExecuteParams {
   ruleEngine: RuleEngine;
   ruleStore: RuleStorage;
   securityMode: SecurityMode;
-  addMessage: (role: 'tool') => ModelMessage;
-  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
+  messages: Message[];
   workspaceRoot: string;
   agentName?: string;
   readOnly?: boolean;
@@ -32,19 +33,15 @@ export interface ExecuteParams {
 function emitToolResult(
   tc: ToolCall, result: ToolResult,
   emit: (chunk: ProviderChunk) => void,
-  addMessage: (role: 'tool') => ModelMessage,
-  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void,
 ): void {
   const output = result.error ?? result.output ?? '';
   log('tools', 'emitting tool result', { toolCallId: tc.toolCallId, toolName: tc.toolName, outputLength: output.length, hasError: !!result.error });
   emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
-  const msg = addMessage('tool');
-  appendContent(msg, { type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output });
 }
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, permissionEvaluator, agentState, ruleEngine, ruleStore, addMessage, appendContent, emit, signal } = params;
+  const { toolProvider, permissionEvaluator, agentState, ruleEngine, ruleStore, messages, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     log('tools', 'executing tool call', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName });
@@ -52,7 +49,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     const def = toolProvider.getToolDefinition(tc.toolName);
     if (!def) {
       const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: `unknown tool: ${tc.toolName}` };
-      emitToolResult(tc, denied, emit, addMessage, appendContent);
+      emitToolResult(tc, denied, emit);
       results.push(denied);
       continue;
     }
@@ -61,7 +58,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
 
     if (decision.action === 'deny') {
       const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: decision.reason };
-      emitToolResult(tc, denied, emit, addMessage, appendContent);
+      emitToolResult(tc, denied, emit);
       results.push(denied);
       continue;
     }
@@ -82,7 +79,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
 
       if (resolution.decision === 'deny') {
         const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: 'denied' };
-        emitToolResult(tc, denied, emit, addMessage, appendContent);
+        emitToolResult(tc, denied, emit);
         results.push(denied);
         continue;
       }
@@ -128,7 +125,11 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       }
     }
     results.push(result);
-    emitToolResult(tc, result, emit, addMessage, appendContent);
+    emitToolResult(tc, result, emit);
+  }
+
+  for (const result of results) {
+    messages.push(toPiToolResultMessage(result));
   }
 
   return results;

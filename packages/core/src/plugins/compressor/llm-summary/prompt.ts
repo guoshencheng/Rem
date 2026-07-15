@@ -1,4 +1,4 @@
-import type { ModelMessage } from '../../../types.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 export const SUMMARY_SYSTEM_PROMPT = `You are a context summarization assistant for coding sessions.
 
@@ -64,7 +64,7 @@ export interface SummaryData {
   relevantFiles: string[];
 }
 
-export function buildSummaryPrompt(middle: ModelMessage[]): string {
+export function buildSummaryPrompt(middle: Message[]): string {
   return `Summarize the following conversation history using the ${SUMMARY_TOOL_NAME} tool.\n\nConversation history to summarize:\n\n${serializeMessages(middle)}`;
 }
 
@@ -106,21 +106,20 @@ export function formatSummaryAsMarkdown(data: SummaryData): string {
   return lines.join('\n');
 }
 
-function serializeMessages(messages: ModelMessage[]): string {
+function serializeMessages(messages: Message[]): string {
   return messages
     .map((msg) => {
-      const text = msg.content
-        .filter((p) => p.type === 'text')
-        .map((p) => (p as { type: 'text'; text: string }).text)
+      const content = typeof msg.content === 'string' ? [msg.content] : msg.content;
+      const text = content
+        .filter((p): p is { type: 'text'; text: string } => typeof p === 'object' && p.type === 'text')
+        .map((p) => p.text)
         .join('\n');
       const role =
-        msg.role === 'system'
-          ? 'System'
-          : msg.role === 'user'
-            ? 'User'
-            : msg.role === 'assistant'
-              ? 'Assistant'
-              : 'Tool';
+        msg.role === 'user'
+          ? 'User'
+          : msg.role === 'assistant'
+            ? 'Assistant'
+            : 'Tool';
       return `[${role}]: ${text}`;
     })
     .join('\n\n');

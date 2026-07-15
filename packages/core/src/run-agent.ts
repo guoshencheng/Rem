@@ -1,4 +1,5 @@
-import type { UserInput, AgentOutput, AgentStream, ModelMessage, ProviderChunk } from './types.js';
+import type { Message } from '@earendil-works/pi-ai';
+import type { UserInput, AgentOutput, AgentStream, ProviderChunk } from './types.js';
 import type { PromptBuildContext } from './sdk/system-prompt.js';
 import type { Skill } from './sdk/skill-provider.js';
 import { EventBus } from './events.js';
@@ -18,6 +19,7 @@ import { AgentState } from './agent-state.js';
 import type { TokenUsageDetail } from './token-usage.js';
 import { log } from './shared/debug-log.js';
 import { OverlayToolProvider } from './overlay-tool-provider.js';
+import { composeToolSet } from './tool-composer.js';
 import {
   createDelegateTaskToolDefinition,
   createDelegateTaskToolExecutor,
@@ -60,7 +62,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     let session = await sessionProvider.load(params.sessionId);
     if (!session) {
       session = {
-        sessionId: params.sessionId, conversation: [], currentTurn: 0, metadata: {},
+        sessionId: params.sessionId, conversation: [], currentTurn: 0, metadata: { schemaVersion: 2 },
         createdAt: new Date(), updatedAt: new Date(),
       };
       await sessionProvider.save(session);
@@ -89,10 +91,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     }
 
-    session.conversation.push({
-      id: generateId(), role: 'user',
-      content: [{ type: 'text', text: params.input.content }],
-    } as ModelMessage);
+    const userMessage: Message = { role: 'user', content: params.input.content, timestamp: Date.now() } as Message;
+    session.conversation.push(userMessage);
     await sessionProvider.save(session);
 
     forkTitleGeneration(session, ctx.titleProvider, controller, sessionProvider);
@@ -107,7 +107,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolComposer = ctx.toolComposer;
       const errorHandler = ctx.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
-      const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
+      const appendContent = (msg: Message, part: any) => sessionProvider.appendContent(session, msg, part);
 
       // 跟踪当前 assistant 消息的 messageId，用于把本次 usage 绑定到消息
       let currentMessageId: string | undefined;
@@ -139,10 +139,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
         const archiveId = generateId();
         const summaryText = compressed
-          .find((m) => m.role === 'system')
-          ?.content.filter((p) => p.type === 'text')
-          .map((p) => (p as { type: 'text'; text: string }).text)
-          .join('') ?? '';
+          .filter((m) => m.role === 'user')
+          .flatMap((m) => (typeof m.content === 'string' ? [m.content] : m.content.filter((p: any) => p.type === 'text').map((p: any) => p.text)))
+          .find((text: string) => text.includes('[上下文压缩摘要]')) ?? '';
 
         const archiveRecord: ArchiveRecord = {
           id: archiveId,
@@ -188,10 +187,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       toolProviderWithDelegate.register(todoWriteDefinition, todoWriteExecutor);
 
       const toolSet = toolProviderWithDelegate.getToolSet();
-      const tools = Object.entries(toolSet).map(([name, schema]) => ({
-        name,
-        description: schema.description,
-      }));
+      const piTools = composeToolSet(toolSet);
+      const tools = piTools.map((t) => ({ name: t.name, description: t.description }));
 
       const skills = await skillProvider.loadSkills().catch(() => [] as Skill[]);
 
@@ -221,14 +218,16 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         system: systemPrompt,
         reason: () => reason(
           {
+            models: ctx.models,
             provider: effectiveModel.provider, model: effectiveModel.model, apiKey: effectiveModel.apiKey,
-            baseURL: effectiveModel.baseURL, system: systemPrompt, messages: msgs,
+            baseURL: effectiveModel.baseURL, system: systemPrompt, messages: msgs as any,
             tools: toolProviderWithDelegate.getToolSet(), signal: params.signal, errorHandler,
           },
           (chunk) => trackMessageStart(chunk),
         ),
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider: toolProviderWithDelegate, addMessage, appendContent,
+          toolCalls: calls, toolProvider: toolProviderWithDelegate,
+          messages: msgs,
           agentState: params.agentState,
           permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,

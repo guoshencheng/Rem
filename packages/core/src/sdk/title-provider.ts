@@ -1,5 +1,5 @@
-import type { ModelMessage } from '../types.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 export interface TitleProvider {
-  generateTitle(conversation: ModelMessage[]): Promise<string | undefined>;
+  generateTitle(conversation: Message[]): Promise<string | undefined>;
 }

@@ -2,7 +2,7 @@ import type { TObject } from '@sinclair/typebox';
 import type {
   ToolCall, ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolResult,
 } from '../sdk/tool-provider.js';
-import type { ToolSet } from '../llm/types.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
 import { log } from '../shared/debug-log.js';
 
 export class CompositeToolProvider implements ToolProvider {

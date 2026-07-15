@@ -8,6 +8,8 @@ export type {
   ResetRequest,
   ServerStreamEvent,
   UIMessage,
+  UiContentBlock,
+  ToolResultBlock,
   BusEvent,
   SessionActivity,
   Workspace,
@@ -15,9 +17,9 @@ export type {
   RemoveWorkspaceRequest,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
-export type { AgentStreamChunk, ContentPart, ModelMessage } from 'rem-agent-core';
+export type { AgentStreamEvent, ContentPart, ModelMessage } from 'rem-agent-core';
 
-export { reduceStreamChunk } from './stream-reducer.js';
+export { reduceStreamEvent } from './stream-reducer.js';
 
 export type { IAgentService } from './agent-service.interface.js';
 export { AgentRemoteService } from './agent-remote-service.js';

@@ -5,11 +5,11 @@ import os from 'node:os';
 import { AgentService } from '../src/agent.js';
 import { JsonWorkspaceRepository } from '../src/workspace-repository-json.js';
 import type { IAgentService } from '../src/agent-service.interface.js';
-import { registerMockProvider } from './agent-service/shared.js';
+import { createMockModels, createDefaultAgentPaths } from './agent-service/shared.js';
 
 async function makeService(): Promise<{ service: IAgentService; tmpDir: string }> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-svc-'));
-  registerMockProvider({ name: 'mock-workspace' });
+  const models = createMockModels({ name: 'mock-workspace' });
   const repo = new JsonWorkspaceRepository(path.join(tmpDir, 'workspaces.json'));
   const service = new AgentService(
     {
@@ -18,6 +18,8 @@ async function makeService(): Promise<{ service: IAgentService; tmpDir: string }
       model: 'mock-model',
       workspaceRoot: tmpDir,
       sessionsDir: path.join(tmpDir, 'sessions'),
+      paths: createDefaultAgentPaths({ agentDir: tmpDir, sessionsDir: path.join(tmpDir, 'sessions') }),
+      models,
     },
     repo,
   );

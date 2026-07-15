@@ -16,6 +16,8 @@ export interface MessageRow {
   id: string;
   role: string;
   content_json: string;
+  tool_call_id: string | null;
+  tool_name: string | null;
   created_at: string;
 }
 
@@ -38,7 +40,14 @@ function toMessage(row: MessageRow): Message {
   if (row.role === 'assistant') {
     return { role: 'assistant', content, timestamp: Date.parse(row.created_at) } as Message;
   }
-  return { role: 'toolResult', content, timestamp: Date.parse(row.created_at) } as Message;
+  return {
+    role: 'toolResult',
+    toolCallId: row.tool_call_id ?? '',
+    toolName: row.tool_name ?? '',
+    content,
+    isError: false,
+    timestamp: Date.parse(row.created_at),
+  } as Message;
 }
 
 export function toSessionSummary(row: {

@@ -1,7 +1,7 @@
-import type { Message, Models, Context } from '@earendil-works/pi-ai';
-import type { ModelMessage, LanguageModelUsage } from '../types.js';
+import type { Message, Models, Context, Usage } from '@earendil-works/pi-ai';
+import type { ModelMessage } from '../types.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
-import type { ToolSet } from '../llm/types.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
 import { toPiTool, fromPiAssistantMessage } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
@@ -30,7 +30,7 @@ export interface GenerateResult {
   text: string;
   toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
   reasoning?: string;
-  usage: LanguageModelUsage;
+  usage: Usage;
   finishReason: string;
 }
 

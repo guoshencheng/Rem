@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveContextWindow, computeWindowRatio } from '../../src/llm/context-window.js';
-import type { LanguageModelUsage } from '../../src/types.js';
+import type { Usage } from '@earendil-works/pi-ai';
 
 describe('resolveContextWindow', () => {
   it('returns built-in value for gpt-4o', () => {
@@ -28,12 +28,12 @@ describe('resolveContextWindow', () => {
 
 describe('computeWindowRatio', () => {
   it('computes ratio', () => {
-    const usage: LanguageModelUsage = { inputTokens: 10_000, outputTokens: 5_000, totalTokens: 15_000 };
+    const usage: Usage = { input: 10_000, output: 5_000, cacheRead: 0, cacheWrite: 0, totalTokens: 15_000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     expect(computeWindowRatio(usage, 100_000)).toBeCloseTo(0.15);
   });
 
   it('caps at 1', () => {
-    const usage: LanguageModelUsage = { inputTokens: 200_000, outputTokens: 50_000, totalTokens: 250_000 };
+    const usage: Usage = { input: 200_000, output: 50_000, cacheRead: 0, cacheWrite: 0, totalTokens: 250_000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     expect(computeWindowRatio(usage, 100_000)).toBe(1);
   });
 });

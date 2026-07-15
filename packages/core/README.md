@@ -1,6 +1,6 @@
 # rem-agent-core
 
-Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control. Built on a custom provider layer that directly calls the OpenAI and Anthropic SDKs.
+Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control. LLM calls are delegated to the `@earendil-works/pi-ai` `Models` collection, which provides a unified provider abstraction over OpenAI, Anthropic, and other providers.
 
 ---
 
@@ -47,10 +47,10 @@ A single `run()` invocation flows through these phases:
 1. **Initialize** — `CoreAgent.initialize()` resets state, assigns `sessionId`, and emits `core-agent:init`.
 2. **Start** — `CoreAgent.run(input)` sets status to `running`, emits `core-agent:start`, and enters the turn loop.
 3. **Turn Execution** — `ReactTurnRunner.run()` enters the turn loop, calling `ReactLoop.iterate()` for each ReAct cycle:
-   - **Prepare** — Builds message list from conversation history + user input.
-   - **Reason** — Calls `InferenceEngine.infer()` with the configured provider (`openai` / `anthropic`).
-   - **Emit** — Fires `phase:reason:before` / `phase:reason:after` around the LLM call.
-   - **Complete** — If the model returns text without tool calls, the turn completes.
+    - **Prepare** — Builds message list from conversation history + user input.
+    - **Reason** — Calls `pi-ai Models.stream()` or `Models.complete()` with the configured model.
+    - **Emit** — Fires `phase:reason:before` / `phase:reason:after` around the LLM call.
+    - **Complete** — If the model returns text without tool calls, the turn completes.
 4. **Budget Check** — Before each turn, `IterationBudget.checkTurn()` verifies the agent has remaining budget (max turns, consecutive errors, same-tool failures).
 5. **End** — The loop exits when `completed=true`, `interrupted=true`, or budget is exhausted. Status returns to `idle`.
 
@@ -58,12 +58,12 @@ A single `run()` invocation flows through these phases:
 
 | Module | Purpose |
 |--------|---------|
-| `types` | Defines `ModelMessage`, `LanguageModelUsage`, `UserInput`, `AgentOutput`, `ToolCallRecord`, and `AgentStatus` |
+| `types` | Defines `ModelMessage`, `Usage`, `UserInput`, `AgentOutput`, `ToolCallRecord`, and `AgentStatus` |
 | `budget` | `IterationBudget` — enforces guard rails on turns, errors, and tool failures |
-| `state` | `AgentState` — holds session identity, conversation history (`ModelMessage[]`), turn counter, and status |
+| `state` | `AgentLiveState` — holds runtime status, activity, streaming snapshot, and accumulated token usage |
 | `events` | `EventBus` — typed, priority-ordered event system for observability and extension |
-| `loop` | `ReactLoop` / `ReactTurnRunner` — executes ReAct turns via `InferenceEngine` |
-| `llm` | `InferenceEngine`, `LLMProvider` registry, and direct SDK providers for OpenAI and Anthropic |
+| `loop` | `ReactLoop` / `ReactTurnRunner` — executes ReAct turns via `pi-ai` `Models` |
+| `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window.ts`, and `pi-adapter.ts` (REM ↔ pi-ai 类型转换) |
 | `core-agent` | `CoreAgent` — lifecycle orchestrator: init, run, interrupt, reset, event subscription |
 
 ---
@@ -107,19 +107,31 @@ interface ModelMessage {
   content: unknown;
 }
 
-interface LanguageModelUsage {
-  inputTokens: number;
-  outputTokens: number;
+interface Usage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
   totalTokens: number;
-  inputTokenDetails?: {
-    noCacheTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
   };
-  outputTokenDetails?: {
-    textTokens?: number;
-    reasoningTokens?: number;
-  };
+}
+```
+
+**`RemMessage` and `messageMeta`:**
+
+`SessionProvider.addMessage()` returns a `RemMessage`, which pairs a Core-generated `messageId` with the underlying `pi.Message`. These message IDs are stored in `Session.metadata.messageMeta` so that UI layers can attach per-message metadata (e.g. token usage) without mutating the `pi.Message` itself.
+
+```typescript
+interface RemMessage {
+  messageId: string;
+  message: Message;   // pi.Message
+  tokenUsage?: Usage;
 }
 ```
 
@@ -267,60 +279,40 @@ interface EventContext {
 
 ### `llm`
 
-#### `InferenceEngine`
+#### `createCoreModels`
 
-Coordinates LLM calls through the provider registry.
-
-```typescript
-class InferenceEngine {
-  async infer(options: InferenceOptions): Promise<InferenceResult>;
-}
-```
-
-**`InferenceOptions`** — input to a single inference:
+Creates a `pi-ai` `Models` collection.
 
 ```typescript
-interface InferenceOptions {
-  provider: string;           // e.g. 'openai' or 'anthropic'
-  providerConfig: {
-    apiKey: string;
-    baseURL?: string;
-    model: string;
-  };
-  system?: string;
-  messages: ModelMessage[];
-  tools?: ToolSet;
-  temperature?: number;
-  maxTokens?: number;
-  signal?: AbortSignal;
-  onChunk?: (chunk: StreamChunk) => void | Promise<void>;
-}
+import { createCoreModels } from 'rem-agent-core';
+
+// Empty collection (useful for tests)
+const models = createCoreModels();
+
+// With all built-in pi-ai providers registered
+const models = createCoreModels({ all: true });
 ```
 
-**`StreamChunk`** — incremental output from the provider:
+#### `context-window`
+
+`resolveContextWindow(provider, model)` returns a fallback context-window size for known models, respecting `MAX_CONTEXT_TOKENS` and per-model environment overrides.
+
+#### `pi-adapter`
+
+REM ↔ pi-ai type conversion helpers:
 
 ```typescript
-type StreamChunk =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }
-  | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'usage'; inputTokens: number; outputTokens: number; totalTokens: number }
-  | { type: 'finish'; reason: string };
+import {
+  toPiMessage,
+  fromPiMessage,
+  toPiTool,
+  toPiToolResultMessage,
+  fromPiAssistantMessage,
+  migrateConversationToPiAi,
+} from 'rem-agent-core';
 ```
 
-#### `LLMProvider` registry
-
-Providers are registered by id and resolved at runtime.
-
-```typescript
-registerProvider('openai', openaiProvider);
-const provider = resolveProvider('openai');
-```
-
-Built-in providers live in `packages/core/src/llm/providers/`:
-
-- `openai.ts` — directly uses the `openai` SDK
-- `anthropic.ts` — directly uses the `@anthropic-ai/sdk`
+These adapters convert the internal `ModelMessage` / `ContentPart` representation to and from `pi.Message` and `pi.Tool`, and migrate legacy sessions to `pi.Message[]`.
 
 ---
 
@@ -328,7 +320,7 @@ Built-in providers live in `packages/core/src/llm/providers/`:
 
 #### `ReactLoop` / `ReactTurnRunner`
 
-Executes a single ReAct turn by calling `InferenceEngine.infer()` with the configured provider.
+Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentContext.models`.
 
 ---
 

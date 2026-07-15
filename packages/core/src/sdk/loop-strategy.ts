@@ -1,15 +1,8 @@
-import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
+import type { Message, TextContent, ThinkingContent, ToolCall, AssistantMessage, AssistantMessageEventStream } from '@earendil-works/pi-ai';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentLiveState } from '../state.js';
-import type { LanguageModelUsage, RemMessage, ProviderChunk } from '../types.js';
+import type { RemMessage, AgentStreamEvent } from '../types.js';
 import type { ToolCall as ToolCallRequest, ToolResult } from './tool-provider.js';
-
-export interface LoopCallReason {
-  text: string;
-  toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
-  reasoning?: string;
-  usage: LanguageModelUsage;
-  finishReason: string;
-}
 
 export interface LoopContext {
   liveState: AgentLiveState;
@@ -17,9 +10,11 @@ export interface LoopContext {
   /** 当前上下文消息（会话 conversation 的引用） */
   messages: Message[];
 
-  reason: () => Promise<LoopCallReason>;
+  stream: () => AssistantMessageEventStream;
+  generate: () => Promise<AssistantMessage>;
   execute: (toolCalls: ToolCallRequest[]) => Promise<ToolResult[]>;
-  emit: (chunk: ProviderChunk) => void | Promise<void>;
+  emit: (event: AgentStreamEvent) => void | Promise<void>;
+
   /** 创建并持久化一条新消息，返回消息包装 */
   addMessage: (role: 'assistant' | 'tool') => RemMessage;
   /** 向消息追加 content block 并持久化 */
@@ -36,7 +31,8 @@ export interface LoopContext {
 
 export interface LoopResult {
   content: string;
-  usage: LanguageModelUsage;
+  usage: Usage;
+  message?: AssistantMessage;
 }
 
 export interface LoopStrategy {

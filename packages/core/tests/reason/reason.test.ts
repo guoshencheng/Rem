@@ -1,13 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { reason } from '../../src/reason/reason.js';
-import type { Model, AssistantMessageEventStream, AssistantMessage } from '@earendil-works/pi-ai';
+import type { Model, AssistantMessageEventStream, AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type { Models } from '@earendil-works/pi-ai';
-import type { ModelMessage } from '../../src/types.js';
 
 describe('reason usage forwarding', () => {
-  it('forwards usage chunk to emit', async () => {
-    const emitted: any[] = [];
-    const emit = (chunk: any) => { emitted.push(chunk); };
+  it('forwards pi-ai events to emit', async () => {
+    const emitted: unknown[] = [];
+    const emit = (event: unknown) => { emitted.push(event); };
 
     const mockModel = { id: 'mock', provider: 'mock' } as Model<any>;
     const mockStream: AssistantMessageEventStream = {
@@ -27,16 +26,19 @@ describe('reason usage forwarding', () => {
       stream: vi.fn().mockReturnValue(mockStream),
     } as unknown as Models;
 
-    const messages: ModelMessage[] = [];
-    await reason({
+    const messages: Message[] = [];
+    const result = await reason({
       models: mockModels,
       provider: 'mock',
       model: 'mock',
       apiKey: 'key',
       system: 'sys',
       messages,
-    }, emit);
+      emit,
+    });
 
-    expect(emitted.some(c => c.type === 'text-delta')).toBe(true);
+    expect(emitted.some((c) => (c as any).type === 'text_delta')).toBe(true);
+    expect(result.text).toBe('hello');
+    expect(result.usage.totalTokens).toBe(15);
   });
 });

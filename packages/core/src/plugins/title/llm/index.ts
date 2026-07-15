@@ -1,7 +1,7 @@
 import type { Message, Models } from '@earendil-works/pi-ai';
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { ToolSchema } from '../../../llm/types.js';
+import type { ToolSchema } from '../../../sdk/tool-provider.js';
 import type { ModelMessage } from '../../../types.js';
 import { generate } from '../../../reason/generate.js';
 

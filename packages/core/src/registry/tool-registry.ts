@@ -2,7 +2,7 @@ import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
-import type { ToolSchema, ToolSet } from '../llm/types.js';
+import type { ToolSchema, ToolSet } from '../sdk/tool-provider.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 

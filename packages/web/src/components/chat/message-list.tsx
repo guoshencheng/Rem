@@ -3,7 +3,7 @@
 import { useRef, useEffect } from 'react';
 import { MessageItem } from './message-item';
 import type { UIMessage } from '@/lib/types';
-import type { LanguageModelUsage } from 'rem-agent-core';
+import type { Usage } from 'rem-agent-core';
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -12,7 +12,7 @@ interface MessageListProps {
     childSessionId: string;
     summary: string;
     status: 'running' | 'completed' | 'failed';
-    tokenUsage?: LanguageModelUsage;
+    tokenUsage?: Usage;
   }>;
   onOpenChild?: (sessionId: string) => void;
 }

@@ -1,4 +1,6 @@
-import type { AgentStreamChunk, ContentPart, LanguageModelUsage } from './types.js';
+import type { TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
+import type { Usage } from '@earendil-works/pi-ai';
+import type { AgentStreamEvent } from './types.js';
 import type { TodoItem } from './todo/types.js';
 
 export type SessionActivity =
@@ -10,13 +12,13 @@ export type SessionActivity =
   | 'compressing';
 
 export type BusEvent =
-  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamChunk }
+  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamEvent }
   | { workspace: string; sessionId: string; type: 'session-start' }
   | { workspace: string; sessionId: string; type: 'session-end' }
   | { workspace: string; sessionId: string; type: 'session-error'; error: string }
   | { workspace: string; sessionId: string; type: 'activity-change'; activity: SessionActivity }
-  | { workspace: string; sessionId: string; type: 'snapshot'; messageId: string; parts: ContentPart[] }
-  | { workspace: string; sessionId: string; type: 'usage-change'; usage: LanguageModelUsage }
+  | { workspace: string; sessionId: string; type: 'snapshot'; messageId: string; parts: Array<TextContent | ThinkingContent | ToolCall> }
+  | { workspace: string; sessionId: string; type: 'usage-change'; usage: Usage }
   | {
       workspace: string;
       sessionId: string;
@@ -24,7 +26,7 @@ export type BusEvent =
       childSessionId: string;
       summary: string;
       status: 'running' | 'completed' | 'failed';
-      tokenUsage?: LanguageModelUsage;
+      tokenUsage?: Usage;
     }
   | {
       workspace: string;

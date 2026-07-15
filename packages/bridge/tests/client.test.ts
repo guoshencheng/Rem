@@ -33,16 +33,19 @@ describe('AgentRemoteService', () => {
   });
 });
 
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamEvent, AssistantMessageEvent } from 'rem-agent-core';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { createSSEResponse } from '../src/response.js';
 import { parseSSEStream, parseAgentStreamEvent } from '../src/sse.js';
 
 describe('createSSEResponse', () => {
-  it('produces valid SSE stream from chunks', async () => {
-    async function* gen(): AsyncIterable<AgentStreamChunk> {
-      yield { type: 'text-start', step: 1, partId: 'p1' } as AgentStreamChunk;
-      yield { type: 'text-delta', step: 1, partId: 'p1', text: 'hi' } as AgentStreamChunk;
-      yield { type: 'finish', output: { content: 'hi', completed: true } } as AgentStreamChunk;
+  const partial = {} as AssistantMessage;
+
+  it('produces valid SSE stream from events', async () => {
+    async function* gen(): AsyncIterable<AgentStreamEvent> {
+      yield { type: 'text_start', contentIndex: 0, partial } as AssistantMessageEvent;
+      yield { type: 'text_delta', contentIndex: 0, delta: 'hi', partial } as AssistantMessageEvent;
+      yield { type: 'finish', output: { content: 'hi', completed: true } } as AgentStreamEvent;
     }
 
     const response = createSSEResponse(gen());
@@ -50,32 +53,32 @@ describe('createSSEResponse', () => {
 
     const reader = response.body!.getReader();
     const sseEvents = parseSSEStream(reader);
-    const chunks: AgentStreamChunk[] = [];
+    const chunks: AgentStreamEvent[] = [];
     for await (const sse of sseEvents) {
       if (sse.event === 'chunk' || sse.event === 'error') {
-        chunks.push(parseAgentStreamEvent(sse));
+        chunks.push(parseAgentStreamEvent(sse.data));
       }
     }
 
     expect(chunks).toHaveLength(3);
-    expect(chunks[0].type).toBe('text-start');
-    expect(chunks[1].type).toBe('text-delta');
+    expect(chunks[0].type).toBe('text_start');
+    expect(chunks[1].type).toBe('text_delta');
     expect(chunks[2].type).toBe('finish');
   });
 
   it('emits error SSE frame on stream exception', async () => {
-    async function* gen(): AsyncIterable<AgentStreamChunk> {
-      yield { type: 'text-delta', step: 1, partId: 'p1', text: 'a' } as AgentStreamChunk;
+    async function* gen(): AsyncIterable<AgentStreamEvent> {
+      yield { type: 'text_delta', contentIndex: 0, delta: 'a', partial } as AssistantMessageEvent;
       throw new Error('boom');
     }
 
     const response = createSSEResponse(gen());
     const reader = response.body!.getReader();
     const sseEvents = parseSSEStream(reader);
-    const chunks: AgentStreamChunk[] = [];
+    const chunks: AgentStreamEvent[] = [];
     for await (const sse of sseEvents) {
       if (sse.event === 'chunk' || sse.event === 'error') {
-        chunks.push(parseAgentStreamEvent(sse));
+        chunks.push(parseAgentStreamEvent(sse.data));
       }
     }
 

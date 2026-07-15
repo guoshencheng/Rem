@@ -1,10 +1,6 @@
-import type { Message } from '@earendil-works/pi-ai';
+import type { Message, AssistantMessage, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { RemMessage } from '../../../types.js';
-import type {
-  LoopContext,
-  LoopResult,
-  LoopStrategy,
-} from '../../../sdk/loop-strategy.js';
+import type { LoopContext, LoopResult, LoopStrategy } from '../../../sdk/loop-strategy.js';
 import { emptyUsage, addUsage } from '../../../token-usage.js';
 
 const DEFAULT_MAX_STEPS = 50;
@@ -14,35 +10,47 @@ export class ReactLoop implements LoopStrategy {
     let content = '';
     let usage = emptyUsage();
 
-    const assistantMsg = await this.ensureAssistantMessage(ctx);
+    const assistantMsg = this.ensureAssistantMessage(ctx);
     ctx.emit({ type: 'message-start', step: 1, messageId: assistantMsg.messageId });
 
     let step = 1;
     const maxSteps = ctx.maxSteps ?? DEFAULT_MAX_STEPS;
+    let lastMessage: AssistantMessage | undefined;
 
     while (step <= maxSteps) {
       if (ctx.signal?.aborted) throw new Error('Aborted');
 
       ctx.emit({ type: 'step-start', step });
 
-      const reasonResult = await ctx.reason();
+      const stream = ctx.stream();
+      const toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }> = [];
+      for await (const event of stream) {
+        ctx.emit(event);
+        if (event.type === 'text_delta') content += event.delta;
+        if (event.type === 'toolcall_end') {
+          toolCalls.push({
+            toolCallId: event.toolCall.id,
+            toolName: event.toolCall.name,
+            input: event.toolCall.arguments,
+          });
+        }
+      }
+      const message = await stream.result();
+      lastMessage = message;
+      usage = addUsage(usage, message.usage ?? emptyUsage());
+      this.appendToAssistantMessage(ctx, assistantMsg, message);
 
-      this.appendToAssistantMessage(ctx, assistantMsg, reasonResult);
-      content = reasonResult.text;
-      usage = addUsage(usage, reasonResult.usage);
-
-      if (reasonResult.toolCalls.length === 0) {
+      if (toolCalls.length === 0) {
         ctx.emit({ type: 'step-finish', step });
         break;
       }
 
-      await ctx.execute(reasonResult.toolCalls);
-
+      await ctx.execute(toolCalls);
       ctx.emit({ type: 'step-finish', step });
       step++;
     }
 
-    return { content, usage };
+    return { content, usage, message: lastMessage };
   }
 
   private ensureAssistantMessage(ctx: LoopContext): RemMessage {
@@ -55,13 +63,12 @@ export class ReactLoop implements LoopStrategy {
   }
 
   private appendToAssistantMessage(
-    ctx: LoopContext, assistantMsg: RemMessage,
-    result: { text: string; toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>; reasoning?: string },
+    ctx: LoopContext,
+    assistantMsg: RemMessage,
+    message: { content: Array<TextContent | ThinkingContent | ToolCall> },
   ): void {
-    if (result.reasoning) ctx.appendContent(assistantMsg.message, { type: 'thinking', thinking: result.reasoning });
-    if (result.text) ctx.appendContent(assistantMsg.message, { type: 'text', text: result.text });
-    for (const tc of result.toolCalls) {
-      ctx.appendContent(assistantMsg.message, { type: 'toolCall', id: tc.toolCallId, name: tc.toolName, arguments: tc.input as Record<string, any> });
+    for (const block of message.content) {
+      ctx.appendContent(assistantMsg.message, block);
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamEvent } from 'rem-agent-core';
 
 export interface SSEEvent {
   event?: string;
@@ -51,10 +51,10 @@ export function parseSSEStream(
   };
 }
 
-export function parseAgentStreamEvent(event: SSEEvent): AgentStreamChunk {
+export function parseAgentStreamEvent(data: string): AgentStreamEvent {
   try {
-    return JSON.parse(event.data) as AgentStreamChunk;
+    return JSON.parse(data) as AgentStreamEvent;
   } catch {
-    return { type: 'error', error: { name: 'ParseError', message: `Invalid SSE data: ${event.data.slice(0, 100)}` } } as AgentStreamChunk;
+    return { type: 'error', error: { name: 'ParseError', message: `Invalid SSE data: ${data.slice(0, 100)}` } };
   }
 }

@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -30,6 +30,8 @@ export class SqliteSchemaManager {
         session_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content_json TEXT NOT NULL,
+        tool_call_id TEXT,
+        tool_name TEXT,
         sequence INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
@@ -220,24 +222,12 @@ export class SqliteSchemaManager {
       `);
     }
 
-    if (version < 7) {
-      // Drop the FK to sessions: todos is a standalone JSON-per-session row.
-      // The FK made todowrite fail (SQLITE_CONSTRAINT_FOREIGNKEY) whenever it
-      // ran before the session row was persisted. Cleanup on session delete is
-      // now handled explicitly in SqliteSessionStore.delete().
+    if (version < 8) {
+      // Preserve tool call id/name for tool result messages so UI can merge
+      // tool results back into the assistant message that requested them.
       this.db.exec(`
-        CREATE TABLE IF NOT EXISTS todos_new (
-          session_id TEXT PRIMARY KEY,
-          todos_json TEXT NOT NULL DEFAULT '[]',
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        INSERT OR IGNORE INTO todos_new (session_id, todos_json, created_at, updated_at)
-        SELECT session_id, todos_json, created_at, updated_at FROM todos;
-
-        DROP TABLE todos;
-        ALTER TABLE todos_new RENAME TO todos;
+        ALTER TABLE messages ADD COLUMN tool_call_id TEXT;
+        ALTER TABLE messages ADD COLUMN tool_name TEXT;
       `);
     }
   }

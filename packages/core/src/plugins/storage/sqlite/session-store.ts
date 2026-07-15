@@ -41,7 +41,7 @@ export class SqliteSessionStore implements SessionStore {
 
       const messages = this.db
         .prepare(
-          'SELECT id, role, content_json, created_at FROM messages WHERE session_id = ? ORDER BY sequence'
+          'SELECT id, role, content_json, tool_call_id, tool_name, created_at FROM messages WHERE session_id = ? ORDER BY sequence'
         )
         .all(sessionId) as import('./session-converter.js').MessageRow[];
 
@@ -90,8 +90,8 @@ export class SqliteSessionStore implements SessionStore {
       }
 
       const insert = this.db.prepare(
-        `INSERT OR REPLACE INTO messages (id, session_id, role, content_json, sequence, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT OR REPLACE INTO messages (id, session_id, role, content_json, tool_call_id, tool_name, sequence, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       );
       for (let i = 0; i < session.conversation.length; i++) {
         const msg = session.conversation[i];
@@ -100,6 +100,8 @@ export class SqliteSessionStore implements SessionStore {
           session.sessionId,
           msg.role,
           JSON.stringify(msg.content),
+          msg.role === 'toolResult' ? (msg as any).toolCallId ?? null : null,
+          msg.role === 'toolResult' ? (msg as any).toolName ?? null : null,
           i,
           new Date().toISOString()
         );

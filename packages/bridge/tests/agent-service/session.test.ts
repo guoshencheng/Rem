@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import type { ModelMessage } from 'rem-agent-core';
 import { AgentService } from '../../src/agent.js';
 import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 import { createTestService } from './shared.js';
@@ -129,24 +128,32 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       const session = await sessionProvider.load(summary.sessionId);
       if (!session) throw new Error('Session not found');
 
-      const assistantMsg: ModelMessage = {
-        id: 'a1',
+      const assistantMsg = {
         role: 'assistant',
-        content: [{ type: 'tool-call', toolCallId: 'tc1', toolName: 'ls', arguments: { path: '.' } }],
-      };
-      const toolMsg: ModelMessage = {
-        id: 't1',
-        role: 'tool',
-        content: [{ type: 'tool-result', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' }],
-      };
+        content: [{ type: 'toolCall', id: 'tc1', name: 'ls', arguments: { path: '.' } }],
+        api: 'openai-completions',
+        provider: 'mock-default',
+        model: 'mock-model',
+        usage: { input: 3, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 6, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: 'toolUse',
+        timestamp: Date.now(),
+      } as any;
+      const toolMsg = {
+        role: 'toolResult',
+        toolCallId: 'tc1',
+        toolName: 'ls',
+        content: [{ type: 'text', text: 'file.txt' }],
+        isError: false,
+        timestamp: Date.now(),
+      } as any;
       session.conversation.push(assistantMsg, toolMsg);
       await sessionProvider.save(session);
 
       const messages = await service.getMessages(DEFAULT_WORKSPACE, summary.sessionId);
       expect(messages).toHaveLength(1);
       expect(messages[0].parts).toHaveLength(2);
-      expect(messages[0].parts[0]).toEqual({ type: 'tool-call', toolCallId: 'tc1', toolName: 'ls', arguments: { path: '.' } });
-      expect(messages[0].parts[1]).toEqual({ type: 'tool-result', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' });
+      expect(messages[0].parts[0]).toEqual({ type: 'toolCall', id: 'tc1', name: 'ls', arguments: { path: '.' } });
+      expect(messages[0].parts[1]).toEqual({ type: 'toolResult', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' });
     } finally {
       await cleanup();
     }
@@ -162,10 +169,10 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       const session = await sessionProvider.load(summary.sessionId);
       if (!session) throw new Error('Session not found');
       session.conversation.push({
-        id: 'u1',
         role: 'user',
-        content: [{ type: 'text', text: 'hello' }],
-      } as ModelMessage);
+        content: 'hello',
+        timestamp: Date.now(),
+      } as any);
       await sessionProvider.save(session);
 
       const newRepo = new JsonWorkspaceRepository(join(dir, 'workspaces2.json'));

@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { AgentLiveState } from '../src/state.js';
 import { IterationBudget } from '../src/budget.js';
-import type { LanguageModelUsage } from '../src/types.js';
+import type { Usage } from '@earendil-works/pi-ai';
+
+const baseUsage = (totalTokens: number, input = 0, output = 0): Usage => ({
+  input,
+  output,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+});
 
 describe('AgentLiveState', () => {
   it('should have idle status by default', () => {
@@ -63,16 +72,10 @@ describe('AgentLiveState', () => {
 
   it('accumulates token usage', () => {
     const liveState = new AgentLiveState();
-    const usage: LanguageModelUsage = {
-      inputTokens: 100,
-      outputTokens: 50,
-      totalTokens: 150,
-      inputTokenDetails: { noCacheTokens: 80, cacheReadTokens: 15, cacheWriteTokens: 5 },
-      outputTokenDetails: { textTokens: 40, reasoningTokens: 10 },
-    };
+    const usage = baseUsage(150, 100, 50);
     liveState.addTokenUsage(usage);
     expect(liveState.tokenUsage.totalTokens).toBe(150);
-    liveState.addTokenUsage({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    liveState.addTokenUsage(baseUsage(15, 10, 5));
     expect(liveState.tokenUsage.totalTokens).toBe(165);
   });
 });

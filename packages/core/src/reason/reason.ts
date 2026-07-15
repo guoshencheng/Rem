@@ -1,8 +1,8 @@
-import type { Message, Models, Context } from '@earendil-works/pi-ai';
-import type { ModelMessage, ProviderChunk, LanguageModelUsage } from '../types.js';
+import type { Message, Models, Context, Usage, ToolCall } from '@earendil-works/pi-ai';
+import type { AgentStreamEvent } from '../types.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
-import type { ToolSet } from '../llm/types.js';
-import { toPiTool, fromPiAssistantMessage, toLegacyProviderChunks } from '../pi-adapter.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
+import { toPiTool } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
 export { generate, type GenerateParams, type GenerateResult } from './generate.js';
@@ -18,20 +18,18 @@ export interface ReasonParams {
   tools?: ToolSet;
   signal?: AbortSignal;
   errorHandler?: ErrorHandler;
+  emit: (event: AgentStreamEvent) => void;
 }
 
 export interface ReasonResult {
   text: string;
   toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
   reasoning?: string;
-  usage: LanguageModelUsage;
+  usage: Usage;
   finishReason: string;
 }
 
-export async function reason(
-  params: ReasonParams,
-  emit: (chunk: ProviderChunk) => void,
-): Promise<ReasonResult> {
+export async function reason(params: ReasonParams): Promise<ReasonResult> {
   const { models } = params;
   const model = models.getModel(params.provider, params.model);
   if (!model) throw new Error(`Unknown model: ${params.provider}/${params.model}`);
@@ -59,17 +57,31 @@ export async function reason(
       });
 
       for await (const event of stream) {
-        for (const chunk of toLegacyProviderChunks(event)) {
-          emit(chunk);
-        }
+        params.emit(event);
       }
 
       const message = await stream.result();
       if (message.stopReason === 'error' || message.stopReason === 'aborted') {
         throw new Error(message.errorMessage ?? `LLM stopped: ${message.stopReason}`);
       }
-      const result = fromPiAssistantMessage(message);
-      return { ...result, finishReason: result.finishReason ?? 'stop' };
+      const text = message.content
+        .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+        .map((b) => b.text)
+        .join('');
+      const reasoning = message.content
+        .filter((b): b is { type: 'thinking'; thinking: string } => b.type === 'thinking')
+        .map((b) => b.thinking)
+        .join('\n') || undefined;
+      const toolCalls = message.content
+        .filter((b): b is ToolCall => b.type === 'toolCall')
+        .map((b) => ({ toolCallId: b.id, toolName: b.name, input: b.arguments as unknown }));
+      return {
+        text,
+        reasoning,
+        toolCalls,
+        usage: message.usage,
+        finishReason: message.stopReason ?? 'stop',
+      };
     } catch (error) {
       const category = params.errorHandler?.classify(error) ?? 'unknown';
       const message = error instanceof Error ? error.message : String(error);

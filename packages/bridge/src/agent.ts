@@ -1,4 +1,5 @@
 import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule } from 'rem-agent-core';
+import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import { runAgent as coreRunAgent, buildAgentContext, AgentState, log } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
@@ -225,13 +226,14 @@ export class AgentService implements IAgentService {
         const snapshot = this.agentState.getSnapshot(sessionId);
         const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
         if (snapshot) {
-          log('sse', 'replaying snapshot', { sessionId, workspace: ws, messageId: snapshot.messageId, partCount: snapshot.parts.length });
+          const compactParts = compactContentBlocks(snapshot.parts as Array<import('rem-agent-core').TextContent | import('rem-agent-core').ThinkingContent | import('rem-agent-core').ToolCall | undefined>);
+          log('sse', 'replaying snapshot', { sessionId, workspace: ws, messageId: snapshot.messageId, partCount: compactParts.length });
           yield {
             workspace: ws,
             sessionId,
             type: 'snapshot',
             messageId: snapshot.messageId,
-            parts: snapshot.parts,
+            parts: compactParts,
           };
         }
       }

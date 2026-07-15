@@ -17,6 +17,7 @@ export interface RemMessage {
 export type RemMetaEvent =
   | { type: 'step-start'; step: number }
   | { type: 'step-finish'; step: number }
+  | { type: 'message-start'; step: number; messageId: string }
   | { type: 'session-title'; title: string }
   | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
   | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
@@ -42,21 +43,6 @@ export interface ModelMessage {
   content: MessageContent;
 }
 
-export interface LanguageModelUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  inputTokenDetails?: {
-    noCacheTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-  };
-  outputTokenDetails?: {
-    textTokens?: number;
-    reasoningTokens?: number;
-  };
-}
-
 export interface UserInput {
   content: string;
   timestamp?: Date;
@@ -66,73 +52,6 @@ export interface AgentOutput {
   content: string;
   completed: boolean;
 }
-
-export type AgentStreamChunk =
-  | { type: 'step-start'; step: number }
-  | { type: 'step-finish'; step: number }
-  | { type: 'message-start'; step: number; messageId: string }
-  | { type: 'text-start'; step: number; partId: string }
-  | { type: 'text-delta'; step: number; partId: string; text: string }
-  | { type: 'text-finish'; step: number; partId: string }
-  | { type: 'reasoning-start'; step: number; partId: string }
-  | { type: 'reasoning-delta'; step: number; partId: string; text: string }
-  | { type: 'reasoning-finish'; step: number; partId: string }
-  | { type: 'tool-call-start'; step: number; partId: string; toolCallId: string; toolName: string }
-  | { type: 'tool-call'; step: number; partId: string; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'tool-call-finish'; step: number; partId: string; toolCallId: string; toolName: string }
-  | { type: 'tool-result-start'; step: number; partId: string; toolCallId: string; toolName?: string }
-  | { type: 'tool-result'; step: number; partId: string; toolCallId: string; output: string; error?: string }
-  | { type: 'tool-result-finish'; step: number; partId: string; toolCallId: string }
-  | { type: 'finish'; output: AgentOutput }
-  | { type: 'error'; error: Error }
-  | { type: 'session-title'; title: string }
-  | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
-  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
-  | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
-  | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
-  | { type: 'compress-error'; sessionId: string; error: string }
-  | {
-      type: 'usage';
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-      inputTokenDetails?: {
-        noCacheTokens?: number;
-        cacheReadTokens?: number;
-        cacheWriteTokens?: number;
-      };
-      outputTokenDetails?: {
-        textTokens?: number;
-        reasoningTokens?: number;
-      };
-    };
-
-/** Chunks that providers emit before the AgentStreamController enriches them with partId. */
-export type ProviderChunk =
-  | { type: 'text-delta'; step: number; text: string }
-  | { type: 'reasoning-delta'; step: number; text: string }
-  | { type: 'tool-call'; step: number; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'tool-result'; step: number; toolCallId: string; output: string; error?: string }
-  | { type: 'step-start'; step: number }
-  | { type: 'step-finish'; step: number }
-  | { type: 'message-start'; step: number; messageId: string }
-  | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
-  | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
-  | {
-      type: 'usage';
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-      inputTokenDetails?: {
-        noCacheTokens?: number;
-        cacheReadTokens?: number;
-        cacheWriteTokens?: number;
-      };
-      outputTokenDetails?: {
-        textTokens?: number;
-        reasoningTokens?: number;
-      };
-    };
 
 export interface AgentStreamStepResult {
   step: number;
@@ -148,9 +67,9 @@ export interface AgentStreamStepResult {
 }
 
 export interface AgentStream {
-  fullStream: AsyncIterable<AgentStreamChunk>;
+  fullStream: AsyncIterable<AgentStreamEvent>;
   text: Promise<string>;
-  usage: Promise<LanguageModelUsage>;
+  usage: Promise<Usage>;
   steps: Promise<AgentStreamStepResult[]>;
 }
 
@@ -174,5 +93,5 @@ export interface ToolCallRecord {
 export interface TurnResult {
   content: string;
   newMessages: ModelMessage[];
-  usage: LanguageModelUsage;
+  usage: Usage;
 }

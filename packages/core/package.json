@@ -9,9 +9,9 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./stream/stream-aggregators": {
-      "import": "./dist/stream/stream-aggregators.js",
-      "types": "./dist/stream/stream-aggregators.d.ts"
+    "./stream/event-aggregators": {
+      "import": "./dist/stream/event-aggregators.js",
+      "types": "./dist/stream/event-aggregators.d.ts"
     },
     "./token-usage": {
       "import": "./dist/token-usage.js",

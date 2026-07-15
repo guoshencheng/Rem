@@ -49,7 +49,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;
@@ -88,7 +88,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;
@@ -126,7 +126,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;

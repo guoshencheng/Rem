@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ContentPart } from 'rem-agent-bridge';
+import type { ToolCall } from 'rem-agent-core';
+import type { ToolResultBlock } from 'rem-agent-bridge';
 
 interface ToolCallBlockProps {
-  tool: Extract<ContentPart, { type: 'tool-call' }>;
-  result?: Extract<ContentPart, { type: 'tool-result' }>;
+  tool: ToolCall;
+  result?: ToolResultBlock;
 }
 
 export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
@@ -38,7 +39,7 @@ export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
           className={cn('transition-transform flex-shrink-0', open && 'rotate-90')}
         />
         <Wrench size={12} className="flex-shrink-0" />
-        <span className="font-mono truncate">{tool.toolName}</span>
+        <span className="font-mono truncate">{tool.name}</span>
         {statusIcon}
         <span className="truncate text-tx3 flex-1">{statusText}</span>
       </button>

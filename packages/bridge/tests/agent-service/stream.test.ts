@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createTestService, getAgentState } from './shared.js';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
 import type { BusEvent } from '../../src/types.js';
+
+const partial = {} as AssistantMessage;
 
 describe('AgentService stream', { timeout: 20000 }, () => {
   it('replays snapshots for running sessions then yields live events', async () => {
@@ -9,15 +12,15 @@ describe('AgentService stream', { timeout: 20000 }, () => {
       getAgentState(service).startRun('s1', 'default');
       getAgentState(service).startSnapshot('s1', 'm1');
       getAgentState(service).appendSnapshotParts('s1', {
-        type: 'text-start',
-        step: 0,
-        partId: 'p1',
+        type: 'text_start',
+        contentIndex: 0,
+        partial,
       });
       getAgentState(service).appendSnapshotParts('s1', {
-        type: 'text-delta',
-        step: 0,
-        partId: 'p1',
-        text: 'hello',
+        type: 'text_delta',
+        contentIndex: 0,
+        delta: 'hello',
+        partial,
       });
 
       const iterator = service.stream()[Symbol.asyncIterator]();

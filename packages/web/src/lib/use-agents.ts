@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
-import { reduceStreamChunk } from 'rem-agent-bridge/client';
+import { reduceStreamEvent } from 'rem-agent-bridge/client';
+import type { UiContentBlock } from 'rem-agent-bridge';
 import { useAgentBus } from './agent-bus';
 import { generateUUID } from './utils';
 
@@ -17,12 +18,12 @@ interface SessionState {
   activity?: SessionActivity;
   pendingToolCalls: Set<string>;
   pendingApprovals: ApprovalRequest[];
-  tokenUsage?: LanguageModelUsage;
+  tokenUsage?: Usage;
   childAgents: Map<string, {
     childSessionId: string;
     summary: string;
     status: 'running' | 'completed' | 'failed';
-    tokenUsage?: LanguageModelUsage;
+    tokenUsage?: Usage;
   }>;
 }
 
@@ -34,7 +35,7 @@ export interface SessionSummary {
   messageCount: number;
   pinned?: boolean;
   activity?: SessionActivity;
-  tokenUsage?: LanguageModelUsage;
+  tokenUsage?: Usage;
   parentSessionId?: string;
 }
 
@@ -98,7 +99,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
   );
 
   const ensureSession = useCallback(
-    async (sessionId: string, initialTokenUsage?: LanguageModelUsage) => {
+    async (sessionId: string, initialTokenUsage?: Usage) => {
       if (sessionMapRef.current.has(sessionId)) return;
       try {
         const [messages, pendingApprovals] = await Promise.all([
@@ -286,22 +287,18 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           // streaming message can be updated in a single pass.
           let nextActivePartType: UIMessage['activePartType'] | undefined;
           switch (chunk.type) {
-            case 'reasoning-start':
-              nextActivePartType = 'reasoning';
+            case 'thinking_start':
+              nextActivePartType = 'thinking';
               break;
-            case 'text-start':
+            case 'text_start':
               nextActivePartType = 'text';
               break;
-            case 'tool-call-start':
-              nextActivePartType = 'tool-call';
+            case 'toolcall_start':
+            case 'toolcall_end':
+              nextActivePartType = 'toolCall';
               break;
-            case 'tool-result-start':
-              nextActivePartType = 'tool-result';
-              break;
-            case 'reasoning-finish':
-            case 'text-finish':
-            case 'tool-call-finish':
-            case 'tool-result-finish':
+            case 'thinking_end':
+            case 'text_end':
             case 'finish':
             case 'error':
               nextActivePartType = undefined;
@@ -321,7 +318,22 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             }
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
-                const newParts = reduceStreamChunk(m.parts, chunk);
+                const isAssistantEvent =
+                  chunk.type === 'text_start' ||
+                  chunk.type === 'text_delta' ||
+                  chunk.type === 'text_end' ||
+                  chunk.type === 'thinking_start' ||
+                  chunk.type === 'thinking_delta' ||
+                  chunk.type === 'thinking_end' ||
+                  chunk.type === 'toolcall_start' ||
+                  chunk.type === 'toolcall_delta' ||
+                  chunk.type === 'toolcall_end' ||
+                  chunk.type === 'start' ||
+                  chunk.type === 'done' ||
+                  chunk.type === 'error';
+                const newParts = isAssistantEvent
+                  ? reduceStreamEvent(m.parts, chunk as import('rem-agent-core').AssistantMessageEvent)
+                  : m.parts;
                 return {
                   ...m,
                   parts: newParts,
@@ -351,40 +363,25 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             state.pendingApprovals = state.pendingApprovals.filter(
               (r) => r.approvalId !== chunk.approvalId,
             );
-          } else if (chunk.type === 'usage') {
-            state.tokenUsage = {
-              inputTokens: chunk.inputTokens,
-              outputTokens: chunk.outputTokens,
-              totalTokens: chunk.totalTokens,
-              inputTokenDetails: chunk.inputTokenDetails,
-              outputTokenDetails: chunk.outputTokenDetails,
-            };
-            // 把本次 usage 绑定到当前正在生成的 assistant 消息
-            if (msgId) {
-              state.messages = state.messages.map((m) =>
-                m.id === msgId ? { ...m, tokenUsage: state.tokenUsage } : m,
-              );
-            }
           } else if (chunk.type === 'finish' || chunk.type === 'error') {
             state.activity = 'idle';
             state.pendingToolCalls.clear();
-          } else if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta') {
+          } else if (chunk.type === 'thinking_start' || chunk.type === 'thinking_delta') {
             state.activity = 'thinking';
-          } else if (chunk.type === 'tool-call-start' || chunk.type === 'tool-call') {
+          } else if (chunk.type === 'toolcall_start' || chunk.type === 'toolcall_end') {
             state.activity = 'calling-function';
-            state.pendingToolCalls.add(chunk.toolCallId);
-          } else if (chunk.type === 'tool-result-start' || chunk.type === 'tool-result' || chunk.type === 'tool-result-finish') {
-            state.pendingToolCalls.delete(chunk.toolCallId);
-            if (state.pendingToolCalls.size > 0) {
-              state.activity = 'calling-function';
+            if (chunk.type === 'toolcall_end') {
+              state.pendingToolCalls.add(chunk.toolCall.id);
             }
-          } else if (chunk.type === 'text-start' || chunk.type === 'text-delta') {
+          } else if (chunk.type === 'text_start' || chunk.type === 'text_delta') {
             if (state.pendingToolCalls.size === 0) {
               state.activity = 'outputting';
             }
           } else if (chunk.type === 'step-finish') {
             state.activity = state.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
             state.pendingToolCalls.clear();
+          } else if (chunk.type === 'step-start') {
+            state.activity = 'pending';
           }
 
           notifyChange();

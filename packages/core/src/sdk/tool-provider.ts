@@ -1,6 +1,12 @@
 import type { Static, TObject } from '@sinclair/typebox';
-import type { ToolSet } from '../llm/types.js';
 import type { Rule } from '../security/rules/rule.js';
+
+export interface ToolSchema {
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export type ToolSet = Record<string, ToolSchema>;
 
 export interface ToolContext {
   cwd: string;

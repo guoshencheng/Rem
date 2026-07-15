@@ -4,7 +4,7 @@ import { createReadSkillTool } from './plugins/tool/builtin/skill-read.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ToolComposer } from './sdk/tool-composer.js';
-import type { ToolSet } from './llm/types.js';
+import type { ToolSet } from './sdk/tool-provider.js';
 import type { Tool } from '@earendil-works/pi-ai';
 import { toPiTool } from './pi-adapter.js';
 

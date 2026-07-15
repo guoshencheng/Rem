@@ -7,11 +7,10 @@ import type {
   ToolCall,
   TextContent,
   ThinkingContent,
-  AssistantMessageEvent,
   Usage,
 } from '@earendil-works/pi-ai';
-import type { ModelMessage, ContentPart, ProviderChunk, LanguageModelUsage } from './types.js';
-import type { ToolSchema } from './llm/types.js';
+import type { ModelMessage, ContentPart } from './types.js';
+import type { ToolSchema } from './sdk/tool-provider.js';
 
 export function toPiMessage(message: ModelMessage): Message {
   switch (message.role) {
@@ -106,38 +105,11 @@ export function toPiToolResultMessage(result: { toolCallId: string; toolName: st
   } as ToolResultMessage;
 }
 
-export function* toLegacyProviderChunks(event: AssistantMessageEvent): Generator<ProviderChunk> {
-  switch (event.type) {
-    case 'text_delta':
-      yield { type: 'text-delta', step: 0, text: event.delta };
-      break;
-    case 'thinking_delta':
-      yield { type: 'reasoning-delta', step: 0, text: event.delta };
-      break;
-    case 'toolcall_end': {
-      const tc = event.toolCall;
-      yield { type: 'tool-call', step: 0, toolCallId: tc.id, toolName: tc.name, input: tc.arguments };
-      break;
-    }
-    case 'done':
-    case 'error':
-    case 'start':
-    case 'text_start':
-    case 'text_end':
-    case 'thinking_start':
-    case 'thinking_end':
-    case 'toolcall_start':
-    case 'toolcall_delta':
-      // Phase 1 忽略这些事件，Phase 2 再消费
-      break;
-  }
-}
-
 export function fromPiAssistantMessage(message: AssistantMessage): {
   text: string;
   reasoning?: string;
   toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
-  usage: LanguageModelUsage;
+  usage: Usage;
   finishReason: string;
 } {
   const text = message.content
@@ -155,37 +127,8 @@ export function fromPiAssistantMessage(message: AssistantMessage): {
     text,
     reasoning,
     toolCalls,
-    usage: piUsageToLanguageModelUsage(message.usage),
+    usage: message.usage,
     finishReason: message.stopReason ?? 'stop',
-  };
-}
-
-export function piUsageToLanguageModelUsage(usage: Usage): LanguageModelUsage {
-  return {
-    inputTokens: usage.input,
-    outputTokens: usage.output,
-    totalTokens: usage.totalTokens,
-    inputTokenDetails: {
-      noCacheTokens: usage.input - usage.cacheRead - usage.cacheWrite,
-      cacheReadTokens: usage.cacheRead,
-      cacheWriteTokens: usage.cacheWrite,
-    },
-    outputTokenDetails: {
-      textTokens: usage.output - (usage.reasoning ?? 0),
-      reasoningTokens: usage.reasoning,
-    },
-  };
-}
-
-export function languageModelUsageToPiUsage(usage: LanguageModelUsage): Usage {
-  const details = usage.inputTokenDetails ?? {};
-  return {
-    input: usage.inputTokens,
-    output: usage.outputTokens,
-    cacheRead: details.cacheReadTokens ?? 0,
-    cacheWrite: details.cacheWriteTokens ?? 0,
-    totalTokens: usage.totalTokens,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   };
 }
 

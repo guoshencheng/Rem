@@ -57,7 +57,7 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
       const types = events.map((e) => e.type);
       expect(types).toContain('session-start');
       expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'message-start')).toBe(true);
-      expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'text-delta')).toBe(true);
+      expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'text_delta')).toBe(true);
       expect(events.some((e) => e.type === 'chunk' && e.chunk.type === 'finish')).toBe(true);
       expect(types).toContain('session-end');
       expect(getAgentState(service).isRunning(summary.sessionId)).toBe(false);
@@ -70,11 +70,7 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
     const { service, cleanup } = await createTestService({
       provider: {
         name: 'mock-run-error',
-        stream: () =>
-          (async function* () {
-            throw new Error('stream boom');
-            yield { type: 'text' as const, text: 'x' };
-          })(),
+        error: new Error('stream boom'),
       },
     });
     try {

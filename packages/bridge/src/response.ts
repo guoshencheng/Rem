@@ -1,7 +1,7 @@
-import type { AgentStreamChunk } from 'rem-agent-core';
+import type { AgentStreamEvent } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 
-export function createSSEResponse(fullStream: AsyncIterable<AgentStreamChunk>): Response {
+export function createSSEResponse(fullStream: AsyncIterable<AgentStreamEvent>): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {

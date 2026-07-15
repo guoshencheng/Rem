@@ -1,6 +1,7 @@
-import type { SessionProvider, ContentPart, AgentState, LanguageModelUsage } from 'rem-agent-core';
-import { addUsage, emptyUsage } from 'rem-agent-core/token-usage';
-import type { SessionSummary, SessionUpdate, UIMessage } from './types.js';
+import type { SessionProvider, AgentState, Usage, Message } from 'rem-agent-core';
+import { addUsage, emptyUsage, normalizeUsage } from 'rem-agent-core/token-usage';
+import type { TextContent } from 'rem-agent-core';
+import type { SessionSummary, SessionUpdate, UIMessage, UiContentBlock, ToolResultBlock } from './types.js';
 import { ServiceError } from './errors.js';
 
 export class AgentSessionManager {
@@ -46,9 +47,9 @@ export class AgentSessionManager {
     });
   }
 
-  private computeTotalTokenUsage(messageTokenUsage: unknown): LanguageModelUsage | undefined {
+  private computeTotalTokenUsage(messageTokenUsage: unknown): Usage | undefined {
     if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
-    const entries = Object.values(messageTokenUsage) as LanguageModelUsage[];
+    const entries = Object.values(messageTokenUsage).map((entry) => normalizeUsage(entry));
     if (entries.length === 0) return undefined;
     return entries.reduce((acc, usage) => addUsage(acc, usage), emptyUsage());
   }
@@ -59,40 +60,51 @@ export class AgentSessionManager {
       throw new ServiceError('Session not found', 404);
     }
 
-    const toolResults = new Map<string, ContentPart>();
+    const toolResults = new Map<string, ToolResultBlock>();
     for (const msg of session.conversation) {
-      if (msg.role !== 'tool') continue;
-      for (const part of msg.content ?? []) {
-        if (part.type === 'tool-result') {
-          toolResults.set(part.toolCallId, part);
-        }
-      }
+      if (msg.role !== 'toolResult') continue;
+      const content = typeof msg.content === 'string' ? [] : msg.content;
+      const output = content
+        .filter((c): c is TextContent => c.type === 'text')
+        .map((c) => c.text)
+        .join('');
+      toolResults.set(msg.toolCallId, {
+        type: 'toolResult',
+        toolCallId: msg.toolCallId,
+        toolName: msg.toolName,
+        output,
+        error: msg.isError ? 'error' : undefined,
+      });
     }
 
-    const messageTokenUsage = (session.metadata?.messageTokenUsage ?? {}) as Record<string, LanguageModelUsage>;
+    const messageTokenUsage = (session.metadata?.messageTokenUsage ?? {}) as Record<string, Usage>;
 
-    return session.conversation
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => {
-        const parts = (msg.content ?? []) as ContentPart[];
-        const mergedParts: ContentPart[] = [];
-        for (const part of parts) {
-          mergedParts.push(part);
-          if (part.type === 'tool-call') {
-            const result = toolResults.get(part.toolCallId);
-            if (result) {
-              mergedParts.push(result);
-            }
+    const uiMessages: UIMessage[] = [];
+    for (let i = 0; i < session.conversation.length; i++) {
+      const msg = session.conversation[i];
+      if (msg.role !== 'user' && msg.role !== 'assistant') continue;
+
+      const messageId = String((msg as any).id ?? i);
+      const parts = messageToContentBlocks(msg);
+      const mergedParts: UiContentBlock[] = [];
+      for (const part of parts) {
+        mergedParts.push(part);
+        if (part.type === 'toolCall') {
+          const result = toolResults.get(part.id);
+          if (result) {
+            mergedParts.push(result);
           }
         }
-        return {
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          parts: mergedParts,
-          status: 'done' as const,
-          tokenUsage: messageTokenUsage[msg.id],
-        };
+      }
+      uiMessages.push({
+        id: messageId,
+        role: msg.role as 'user' | 'assistant',
+        parts: mergedParts,
+        status: 'done' as const,
+        tokenUsage: normalizeUsage(messageTokenUsage[messageId]),
       });
+    }
+    return uiMessages;
   }
 
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
@@ -137,4 +149,28 @@ export class AgentSessionManager {
       messageCount: Array.isArray(session.conversation) ? session.conversation.length : 0,
     };
   }
+}
+
+interface ImageContent { type: 'image'; data: string; mimeType: string; }
+
+function messageToContentBlocks(message: Message): UiContentBlock[] {
+  if (message.role === 'user') {
+    if (typeof message.content === 'string') {
+      return [{ type: 'text', text: message.content }];
+    }
+    return message.content
+      .filter((c): c is TextContent | ImageContent => c.type === 'text' || c.type === 'image')
+      .map((c) => c.type === 'text' ? { type: 'text', text: c.text } : { type: 'text', text: '[image]' });
+  }
+  const parts: UiContentBlock[] = [];
+  for (const block of message.content) {
+    if (block.type === 'text') {
+      parts.push({ type: 'text', text: block.text });
+    } else if (block.type === 'thinking') {
+      parts.push({ type: 'thinking', thinking: block.thinking });
+    } else if (block.type === 'toolCall') {
+      parts.push(block);
+    }
+  }
+  return parts;
 }

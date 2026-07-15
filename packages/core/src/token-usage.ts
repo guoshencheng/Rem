@@ -1,12 +1,11 @@
-import type { LanguageModelUsage } from './types.js';
 import type { Usage } from '@earendil-works/pi-ai';
 
-export interface TokenUsageDetail extends LanguageModelUsage {
+export interface TokenUsageDetail extends Usage {
   runAt: Date;
-  turns: LanguageModelUsage[];
+  turns: Usage[];
 }
 
-export function emptyPiUsage(): Usage {
+export function emptyUsage(): Usage {
   return {
     input: 0,
     output: 0,
@@ -27,7 +26,7 @@ export function addCost(a: Usage['cost'], b: Usage['cost']): Usage['cost'] {
   };
 }
 
-export function addPiUsage(a: Usage, b: Usage): Usage {
+export function addUsage(a: Usage, b: Usage): Usage {
   return {
     input: a.input + b.input,
     output: a.output + b.output,
@@ -39,72 +38,61 @@ export function addPiUsage(a: Usage, b: Usage): Usage {
   };
 }
 
-export function emptyUsage(): LanguageModelUsage {
-  return {
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
-    outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
-  };
-}
-
-function detailOrZero(detail: LanguageModelUsage['inputTokenDetails']) {
-  return {
-    noCacheTokens: detail?.noCacheTokens ?? 0,
-    cacheReadTokens: detail?.cacheReadTokens ?? 0,
-    cacheWriteTokens: detail?.cacheWriteTokens ?? 0,
-  };
-}
-
-function outputDetailOrZero(detail: LanguageModelUsage['outputTokenDetails']) {
-  return {
-    textTokens: detail?.textTokens ?? 0,
-    reasoningTokens: detail?.reasoningTokens ?? 0,
-  };
-}
-
-export function addUsage(a: LanguageModelUsage, b: LanguageModelUsage): LanguageModelUsage {
-  const aIn = detailOrZero(a.inputTokenDetails);
-  const bIn = detailOrZero(b.inputTokenDetails);
-  const aOut = outputDetailOrZero(a.outputTokenDetails);
-  const bOut = outputDetailOrZero(b.outputTokenDetails);
-
-  return {
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    totalTokens: a.totalTokens + b.totalTokens,
-    inputTokenDetails: {
-      noCacheTokens: aIn.noCacheTokens + bIn.noCacheTokens,
-      cacheReadTokens: aIn.cacheReadTokens + bIn.cacheReadTokens,
-      cacheWriteTokens: aIn.cacheWriteTokens + bIn.cacheWriteTokens,
-    },
-    outputTokenDetails: {
-      textTokens: aOut.textTokens + bOut.textTokens,
-      reasoningTokens: aOut.reasoningTokens + bOut.reasoningTokens,
-    },
-  };
-}
-
-export function computeCacheStats(usage: LanguageModelUsage): {
+export function computeCacheStats(usage: Usage): {
   cacheRead: number;
   cacheWrite: number;
   noCache: number;
 } {
-  const details = detailOrZero(usage.inputTokenDetails);
+  const cacheRead = usage.cacheRead ?? 0;
+  const cacheWrite = usage.cacheWrite ?? 0;
   return {
-    cacheRead: details.cacheReadTokens,
-    cacheWrite: details.cacheWriteTokens,
-    noCache: details.noCacheTokens,
+    cacheRead,
+    cacheWrite,
+    noCache: Math.max(0, usage.input - cacheRead - cacheWrite),
   };
 }
 
-export function computeCacheRatio(usage: LanguageModelUsage): number {
+export function computeCacheRatio(usage: Usage): number {
   if (usage.totalTokens === 0) return 0;
-  const details = detailOrZero(usage.inputTokenDetails);
-  return (details.cacheReadTokens + details.cacheWriteTokens) / usage.totalTokens;
+  return (usage.cacheRead + usage.cacheWrite) / usage.totalTokens;
 }
 
-export function formatUsage(usage: LanguageModelUsage): string {
-  return `${usage.totalTokens.toLocaleString()} tokens (${usage.inputTokens.toLocaleString()} in / ${usage.outputTokens.toLocaleString()} out)`;
+export function formatUsage(usage: Usage): string {
+  return `${usage.totalTokens.toLocaleString()} tokens (${usage.input.toLocaleString()} in / ${usage.output.toLocaleString()} out)`;
+}
+
+export function normalizeUsage(usage: unknown): Usage {
+  if (!usage || typeof usage !== 'object') return emptyUsage();
+  const u = usage as Record<string, any>;
+
+  const input = typeof u.input === 'number' ? u.input : (typeof u.inputTokens === 'number' ? u.inputTokens : 0);
+  const output = typeof u.output === 'number' ? u.output : (typeof u.outputTokens === 'number' ? u.outputTokens : 0);
+  const totalTokens = typeof u.totalTokens === 'number' ? u.totalTokens : input + output;
+
+  const inputDetails = u.inputTokenDetails ?? {};
+  const cacheRead = typeof u.cacheRead === 'number'
+    ? u.cacheRead
+    : (typeof inputDetails.cacheReadTokens === 'number' ? inputDetails.cacheReadTokens : 0);
+  const cacheWrite = typeof u.cacheWrite === 'number'
+    ? u.cacheWrite
+    : (typeof inputDetails.cacheWriteTokens === 'number' ? inputDetails.cacheWriteTokens : 0);
+
+  const outputDetails = u.outputTokenDetails ?? {};
+  const reasoning = typeof u.reasoning === 'number'
+    ? u.reasoning
+    : (typeof outputDetails.reasoningTokens === 'number' ? outputDetails.reasoningTokens : undefined);
+
+  const cost = u.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+  return { input, output, cacheRead, cacheWrite, totalTokens, cost, reasoning };
+}
+
+export function normalizeUsageDetail(detail: unknown): TokenUsageDetail {
+  const base = normalizeUsage(detail);
+  const d = detail as Record<string, any>;
+  const runAt = d.runAt instanceof Date ? d.runAt : new Date(d.runAt ?? Date.now());
+  const turns = Array.isArray(d.turns)
+    ? d.turns.map((turn: unknown) => normalizeUsage(turn))
+    : [base];
+  return { ...base, runAt, turns };
 }

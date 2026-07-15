@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createTestService, getAgentState } from './shared.js';
 import { DEFAULT_WORKSPACE } from './shared.js';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
+
+const partial = {} as AssistantMessage;
 
 describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
   it('interrupt() aborts run but does not finish it', async () => {
@@ -46,15 +49,15 @@ describe('AgentService interrupt and reset', { timeout: 20000 }, () => {
       getAgentState(service).startRun(summary.sessionId, 'default');
       getAgentState(service).startSnapshot(summary.sessionId, 'm1');
       getAgentState(service).appendSnapshotParts(summary.sessionId, {
-        type: 'text-start',
-        step: 0,
-        partId: 'p1',
+        type: 'text_start',
+        contentIndex: 0,
+        partial,
       });
       getAgentState(service).appendSnapshotParts(summary.sessionId, {
-        type: 'text-delta',
-        step: 0,
-        partId: 'p1',
-        text: 'x',
+        type: 'text_delta',
+        contentIndex: 0,
+        delta: 'x',
+        partial,
       });
 
       await service.reset(DEFAULT_WORKSPACE, summary.sessionId);

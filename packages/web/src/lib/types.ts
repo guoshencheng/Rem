@@ -1,39 +1,52 @@
-import type { AgentStreamChunk, UIMessage, BusEvent, SessionActivity } from 'rem-agent-bridge';
+import type { AssistantMessageEvent } from 'rem-agent-core';
+import type { UIMessage, BusEvent, SessionActivity } from 'rem-agent-bridge';
 
-export type { AgentStreamChunk, UIMessage, BusEvent, SessionActivity };
+export type { UIMessage, BusEvent, SessionActivity, AssistantMessageEvent };
 
-export function isSSETextDelta(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'text-delta' } {
-  return c.type === 'text-delta';
+export function isSSETextDelta(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'text_delta' }> {
+  return c.type === 'text_delta';
 }
 
-export function isSSEReasoningDelta(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'reasoning-delta' } {
-  return c.type === 'reasoning-delta';
+export function isSSEThinkingDelta(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'thinking_delta' }> {
+  return c.type === 'thinking_delta';
 }
 
-export function isSSEReasoningFinish(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'reasoning-finish' } {
-  return c.type === 'reasoning-finish';
+export function isSSEThinkingStart(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'thinking_start' }> {
+  return c.type === 'thinking_start';
 }
 
-export function isSSEToolCallStart(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'tool-call-start' } {
-  return c.type === 'tool-call-start';
+export function isSSEThinkingEnd(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'thinking_end' }> {
+  return c.type === 'thinking_end';
 }
 
-export function isSSEToolResult(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'tool-result' } {
-  return c.type === 'tool-result';
+export function isSSEToolCallEnd(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'toolcall_end' }> {
+  return c.type === 'toolcall_end';
 }
 
-export function isSSEFinish(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'finish' } {
-  return c.type === 'finish';
+export function isSSETextStart(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'text_start' }> {
+  return c.type === 'text_start';
 }
 
-export function isSSEError(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'error' } {
+export function isSSETextEnd(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'text_end' }> {
+  return c.type === 'text_end';
+}
+
+export function isSSEToolCallStart(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'toolcall_start' }> {
+  return c.type === 'toolcall_start';
+}
+
+export function isSSEFinish(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'done' }> {
+  return c.type === 'done';
+}
+
+export function isSSEError(c: AssistantMessageEvent): c is Extract<AssistantMessageEvent, { type: 'error' }> {
   return c.type === 'error';
 }
 
-export function isSSEApprovalRequest(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'approval-request' } {
-  return c.type === 'approval-request';
+export function isSSEStepStart(c: AssistantMessageEvent): boolean {
+  return false;
 }
 
-export function isSSEApprovalResolved(c: AgentStreamChunk): c is AgentStreamChunk & { type: 'approval-resolved' } {
-  return c.type === 'approval-resolved';
+export function isSSEStepFinish(c: AssistantMessageEvent): boolean {
+  return false;
 }

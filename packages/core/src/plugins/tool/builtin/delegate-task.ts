@@ -1,6 +1,6 @@
 import { Type, type Static } from '@sinclair/typebox';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
-import type { LanguageModelUsage } from '../../../types.js';
 import type { AgentContext } from '../../../agent-context.js';
 import type { AgentState } from '../../../agent-state.js';
 import type { BusEvent } from '../../../bus-events.js';
@@ -62,7 +62,7 @@ export function createDelegateTaskToolExecutor(
     });
 
     let failed = false;
-    let lastTokenUsage: LanguageModelUsage | undefined;
+    let lastTokenUsage: Usage | undefined;
 
     const handleChildEvent = (event: BusEvent) => {
       if (event.sessionId !== childSessionId) return;

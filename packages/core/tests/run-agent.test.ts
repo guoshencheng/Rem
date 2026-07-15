@@ -1,8 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentContext } from '../src/agent-context.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
-import type { LanguageModelUsage } from '../src/types.js';
+
+const emptyUsage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
 
 const createMockContextBase = () => ({
   configProvider: {
@@ -31,6 +40,12 @@ const createMockContextBase = () => ({
       isDangerous: () => false,
     }),
   },
+  mcpProviders: [],
+  models: {
+    getModel: () => ({ id: 'gpt-4o-mini', provider: 'openai' }),
+    stream: vi.fn(),
+    complete: vi.fn(),
+  },
 });
 
 describe('runAgent', () => {
@@ -40,8 +55,7 @@ describe('runAgent', () => {
       loopStrategy: {
         run: async () => ({
           content: 'hello back',
-          newMessages: [],
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
         }),
       },
     } as unknown as AgentContext;
@@ -76,15 +90,14 @@ describe('runAgent', () => {
 
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: { compose },
       loopStrategy: {
         run: async (ctx: any) => {
-          expect(ctx.reason).toBeDefined();
+          expect(ctx.stream).toBeDefined();
+          expect(ctx.generate).toBeDefined();
           return {
             content: 'hello back',
-            newMessages: [],
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
           };
         },
       },
@@ -112,11 +125,10 @@ describe('runAgent', () => {
   });
 
   it('accumulates usage and writes history', async () => {
-    const usage: LanguageModelUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const usage: Usage = { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     const savedSessions: any[] = [];
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: {
         compose: () => ({
           getToolSet: () => ({}),
@@ -126,7 +138,11 @@ describe('runAgent', () => {
         }),
       },
       loopStrategy: {
-        run: async () => ({ content: 'hello back', newMessages: [], usage }),
+        run: async () => ({
+          content: 'hello back',
+          usage: { ...emptyUsage, input: 10, output: 5, totalTokens: 15 },
+          message: { role: 'assistant', content: [], usage: { ...emptyUsage, input: 10, output: 5, totalTokens: 15 } },
+        }),
       },
       sessionProvider: {
         load: async () => null,
@@ -170,7 +186,6 @@ describe('runAgent', () => {
   it('emits error chunk when loopStrategy throws', async () => {
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: {
         compose: () => ({
           getToolSet: () => ({}),
@@ -192,7 +207,7 @@ describe('runAgent', () => {
       agentState: new AgentState(),
     });
 
-    const chunks: import('../src/types.js').AgentStreamChunk[] = [];
+    const chunks: import('../src/types.js').AgentStreamEvent[] = [];
     for await (const chunk of result.stream.fullStream) {
       chunks.push(chunk);
     }

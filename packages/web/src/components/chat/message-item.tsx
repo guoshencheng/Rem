@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 import { MarkdownContent } from './markdown-content';
 import { ChildAgentCard } from './child-agent-card';
 import { CopyButton } from './copy-button';
-import type { UIMessage } from 'rem-agent-bridge';
-import type { LanguageModelUsage } from 'rem-agent-core';
+import type { UIMessage, UiContentBlock, ToolResultBlock } from 'rem-agent-bridge';
+import type { Usage } from 'rem-agent-core';
 import { ReasoningBlock } from './reasoning-block';
 import { ToolCallBlock } from './tool-call-block';
 
@@ -16,7 +16,7 @@ interface MessageItemProps {
     childSessionId: string;
     summary: string;
     status: 'running' | 'completed' | 'failed';
-    tokenUsage?: LanguageModelUsage;
+    tokenUsage?: Usage;
   }>;
   onOpenChild?: (sessionId: string) => void;
 }
@@ -26,7 +26,7 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
 
   const plainText = useMemo(() => {
     return message.parts
-      .filter((p) => p.type === 'text')
+      .filter((p): p is Extract<UiContentBlock, { type: 'text' }> => p.type === 'text')
       .map((p) => p.text)
       .join('\n');
   }, [message.parts]);
@@ -55,24 +55,24 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
         message.status === 'error' ? 'text-err' : 'text-tx',
       )}>
         {message.parts.map((part, i) => {
-          if (part.type === 'reasoning') {
+          if (part.type === 'thinking') {
             return (
               <ReasoningBlock
                 key={i}
-                text={part.text}
+                thinking={part.thinking}
                 isStreaming={message.status === 'streaming'}
                 activePartType={message.activePartType}
               />
             );
           }
-          if (part.type === 'tool-call') {
+          if (part.type === 'toolCall') {
             const result = message.parts.find(
-              (p): p is Extract<typeof part, { type: 'tool-result' }> =>
-                p.type === 'tool-result' && p.toolCallId === part.toolCallId,
+              (p): p is ToolResultBlock =>
+                p.type === 'toolResult' && p.toolCallId === part.id,
             );
             return <ToolCallBlock key={i} tool={part} result={result} />;
           }
-          if (part.type === 'tool-result') {
+          if (part.type === 'toolResult') {
             return null;
           }
           if (part.type === 'text' && part.text) {

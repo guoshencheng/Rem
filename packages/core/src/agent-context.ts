@@ -1,3 +1,4 @@
+import type { Models } from '@earendil-works/pi-ai';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { SessionProvider } from './sdk/session-provider.js';
@@ -41,4 +42,5 @@ export interface AgentContext {
   securityMode: SecurityMode;
   archiveStore: ArchiveStore;
   workspaceStore: WorkspaceStore;
+  models: Models;
 }

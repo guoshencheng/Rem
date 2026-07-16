@@ -16,7 +16,7 @@ export class ReactLoop implements LoopStrategy {
     let step = 1;
     const maxSteps = ctx.maxSteps ?? DEFAULT_MAX_STEPS;
     let lastMessage: AssistantMessage | undefined;
-    let contentOffset = 0;
+    let contentOffset = Array.isArray(assistantMsg.message?.content) ? assistantMsg.message.content.length : 0;
 
     while (step <= maxSteps) {
       if (ctx.signal?.aborted) throw new Error('Aborted');

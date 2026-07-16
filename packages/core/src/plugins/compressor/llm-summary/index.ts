@@ -1,4 +1,4 @@
-import type { Message, Models } from '@earendil-works/pi-ai';
+import type { Message, Models, ToolCall, TextContent } from '@earendil-works/pi-ai';
 import type { ContextCompressor } from '../../../sdk/compressor.js';
 import type { Session } from '../../../session.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
@@ -10,7 +10,7 @@ import {
   buildSummaryPrompt,
   SUMMARY_SYSTEM_PROMPT,
   SUMMARY_TOOL_NAME,
-  SUMMARY_TOOL_SCHEMA,
+  SUMMARY_TOOL,
   formatSummaryAsMarkdown,
   type SummaryData,
 } from './prompt.js';
@@ -65,21 +65,24 @@ export class LLMSummarizingCompressor implements ContextCompressor {
       models: this.models,
       provider: this.modelConfig.provider,
       model: this.modelConfig.model,
-      apiKey: this.modelConfig.apiKey,
-      baseURL: this.modelConfig.baseURL,
+      apiKey: this.modelConfig.apiKey || undefined,
+      baseURL: this.modelConfig.baseURL || undefined,
       system: SUMMARY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] as Message[],
-      tools: {
-        [SUMMARY_TOOL_NAME]: SUMMARY_TOOL_SCHEMA,
-      },
+      tools: [SUMMARY_TOOL],
     });
 
-    const summaryCall = result.toolCalls.find((tc) => tc.toolName === SUMMARY_TOOL_NAME);
-    const summaryData = summaryCall?.input as SummaryData | undefined;
+    const summaryCall = result.content
+      .filter((b): b is ToolCall => b.type === 'toolCall')
+      .find((b) => b.name === SUMMARY_TOOL_NAME);
+    const summaryData = summaryCall?.arguments as SummaryData | undefined;
 
     const summaryText = summaryData
       ? formatSummaryAsMarkdown(summaryData)
-      : result.text;
+      : result.content
+          .filter((b): b is TextContent => b.type === 'text')
+          .map((b) => b.text)
+          .join('');
 
     const summaryMsg: Message = {
       role: 'user',

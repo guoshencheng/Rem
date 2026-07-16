@@ -1,4 +1,4 @@
-import type { Message } from '@earendil-works/pi-ai';
+import type { Message, Tool } from '@earendil-works/pi-ai';
 
 export const SUMMARY_SYSTEM_PROMPT = `You are a context summarization assistant for coding sessions.
 
@@ -10,7 +10,8 @@ Do not answer the conversation itself. Do not mention that you are summarizing o
 
 export const SUMMARY_TOOL_NAME = 'submit_summary';
 
-export const SUMMARY_TOOL_SCHEMA = {
+export const SUMMARY_TOOL: Tool = {
+  name: SUMMARY_TOOL_NAME,
   description: 'Submit a structured summary of the conversation history',
   parameters: {
     type: 'object',
@@ -52,7 +53,7 @@ export const SUMMARY_TOOL_SCHEMA = {
     },
     required: ['objective', 'importantDetails', 'completed', 'active', 'blocked', 'nextMove', 'relevantFiles'],
   },
-} as const;
+};
 
 export interface SummaryData {
   objective: string;

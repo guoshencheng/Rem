@@ -1,8 +1,6 @@
-import type { Message, Models } from '@earendil-works/pi-ai';
+import type { Message, Models, Tool, ToolCall } from '@earendil-works/pi-ai';
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { ToolSchema } from '../../../sdk/tool-provider.js';
-import type { ModelMessage } from '../../../types.js';
 import { generate } from '../../../reason/generate.js';
 
 const TITLE_SYSTEM_PROMPT = `You are a title generator. Generate a brief title for this conversation by calling the set_title function.
@@ -45,7 +43,8 @@ The title must be:
 "@App.tsx add dark mode toggle" → Dark mode toggle in App
 </examples>`;
 
-const TITLE_TOOL: ToolSchema = {
+const TITLE_TOOL: Tool = {
+  name: 'set_title',
   description: 'Set the title for this conversation',
   parameters: {
     type: 'object',
@@ -75,28 +74,31 @@ export class LLMTitleProvider implements TitleProvider {
 
     const modelConfig = this.configProvider.getModelConfig();
 
-    const messages: ModelMessage[] = userMessages.map(m => {
-      const content = typeof m.content === 'string'
+    const messages: Message[] = userMessages.map(m => ({
+      role: 'user',
+      content: typeof m.content === 'string'
         ? m.content
-        : m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map(p => p.text).join(' ');
-      return { id: '', role: 'user', content: [{ type: 'text', text: content }] };
-    });
+        : m.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' '),
+      timestamp: Date.now(),
+    }));
 
     try {
       const result = await generate({
         models: this.models,
         provider: modelConfig.provider,
         model: modelConfig.model,
-        apiKey: modelConfig.apiKey,
-        baseURL: modelConfig.baseURL,
+        apiKey: modelConfig.apiKey || undefined,
+        baseURL: modelConfig.baseURL || undefined,
         system: TITLE_SYSTEM_PROMPT,
-        messages: messages as any,
-        tools: { set_title: TITLE_TOOL },
+        messages,
+        tools: [TITLE_TOOL],
       });
 
-      const titleCall = result.toolCalls.find(tc => tc.toolName === 'set_title');
-      if (titleCall?.input && typeof titleCall.input === 'object' && 'title' in titleCall.input) {
-        const title = String(titleCall.input.title).trim().slice(0, 50);
+      const titleCall = result.content
+        .filter((b): b is ToolCall => b.type === 'toolCall')
+        .find((b) => b.name === 'set_title');
+      if (titleCall?.arguments && typeof titleCall.arguments === 'object' && 'title' in titleCall.arguments) {
+        const title = String(titleCall.arguments.title).trim().slice(0, 50);
         return title || undefined;
       }
       return undefined;

@@ -1,3 +1,4 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import type { Static, TObject } from '@sinclair/typebox';
 import type { Rule } from '../security/rules/rule.js';
 
@@ -6,7 +7,7 @@ export interface ToolSchema {
   parameters: Record<string, unknown>;
 }
 
-export type ToolSet = Record<string, ToolSchema>;
+export type ToolSet = Tool[];
 
 export interface ToolContext {
   cwd: string;

@@ -29,20 +29,6 @@ export type RemMetaEvent =
 
 export type AgentStreamEvent = AssistantMessageEvent | RemMetaEvent;
 
-export type ContentPart =
-  | { type: 'text';        text: string }
-  | { type: 'reasoning';   text: string }
-  | { type: 'tool-call';   toolCallId: string; toolName: string; arguments: unknown }
-  | { type: 'tool-result'; toolCallId: string; toolName?: string; output: string; error?: string };
-
-export type MessageContent = ContentPart[];
-
-export interface ModelMessage {
-  id: string;
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: MessageContent;
-}
-
 export interface UserInput {
   content: string;
   timestamp?: Date;
@@ -92,6 +78,6 @@ export interface ToolCallRecord {
 
 export interface TurnResult {
   content: string;
-  newMessages: ModelMessage[];
+  newMessages: Message[];
   usage: Usage;
 }

@@ -1,8 +1,9 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
-import type { ToolSchema, ToolSet } from '../sdk/tool-provider.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 
@@ -46,15 +47,11 @@ export class AgentToolRegistry implements ToolProvider {
       readOnly: this.readOnly,
       policy: this.policy,
     });
-    const result: ToolSet = {};
-    for (const def of filtered) {
-      const schema: ToolSchema = {
-        description: def.description,
-        parameters: def.parameters as Record<string, unknown>,
-      };
-      result[def.name] = schema;
-    }
-    return result;
+    return filtered.map((def) => ({
+      name: def.name,
+      description: def.description,
+      parameters: def.parameters as Record<string, unknown>,
+    }));
   }
 
   isDangerous(toolName: string): boolean {

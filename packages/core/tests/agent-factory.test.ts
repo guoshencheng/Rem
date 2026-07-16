@@ -21,6 +21,6 @@ describe('createAgentFromEnv', () => {
     expect(typeof ctx.toolComposer.compose).toBe('function');
 
     // read_skill should NOT be pre-registered on the raw toolProvider
-    expect(ctx.toolProvider.getToolSet()).not.toHaveProperty('read_skill');
+    expect(ctx.toolProvider.getToolSet().some((t) => t.name === 'read_skill')).toBe(false);
   });
 });

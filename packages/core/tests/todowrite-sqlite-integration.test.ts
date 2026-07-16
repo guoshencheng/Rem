@@ -25,7 +25,7 @@ describe('todowrite → sqlite integration', () => {
     const todoService = new DefaultTodoService(todoStore);
 
     const baseProvider = {
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       register: () => {},
       execute: async () => [],
       isDangerous: () => false,

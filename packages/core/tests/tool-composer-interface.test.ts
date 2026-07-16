@@ -10,7 +10,7 @@ describe('ToolComposer interface', () => {
         void toolProvider;
         void mcpProviders;
         void skillProvider;
-        return { getToolSet: () => ({}), execute: async () => [], register: () => {}, isDangerous: () => false };
+        return { getToolSet: () => [], execute: async () => [], register: () => {}, isDangerous: () => false };
       },
     };
 

@@ -21,7 +21,7 @@ describe('DefaultToolComposer', () => {
     const result = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
 
     const tools = result.getToolSet();
-    expect(tools).toHaveProperty('read_skill');
+    expect(tools.some((t) => t.name === 'read_skill')).toBe(true);
   });
 
   it('includes base tool provider tools in the result', () => {
@@ -36,8 +36,9 @@ describe('DefaultToolComposer', () => {
 
     const result = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
 
-    expect(result.getToolSet()).toHaveProperty('localTool');
-    expect(result.getToolSet()).toHaveProperty('read_skill');
+    const tools = result.getToolSet();
+    expect(tools.some((t) => t.name === 'localTool')).toBe(true);
+    expect(tools.some((t) => t.name === 'read_skill')).toBe(true);
   });
 
   it('does not mutate the original toolProvider when composing', () => {
@@ -47,7 +48,7 @@ describe('DefaultToolComposer', () => {
 
     composer.compose({ toolProvider, mcpProviders: [], skillProvider });
 
-    expect(toolProvider.getToolSet()).not.toHaveProperty('read_skill');
+    expect(toolProvider.getToolSet().some((t) => t.name === 'read_skill')).toBe(false);
   });
 
   it('returns a new instance on each compose call', () => {
@@ -74,8 +75,9 @@ describe('DefaultToolComposer', () => {
 
     const result = composer.compose({ toolProvider, mcpProviders: [mcpProvider], skillProvider });
 
-    expect(result.getToolSet()).toHaveProperty('mcp__tool');
-    expect(result.getToolSet()).toHaveProperty('read_skill');
+    const tools = result.getToolSet();
+    expect(tools.some((t) => t.name === 'mcp__tool')).toBe(true);
+    expect(tools.some((t) => t.name === 'read_skill')).toBe(true);
   });
 
   it('read_skill executor can read skill raw content', async () => {

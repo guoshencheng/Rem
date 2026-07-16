@@ -22,7 +22,7 @@ describe('delegate_task tool', () => {
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
+      toolProvider: { getToolSet: () => [], register: () => {} },
       mcpProviders: [],
       contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
       skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
@@ -35,7 +35,7 @@ describe('delegate_task tool', () => {
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -79,7 +79,7 @@ describe('delegate_task tool', () => {
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
+      toolProvider: { getToolSet: () => [], register: () => {} },
       mcpProviders: [],
       contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
       skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
@@ -92,7 +92,7 @@ describe('delegate_task tool', () => {
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,

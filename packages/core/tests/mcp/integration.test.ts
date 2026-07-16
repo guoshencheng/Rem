@@ -14,14 +14,14 @@ describe('MCP integration', () => {
     const mockProvider = {
       name: 'mock',
       prefix: 'mock',
-      getToolSet: () => ({ 'mock__greet': { description: 'Greet', parameters: { type: 'object' } } }),
+      getToolSet: () => [{ name: 'mock__greet', description: 'Greet', parameters: { type: 'object' } }],
       execute: vi.fn().mockResolvedValue([{ toolCallId: 'tc1', toolName: 'mock__greet', output: 'hello' }]),
     };
 
     const composite = new CompositeToolProvider(primary, [mockProvider as any]);
     const tools = composite.getToolSet();
-    expect(Object.keys(tools)).toContain('echo');
-    expect(Object.keys(tools)).toContain('mock__greet');
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
+    expect(tools.some((t) => t.name === 'mock__greet')).toBe(true);
 
     const results = await composite.execute(
       [{ toolCallId: 'tc1', toolName: 'mock__greet', input: {} }],

@@ -18,7 +18,6 @@ import { AgentState } from './agent-state.js';
 import { normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
 import { log } from './shared/debug-log.js';
 import { OverlayToolProvider } from './overlay-tool-provider.js';
-import { composeToolSet } from './tool-composer.js';
 import {
   createDelegateTaskToolDefinition,
   createDelegateTaskToolExecutor,
@@ -189,8 +188,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       );
       toolProviderWithDelegate.register(todoWriteDefinition, todoWriteExecutor);
 
-      const toolSet = toolProviderWithDelegate.getToolSet();
-      const piTools = composeToolSet(toolSet);
+      const piTools = toolProviderWithDelegate.getToolSet();
       const tools = piTools.map((t) => ({ name: t.name, description: t.description }));
 
       const skills = await skillProvider.loadSkills().catch(() => [] as Skill[]);
@@ -228,8 +226,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
           return ctx.models.stream(model, contextForModel(), {
-            apiKey: effectiveModel.apiKey,
-            baseURL: effectiveModel.baseURL,
+            apiKey: effectiveModel.apiKey || undefined,
+            baseURL: effectiveModel.baseURL || undefined,
             signal: params.signal,
             maxRetries: 0,
           });
@@ -238,8 +236,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
           return ctx.models.complete(model, contextForModel(), {
-            apiKey: effectiveModel.apiKey,
-            baseURL: effectiveModel.baseURL,
+            apiKey: effectiveModel.apiKey || undefined,
+            baseURL: effectiveModel.baseURL || undefined,
             signal: params.signal,
             maxRetries: 0,
           });

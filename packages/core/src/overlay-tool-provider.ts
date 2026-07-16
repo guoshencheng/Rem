@@ -1,3 +1,4 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type {
@@ -32,14 +33,21 @@ export class OverlayToolProvider implements ToolProvider {
   }
 
   getToolSet(): ToolSet {
-    const result: ToolSet = { ...this.base.getToolSet() };
+    const map = new Map<string, Tool>();
+    for (const tool of this.base.getToolSet()) {
+      map.set(tool.name, tool);
+    }
     for (const [name, { def }] of this.overlays) {
-      if (result[name]) {
+      if (map.has(name)) {
         log('tools', 'duplicate tool overwritten by overlay', { toolName: name });
       }
-      result[name] = { description: def.description, parameters: def.parameters as Record<string, unknown> };
+      map.set(name, {
+        name,
+        description: def.description,
+        parameters: def.parameters as Record<string, unknown>,
+      });
     }
-    return result;
+    return Array.from(map.values());
   }
 
   isDangerous(toolName: string): boolean {

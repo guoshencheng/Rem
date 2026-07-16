@@ -38,7 +38,7 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
       },
     },
     sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-    toolProvider: { getToolSet: () => ({}), register: () => {} },
+    toolProvider: { getToolSet: () => [], register: () => {} },
     contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
     skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
     budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
@@ -50,7 +50,7 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
     systemPromptAssembler: { assemble: capturedAssemble },
     toolComposer: {
       compose: () => ({
-        getToolSet: () => ({}),
+        getToolSet: () => [],
         execute: async () => [],
         register: () => {},
         isDangerous: () => false,

@@ -22,7 +22,7 @@ const createMockContextBase = () => ({
     resolveAgent: () => ({ id: 'default', name: 'test', corePrompt: 'Default prompt.' }),
   },
   sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-  toolProvider: { getToolSet: () => ({}), register: () => {} },
+  toolProvider: { getToolSet: () => [], register: () => {} },
   contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
   skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
   budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
@@ -34,7 +34,7 @@ const createMockContextBase = () => ({
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
   toolComposer: {
     compose: () => ({
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       execute: async () => [],
       register: () => {},
       isDangerous: () => false,
@@ -80,7 +80,7 @@ describe('runAgent', () => {
   });
 
   it('calls toolComposer.compose and uses the effective tool provider', async () => {
-    const composedToolSet = { composedTool: { description: 'composed', parameters: { type: 'object', properties: {} } } };
+    const composedToolSet = [{ name: 'composedTool', description: 'composed', parameters: { type: 'object', properties: {} } }];
     const compose = vi.fn(() => ({
       getToolSet: () => composedToolSet,
       execute: async () => [],
@@ -131,7 +131,7 @@ describe('runAgent', () => {
       ...createMockContextBase(),
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -188,7 +188,7 @@ describe('runAgent', () => {
       ...createMockContextBase(),
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,

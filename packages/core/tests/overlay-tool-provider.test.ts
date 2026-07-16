@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { Type, type Static } from '@sinclair/typebox';
 import { OverlayToolProvider } from '../src/overlay-tool-provider.js';
-import type { ToolProvider, ToolDefinition, ToolExecutor } from '../src/sdk/tool-provider.js';
+import type { ToolProvider, ToolDefinition, ToolExecutor, ToolSet } from '../src/sdk/tool-provider.js';
 
 function createBaseProvider(tools: Record<string, { def: ToolDefinition; executor: ToolExecutor }>): ToolProvider {
   return {
     register: () => {},
-    getToolSet: () => {
-      const result: Record<string, { description: string; parameters: Record<string, unknown> }> = {};
-      for (const [name, { def }] of Object.entries(tools)) {
-        result[name] = { description: def.description, parameters: def.parameters as Record<string, unknown> };
-      }
-      return result;
+    getToolSet: (): ToolSet => {
+      return Object.entries(tools).map(([name, { def }]) => ({
+        name,
+        description: def.description,
+        parameters: def.parameters as Record<string, unknown>,
+      }));
     },
     execute: async (calls) => {
       const results = [];
@@ -47,7 +47,7 @@ describe('OverlayToolProvider', () => {
     overlay.register(def, executor);
 
     const tools = overlay.getToolSet();
-    expect(tools).toHaveProperty('echo');
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
   });
 
   it('does not mutate the base provider when registering', () => {
@@ -59,8 +59,8 @@ describe('OverlayToolProvider', () => {
       async ({ message }) => ({ output: message }),
     );
 
-    expect(base.getToolSet()).toEqual({});
-    expect(overlay.getToolSet()).toHaveProperty('echo');
+    expect(base.getToolSet()).toEqual([]);
+    expect(overlay.getToolSet().some((t) => t.name === 'echo')).toBe(true);
   });
 
   it('executes overlay tools independently of base provider', async () => {

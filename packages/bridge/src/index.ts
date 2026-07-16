@@ -17,7 +17,7 @@ export type {
   RemoveWorkspaceRequest,
 } from './types.js';
 export type { SSEEvent } from './sse.js';
-export type { AgentStreamEvent, ContentPart, ModelMessage } from 'rem-agent-core';
+export type { AgentStreamEvent } from 'rem-agent-core';
 
 export { reduceStreamEvent } from './stream-reducer.js';
 

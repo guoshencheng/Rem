@@ -3,7 +3,7 @@ import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-
 import type { Session, SessionProvider, SessionSummary } from '../../sdk/session-provider.js';
 import type { RemMessage } from '../../types.js';
 import { JsonlSessionStore } from './jsonl-store.js';
-import { migrateConversationToPiAi } from '../../pi-adapter.js';
+import { UnsupportedSessionSchemaError } from './errors.js';
 
 export abstract class BaseSessionProvider implements SessionProvider {
   protected store: JsonlSessionStore;
@@ -30,19 +30,9 @@ export abstract class BaseSessionProvider implements SessionProvider {
     const session = await this.store.load(sessionId);
     if (!session) return null;
 
-    if ((session.metadata?.schemaVersion ?? 1) < 2) {
-      const { messages, messageIds } = migrateConversationToPiAi(session.conversation as any);
-      session.conversation = messages;
-      const messageMeta: Record<string, string> = {};
-      for (const [key, value] of messageIds) {
-        messageMeta[key] = value;
-      }
-      session.metadata = {
-        ...session.metadata,
-        schemaVersion: 2,
-        messageMeta: { ...(session.metadata?.messageMeta as Record<string, string>), ...messageMeta },
-      };
-      await this.store.save(session);
+    const schemaVersion = session.metadata?.schemaVersion ?? 1;
+    if (schemaVersion < 2) {
+      throw new UnsupportedSessionSchemaError(schemaVersion, sessionId);
     }
 
     return session;

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
 import type { RemMessage } from '../../../types.js';
-import { migrateConversationToPiAi } from '../../../pi-adapter.js';
+import { UnsupportedSessionSchemaError } from '../errors.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 export class InMemorySessionProvider implements SessionProvider {
@@ -26,19 +26,9 @@ export class InMemorySessionProvider implements SessionProvider {
     const stored = this.sessions.get(sessionId);
     if (!stored) return null;
     const session = structuredClone(stored);
-    if ((session.metadata?.schemaVersion ?? 1) < 2) {
-      const { messages, messageIds } = migrateConversationToPiAi(session.conversation as any);
-      session.conversation = messages;
-      const messageMeta: Record<string, string> = {};
-      for (const [key, value] of messageIds) {
-        messageMeta[key] = value;
-      }
-      session.metadata = {
-        ...session.metadata,
-        schemaVersion: 2,
-        messageMeta: { ...(session.metadata?.messageMeta as Record<string, string>), ...messageMeta },
-      };
-      this.sessions.set(sessionId, structuredClone(session));
+    const schemaVersion = session.metadata?.schemaVersion ?? 1;
+    if (schemaVersion < 2) {
+      throw new UnsupportedSessionSchemaError(schemaVersion, sessionId);
     }
     return session;
   }

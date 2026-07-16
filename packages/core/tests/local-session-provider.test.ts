@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { LocalSessionProvider } from '../src/plugins/session/local/index.js';
-import type { ModelMessage } from '../src/types.js';
+import { UnsupportedSessionSchemaError } from '../src/plugins/session/errors.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 describe('LocalSessionProvider', () => {
   let dir: string;
@@ -32,7 +33,7 @@ describe('LocalSessionProvider', () => {
 
   it('should save and load session with conversation', async () => {
     const session = await provider.create();
-    session.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }] } as ModelMessage);
+    session.conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: Date.now() } as Message);
     session.metadata.title = 'Test Title';
     await provider.save(session);
 
@@ -139,14 +140,10 @@ describe('LocalSessionProvider', () => {
     expect(summaryB?.pinned).toBeUndefined();
   });
 
-  it('does not duplicate conversation when msgCache exists', async () => {
+  it('throws UnsupportedSessionSchemaError for schemaVersion=1', async () => {
     const session = await provider.create();
-    session.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
-    provider.cueMessages(session.sessionId, [{ type: 'text', text: 'streaming' }]);
+    session.metadata.schemaVersion = 1;
     await provider.save(session);
-
-    const loaded = await provider.load(session.sessionId);
-    expect(loaded!.conversation).toHaveLength(1);
-    expect(loaded!.conversation[0].content).toEqual([{ type: 'text', text: 'hi' }]);
+    await expect(provider.load(session.sessionId)).rejects.toBeInstanceOf(UnsupportedSessionSchemaError);
   });
 });

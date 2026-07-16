@@ -4,7 +4,7 @@ import type { Session, SessionProvider, SessionSummary } from '../../../sdk/sess
 import type { RemMessage } from '../../../types.js';
 import type { SessionStore } from '../../../sdk/storage-provider.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
-import { migrateConversationToPiAi } from '../../../pi-adapter.js';
+import { UnsupportedSessionSchemaError } from '../errors.js';
 
 export class SqliteSessionProvider implements SessionProvider {
   constructor(private store: SessionStore) {}
@@ -16,19 +16,9 @@ export class SqliteSessionProvider implements SessionProvider {
   async load(sessionId: string): Promise<Session | null> {
     const session = await this.store.load(sessionId);
     if (!session) return null;
-    if ((session.metadata?.schemaVersion ?? 1) < 2) {
-      const { messages, messageIds } = migrateConversationToPiAi(session.conversation as any);
-      session.conversation = messages;
-      const messageMeta: Record<string, string> = {};
-      for (const [key, value] of messageIds) {
-        messageMeta[key] = value;
-      }
-      session.metadata = {
-        ...session.metadata,
-        schemaVersion: 2,
-        messageMeta: { ...(session.metadata?.messageMeta as Record<string, string>), ...messageMeta },
-      };
-      await this.store.save(session);
+    const schemaVersion = session.metadata?.schemaVersion ?? 1;
+    if (schemaVersion < 2) {
+      throw new UnsupportedSessionSchemaError(schemaVersion, sessionId);
     }
     return session;
   }

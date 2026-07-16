@@ -355,7 +355,7 @@ Bridge 消费者如需 message 类型，直接从 `pi-ai` 导入 `Message`；如
 ## 6. 文档更新
 
 - `packages/core/README.md`：删除 `pi-adapter` 章节，更新类型表与 `ToolSet` 说明。
-- `packages/core/AGENTS.md`：更新“常用入口”表格，移除 `pi-adapter.ts`；更新 `ToolSet` 说明。
+- `AGENTS.md`（项目根目录）：更新“常用入口”表格，移除 `pi-adapter.ts`；新增 `ToolSet` / `Message` 类型约定。
 - `docs/module-reference.md`：更新 `session/local/` 描述，移除 `cueMessages` / `pullMessages`；更新 `tool-composer` 描述。
 - `docs/superpowers/specs/2026-07-15-pi-ai-llm-migration-design.md`：在 Phase 3 部分补充说明本次清理已完成，迁移函数与 `ModelMessage` 已删除。
 

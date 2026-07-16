@@ -124,6 +124,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       timestamp: Date.now(),
     };
     messages.push(toolResultMessage);
+    emit({ type: 'tool-result', toolCallId: result.toolCallId, toolName: result.toolName, output: result.output ?? '', error: result.error });
   }
 
   return results;

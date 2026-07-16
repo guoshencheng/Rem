@@ -1,4 +1,4 @@
-import type { Message, AssistantMessage, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
+import type { Message, AssistantMessage, TextContent, ThinkingContent, ToolCall, AssistantMessageEvent } from '@earendil-works/pi-ai';
 import type { RemMessage } from '../../../types.js';
 import type { LoopContext, LoopResult, LoopStrategy } from '../../../sdk/loop-strategy.js';
 import { emptyUsage, addUsage } from '../../../token-usage.js';
@@ -16,6 +16,7 @@ export class ReactLoop implements LoopStrategy {
     let step = 1;
     const maxSteps = ctx.maxSteps ?? DEFAULT_MAX_STEPS;
     let lastMessage: AssistantMessage | undefined;
+    let contentOffset = 0;
 
     while (step <= maxSteps) {
       if (ctx.signal?.aborted) throw new Error('Aborted');
@@ -25,7 +26,11 @@ export class ReactLoop implements LoopStrategy {
       const stream = ctx.stream();
       const toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }> = [];
       for await (const event of stream) {
-        ctx.emit(event);
+        if ('contentIndex' in event && typeof event.contentIndex === 'number') {
+          ctx.emit({ ...event, contentIndex: event.contentIndex + contentOffset } as AssistantMessageEvent);
+        } else {
+          ctx.emit(event);
+        }
         if (event.type === 'text_delta') content += event.delta;
         if (event.type === 'toolcall_end') {
           toolCalls.push({
@@ -38,6 +43,7 @@ export class ReactLoop implements LoopStrategy {
       const message = await stream.result();
       lastMessage = message;
       usage = addUsage(usage, message.usage ?? emptyUsage());
+      contentOffset += message.content.length;
       this.appendToAssistantMessage(ctx, assistantMsg, message);
 
       if (toolCalls.length === 0) {

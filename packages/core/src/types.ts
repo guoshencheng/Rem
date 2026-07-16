@@ -24,6 +24,7 @@ export type RemMetaEvent =
   | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
   | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
   | { type: 'compress-error'; sessionId: string; error: string }
+  | { type: 'tool-result'; toolCallId: string; toolName: string; output: string; error?: string }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: StreamErrorInfo };
 

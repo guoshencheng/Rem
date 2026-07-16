@@ -2,12 +2,42 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
+import type { StreamErrorInfo } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
 import { reduceStreamEvent } from 'rem-agent-bridge/client';
 import type { UiContentBlock } from 'rem-agent-bridge';
 import { useAgentBus } from './agent-bus';
 import { generateUUID } from './utils';
+
+function cleanErrorString(value: string): string {
+  const trimmed = value.trim();
+  // Try to extract nested error message from strings like "401 { ... }"
+  const jsonMatch = trimmed.match(/^\d+\s+(\{.*\})$/s) ?? trimmed.match(/^(\{.*\})$/s);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (typeof parsed?.error?.message === 'string') return parsed.error.message;
+      if (typeof parsed?.message === 'string') return parsed.message;
+    } catch {
+      // ignore parse errors, fall back to original string
+    }
+  }
+  return value;
+}
+
+function formatError(error: string | StreamErrorInfo | unknown): string {
+  if (typeof error === 'string') {
+    return cleanErrorString(error);
+  }
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>;
+    // pi-ai 的 error 事件会携带完整 AssistantMessage，错误文本在 errorMessage 里
+    if (typeof e.errorMessage === 'string' && e.errorMessage) return cleanErrorString(e.errorMessage);
+    if (typeof e.message === 'string' && e.message) return cleanErrorString(e.message);
+  }
+  return String(error);
+}
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -272,7 +302,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
               return;
             }
             state.activity = undefined;
-            state.error = String(chunk.error);
+            state.error = formatError(chunk.error);
             state.status = 'error';
             notifyChange();
             return;
@@ -310,6 +340,30 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
           }
 
+          if (chunk.type === 'tool-result') {
+            const msgId = currentMsgIdRef.current.get(event.sessionId);
+            if (msgId) {
+              state.messages = state.messages.map((m) => {
+                if (m.id === msgId && m.status === 'streaming') {
+                  return {
+                    ...m,
+                    parts: [
+                      ...m.parts,
+                      {
+                        type: 'toolResult',
+                        toolCallId: chunk.toolCallId,
+                        toolName: chunk.toolName,
+                        output: chunk.output,
+                        error: chunk.error,
+                      } as const,
+                    ],
+                  };
+                }
+                return m;
+              });
+            }
+          }
+
           const msgId = currentMsgIdRef.current.get(event.sessionId);
           if (msgId) {
             const target = state.messages.find((m) => m.id === msgId);
@@ -341,7 +395,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
                   status: chunk.type === 'finish' ? 'done'
                     : chunk.type === 'error' ? 'error'
                     : 'streaming',
-                  error: chunk.type === 'error' ? String(chunk.error) : undefined,
+                  error: chunk.type === 'error' ? formatError(chunk.error) : undefined,
                 };
               }
               return m;
@@ -352,7 +406,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             : chunk.type === 'error' ? 'error'
             : 'streaming';
           if (chunk.type === 'error') {
-            state.error = String(chunk.error);
+            state.error = formatError(chunk.error);
           }
 
           if (chunk.type === 'approval-request') {
@@ -396,8 +450,16 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         }
         case 'session-error': {
           if (!state) return;
+          const errorText = formatError(event.error);
           state.status = 'error';
-          state.error = event.error;
+          state.error = errorText;
+          // 把错误文本也写入当前 assistant 消息体，避免只在 error tag 里显示
+          const lastAssistant = [...state.messages].reverse().find((m) => m.role === 'assistant');
+          if (lastAssistant && lastAssistant.parts.length === 0) {
+            lastAssistant.status = 'error';
+            lastAssistant.error = errorText;
+            lastAssistant.parts.push({ type: 'text', text: errorText });
+          }
           notifyChange();
           break;
         }

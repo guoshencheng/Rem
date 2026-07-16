@@ -136,4 +136,60 @@ describe('ReactLoop', () => {
     expect(result.usage.output).toBe(15);
     expect(result.usage.totalTokens).toBe(45);
   });
+
+  it('adjusts contentIndex across steps so events accumulate instead of overwrite', async () => {
+    const msgs: any[] = [];
+    const toolCall: ToolCall = { type: 'toolCall', id: 'tc-1', name: 'echo', arguments: {} };
+    const stream = vi.fn()
+      .mockReturnValueOnce(createMockStream(
+        [
+          { type: 'text_start', contentIndex: 0, partial: {} as AssistantMessage },
+          { type: 'text_delta', contentIndex: 0, delta: 'step 1 ', partial: {} as AssistantMessage },
+          { type: 'toolcall_end', contentIndex: 1, toolCall, partial: {} as AssistantMessage },
+        ],
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'step 1 ' } as TextContent, toolCall],
+          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
+          stopReason: 'toolUse',
+        } as AssistantMessage,
+      ))
+      .mockReturnValueOnce(createMockStream(
+        [
+          { type: 'text_start', contentIndex: 0, partial: {} as AssistantMessage },
+          { type: 'text_delta', contentIndex: 0, delta: 'step 2', partial: {} as AssistantMessage },
+        ],
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'step 2' } as TextContent],
+          usage: { ...emptyUsage, input: 2, output: 2, totalTokens: 4 },
+          stopReason: 'stop',
+        } as AssistantMessage,
+      ));
+    const generate = vi.fn().mockResolvedValue({});
+    const emitted: AssistantMessageEvent[] = [];
+    const ctx = {
+      liveState: new AgentLiveState(),
+      system: 'You are Rem.',
+      messages: msgs,
+      addMessage: () => { const m: any = { id: 'a', role: 'assistant', content: [] }; msgs.push(m); return m; },
+      appendContent: () => {},
+      stream,
+      generate,
+      execute: vi.fn(async () => [{ toolCallId: 'tc-1', toolName: 'echo', output: 'echoed' }]),
+      emit: (e: AssistantMessageEvent) => emitted.push(e),
+    } as any;
+
+    const loop = new ReactLoop();
+    await loop.run(ctx);
+
+    // Step 2 的 text_start 和 text_delta 的 contentIndex 应该从 2 开始（step1 贡献了 2 个 content block）
+    const step2TextStart = emitted.find((e) => e.type === 'text_start' && e.contentIndex === 2);
+    const step2TextDelta = emitted.find((e) => e.type === 'text_delta' && e.contentIndex === 2 && (e as { delta?: string }).delta === 'step 2');
+    expect(step2TextStart).toBeDefined();
+    expect(step2TextDelta).toBeDefined();
+    // Step 1 的 contentIndex 不应被调整
+    expect(emitted.find((e) => e.type === 'text_start' && e.contentIndex === 0)).toBeDefined();
+    expect(emitted.find((e) => e.type === 'toolcall_end' && e.contentIndex === 1)).toBeDefined();
+  });
 });

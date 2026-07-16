@@ -14,10 +14,14 @@ packages/
   core/    — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
   bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService
   web/     — rem-agent-web：Next.js 15 + React 19 聊天 UI
-  tui/     — rem-agent-tui：基于 @opentui/core 的终端 UI 组件
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
+
+## 开发环境
+
+- Node.js >= 22.19.0（pi-ai 引擎要求）
+- pnpm
 
 ## 开发命令
 
@@ -39,13 +43,13 @@ packages/
 ```typescript
 import { createAgentFromEnv } from 'rem-agent-core';
 
-const agent = createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
+const agent = await createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
 ```
 
-Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `ProviderConfig`。
+Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentContext`（含 `models`、`provider`、`model` 等）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
 
 - ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `name`、`maxTurns`）。
-- ❌ 客户端不导入 `openai` SDK，不读 `OPENAI_API_KEY`。
+- ❌ 客户端不直接导入 `openai` 或 `@anthropic-ai/sdk`，不读 `OPENAI_API_KEY`。
 
 ### 2. 模块拆分遵循 module-separation-convention
 
@@ -53,17 +57,25 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 
 ### 3. 不依赖 Vercel AI SDK
 
-`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过自建 Provider 层（`InferenceEngine` + `LLMProvider` registry）直接调用 `openai` / `@anthropic-ai/sdk`。循环逻辑由 `ReactLoop` / `LoopStrategy` 自己实现，不交给 Vercel AI SDK 管理。
+`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行，由 `reason()` 和 `generate()` 直接消费 `AssistantMessageEvent` 流。循环逻辑由 `ReactLoop` / `LoopStrategy` 自己实现，不交给 Vercel AI SDK 管理。
+
+### 4. 直接复用 pi-ai 类型
+
+- `ToolSet` 统一为 `pi.Tool[]`；`ToolProvider.getToolSet()` 直接返回可传给 `pi-ai.Context.tools` 的数组。
+- Core 内部消息类型统一为 `pi.Message`；不再维护 `ModelMessage` / `ContentPart` 等自建表示层。
+- 旧 schema v1 session 数据不再兼容；加载时会抛出 `UnsupportedSessionSchemaError`。
 
 ## 常用入口
 
 | 文件 | 用途 |
 |---|---|
-| `packages/core/src/core-agent.ts` | `CoreAgent`、`createAgentFromEnv` |
-| `packages/core/src/loop-strategy.ts` | `ReactLoop` / `LoopStrategy` |
-| `packages/core/src/llm/api-registry.ts` | Provider 注册与 `resolveProviderConfig` |
-| `packages/core/src/llm/providers/openai.ts` | OpenAI provider + `resolveConfig` |
-| `packages/core/src/llm/providers/anthropic.ts` | Anthropic provider + `resolveConfig` |
+| `packages/core/src/agent-factory.ts` | `createAgentFromEnv` |
+| `packages/core/src/loop-strategy.ts` | `ReactLoop` / `LoopStrategy` 导出 |
+| `packages/core/src/plugins/loop/react/index.ts` | `ReactLoop` 实现 |
+| `packages/core/src/reason/reason.ts` | `reason()`：使用 `models.stream` 执行 ReAct reason |
+| `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成 |
+| `packages/core/src/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
+| `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
 
 ## 深入文档
 
@@ -84,3 +96,4 @@ Core 通过 `resolveProviderConfig(provider)` 读取环境变量并返回 `Provi
 ## 语言
 
 会话、文档请使用中文
+

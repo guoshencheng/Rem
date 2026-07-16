@@ -58,12 +58,12 @@ A single `run()` invocation flows through these phases:
 
 | Module | Purpose |
 |--------|---------|
-| `types` | Defines `ModelMessage`, `Usage`, `UserInput`, `AgentOutput`, `ToolCallRecord`, and `AgentStatus` |
+| `types` | Defines `RemMessage`, `Usage`, `UserInput`, `AgentOutput`, `AgentStreamEvent`, `ToolCallRecord`, and `AgentStatus` |
 | `budget` | `IterationBudget` — enforces guard rails on turns, errors, and tool failures |
 | `state` | `AgentLiveState` — holds runtime status, activity, streaming snapshot, and accumulated token usage |
 | `events` | `EventBus` — typed, priority-ordered event system for observability and extension |
 | `loop` | `ReactLoop` / `ReactTurnRunner` — executes ReAct turns via `pi-ai` `Models` |
-| `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window.ts`, and `pi-adapter.ts` (REM ↔ pi-ai 类型转换) |
+| `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window.ts` |
 | `core-agent` | `CoreAgent` — lifecycle orchestrator: init, run, interrupt, reset, event subscription |
 
 ---
@@ -101,12 +101,12 @@ Core domain types.
 
 **Message and usage types:**
 
-```typescript
-interface ModelMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: unknown;
-}
+Core 内部直接使用 `@earendil-works/pi-ai` 的 `Message` 类型：
 
+```typescript
+import type { Message, Usage } from '@earendil-works/pi-ai';
+
+// Message = UserMessage | AssistantMessage | ToolResultMessage
 interface Usage {
   input: number;
   output: number;
@@ -216,13 +216,13 @@ Mutable container for the agent's runtime state.
 ```typescript
 class AgentState {
   readonly sessionId: string;       // UUID, auto-generated on construction
-  conversation: ModelMessage[] = []; // full message history
+  conversation: Message[] = [];     // full message history (pi.Message)
   currentTurn = 0;                  // last executed turn number
   budget: IterationBudget;          // shared budget instance
   toolCalls: ToolCallRecord[] = []; // accumulated tool call records
   status: AgentStatus = 'idle';     // current status
 
-  addMessage(msg: ModelMessage): void;
+  addMessage(msg: Message): void;
   addToolCall(record: ToolCallRecord): void;
   canContinue(): boolean;           // status === 'running' && budget.hasBudget()
   reset(): void;                    // clear conversation, turns, tools; restore budget
@@ -296,23 +296,6 @@ const models = createCoreModels({ all: true });
 #### `context-window`
 
 `resolveContextWindow(provider, model)` returns a fallback context-window size for known models, respecting `MAX_CONTEXT_TOKENS` and per-model environment overrides.
-
-#### `pi-adapter`
-
-REM ↔ pi-ai type conversion helpers:
-
-```typescript
-import {
-  toPiMessage,
-  fromPiMessage,
-  toPiTool,
-  toPiToolResultMessage,
-  fromPiAssistantMessage,
-  migrateConversationToPiAi,
-} from 'rem-agent-core';
-```
-
-These adapters convert the internal `ModelMessage` / `ContentPart` representation to and from `pi.Message` and `pi.Tool`, and migrate legacy sessions to `pi.Message[]`.
 
 ---
 

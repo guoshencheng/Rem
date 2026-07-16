@@ -3,14 +3,14 @@ import { mkdtemp, rm, readFile, writeFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { JsonlSessionStore } from '../src/plugins/session/jsonl-store.js';
-import type { ModelMessage } from '../src/types.js';
+import type { Message } from '@earendil-works/pi-ai';
 import type { Session } from '../src/session.js';
 
-function textMessage(id: string, text: string): ModelMessage {
-  return { id, role: 'user', content: [{ type: 'text', text }] };
+function textMessage(text: string): Message {
+  return { role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() };
 }
 
-function makeSession(sessionId: string, messages: ModelMessage[], overrides: Partial<Session> = {}): Session {
+function makeSession(sessionId: string, messages: Message[], overrides: Partial<Session> = {}): Session {
   return {
     sessionId,
     conversation: messages,
@@ -36,7 +36,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('saves and loads session with conversation', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'hi')], {
+    const session = makeSession('s1', [textMessage('hi')], {
       currentTurn: 1,
       metadata: { title: 't' },
     });
@@ -53,46 +53,46 @@ describe('JsonlSessionStore', () => {
   });
 
   it('appends only delta messages when saving a session twice', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'first')]);
+    const session = makeSession('s1', [textMessage('first')]);
     await store.save(session);
 
-    session.conversation.push(textMessage('m2', 'second'));
+    session.conversation.push(textMessage('second'));
     await store.save(session);
 
     const raw = await readFile(join(dir, 's1.jsonl'), 'utf-8');
     const lines = raw.trim().split('\n');
     expect(lines).toHaveLength(2);
-    expect(JSON.parse(lines[0]).id).toBe('m1');
-    expect(JSON.parse(lines[1]).id).toBe('m2');
+    expect(JSON.parse(lines[0]).content).toEqual([{ type: 'text', text: 'first' }]);
+    expect(JSON.parse(lines[1]).content).toEqual([{ type: 'text', text: 'second' }]);
 
     const loaded = await store.load('s1');
     expect(loaded!.conversation).toHaveLength(2);
   });
 
   it('does not duplicate messages when saving after loading from disk', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'first')]);
+    const session = makeSession('s1', [textMessage('first')]);
     await store.save(session);
 
     const freshStore = new JsonlSessionStore(dir);
     const loaded = await freshStore.load('s1');
     expect(loaded).not.toBeNull();
 
-    loaded!.conversation.push(textMessage('m2', 'second'));
+    loaded!.conversation.push(textMessage('second'));
     await freshStore.save(loaded!);
 
     const raw = await readFile(join(dir, 's1.jsonl'), 'utf-8');
     const lines = raw.trim().split('\n');
     expect(lines).toHaveLength(2);
-    expect(JSON.parse(lines[0]).id).toBe('m1');
-    expect(JSON.parse(lines[1]).id).toBe('m2');
+    expect(JSON.parse(lines[0]).content).toEqual([{ type: 'text', text: 'first' }]);
+    expect(JSON.parse(lines[1]).content).toEqual([{ type: 'text', text: 'second' }]);
   });
 
   it('persists in-place content updates when saving a session twice', async () => {
-    const msg: ModelMessage = { id: 'm1', role: 'assistant', content: [] };
+    const msg: Message = { role: 'assistant', content: [], timestamp: Date.now() } as Message;
     const session = makeSession('s1', [msg]);
     await store.save(session);
 
-    msg.content.push({ type: 'text', text: 'updated' });
+    (msg.content as unknown[]).push({ type: 'text', text: 'updated' });
     await store.save(session);
 
     const loaded = await store.load('s1');
@@ -102,7 +102,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('delete removes both jsonl and meta files', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+    const session = makeSession('s1', [textMessage('hi')]);
     await store.save(session);
 
     await store.delete('s1');
@@ -121,7 +121,7 @@ describe('JsonlSessionStore', () => {
 
     for (const session of sessions) {
       const messages = Array.from({ length: session.messageCount }, (_, i) =>
-        textMessage(`m-${session.id}-${i}`, `msg-${i}`),
+        textMessage(`msg-${i}`),
       );
       const lines = messages.map((m) => JSON.stringify(m)).join('\n') + '\n';
       await writeFile(join(dir, `${session.id}.jsonl`), lines, 'utf-8');
@@ -149,7 +149,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('load returns session with default metadata when only jsonl exists', async () => {
-    const lines = [textMessage('m1', 'only-jsonl')].map((m) => JSON.stringify(m)).join('\n') + '\n';
+    const lines = [textMessage('only-jsonl')].map((m) => JSON.stringify(m)).join('\n') + '\n';
     await writeFile(join(dir, 'only.jsonl'), lines, 'utf-8');
 
     const loaded = await store.load('only');
@@ -188,7 +188,7 @@ describe('JsonlSessionStore', () => {
   it('returns null when jsonl is corrupted', async () => {
     await store.save({
       sessionId: 's1',
-      conversation: [{ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage],
+      conversation: [textMessage('hi')],
       currentTurn: 0,
       metadata: {},
       createdAt: new Date(),
@@ -201,7 +201,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('writeMeta uses temp file and rename, leaving no tmp file behind', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+    const session = makeSession('s1', [textMessage('hi')]);
     await store.save(session);
 
     const entries = await readdir(dir);
@@ -219,13 +219,13 @@ describe('JsonlSessionStore', () => {
   });
 
   it('debounces rapid saves: coalesces into a single file write', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'v1')]);
+    const session = makeSession('s1', [textMessage('v1')]);
 
     // Fire many saves in quick succession with different content; the debounce
     // window should collapse them into one persisted snapshot (the latest).
     const promises: Promise<void>[] = [];
     for (let i = 0; i < 10; i++) {
-      session.conversation = [textMessage('m1', `v${i}`)];
+      session.conversation = [textMessage(`v${i}`)];
       promises.push(store.save(session));
     }
 
@@ -238,7 +238,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('resolves all save promises after the debounced write completes', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+    const session = makeSession('s1', [textMessage('hi')]);
 
     const p1 = store.save(session);
     const p2 = store.save(session);
@@ -252,7 +252,7 @@ describe('JsonlSessionStore', () => {
   });
 
   it('delete cancels a pending debounced save without writing the file', async () => {
-    const session = makeSession('s1', [textMessage('m1', 'hi')]);
+    const session = makeSession('s1', [textMessage('hi')]);
     // Schedule a save but do not await it; delete before the debounce fires.
     void store.save(session);
     await store.delete('s1');

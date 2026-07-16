@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SimpleMemoryProvider } from '../src/plugins/memory/simple/index.js';
 import type { Session } from '../src/session.js';
-import type { ModelMessage } from '../src/types.js';
+import type { Message } from '@earendil-works/pi-ai';
 import type { ConfigProvider } from '../src/sdk/config-provider.js';
 
 function mockConfigProvider(name: string): ConfigProvider {
@@ -25,7 +25,7 @@ function mockConfigProvider(name: string): ConfigProvider {
   };
 }
 
-function makeSession(conversation: ModelMessage[] = []): Session {
+function makeSession(conversation: Message[] = []): Session {
   return {
     sessionId: 's1',
     conversation,
@@ -39,7 +39,7 @@ function makeSession(conversation: ModelMessage[] = []): Session {
 describe('SimpleMemoryProvider', () => {
   it('should build context with system prompt and conversation', async () => {
     const provider = new SimpleMemoryProvider(mockConfigProvider('TestAgent'));
-    const session = makeSession([{ id: '1', role: 'user', content: [{ type: 'text', text: 'Hello' }] }]);
+    const session = makeSession([{ role: 'user', content: [{ type: 'text', text: 'Hello' }], timestamp: Date.now() }]);
 
     const ctx = await provider.buildContext(session, 'TestAgent');
 

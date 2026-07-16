@@ -1,15 +1,13 @@
-import type { Message, Models, Context, Usage } from '@earendil-works/pi-ai';
-import type { ModelMessage } from '../types.js';
+import type { Message, Models, Context, AssistantMessage } from '@earendil-works/pi-ai';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
-import { toPiTool, fromPiAssistantMessage } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
 export interface GenerateParams {
   models: Models;
   provider: string;
   model: string;
-  apiKey: string;
+  apiKey?: string;
   baseURL?: string;
   system: string;
   messages: Message[];
@@ -26,15 +24,7 @@ export interface GenerateParams {
   };
 }
 
-export interface GenerateResult {
-  text: string;
-  toolCalls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
-  reasoning?: string;
-  usage: Usage;
-  finishReason: string;
-}
-
-export async function generate(params: GenerateParams): Promise<GenerateResult> {
+export async function generate(params: GenerateParams): Promise<AssistantMessage> {
   const { models } = params;
   const model = models.getModel(params.provider, params.model);
   if (!model) throw new Error(`Unknown model: ${params.provider}/${params.model}`);
@@ -42,7 +32,7 @@ export async function generate(params: GenerateParams): Promise<GenerateResult> 
   const context: Context = {
     systemPrompt: params.system,
     messages: params.messages,
-    tools: params.tools ? Object.entries(params.tools).map(([name, schema]) => toPiTool(name, schema)) : undefined,
+    tools: params.tools,
   };
 
   const maxAttempts = 3;
@@ -54,17 +44,16 @@ export async function generate(params: GenerateParams): Promise<GenerateResult> 
     }
     try {
       log('generate', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
-      const message = await models.complete(model, context, {
-        apiKey: params.apiKey,
-        baseURL: params.baseURL,
+      const message: AssistantMessage = await models.complete(model, context, {
+        apiKey: params.apiKey || undefined,
+        baseURL: params.baseURL || undefined,
         signal: params.signal,
         maxRetries: 0,
       });
       if (message.stopReason === 'error' || message.stopReason === 'aborted') {
         throw new Error(message.errorMessage ?? `LLM stopped: ${message.stopReason}`);
       }
-      const result = fromPiAssistantMessage(message);
-      return { ...result, finishReason: result.finishReason ?? 'stop' };
+      return message;
     } catch (error) {
       const category = params.errorHandler?.classify(error) ?? 'unknown';
       const message = error instanceof Error ? error.message : String(error);

@@ -1,4 +1,4 @@
-import type { Message } from '@earendil-works/pi-ai';
+import type { Message, ToolResultMessage } from '@earendil-works/pi-ai';
 import type { AgentStreamEvent } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult, ToolContext } from '../sdk/tool-provider.js';
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
@@ -10,7 +10,6 @@ import { RuleEngine } from '../security/rules/rule-engine.js';
 import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
 import { classifyTool } from '../security/permissions/tool-classifier.js';
 import type { ToolCategory } from '../security/permissions/tool-classifier.js';
-import { toPiToolResultMessage } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
 export interface ExecuteParams {
@@ -116,7 +115,15 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
   }
 
   for (const result of results) {
-    messages.push(toPiToolResultMessage(result));
+    const toolResultMessage: ToolResultMessage = {
+      role: 'toolResult',
+      toolCallId: result.toolCallId,
+      toolName: result.toolName,
+      content: [{ type: 'text', text: result.output ?? '' }],
+      isError: !!result.error,
+      timestamp: Date.now(),
+    };
+    messages.push(toolResultMessage);
   }
 
   return results;

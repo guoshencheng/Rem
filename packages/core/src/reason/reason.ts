@@ -2,16 +2,15 @@ import type { Message, Models, Context, Usage, ToolCall } from '@earendil-works/
 import type { AgentStreamEvent } from '../types.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
-import { toPiTool } from '../pi-adapter.js';
 import { log } from '../shared/debug-log.js';
 
-export { generate, type GenerateParams, type GenerateResult } from './generate.js';
+export { generate, type GenerateParams } from './generate.js';
 
 export interface ReasonParams {
   models: Models;
   provider: string;
   model: string;
-  apiKey: string;
+  apiKey?: string;
   baseURL?: string;
   system: string;
   messages: Message[];
@@ -37,7 +36,7 @@ export async function reason(params: ReasonParams): Promise<ReasonResult> {
   const context: Context = {
     systemPrompt: params.system,
     messages: params.messages,
-    tools: params.tools ? Object.entries(params.tools).map(([name, schema]) => toPiTool(name, schema)) : undefined,
+    tools: params.tools,
   };
 
   const maxAttempts = 3;
@@ -50,8 +49,8 @@ export async function reason(params: ReasonParams): Promise<ReasonResult> {
     try {
       log('reason', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
       const stream = models.stream(model, context, {
-        apiKey: params.apiKey,
-        baseURL: params.baseURL,
+        apiKey: params.apiKey || undefined,
+        baseURL: params.baseURL || undefined,
         signal: params.signal,
         maxRetries: 0,
       });

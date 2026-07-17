@@ -226,7 +226,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         system: systemPrompt,
         stream: () => {
           const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
-          console.log(model)
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
           return ctx.models.stream(model, contextForModel(), {
             thinkingEnabled: true,

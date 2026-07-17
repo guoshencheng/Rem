@@ -221,4 +221,104 @@ describe('runAgent', () => {
     expect(output.completed).toBe(true);
     expect(output.content).toContain('LLM failed');
   });
+
+  it('passes reasoning to stream/generate when model supports reasoning', async () => {
+    const stream = vi.fn(async function* () {
+      yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
+    });
+    const complete = vi.fn();
+    const mockCtx = {
+      ...createMockContextBase(),
+      models: {
+        getModel: () => ({ id: 'gpt-4o-mini', provider: 'openai', reasoning: true }),
+        stream,
+        complete,
+      },
+      loopStrategy: {
+        run: async (ctx: any) => {
+          const s = ctx.stream();
+          for await (const _ of s) {
+            // drain
+          }
+          await ctx.generate();
+          return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
+        },
+      },
+    } as unknown as AgentContext;
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+
+    for await (const _ of result.stream.fullStream) {
+      // drain
+    }
+    await result.output;
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
+      expect.anything(),
+      expect.objectContaining({ reasoning: 'medium' }),
+    );
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
+      expect.anything(),
+      expect.objectContaining({ reasoning: 'medium' }),
+    );
+  });
+
+  it('always enables thinking for MiniMax regardless of reasoning config', async () => {
+    const stream = vi.fn(async function* () {
+      yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
+    });
+    const complete = vi.fn();
+    const base = createMockContextBase();
+    const mockCtx = {
+      ...base,
+      configProvider: {
+        ...base.configProvider,
+        getModelConfig: () => ({ provider: 'minimax', model: 'MiniMax-M3', apiKey: 'sk-test', baseURL: undefined, reasoning: 'off' }),
+      },
+      models: {
+        getModel: () => ({ id: 'MiniMax-M3', provider: 'minimax', reasoning: true }),
+        stream,
+        complete,
+      },
+      loopStrategy: {
+        run: async (ctx: any) => {
+          const s = ctx.stream();
+          for await (const _ of s) {
+            // drain
+          }
+          await ctx.generate();
+          return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
+        },
+      },
+    } as unknown as AgentContext;
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+
+    for await (const _ of result.stream.fullStream) {
+      // drain
+    }
+    await result.output;
+
+    const streamOptions = stream.mock.calls[0][2] as Record<string, unknown>;
+    expect(streamOptions.thinkingEnabled).toBe(true);
+    expect(streamOptions.reasoning).toBeUndefined();
+
+    const completeOptions = complete.mock.calls[0][2] as Record<string, unknown>;
+    expect(completeOptions.thinkingEnabled).toBe(true);
+    expect(completeOptions.reasoning).toBeUndefined();
+  });
 });

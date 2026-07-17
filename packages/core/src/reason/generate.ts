@@ -1,6 +1,7 @@
-import type { Message, Models, Context, AssistantMessage } from '@earendil-works/pi-ai';
+import type { Message, Models, Context, AssistantMessage, ThinkingLevel } from '@earendil-works/pi-ai';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
+import { buildReasoningOptions } from '../llm/reasoning-options.js';
 import { log } from '../shared/debug-log.js';
 
 export interface GenerateParams {
@@ -14,6 +15,7 @@ export interface GenerateParams {
   tools?: ToolSet;
   signal?: AbortSignal;
   errorHandler?: ErrorHandler;
+  reasoning?: ThinkingLevel;
   responseFormat?: {
     type: 'json_schema' | 'json_object';
     json_schema?: {
@@ -44,12 +46,13 @@ export async function generate(params: GenerateParams): Promise<AssistantMessage
     }
     try {
       log('generate', 'inference start', { provider: params.provider, model: params.model, messageCount: params.messages.length });
-      const message: AssistantMessage = await models.complete(model, context, {
+      const message: AssistantMessage = await models.complete(model, context, buildReasoningOptions(model, {
         apiKey: params.apiKey || undefined,
         baseURL: params.baseURL || undefined,
         signal: params.signal,
         maxRetries: 0,
-      });
+        reasoning: params.reasoning,
+      }));
       if (message.stopReason === 'error' || message.stopReason === 'aborted') {
         throw new Error(message.errorMessage ?? `LLM stopped: ${message.stopReason}`);
       }

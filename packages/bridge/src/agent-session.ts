@@ -60,7 +60,7 @@ export class AgentSessionManager {
       throw new ServiceError('Session not found', 404);
     }
 
-    const toolResults = new Map<string, ToolResultBlock>();
+    const toolResultsMap = new Map<string, ToolResultBlock>();
     for (const msg of session.conversation) {
       if (msg.role !== 'toolResult') continue;
       const content = typeof msg.content === 'string' ? [] : msg.content;
@@ -68,7 +68,7 @@ export class AgentSessionManager {
         .filter((c): c is TextContent => c.type === 'text')
         .map((c) => c.text)
         .join('');
-      toolResults.set(msg.toolCallId, {
+      toolResultsMap.set(msg.toolCallId, {
         type: 'toolResult',
         toolCallId: msg.toolCallId,
         toolName: msg.toolName,
@@ -86,22 +86,22 @@ export class AgentSessionManager {
 
       const messageId = String((msg as any).id ?? i);
       const parts = messageToContentBlocks(msg);
-      const mergedParts: UiContentBlock[] = [];
+      const messageToolResults: Record<string, ToolResultBlock> = {};
       for (const part of parts) {
-        mergedParts.push(part);
         if (part.type === 'toolCall') {
-          const result = toolResults.get(part.id);
+          const result = toolResultsMap.get(part.id);
           if (result) {
-            mergedParts.push(result);
+            messageToolResults[part.id] = result;
           }
         }
       }
       uiMessages.push({
         id: messageId,
         role: msg.role as 'user' | 'assistant',
-        parts: mergedParts,
+        parts,
         status: 'done' as const,
         tokenUsage: normalizeUsage(messageTokenUsage[messageId]),
+        toolResults: Object.keys(messageToolResults).length > 0 ? messageToolResults : undefined,
       });
     }
     return uiMessages;

@@ -178,6 +178,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           role: 'assistant',
           parts: [],
           status: 'streaming',
+          toolResults: {},
         },
       ];
     },
@@ -256,7 +257,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
             m.id === event.messageId
-              ? { ...m, parts: event.parts }
+              ? { ...m, parts: event.parts, toolResults: m.toolResults }
               : m,
           );
           notifyChange();
@@ -264,6 +265,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         }
         case 'chunk': {
           const chunk = event.chunk;
+          console.log('[use-agents] chunk type:', chunk.type, 'sessionId:', event.sessionId);
 
           // LLM-generated session title — update session list immediately
           if (chunk.type === 'session-title' && (chunk as any).title) {
@@ -347,16 +349,16 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
                 if (m.id === msgId && m.status === 'streaming') {
                   return {
                     ...m,
-                    parts: [
-                      ...m.parts,
-                      {
+                    toolResults: {
+                      ...m.toolResults,
+                      [chunk.toolCallId]: {
                         type: 'toolResult',
                         toolCallId: chunk.toolCallId,
                         toolName: chunk.toolName,
                         output: chunk.output,
                         error: chunk.error,
-                      } as const,
-                    ],
+                      },
+                    },
                   };
                 }
                 return m;

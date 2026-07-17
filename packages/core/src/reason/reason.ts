@@ -1,7 +1,8 @@
-import type { Message, Models, Context, Usage, ToolCall } from '@earendil-works/pi-ai';
+import type { Message, Models, Context, Usage, ToolCall, ThinkingLevel } from '@earendil-works/pi-ai';
 import type { AgentStreamEvent } from '../types.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
+import { buildReasoningOptions } from '../llm/reasoning-options.js';
 import { log } from '../shared/debug-log.js';
 
 export { generate, type GenerateParams } from './generate.js';
@@ -17,6 +18,7 @@ export interface ReasonParams {
   tools?: ToolSet;
   signal?: AbortSignal;
   errorHandler?: ErrorHandler;
+  reasoning?: ThinkingLevel;
   emit: (event: AgentStreamEvent) => void;
 }
 
@@ -53,6 +55,7 @@ export async function reason(params: ReasonParams): Promise<ReasonResult> {
         baseURL: params.baseURL || undefined,
         signal: params.signal,
         maxRetries: 0,
+        thinkingEnabled: true,
       });
 
       for await (const event of stream) {

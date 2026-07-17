@@ -1,4 +1,5 @@
-import type { Message, Usage } from '@earendil-works/pi-ai';
+import type { Message, Model, Usage, ThinkingLevel, Api } from '@earendil-works/pi-ai';
+import { clampThinkingLevel } from '@earendil-works/pi-ai';
 import type { UserInput, AgentOutput, AgentStream, AgentStreamEvent } from './types.js';
 import type { PromptBuildContext } from './sdk/system-prompt.js';
 import type { Skill } from './sdk/skill-provider.js';
@@ -12,6 +13,7 @@ import { AgentEventStreamController } from './stream/agent-event-stream.js';
 import type { AgentContext } from './agent-context.js';
 import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
+import { buildReasoningOptions } from './llm/reasoning-options.js';
 import { generateId } from './shared/generate-id.js';
 import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';
@@ -224,8 +226,10 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         system: systemPrompt,
         stream: () => {
           const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
+          console.log(model)
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
           return ctx.models.stream(model, contextForModel(), {
+            thinkingEnabled: true,
             apiKey: effectiveModel.apiKey || undefined,
             baseURL: effectiveModel.baseURL || undefined,
             signal: params.signal,
@@ -236,6 +240,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
           return ctx.models.complete(model, contextForModel(), {
+            thinkingEnabled: true,
             apiKey: effectiveModel.apiKey || undefined,
             baseURL: effectiveModel.baseURL || undefined,
             signal: params.signal,

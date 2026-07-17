@@ -151,9 +151,11 @@ describe('AgentService session management', { timeout: 20000 }, () => {
 
       const messages = await service.getMessages(DEFAULT_WORKSPACE, summary.sessionId);
       expect(messages).toHaveLength(1);
-      expect(messages[0].parts).toHaveLength(2);
+      expect(messages[0].parts).toHaveLength(1);
       expect(messages[0].parts[0]).toEqual({ type: 'toolCall', id: 'tc1', name: 'ls', arguments: { path: '.' } });
-      expect(messages[0].parts[1]).toEqual({ type: 'toolResult', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' });
+      expect(messages[0].toolResults).toEqual({
+        tc1: { type: 'toolResult', toolCallId: 'tc1', toolName: 'ls', output: 'file.txt' },
+      });
     } finally {
       await cleanup();
     }

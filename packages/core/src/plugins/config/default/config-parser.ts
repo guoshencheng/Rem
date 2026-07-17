@@ -2,6 +2,7 @@ import type { AgentModelConfig, CompressionConfig } from '../../../sdk/config-pr
 import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
+import type { ThinkingLevel } from '@earendil-works/pi-ai';
 
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -15,6 +16,12 @@ export function resolveOptionalTemplate(value: string | undefined, env: NodeJS.P
   if (value === undefined) return undefined;
   const resolved = resolveTemplate(value, env);
   return resolved === '' ? undefined : resolved;
+}
+
+const THINKING_LEVELS: readonly ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+export function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return typeof value === 'string' && (THINKING_LEVELS as readonly string[]).includes(value);
 }
 
 export function pickToolPolicy(raw: unknown): ToolPolicyConfig | undefined {
@@ -49,9 +56,9 @@ export function pickModelConfig(raw: unknown): AgentModelConfig | undefined {
   if (typeof raw.provider === 'string') cfg.provider = raw.provider;
   if (typeof raw.model === 'string') cfg.model = raw.model;
   if (typeof raw.apiKey === 'string') cfg.apiKey = raw.apiKey;
-  if (typeof raw.apiKeyEnv === 'string') cfg.apiKeyEnv = raw.apiKeyEnv;
   if (typeof raw.baseURL === 'string') cfg.baseURL = raw.baseURL;
-  return cfg.provider && cfg.model ? cfg : undefined;
+  if (isThinkingLevel(raw.reasoning)) cfg.reasoning = raw.reasoning;
+  return cfg.provider ? cfg : undefined;
 }
 
 export function pickModels(raw: unknown): Record<string, AgentModelConfig> | undefined {

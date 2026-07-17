@@ -3,7 +3,7 @@ import type { AgentStreamEvent, BusEvent, SessionActivity, Usage } from 'rem-age
 
 export type { BusEvent, SessionActivity, Usage };
 
-export type UiContentBlock = TextContent | ThinkingContent | ToolCall | ToolResultBlock;
+export type UiContentBlock = TextContent | ThinkingContent | ToolCall;
 
 export interface ToolResultBlock {
   type: 'toolResult';
@@ -22,6 +22,8 @@ export interface UIMessage {
   /** 当前正在流式写入的 part 类型；用于 UI 状态指示 */
   activePartType?: 'text' | 'thinking' | 'toolCall';
   tokenUsage?: Usage;
+  /** 工具结果按 toolCallId 索引；与 parts 分开，避免 contentIndex 错位 */
+  toolResults?: Record<string, ToolResultBlock>;
 }
 
 export interface RunRequest {

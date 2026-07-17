@@ -3,13 +3,14 @@ import type { McpServerConfig } from '../mcp/types.js';
 import type { ToolProfileId } from '../security/rules/profiles.js';
 import type { Rule } from '../security/rules/rule.js';
 import type { CustomAgentConfig, ResolvedAgentRole } from './agent-role.js';
+import type { ThinkingLevel } from '@earendil-works/pi-ai';
 
 export interface AgentModelConfig {
   provider: string;
   model: string;
   apiKey?: string;
-  apiKeyEnv?: string;
   baseURL?: string;
+  reasoning?: ThinkingLevel;
 }
 
 export interface AgentToolConfig {
@@ -49,6 +50,7 @@ export interface ResolvedModelConfig {
   model: string;
   apiKey: string;
   baseURL?: string;
+  reasoning?: ThinkingLevel;
 }
 
 export interface ResolvedAgentConfig extends Required<AgentBehaviorConfig>, AgentToolConfig {

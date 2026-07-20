@@ -5,13 +5,17 @@ import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import type { ToolCall } from 'rem-agent-core';
 import type { ToolResultBlock } from 'rem-agent-bridge';
+import type { ChildAgentInfo } from '@/lib/use-agents';
+import { ChildAgentCard } from './child-agent-card';
 
 interface ToolCallBlockProps {
   tool: ToolCall;
   result?: ToolResultBlock;
+  child?: ChildAgentInfo;
+  onOpenChild?: (sessionId: string) => void;
 }
 
-export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
+export function ToolCallBlock({ tool, result, child, onOpenChild }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false);
   const hasResult = !!result;
   const isError = !!result?.error;
@@ -43,6 +47,17 @@ export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
         {statusIcon}
         <span className="truncate text-tx3 flex-1">{statusText}</span>
       </button>
+
+      {tool.name === 'delegate_task' && child && (
+        <div className="mt-1.5">
+          <ChildAgentCard
+            summary={child.summary}
+            status={child.status}
+            tokenUsage={child.tokenUsage}
+            onClick={() => onOpenChild?.(child.childSessionId)}
+          />
+        </div>
+      )}
 
       {open && (
         <div className="mt-1.5 mx-2 px-3 py-2 rounded-card bg-card2 border border-bd text-xs">

@@ -61,8 +61,19 @@ export function createDelegateTaskToolExecutor(
       signal: toolCtx.signal,
     });
 
+    const toolCallId = toolCtx.toolCallId;
     let failed = false;
     let lastTokenUsage: Usage | undefined;
+
+    const driveChildStream = (async () => {
+      try {
+        for await (const chunk of run.stream.fullStream) {
+          agentState.applyChunk(workspace, childSessionId, chunk);
+        }
+      } catch {
+        // best-effort: 子流消费失败不影响工具结果
+      }
+    })();
 
     const handleChildEvent = (event: BusEvent) => {
       if (event.sessionId !== childSessionId) return;
@@ -77,6 +88,7 @@ export function createDelegateTaskToolExecutor(
           sessionId: parentSessionId,
           type: 'child-agent-update',
           childSessionId,
+          toolCallId,
           summary: input.task,
           status: failed ? 'failed' : 'running',
           tokenUsage: lastTokenUsage,
@@ -88,6 +100,7 @@ export function createDelegateTaskToolExecutor(
 
     try {
       const output = await run.output;
+      await driveChildStream;
       const childState = agentState.get(childSessionId);
       lastTokenUsage = childState?.tokenUsage ?? lastTokenUsage;
 
@@ -98,6 +111,7 @@ export function createDelegateTaskToolExecutor(
         sessionId: parentSessionId,
         type: 'child-agent-update',
         childSessionId,
+        toolCallId,
         summary: input.task,
         status: failed ? 'failed' : 'completed',
         tokenUsage: lastTokenUsage,
@@ -118,6 +132,7 @@ export function createDelegateTaskToolExecutor(
         sessionId: parentSessionId,
         type: 'child-agent-update',
         childSessionId,
+        toolCallId,
         summary: input.task,
         status: 'failed',
         tokenUsage: lastTokenUsage,

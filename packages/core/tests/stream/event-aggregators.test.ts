@@ -76,4 +76,40 @@ describe('event-aggregators', () => {
       { type: 'toolCall', id: 'tc1', name: 'tool', arguments: {} },
     ]);
   });
+
+  it('reduces streaming toolcall_start/toolcall_delta from partial message', () => {
+    const partialAt = (args: Record<string, unknown>) =>
+      ({
+        content: [{ type: 'toolCall', id: 'tc1', name: 'delegate_task', arguments: args }],
+      }) as unknown as AssistantMessage;
+
+    let parts = reduceStreamEvent([], {
+      type: 'toolcall_start',
+      contentIndex: 0,
+      partial: partialAt({}),
+    });
+    expect(compactContentBlocks(parts)).toEqual([
+      { type: 'toolCall', id: 'tc1', name: 'delegate_task', arguments: {} },
+    ]);
+
+    parts = reduceStreamEvent(parts, {
+      type: 'toolcall_delta',
+      contentIndex: 0,
+      delta: '{"task": "do',
+      partial: partialAt({ task: 'do' }),
+    });
+    expect(compactContentBlocks(parts)).toEqual([
+      { type: 'toolCall', id: 'tc1', name: 'delegate_task', arguments: { task: 'do' } },
+    ]);
+
+    parts = reduceStreamEvent(parts, {
+      type: 'toolcall_end',
+      contentIndex: 0,
+      toolCall: { type: 'toolCall', id: 'tc1', name: 'delegate_task', arguments: { task: 'do work' } },
+      partial: {} as AssistantMessage,
+    });
+    expect(compactContentBlocks(parts)).toEqual([
+      { type: 'toolCall', id: 'tc1', name: 'delegate_task', arguments: { task: 'do work' } },
+    ]);
+  });
 });

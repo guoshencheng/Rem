@@ -93,7 +93,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     const ctx = {
       cwd: params.workspaceRoot, workspaceRoot: params.workspaceRoot,
       signal, agentName: params.agentName, readOnly: params.readOnly,
-      sessionId: params.sessionId, outsideAllowed,
+      sessionId: params.sessionId, toolCallId: tc.toolCallId, outsideAllowed,
     };
 
     let result: ToolResult;

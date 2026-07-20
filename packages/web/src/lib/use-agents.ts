@@ -41,6 +41,25 @@ function formatError(error: string | StreamErrorInfo | unknown): string {
 
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
+export interface ChildAgentInfo {
+  childSessionId: string;
+  toolCallId?: string;
+  summary: string;
+  status: 'running' | 'completed' | 'failed';
+  tokenUsage?: Usage;
+}
+
+export interface SessionView {
+  id: string;
+  messages: UIMessage[];
+  status: SessionStatus;
+  error: string | null;
+  activity?: SessionActivity;
+  pendingApprovals: ApprovalRequest[];
+  tokenUsage?: Usage;
+  childAgents: Map<string, ChildAgentInfo>;
+}
+
 interface SessionState {
   messages: UIMessage[];
   status: SessionStatus;
@@ -49,12 +68,7 @@ interface SessionState {
   pendingToolCalls: Set<string>;
   pendingApprovals: ApprovalRequest[];
   tokenUsage?: Usage;
-  childAgents: Map<string, {
-    childSessionId: string;
-    summary: string;
-    status: 'running' | 'completed' | 'failed';
-    tokenUsage?: Usage;
-  }>;
+  childAgents: Map<string, ChildAgentInfo>;
 }
 
 export interface SessionSummary {
@@ -228,6 +242,28 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       setInitialized(true);
     });
   }, [workspace]);
+
+  // 从历史 sessionList 重建子 agent 条目（child-agent-update 是运行时事件不持久化，
+  // 刷新后靠 parentSessionId 恢复卡片入口；运行时已有的条目优先，不覆盖）
+  useEffect(() => {
+    let changed = false;
+    for (const s of sessionList) {
+      if (!s.parentSessionId) continue;
+      const parentState = sessionMapRef.current.get(s.parentSessionId);
+      if (!parentState) continue;
+      const existing = parentState.childAgents.get(s.sessionId);
+      if (existing && (existing.toolCallId || existing.status === 'running')) continue;
+      parentState.childAgents.set(s.sessionId, {
+        childSessionId: s.sessionId,
+        summary: s.title ?? '',
+        status: 'completed',
+        tokenUsage: s.tokenUsage,
+      });
+      changed = true;
+    }
+    if (changed) notifyChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionList, version]);
 
   // Subscribe to bus events
   useEffect(() => {
@@ -495,6 +531,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           }
           state.childAgents.set(event.childSessionId, {
             childSessionId: event.childSessionId,
+            toolCallId: event.toolCallId,
             summary: event.summary,
             status: event.status,
             tokenUsage: event.tokenUsage,
@@ -538,7 +575,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     };
   }, [workspace, bus, ensureSession, notifyChange, refreshSession, bufferEvent, ensureAssistantMessage]);
 
-  const currentSession = useMemo(() => {
+  const currentSession = useMemo((): SessionView | null => {
     if (!currentId) return null;
     const state = sessionMapRef.current.get(currentId);
     if (!state) return null;
@@ -554,6 +591,22 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);
+
+  const getSessionState = useCallback((sessionId: string): SessionView | null => {
+    const state = sessionMapRef.current.get(sessionId);
+    if (!state) return null;
+    return {
+      id: sessionId,
+      messages: state.messages,
+      status: state.status,
+      error: state.error,
+      activity: state.activity,
+      pendingApprovals: state.pendingApprovals,
+      tokenUsage: state.tokenUsage,
+      childAgents: state.childAgents,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   const send = useCallback(
     async (content: string) => {
@@ -667,5 +720,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     interrupt,
     resolveApproval,
     initialized,
+    getSessionState,
+    loadSession: ensureSession,
   };
 }

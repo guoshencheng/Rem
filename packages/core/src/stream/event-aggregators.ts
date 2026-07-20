@@ -76,13 +76,24 @@ export function reduceStreamEvent(
       }
       break;
     }
+    case 'toolcall_start':
+    case 'toolcall_delta': {
+      const partial = event.partial.content[event.contentIndex];
+      if (partial?.type === 'toolCall') {
+        next[event.contentIndex] = {
+          type: 'toolCall',
+          id: partial.id,
+          name: partial.name,
+          arguments: partial.arguments,
+        };
+      }
+      break;
+    }
     case 'toolcall_end':
       next[event.contentIndex] = event.toolCall;
       break;
     case 'text_end':
     case 'thinking_end':
-    case 'toolcall_start':
-    case 'toolcall_delta':
     case 'start':
     case 'done':
     case 'error':

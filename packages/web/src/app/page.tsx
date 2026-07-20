@@ -7,6 +7,7 @@ import { useAgents } from '@/lib/use-agents';
 import type { SessionSummary } from '@/lib/use-agents';
 import { WorkspaceSidebar } from '@/components/sidebar/workspace-sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
+import { ChildAgentDrawer } from '@/components/chat/child-agent-drawer';
 import { AddWorkspaceDialog } from '@/components/workspace/add-workspace-dialog';
 
 export default function Home() {
@@ -40,7 +41,17 @@ export default function Home() {
     interrupt,
     resolveApproval,
     initialized,
+    getSessionState,
+    loadSession,
   } = useAgents(agentService, { workspace: activeWorkspace ?? '' });
+
+  const [drawerChildId, setDrawerChildId] = useState<string | null>(null);
+
+  // 切换会话/工作区时关闭子 agent 抽屉
+  const currentSessionId = currentSession?.id ?? null;
+  useEffect(() => {
+    setDrawerChildId(null);
+  }, [currentSessionId, activeWorkspace]);
 
   // Create session after workspace activation when triggered from a different workspace
   useEffect(() => {
@@ -86,8 +97,17 @@ export default function Home() {
   }, [agentService, activeWorkspace]);
 
   const handleOpenChild = useCallback((sessionId: string) => {
+    loadSession(sessionId);
+    setDrawerChildId(sessionId);
+  }, [loadSession]);
+
+  const handleOpenChildFull = useCallback((sessionId: string) => {
+    setDrawerChildId(null);
     switchSession(sessionId);
   }, [switchSession]);
+
+  const drawerChild = drawerChildId ? currentSession?.childAgents.get(drawerChildId) ?? null : null;
+  const drawerSession = drawerChildId ? getSessionState(drawerChildId) : null;
 
   if (!loaded) {
     return <div className="flex h-full items-center justify-center text-tx2 text-sm">Loading...</div>;
@@ -133,6 +153,14 @@ export default function Home() {
         </div>
       )}
       <AddWorkspaceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAddWorkspace} />
+      {drawerChild && (
+        <ChildAgentDrawer
+          child={drawerChild}
+          session={drawerSession}
+          onClose={() => setDrawerChildId(null)}
+          onOpenFull={handleOpenChildFull}
+        />
+      )}
     </div>
   );
 }

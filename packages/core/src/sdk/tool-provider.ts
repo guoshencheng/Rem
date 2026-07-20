@@ -16,6 +16,7 @@ export interface ToolContext {
   agentName?: string;
   readOnly?: boolean;
   sessionId?: string;
+  toolCallId?: string;
   outsideAllowed?: boolean;
 }
 

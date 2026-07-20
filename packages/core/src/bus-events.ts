@@ -24,6 +24,7 @@ export type BusEvent =
       sessionId: string;
       type: 'child-agent-update';
       childSessionId: string;
+      toolCallId?: string;
       summary: string;
       status: 'running' | 'completed' | 'failed';
       tokenUsage?: Usage;

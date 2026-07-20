@@ -8,6 +8,7 @@ import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
 import type { UIMessage, SessionActivity } from '@/lib/types';
 import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
 import type { IAgentService } from 'rem-agent-bridge/client';
+import type { ChildAgentInfo } from '@/lib/use-agents';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 
@@ -20,12 +21,7 @@ interface ChatPanelProps {
   initialized: boolean;
   tokenUsage?: Usage;
   maxTokens?: number;
-  childAgents?: Map<string, {
-    childSessionId: string;
-    summary: string;
-    status: 'running' | 'completed' | 'failed';
-    tokenUsage?: Usage;
-  }>;
+  childAgents?: Map<string, ChildAgentInfo>;
   onOpenChild?: (sessionId: string) => void;
   onSend(content: string): void;
   onInterrupt(): void;

@@ -3,17 +3,12 @@
 import { useRef, useEffect } from 'react';
 import { MessageItem } from './message-item';
 import type { UIMessage } from '@/lib/types';
-import type { Usage } from 'rem-agent-core';
+import type { ChildAgentInfo } from '@/lib/use-agents';
 
 interface MessageListProps {
   messages: UIMessage[];
   onSend(content: string): void;
-  childAgents?: Map<string, {
-    childSessionId: string;
-    summary: string;
-    status: 'running' | 'completed' | 'failed';
-    tokenUsage?: Usage;
-  }>;
+  childAgents?: Map<string, ChildAgentInfo>;
   onOpenChild?: (sessionId: string) => void;
 }
 

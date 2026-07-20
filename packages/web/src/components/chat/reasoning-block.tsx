@@ -7,23 +7,23 @@ import { cn } from '@/lib/utils';
 import type { UIMessage } from 'rem-agent-bridge';
 
 interface ReasoningBlockProps {
-  text: string;
+  thinking: string;
   isStreaming: boolean;
   activePartType?: UIMessage['activePartType'];
 }
 
-export function ReasoningBlock({ text, isStreaming, activePartType }: ReasoningBlockProps) {
+export function ReasoningBlock({ thinking, isStreaming, activePartType }: ReasoningBlockProps) {
   const [open, setOpen] = useState(false);
 
-  const isReasoningActive = isStreaming && activePartType === 'reasoning';
+  const isReasoningActive = isStreaming && activePartType === 'thinking';
 
   useEffect(() => {
-    if (isReasoningActive && text.length > 0) {
+    if (isReasoningActive && thinking.length > 0) {
       setOpen(true);
     }
-  }, [isReasoningActive, text]);
+  }, [isReasoningActive, thinking]);
 
-  if (!text && !isReasoningActive) return null;
+  if (!thinking && !isReasoningActive) return null;
 
   return (
     <div className="mb-2">
@@ -42,7 +42,7 @@ export function ReasoningBlock({ text, isStreaming, activePartType }: ReasoningB
 
       {open && (
         <div className="mt-1.5 mx-2 px-3 py-2 rounded-card bg-card2 border border-bd text-tx2 text-xs italic leading-relaxed max-h-48 overflow-y-auto">
-          {text || (isReasoningActive ? '...' : '')}
+          {thinking || (isReasoningActive ? '...' : '')}
         </div>
       )}
     </div>

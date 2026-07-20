@@ -1,23 +1,6 @@
-export interface ContextWindowEntry {
-  maxTokens: number;
-}
+import type { Models } from '@earendil-works/pi-ai';
 
-const BUILT_IN_CONTEXT_WINDOWS = new Map<string, ContextWindowEntry>([
-  ['openai:gpt-4o', { maxTokens: 128_000 }],
-  ['openai:gpt-4o-mini', { maxTokens: 128_000 }],
-  ['openai:gpt-4-turbo', { maxTokens: 128_000 }],
-  ['anthropic:claude-sonnet-4-20250514', { maxTokens: 200_000 }],
-  ['anthropic:claude-opus-4', { maxTokens: 200_000 }],
-  ['anthropic:claude-sonnet-4', { maxTokens: 200_000 }],
-]);
-
-function normalizeModelName(model: string): string {
-  return model.toLowerCase().trim();
-}
-
-function buildKey(provider: string, model: string): string {
-  return `${provider.toLowerCase()}:${normalizeModelName(model)}`;
-}
+const DEFAULT_CONTEXT_WINDOW = 1_000_000;
 
 function envKeyForModel(provider: string, model: string): string {
   const sanitized = model.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
@@ -35,6 +18,7 @@ export function resolveContextWindow(
   provider: string,
   model: string,
   env: NodeJS.ProcessEnv = process.env,
+  models?: Models,
 ): number {
   const globalOverride = parsePositiveInt(env.MAX_CONTEXT_TOKENS);
   if (globalOverride !== undefined) {
@@ -46,12 +30,12 @@ export function resolveContextWindow(
     return modelOverride;
   }
 
-  const builtIn = BUILT_IN_CONTEXT_WINDOWS.get(buildKey(provider, model));
-  if (builtIn) {
-    return builtIn.maxTokens;
+  const known = models?.getModel(provider, model);
+  if (known?.contextWindow) {
+    return known.contextWindow;
   }
 
-  return 1_000_000;
+  return DEFAULT_CONTEXT_WINDOW;
 }
 
 export function computeWindowRatio(usage: { totalTokens: number }, maxTokens: number): number {

@@ -1,4 +1,5 @@
-import type { ModelMessage, ProviderChunk } from '../types.js';
+import type { Message, ToolResultMessage } from '@earendil-works/pi-ai';
+import type { AgentStreamEvent } from '../types.js';
 import type { ToolCall, ToolProvider, ToolResult, ToolContext } from '../sdk/tool-provider.js';
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';
@@ -19,32 +20,18 @@ export interface ExecuteParams {
   ruleEngine: RuleEngine;
   ruleStore: RuleStorage;
   securityMode: SecurityMode;
-  addMessage: (role: 'tool') => ModelMessage;
-  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void;
+  messages: Message[];
   workspaceRoot: string;
   agentName?: string;
   readOnly?: boolean;
   sessionId: string;
   signal?: AbortSignal;
-  emit: (chunk: ProviderChunk) => void;
-}
-
-function emitToolResult(
-  tc: ToolCall, result: ToolResult,
-  emit: (chunk: ProviderChunk) => void,
-  addMessage: (role: 'tool') => ModelMessage,
-  appendContent: (msg: ModelMessage, part: { type: string; [key: string]: unknown }) => void,
-): void {
-  const output = result.error ?? result.output ?? '';
-  log('tools', 'emitting tool result', { toolCallId: tc.toolCallId, toolName: tc.toolName, outputLength: output.length, hasError: !!result.error });
-  emit({ type: 'tool-result', step: 0, toolCallId: tc.toolCallId, output, error: result.error } as ProviderChunk);
-  const msg = addMessage('tool');
-  appendContent(msg, { type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output });
+  emit: (event: AgentStreamEvent) => void;
 }
 
 export async function executeTools(params: ExecuteParams): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  const { toolProvider, permissionEvaluator, agentState, ruleEngine, ruleStore, addMessage, appendContent, emit, signal } = params;
+  const { toolProvider, permissionEvaluator, agentState, ruleEngine, ruleStore, messages, emit, signal } = params;
 
   for (const tc of params.toolCalls) {
     log('tools', 'executing tool call', { sessionId: params.sessionId, toolCallId: tc.toolCallId, toolName: tc.toolName });
@@ -52,7 +39,6 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     const def = toolProvider.getToolDefinition(tc.toolName);
     if (!def) {
       const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: `unknown tool: ${tc.toolName}` };
-      emitToolResult(tc, denied, emit, addMessage, appendContent);
       results.push(denied);
       continue;
     }
@@ -61,7 +47,6 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
 
     if (decision.action === 'deny') {
       const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: decision.reason };
-      emitToolResult(tc, denied, emit, addMessage, appendContent);
       results.push(denied);
       continue;
     }
@@ -71,18 +56,17 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       const request = liveState.approvalEngine.createRequest(decision.request);
 
       liveState.pendingApprovals.push(request);
-      emit({ type: 'approval-request', sessionId: params.sessionId, request } as ProviderChunk);
+      emit({ type: 'approval-request', sessionId: params.sessionId, request });
       log('tools', 'approval requested', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId });
 
       const resolution = await liveState.approvalEngine.wait(request.approvalId);
 
       liveState.pendingApprovals = liveState.pendingApprovals.filter((r) => r.approvalId !== request.approvalId);
-      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId: request.approvalId, decision: resolution.decision } as ProviderChunk);
+      emit({ type: 'approval-resolved', sessionId: params.sessionId, approvalId: request.approvalId, decision: resolution.decision });
       log('tools', 'approval resolved', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId, decision: resolution.decision });
 
       if (resolution.decision === 'deny') {
         const denied: ToolResult = { toolCallId: tc.toolCallId, toolName: tc.toolName, output: '', error: 'denied' };
-        emitToolResult(tc, denied, emit, addMessage, appendContent);
         results.push(denied);
         continue;
       }
@@ -109,7 +93,7 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
     const ctx = {
       cwd: params.workspaceRoot, workspaceRoot: params.workspaceRoot,
       signal, agentName: params.agentName, readOnly: params.readOnly,
-      sessionId: params.sessionId, outsideAllowed,
+      sessionId: params.sessionId, toolCallId: tc.toolCallId, outsideAllowed,
     };
 
     let result: ToolResult;
@@ -128,7 +112,19 @@ export async function executeTools(params: ExecuteParams): Promise<ToolResult[]>
       }
     }
     results.push(result);
-    emitToolResult(tc, result, emit, addMessage, appendContent);
+  }
+
+  for (const result of results) {
+    const toolResultMessage: ToolResultMessage = {
+      role: 'toolResult',
+      toolCallId: result.toolCallId,
+      toolName: result.toolName,
+      content: [{ type: 'text', text: result.output ?? '' }],
+      isError: !!result.error,
+      timestamp: Date.now(),
+    };
+    messages.push(toolResultMessage);
+    emit({ type: 'tool-result', toolCallId: result.toolCallId, toolName: result.toolName, output: result.output ?? '', error: result.error });
   }
 
   return results;
@@ -203,7 +199,7 @@ async function handleOutsideWorkspaceError(
   });
 
   liveState.pendingApprovals.push(request);
-  params.emit({ type: 'approval-request', sessionId: params.sessionId, request } as ProviderChunk);
+  params.emit({ type: 'approval-request', sessionId: params.sessionId, request });
   log('tools', 'approval requested', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId });
 
   const resolution = await liveState.approvalEngine.wait(request.approvalId);
@@ -215,7 +211,7 @@ async function handleOutsideWorkspaceError(
     sessionId: params.sessionId,
     approvalId: request.approvalId,
     decision: resolution.decision,
-  } as ProviderChunk);
+  });
   log('tools', 'approval resolved', { sessionId: params.sessionId, toolCallId: tc.toolCallId, approvalId: request.approvalId, decision: resolution.decision });
 
   if (resolution.decision === 'deny') {

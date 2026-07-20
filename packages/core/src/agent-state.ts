@@ -1,11 +1,12 @@
 import { AgentLiveState } from './state.js';
 import { BroadcastBus } from './broadcast-bus.js';
 import type { BusEvent, SessionActivity } from './bus-events.js';
-import type { AgentStreamChunk, ContentPart, LanguageModelUsage } from './types.js';
+import type { AgentStreamEvent } from './types.js';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { ApprovalDecision } from './sdk/agent-state-provider.js';
 import type { ApprovalResolution } from './execute/approval-engine.js';
 import type { Rule } from './security/rules/rule.js';
-import { addUsage, emptyUsage, type TokenUsageDetail } from './token-usage.js';
+import { addUsage, emptyUsage, normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
 
 export class AgentState {
   private liveStates = new Map<string, AgentLiveState>();
@@ -42,7 +43,7 @@ export class AgentState {
     this.bus.publish(event);
   }
 
-  publishChunk(workspace: string, sessionId: string, chunk: AgentStreamChunk): void {
+  publishChunk(workspace: string, sessionId: string, chunk: AgentStreamEvent): void {
     this.bus.publish({ workspace, sessionId, type: 'chunk', chunk });
   }
 
@@ -62,17 +63,19 @@ export class AgentState {
     this.bus.publish({ workspace, sessionId, type: 'activity-change', activity });
   }
 
-  publishSnapshot(workspace: string, sessionId: string, messageId: string, parts: ContentPart[]): void {
+  publishSnapshot(workspace: string, sessionId: string, messageId: string, parts: Array<import('@earendil-works/pi-ai').TextContent | import('@earendil-works/pi-ai').ThinkingContent | import('@earendil-works/pi-ai').ToolCall>): void {
     this.bus.publish({ workspace, sessionId, type: 'snapshot', messageId, parts });
   }
 
-  publishUsageChange(workspace: string, sessionId: string, usage: LanguageModelUsage): void {
+  publishUsageChange(workspace: string, sessionId: string, usage: Usage): void {
     this.bus.publish({ workspace, sessionId, type: 'usage-change', usage });
   }
 
   restoreTokenUsage(sessionId: string, history: TokenUsageDetail[]): void {
     const state = this.getOrCreate(sessionId);
-    state.tokenUsage = history.reduce((acc, detail) => addUsage(acc, detail), emptyUsage());
+    state.tokenUsage = history
+      .map((detail) => normalizeUsageDetail(detail))
+      .reduce((acc, detail) => addUsage(acc, detail), emptyUsage());
   }
 
   // ---- Snapshot proxy ----
@@ -81,7 +84,7 @@ export class AgentState {
     this.getOrCreate(sessionId).startSnapshot(messageId);
   }
 
-  appendSnapshotParts(sessionId: string, chunk: AgentStreamChunk): void {
+  appendSnapshotParts(sessionId: string, chunk: AgentStreamEvent): void {
     this.get(sessionId)?.appendSnapshotParts(chunk);
   }
 
@@ -193,7 +196,7 @@ export class AgentState {
    * 应用一个流式 chunk，维护流式快照、更新 activity、必要时结束运行，并发布相关事件。
    * 只操作已存在的 AgentLiveState，不会新建。
    */
-  applyChunk(workspace: string, sessionId: string, chunk: AgentStreamChunk): void {
+  applyChunk(workspace: string, sessionId: string, chunk: AgentStreamEvent): void {
     const state = this.get(sessionId);
     if (!state) return;
 
@@ -221,7 +224,8 @@ export class AgentState {
     if (chunk.type === 'finish') {
       this.finishRun(sessionId, workspace);
     } else if (chunk.type === 'error') {
-      this.finishRun(sessionId, workspace, { error: String(chunk.error) });
+      const error = chunk.error as { message?: string; errorMessage?: string };
+      this.finishRun(sessionId, workspace, { error: error.message ?? error.errorMessage ?? 'Unknown error' });
     }
   }
 }

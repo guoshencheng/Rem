@@ -1,6 +1,6 @@
 # Rem Agent — 系统架构
 
-> 状态：✅ 与代码同步（2026-06-30）
+> 状态：✅ 与代码同步（2026-07-15）
 >
 > 基于 Hermes Agent 和 OpenClaw 架构分析，采用 Plugin-Core Balance 方案。
 
@@ -105,29 +105,29 @@
 │          │                  │                                            │
 │          ▼                  ▼                                            │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                        ReactLoop (ReAct 循环)                      │   │
-│  │                                                                   │   │
-│  │  ReactTurnRunner (带 step 限制的迭代器)                              │   │
-│  │                                                                   │   │
-│  │  执行流程:                                                         │   │
-│  │  prepare → reason → plan → execute → observe → reflect             │   │
-│  │                     ↑                │                             │   │
-│  │                     └─── reflect ◄───┘                             │   │
-│  └──────────────────────────────┬───────────────────────────────────┘   │
-│                                 │                                        │
-│                  ┌──────────────┼──────────────┐                        │
-│                  ▼              ▼              ▼                        │
-│  ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐           │
-│  │ InferenceEngine  │ │ ToolRegistry  │ │ MemoryProvider   │           │
-│  │ (LLM 封装)       │ │ (工具执行)     │ │ (上下文构建)      │           │
-│  └────────┬─────────┘ └───────────────┘ └──────────────────┘           │
-│           │                                                              │
-│           ▼                                                              │
-│  ┌─────────────────────────────────────────┐                           │
-│  │        LLMProvider 注册表                │                           │
-│  │  ├─ OpenAI  (openai SDK)                │                           │
-│  │  └─ Anthropic (@anthropic-ai/sdk)       │                           │
-│  └─────────────────────────────────────────┘                           │
+ │  │                        ReactLoop (ReAct 循环)                      │   │
+ │  │                                                                   │   │
+ │  │  ReactTurnRunner (带 step 限制的迭代器)                              │   │
+ │  │                                                                   │   │
+ │  │  执行流程:                                                         │   │
+ │  │  prepare → reason → plan → execute → observe → reflect             │   │
+ │  │                     ↑                │                             │   │
+ │  │                     └─── reflect ◄───┘                             │   │
+ │  └──────────────────────────────┬───────────────────────────────────┘   │
+ │                                 │                                        │
+ │                  ┌──────────────┼──────────────┐                        │
+ │                  ▼              ▼              ▼                        │
+ │  ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐           │
+ │  │ pi-ai Models     │ │ ToolRegistry  │ │ MemoryProvider   │           │
+ │  │ (Models 集合)     │ │ (工具执行)     │ │ (上下文构建)      │           │
+ │  └────────┬─────────┘ └───────────────┘ └──────────────────┘           │
+ │           │                                                              │
+ │           ▼                                                              │
+ │  ┌─────────────────────────────────────────┐                           │
+ │  │        pi-ai Provider 抽象                │                           │
+ │  │  ├─ 统一封装 OpenAI / Anthropic / 其它   │                           │
+ │  │  └─ 流式事件：AssistantMessageEvent        │                           │
+ │  └─────────────────────────────────────────┘                           │
 │                                                                          │
 │  基础设施:                                                               │
 │  ┌────────────┐ ┌───────────┐ ┌─────────────────┐ ┌──────────────────┐  │
@@ -212,9 +212,9 @@
 [core] ReactLoop.iterate()
   │  ① MemoryProvider.buildContext()    → 系统提示 + 记忆
   │  ② ContextCompressor               → 按需压缩上下文
-  │  ③ InferenceEngine.infer(...)       → LLM 调用 (带 onChunk 回调)
+  │  ③ pi-ai Models.stream(...) / Models.complete(...) → LLM 调用
   │  ④ ToolRegistry.execute(calls)      → 工具执行
-  │  ⑤ AgentStreamController.enqueue()  → 产出 AgentStreamChunk
+  │  ⑤ AgentStreamController.emit()    → 产出 AgentStreamEvent (AssistantMessageEvent | RemMetaEvent)
   │
   ▼
 [bridge] AgentService 返回 {stream, output}
@@ -226,7 +226,7 @@
   │
   ▼
 [web/browser] useSSE → fetch() → ReadableStream
-  │  parseSSEStream(reader) → parseAgentStreamEvent → AgentStreamChunk
+  │  parseSSEStream(reader) → parseAgentStreamEvent → AgentStreamEvent
   │
   ▼
 [web] useSessionStore.onChunk(chunk)
@@ -300,7 +300,7 @@ agent.reset() — 清除状态
 | **事件驱动** | Core 通过 EventBus 发出事件（`turn:before/after`、`phase:reason:*`），插件订阅 |
 | **Provider 注册表** | LLM provider 和 SDK provider 使用统一注册表模式（`registerProvider`/`resolveProvider`） |
 | **依赖注入** | Web 层通过 Awilix 连接，Core 通过 `ProviderManager`/`ProviderRegistry` 连接 |
-| **SSE 流** | `AgentStreamChunk` 标准化块类型，通过 HTTP SSE 传输 |
+| **SSE 流** | `AgentStreamEvent` 标准化事件类型，通过 HTTP SSE 传输 |
 | **预算护栏** | `IterationBudget` 强制执行最大轮次、连续错误、相同工具故障限制 |
 | **可扩展循环** | `LoopStrategy` 接口支持未来 Plan-and-Solve 等替代循环 |
 
@@ -338,20 +338,19 @@ Core 通过 `EventBus` 发出以下事件：
 
 ```
 src/llm/
-├── types.ts              通用类型 (ProviderConfig, GenerateResult, StreamChunk, StreamCollector)
-├── api-registry.ts        注册表 (registerProvider, resolveProvider, resolveProviderConfig)
-├── engine.ts              InferenceEngine — 核心推理引擎
-├── partition-stream.ts    流分区 — 分离 thinking 标签与正文
-└── providers/
-    ├── index.ts           内置 Provider 注册
-    ├── openai.ts          OpenAI 实现 (generate + stream)
-    └── anthropic.ts       Anthropic 实现 (generate + stream)
+├── models.ts              # pi-ai Models 集合初始化
+├── context-window.ts      # 上下文窗口（后续可替换为 pi-ai 模型元数据）
+└── pi-adapter.ts          # REM ↔ pi-ai 类型转换
 ```
 
+Core 通过 `AgentContext.models` 使用 pi-ai `Models` 集合，`runAgent` 直接调用 `models.stream(model, context, options)` 和 `models.complete(...)`。
+
 **设计要点：**
-- 不依赖 Vercel AI SDK，直接封装各 provider 原生 SDK
-- `StreamCollector` 累积流式块，`partitionProviderStream` 分离 thinking/reasoning 内容
-- `InferenceEngine.infer()` 统一入口，根据 provider 名称路由
+- Core 不依赖 Vercel AI SDK，LLM 能力由 `@earendil-works/pi-ai` 的 `Models` 集合提供
+- `Models` 负责 provider 路由、流式事件生成和 usage 统计
+- `pi-adapter.ts` 负责 REM 内部类型（`ModelMessage`、`ContentPart`、`ToolSchema`）与 `pi.Message`/`pi.Tool` 之间的转换
+- 流式事件统一为 `pi-ai` 的 `AssistantMessageEvent`；Core 在此基础上叠加 `RemMetaEvent`（如 `step-start`、`compress-start`、`approval-request` 等）
+- 工具结果以 `pi.Message` 中的 `toolResult` 角色进入 `Session.conversation`
 
 ---
 
@@ -366,7 +365,7 @@ src/llm/
 | **状态管理 (Web)** | Zustand |
 | **依赖注入 (Web)** | Awilix |
 | **TUI** | `@opentui/core` |
-| **LLM SDK** | `openai` (v6) + `@anthropic-ai/sdk` |
+| **LLM SDK** | `@earendil-works/pi-ai` (统一 provider 抽象) |
 | **模式验证** | `@sinclair/typebox` |
 | **配置** | YAML + 环境变量 |
 | **样式 (Web)** | Tailwind CSS v4 |
@@ -390,12 +389,13 @@ rem/
 │   │       ├── events.ts            EventBus + AgentEvent
 │   │       ├── budget.ts            IterationBudget
 │   │       ├── session.ts           Session / SessionSummary 接口
-│   │       ├── types.ts             核心类型 (ModelMessage, AgentStreamChunk, ...)
+│   │       ├── types.ts             核心类型 (ModelMessage, AgentStreamEvent, Usage, ...)
 │   │       ├── provider-manager.ts  ProviderManager 门面
 │   │       ├── config/paths.ts      路径解析
 │   │       ├── shared/              共享工具 (id 生成, debug-log, thinking-tag, code-regions)
-│   │       ├── stream/agent-stream.ts  AgentStreamController
-│   │       ├── llm/                 LLM 层 (types, api-registry, engine, partition-stream, providers/)
+│   │       ├── stream/agent-event-stream.ts  AgentEventStreamController
+│   │       ├── stream/event-aggregators.ts  事件聚合工具
+│   │       ├── llm/                 LLM 层 (models, context-window, pi-adapter)
 │   │       ├── sdk/                 11 个 SDK 接口
 │   │       ├── registry/            AgentToolRegistry, ProviderRegistry, ProviderLoader
 │   │       ├── security/            审批管理, 工具策略, 工作区守卫

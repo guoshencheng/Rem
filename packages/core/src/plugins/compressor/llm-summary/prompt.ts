@@ -1,4 +1,4 @@
-import type { ModelMessage } from '../../../types.js';
+import type { Message, Tool } from '@earendil-works/pi-ai';
 
 export const SUMMARY_SYSTEM_PROMPT = `You are a context summarization assistant for coding sessions.
 
@@ -10,7 +10,8 @@ Do not answer the conversation itself. Do not mention that you are summarizing o
 
 export const SUMMARY_TOOL_NAME = 'submit_summary';
 
-export const SUMMARY_TOOL_SCHEMA = {
+export const SUMMARY_TOOL: Tool = {
+  name: SUMMARY_TOOL_NAME,
   description: 'Submit a structured summary of the conversation history',
   parameters: {
     type: 'object',
@@ -52,7 +53,7 @@ export const SUMMARY_TOOL_SCHEMA = {
     },
     required: ['objective', 'importantDetails', 'completed', 'active', 'blocked', 'nextMove', 'relevantFiles'],
   },
-} as const;
+};
 
 export interface SummaryData {
   objective: string;
@@ -64,7 +65,7 @@ export interface SummaryData {
   relevantFiles: string[];
 }
 
-export function buildSummaryPrompt(middle: ModelMessage[]): string {
+export function buildSummaryPrompt(middle: Message[]): string {
   return `Summarize the following conversation history using the ${SUMMARY_TOOL_NAME} tool.\n\nConversation history to summarize:\n\n${serializeMessages(middle)}`;
 }
 
@@ -106,21 +107,20 @@ export function formatSummaryAsMarkdown(data: SummaryData): string {
   return lines.join('\n');
 }
 
-function serializeMessages(messages: ModelMessage[]): string {
+function serializeMessages(messages: Message[]): string {
   return messages
     .map((msg) => {
-      const text = msg.content
-        .filter((p) => p.type === 'text')
-        .map((p) => (p as { type: 'text'; text: string }).text)
+      const content = typeof msg.content === 'string' ? [msg.content] : msg.content;
+      const text = content
+        .filter((p): p is { type: 'text'; text: string } => typeof p === 'object' && p.type === 'text')
+        .map((p) => p.text)
         .join('\n');
       const role =
-        msg.role === 'system'
-          ? 'System'
-          : msg.role === 'user'
-            ? 'User'
-            : msg.role === 'assistant'
-              ? 'Assistant'
-              : 'Tool';
+        msg.role === 'user'
+          ? 'User'
+          : msg.role === 'assistant'
+            ? 'Assistant'
+            : 'Tool';
       return `[${role}]: ${text}`;
     })
     .join('\n\n');

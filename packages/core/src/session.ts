@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto';
-import { type ModelMessage } from './types.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 export interface Session {
   sessionId: string;
-  conversation: ModelMessage[];
+  conversation: Message[];
   currentTurn: number;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> & { schemaVersion?: number };
   createdAt: Date;
   updatedAt: Date;
 }

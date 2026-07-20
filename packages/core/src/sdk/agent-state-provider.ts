@@ -1,4 +1,3 @@
-import type { ContentPart } from '../types.js';
 import type { AgentLiveState } from '../state.js';
 import type { Rule } from '../security/rules/rule.js';
 

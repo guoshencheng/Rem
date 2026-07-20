@@ -1,7 +1,8 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../../../sdk/tool-provider.js';
-import type { ToolSchema, ToolSet } from '../../../llm/types.js';
+import type { ToolSet } from '../../../sdk/tool-provider.js';
 
 export class InMemoryToolProvider implements ToolProvider {
   private tools = new Map<
@@ -18,11 +19,11 @@ export class InMemoryToolProvider implements ToolProvider {
   }
 
   getToolSet(): ToolSet {
-    const result: ToolSet = {};
-    for (const [name, { def }] of this.tools) {
-      result[name] = { description: def.description, parameters: def.parameters as Record<string, unknown> };
-    }
-    return result;
+    return Array.from(this.tools.values()).map(({ def }) => ({
+      name: def.name,
+      description: def.description,
+      parameters: def.parameters as Record<string, unknown>,
+    }));
   }
 
   isDangerous(toolName: string): boolean {

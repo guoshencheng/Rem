@@ -24,8 +24,8 @@ describe('McpToolProvider', () => {
     await provider.loadTools();
 
     const toolSet = provider.getToolSet();
-    expect(toolSet).toHaveProperty('fs__read_file');
-    expect(toolSet['fs__read_file'].description).toContain('Read a file');
+    expect(toolSet.some((t) => t.name === 'fs__read_file')).toBe(true);
+    expect(toolSet.find((t) => t.name === 'fs__read_file')?.description).toContain('Read a file');
   });
 
   it('executes prefixed tool by calling underlying client', async () => {

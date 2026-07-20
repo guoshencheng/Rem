@@ -1,11 +1,11 @@
 'use client';
 
-import type { LanguageModelUsage } from 'rem-agent-core';
-import { formatUsage, computeCacheRatio } from 'rem-agent-core/token-usage';
+import type { Usage } from 'rem-agent-core';
+import { formatUsage, formatCost, computeCacheRatio } from 'rem-agent-core/token-usage';
 import { computeWindowRatio } from 'rem-agent-core/llm/context-window';
 
 interface TokenStatsBadgeProps {
-  usage: LanguageModelUsage;
+  usage: Usage;
   maxTokens: number;
 }
 
@@ -22,6 +22,11 @@ export function TokenStatsBadge({ usage, maxTokens }: TokenStatsBadgeProps) {
       <span className="rounded-full bg-secondary px-2 py-0.5">
         {(ratio * 100).toFixed(1)}% of context
       </span>
+      {usage.cost.total > 0 && (
+        <span className="rounded-full bg-secondary px-2 py-0.5">
+          {formatCost(usage.cost)}
+        </span>
+      )}
     </div>
   );
 }

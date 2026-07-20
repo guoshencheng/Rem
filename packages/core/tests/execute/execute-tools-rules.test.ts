@@ -52,10 +52,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].output).toBe('hello-world');
@@ -72,10 +71,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].error).toBe('denied by rule');
@@ -93,10 +91,9 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].output).toBe('ok');
@@ -116,12 +113,36 @@ describe('executeTools with rules', () => {
       ruleEngine: engine,
       ruleStore,
       securityMode: 'interactive',
+      messages: [] as any[],
       workspaceRoot: '/tmp',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c) => chunks.push(c),
     });
     expect(results[0].error).toBe('denied by rule');
+  });
+
+  it('emits tool-result event after each tool call', async () => {
+    const engine = new RuleEngine([]);
+    const evaluator = createPermissionEvaluator('interactive', engine, { create: (i) => i });
+    const results = await executeTools({
+      toolCalls: [{ toolCallId: 'tc-1', toolName: 'read', input: { path: '/tmp/file.md' } }],
+      toolProvider: registry,
+      permissionEvaluator: evaluator,
+      agentState,
+      ruleEngine: engine,
+      ruleStore,
+      securityMode: 'interactive',
+      messages: [] as any[],
+      workspaceRoot: '/tmp',
+      sessionId: 's1',
+      emit: (c) => chunks.push(c),
+    });
+    expect(results[0].output).toBe('ok');
+    const toolResultEvent = chunks.find((c: any) => c.type === 'tool-result') as { toolCallId: string; toolName: string; output: string; error?: string } | undefined;
+    expect(toolResultEvent).toBeDefined();
+    expect(toolResultEvent?.toolCallId).toBe('tc-1');
+    expect(toolResultEvent?.toolName).toBe('read');
+    expect(toolResultEvent?.output).toBe('ok');
+    expect(toolResultEvent?.error).toBeUndefined();
   });
 });

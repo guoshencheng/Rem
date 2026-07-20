@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { InMemorySessionProvider } from '../src/plugins/session/in-memory/index.js';
-import type { ModelMessage } from '../src/types.js';
+import { UnsupportedSessionSchemaError } from '../src/plugins/session/errors.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 describe('InMemorySessionProvider', () => {
   it('should create a new session', async () => {
@@ -17,7 +18,7 @@ describe('InMemorySessionProvider', () => {
   it('should load an existing session', async () => {
     const provider = new InMemorySessionProvider();
     const created = await provider.create();
-    created.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }] } as ModelMessage);
+    created.conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: Date.now() } as Message);
     await provider.save(created);
 
     const loaded = await provider.load(created.sessionId);
@@ -51,11 +52,11 @@ describe('InMemorySessionProvider', () => {
     const c = await provider.create();
 
     a.metadata.title = 'Alpha';
-    a.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
+    a.conversation.push({ role: 'user', content: [{ type: 'text', text: 'hi' }], timestamp: Date.now() } as Message);
     await provider.save(a);
 
-    b.conversation.push({ id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }] } as ModelMessage);
-    b.conversation.push({ id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'hi' }] } as ModelMessage);
+    b.conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: Date.now() } as Message);
+    b.conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'hi' }], timestamp: Date.now() } as Message);
     await provider.save(b);
 
     await new Promise(r => setTimeout(r, 10));
@@ -63,7 +64,6 @@ describe('InMemorySessionProvider', () => {
 
     const list = await provider.list();
     expect(list).toHaveLength(3);
-    // verify sorted by updatedAt desc
     for (let i = 0; i < list.length - 1; i++) {
       expect(list[i].updatedAt.getTime()).toBeGreaterThanOrEqual(list[i + 1].updatedAt.getTime());
     }
@@ -95,5 +95,13 @@ describe('InMemorySessionProvider', () => {
     const summaryB = list.find((s) => s.sessionId === b.sessionId);
     expect(summaryA?.pinned).toBe(true);
     expect(summaryB?.pinned).toBeUndefined();
+  });
+
+  it('throws UnsupportedSessionSchemaError for schemaVersion=1', async () => {
+    const provider = new InMemorySessionProvider();
+    const session = await provider.create();
+    session.metadata.schemaVersion = 1;
+    await provider.save(session);
+    await expect(provider.load(session.sessionId)).rejects.toBeInstanceOf(UnsupportedSessionSchemaError);
   });
 });

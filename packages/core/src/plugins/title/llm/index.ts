@@ -1,8 +1,7 @@
+import type { Message, Models, Tool, ToolCall } from '@earendil-works/pi-ai';
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { ModelMessage } from '../../../types.js';
-import type { ToolSchema } from '../../../llm/types.js';
-import { resolveProvider } from '../../../llm/api-registry.js';
+import { generate } from '../../../reason/generate.js';
 
 const TITLE_SYSTEM_PROMPT = `You are a title generator. Generate a brief title for this conversation by calling the set_title function.
 
@@ -44,7 +43,8 @@ The title must be:
 "@App.tsx add dark mode toggle" → Dark mode toggle in App
 </examples>`;
 
-const TITLE_TOOL: ToolSchema = {
+const TITLE_TOOL: Tool = {
+  name: 'set_title',
   description: 'Set the title for this conversation',
   parameters: {
     type: 'object',
@@ -61,38 +61,44 @@ const TITLE_TOOL: ToolSchema = {
 
 export class LLMTitleProvider implements TitleProvider {
   private configProvider: ConfigProvider;
+  private models: Models;
 
-  constructor(configProvider: ConfigProvider) {
+  constructor(configProvider: ConfigProvider, models: Models) {
     this.configProvider = configProvider;
+    this.models = models;
   }
 
-  async generateTitle(conversation: ModelMessage[]): Promise<string | undefined> {
+  async generateTitle(conversation: Message[]): Promise<string | undefined> {
     const userMessages = conversation.filter(m => m.role === 'user');
     if (userMessages.length === 0) return undefined;
 
     const modelConfig = this.configProvider.getModelConfig();
 
-    const messages = userMessages.map(m => ({
-      role: m.role,
-      content: [{ type: 'text', text: m.content.filter(p => p.type === 'text').map(p => p.text).join(' ') || JSON.stringify(m.content) }],
-    })) as ModelMessage[];
+    const messages: Message[] = userMessages.map(m => ({
+      role: 'user',
+      content: typeof m.content === 'string'
+        ? m.content
+        : m.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' '),
+      timestamp: Date.now(),
+    }));
 
-    const provider = resolveProvider(modelConfig.provider);
     try {
-      const result = await provider.generate({
+      const result = await generate({
+        models: this.models,
+        provider: modelConfig.provider,
         model: modelConfig.model,
-        apiKey: modelConfig.apiKey,
-        baseURL: modelConfig.baseURL,
+        apiKey: modelConfig.apiKey || undefined,
+        baseURL: modelConfig.baseURL || undefined,
         system: TITLE_SYSTEM_PROMPT,
         messages,
-        maxTokens: 100,
-        temperature: 0.3,
-        tools: { set_title: TITLE_TOOL },
+        tools: [TITLE_TOOL],
       });
 
-      const titleCall = result.toolCalls.find(tc => tc.toolName === 'set_title');
-      if (titleCall?.input && typeof titleCall.input === 'object' && 'title' in titleCall.input) {
-        const title = String(titleCall.input.title).trim().slice(0, 50);
+      const titleCall = result.content
+        .filter((b): b is ToolCall => b.type === 'toolCall')
+        .find((b) => b.name === 'set_title');
+      if (titleCall?.arguments && typeof titleCall.arguments === 'object' && 'title' in titleCall.arguments) {
+        const title = String(titleCall.arguments.title).trim().slice(0, 50);
         return title || undefined;
       }
       return undefined;

@@ -1,12 +1,12 @@
+import type { Message } from '@earendil-works/pi-ai';
 import type { ContextCompressor } from '../../../sdk/compressor.js';
-import type { ModelMessage } from '../../../types.js';
 
 export class NoOpCompressor implements ContextCompressor {
   shouldCompress(): boolean {
     return false;
   }
 
-  async compress(messages: ModelMessage[]): Promise<ModelMessage[]> {
+  async compress(messages: Message[]): Promise<Message[]> {
     return messages;
   }
 }

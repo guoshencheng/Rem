@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { registerBuiltInProviders } from './llm/providers/index.js';
+import { createCoreModels } from './llm/models.js';
 import { createDefaultAgentPaths } from './config/paths.js';
 import { configureDebugLog, configureConsoleOutput } from './shared/debug-log.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
@@ -61,6 +61,7 @@ export interface AgentContextBuildOptions {
   securityMode?: SecurityMode;
   paths?: AgentPaths;
   storageProvider?: StorageProvider;
+  models?: import('@earendil-works/pi-ai').Models;
 }
 
 async function buildRuleSecurity(
@@ -83,7 +84,7 @@ async function buildRuleSecurity(
 }
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
-  registerBuiltInProviders();
+  const models = options?.models ?? createCoreModels({ all: true });
 
   const paths = options?.paths ?? createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
   configureDebugLog(paths.debugLogFile);
@@ -119,9 +120,9 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   const contextProvider = new SimpleContextProvider(configProvider);
   const skillProvider = new FileSkillProvider(configProvider, paths);
   const budgetPolicy = new FixedBudgetPolicy(configProvider);
-  const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig());
+    const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models);
   const errorHandler = new SimpleErrorHandler();
-  const titleProvider = new LLMTitleProvider(configProvider);
+  const titleProvider = new LLMTitleProvider(configProvider, models);
   const loopStrategy = new ReactLoop();
 
   const mcpConfig = configProvider.getMcpConfig();
@@ -185,5 +186,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     securityMode,
     archiveStore: storageProvider.archiveStore,
     workspaceStore: storageProvider.workspaceStore,
+    models,
   };
 }

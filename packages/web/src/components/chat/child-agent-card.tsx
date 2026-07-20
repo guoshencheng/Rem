@@ -2,12 +2,12 @@
 
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { LanguageModelUsage } from 'rem-agent-core';
+import type { Usage } from 'rem-agent-core';
 
 interface ChildAgentCardProps {
   summary: string;
   status: 'running' | 'completed' | 'failed';
-  tokenUsage?: LanguageModelUsage;
+  tokenUsage?: Usage;
   onClick?: () => void;
 }
 

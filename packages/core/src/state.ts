@@ -1,16 +1,18 @@
-import type { AgentStatus, ContentPart, AgentStreamChunk, LanguageModelUsage } from './types.js';
+import type { TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
+import type { Usage } from '@earendil-works/pi-ai';
+import type { AgentStatus, AgentStreamEvent } from './types.js';
 import type { EventBus } from './events.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 import type { SessionActivity } from './bus-events.js';
 import { IterationBudget } from './budget.js';
 import { ApprovalEngine } from './execute/approval-engine.js';
-import { reduceStreamChunk } from './stream/stream-aggregators.js';
+import { reduceStreamEvent, compactContentBlocks } from './stream/event-aggregators.js';
 import { addUsage, emptyUsage } from './token-usage.js';
 import { log } from './shared/debug-log.js';
 
 export interface StreamingSnapshot {
   messageId: string;
-  parts: ContentPart[];
+  parts: Array<TextContent | ThinkingContent | ToolCall | undefined>;
 }
 
 export interface StartOptions {
@@ -53,7 +55,7 @@ export class AgentLiveState {
   readonly approvalEngine = new ApprovalEngine('');
 
   /** 当前会话累计 token usage */
-  tokenUsage: LanguageModelUsage = emptyUsage();
+  tokenUsage: Usage = emptyUsage();
 
   get status(): AgentStatus { return this._status; }
 
@@ -168,37 +170,42 @@ export class AgentLiveState {
 
   // ---- Token Usage ----
 
-  addTokenUsage(usage: LanguageModelUsage): void {
+  addTokenUsage(usage: Usage): void {
     this.tokenUsage = addUsage(this.tokenUsage, usage);
   }
 
-  applyChunk(chunk: AgentStreamChunk): SessionActivity | undefined {
+  applyChunk(event: AgentStreamEvent): SessionActivity | undefined {
     const prev = this.activity;
 
-    if (chunk.type === 'finish' || chunk.type === 'error') {
+    if (event.type === 'finish' || event.type === 'error') {
       this.activity = 'idle';
       this.pendingToolCalls.clear();
-    } else if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta') {
+    } else if (event.type === 'thinking_delta' || event.type === 'thinking_start') {
       this.activity = 'thinking';
-    } else if (chunk.type === 'tool-call-start' || chunk.type === 'tool-call') {
+    } else if (event.type === 'toolcall_start') {
       this.activity = 'calling-function';
-      this.pendingToolCalls.add(chunk.toolCallId);
-    } else if (chunk.type === 'tool-result-start' || chunk.type === 'tool-result' || chunk.type === 'tool-result-finish') {
-      // 只移除待处理工具调用，不改变 activity（保持 calling-function）
-      this.pendingToolCalls.delete(chunk.toolCallId);
-    } else if (chunk.type === 'text-start' || chunk.type === 'text-delta') {
+      const block = event.partial.content?.[event.contentIndex];
+      if (block?.type === 'toolCall') {
+        this.pendingToolCalls.add(block.id ?? 'unknown');
+      }
+    } else if (event.type === 'toolcall_end') {
+      this.activity = 'calling-function';
+      this.pendingToolCalls.add(event.toolCall.id ?? 'unknown');
+    } else if (event.type === 'text_delta' || event.type === 'text_start') {
       if (this._isActive() && this.pendingToolCalls.size === 0) {
         this.activity = 'outputting';
       }
-    } else if (chunk.type === 'step-finish') {
-      this.activity = this.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
+    } else if (event.type === 'step-finish') {
+      this.activity = 'idle';
       this.pendingToolCalls.clear();
-    } else if (chunk.type === 'text-finish' || chunk.type === 'reasoning-finish') {
+    } else if (event.type === 'step-start') {
+      this.activity = 'pending';
+    } else if (event.type === 'text_end' || event.type === 'thinking_end') {
       this.activity = this.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
     }
 
     if (this.activity !== prev) {
-      log('state', 'activity changed', { prevActivity: prev, activity: this.activity, chunkType: chunk.type });
+      log('state', 'activity changed', { prevActivity: prev, activity: this.activity, chunkType: event.type });
     }
 
     return this.activity === prev ? undefined : this.activity;
@@ -214,9 +221,9 @@ export class AgentLiveState {
     this.streamingSnapshot = { messageId, parts: [] };
   }
 
-  appendSnapshotParts(chunk: AgentStreamChunk): void {
-    if (this.streamingSnapshot) {
-      this.streamingSnapshot.parts = reduceStreamChunk(this.streamingSnapshot.parts, chunk);
+  appendSnapshotParts(event: AgentStreamEvent): void {
+    if (this.streamingSnapshot && this.isAssistantMessageEvent(event)) {
+      this.streamingSnapshot.parts = reduceStreamEvent(this.streamingSnapshot.parts, event);
     }
   }
 
@@ -226,5 +233,18 @@ export class AgentLiveState {
 
   getSnapshot(): StreamingSnapshot | undefined {
     return this.streamingSnapshot;
+  }
+
+  getSnapshotParts(): Array<TextContent | ThinkingContent | ToolCall> {
+    return this.streamingSnapshot ? compactContentBlocks(this.streamingSnapshot.parts) : [];
+  }
+
+  private isAssistantMessageEvent(event: AgentStreamEvent): event is import('@earendil-works/pi-ai').AssistantMessageEvent {
+    const assistantTypes = [
+      'start', 'text_start', 'text_delta', 'text_end',
+      'thinking_start', 'thinking_delta', 'thinking_end',
+      'toolcall_start', 'toolcall_delta', 'toolcall_end', 'done', 'error',
+    ];
+    return assistantTypes.includes(event.type);
   }
 }

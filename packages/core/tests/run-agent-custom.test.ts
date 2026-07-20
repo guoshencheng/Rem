@@ -3,14 +3,16 @@ import type { AgentContext } from '../src/agent-context.js';
 import { AgentState } from '../src/agent-state.js';
 import type { PromptBuildContext } from '../src/sdk/system-prompt.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
 
-vi.mock('../src/reason/reason.js', () => ({
-  reason: vi.fn(async () => ({
-    [Symbol.asyncIterator]() {
-      return { async next() { return { done: true, value: undefined }; } };
-    },
-  })),
-}));
+const emptyUsage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
 
 function createMockContext(overrides: Record<string, unknown> = {}) {
   const capturedAssemble = vi.fn(async (_ctx: PromptBuildContext) => 'mock system prompt');
@@ -36,7 +38,7 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
       },
     },
     sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-    toolProvider: { getToolSet: () => ({}), register: () => {} },
+    toolProvider: { getToolSet: () => [], register: () => {} },
     contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
     skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
     budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
@@ -48,20 +50,29 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
     systemPromptAssembler: { assemble: capturedAssemble },
     toolComposer: {
       compose: () => ({
-        getToolSet: () => ({}),
+        getToolSet: () => [],
         execute: async () => [],
         register: () => {},
         isDangerous: () => false,
       }),
     },
     mcpProviders: [],
+    models: {
+      getModel: vi.fn((provider: string, model: string) => ({ id: model, provider })),
+      stream: vi.fn(),
+      complete: vi.fn().mockResolvedValue({
+        role: 'assistant',
+        content: [],
+        usage: { ...emptyUsage },
+        stopReason: 'stop',
+      } as AssistantMessage),
+    },
     loopStrategy: {
       run: async (loopCtx: any) => {
-        await loopCtx.reason();
+        await loopCtx.generate();
         return {
           content: 'hello back',
-          newMessages: [],
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
         };
       },
     },
@@ -76,7 +87,6 @@ describe('runAgent custom agent', () => {
 
   it('uses custom agent corePrompt and falls back to default model', async () => {
     const { runAgent } = await import('../src/run-agent.js');
-    const { reason } = await import('../src/reason/reason.js');
 
     const ctx = createMockContext();
     const result = runAgent({
@@ -96,15 +106,14 @@ describe('runAgent custom agent', () => {
     expect(assembleCall.agentName).toBe('Code Assistant');
     expect(assembleCall.agentCorePrompt).toBe('Focus on code.');
 
-    const reasonCall = (reason as any).mock.calls[0][0];
-    expect(reasonCall.provider).toBe('openai');
-    expect(reasonCall.model).toBe('gpt-4o-mini');
-    expect(reasonCall.system).toBe('mock system prompt');
+    const completeCall = (ctx.models.complete as any).mock.calls[0][0];
+    expect(completeCall.provider).toBe('openai');
+    expect(completeCall.id).toBe('gpt-4o-mini');
+    expect((ctx.models.complete as any).mock.calls[0][1].systemPrompt).toBe('mock system prompt');
   });
 
   it('uses custom agent model override', async () => {
     const { runAgent } = await import('../src/run-agent.js');
-    const { reason } = await import('../src/reason/reason.js');
 
     const ctx = createMockContext();
     const result = runAgent({
@@ -120,10 +129,10 @@ describe('runAgent custom agent', () => {
     }
     await result.output;
 
-    const reasonCall = (reason as any).mock.calls[0][0];
-    expect(reasonCall.provider).toBe('anthropic');
-    expect(reasonCall.model).toBe('claude-3-5-sonnet-20241022');
-    expect(reasonCall.apiKey).toBe('sk-anthropic');
+    const completeCall = (ctx.models.complete as any).mock.calls[0][0];
+    expect(completeCall.provider).toBe('anthropic');
+    expect(completeCall.id).toBe('claude-3-5-sonnet-20241022');
+    expect((ctx.models.complete as any).mock.calls[0][2].apiKey).toBe('sk-anthropic');
   });
 
   it('falls back to default when agent is unknown', async () => {

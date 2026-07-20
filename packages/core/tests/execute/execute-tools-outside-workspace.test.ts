@@ -63,10 +63,9 @@ describe('executeTools outside workspace', () => {
       ruleEngine,
       ruleStore,
       securityMode: mode,
+      messages: [] as any[],
       workspaceRoot: '/workspace',
       sessionId: 's1',
-      addMessage: () => ({ id: 'm1', role: 'tool', content: [] } as any),
-      appendContent: () => {},
       emit: (c: any) => chunks.push(c),
     };
   }

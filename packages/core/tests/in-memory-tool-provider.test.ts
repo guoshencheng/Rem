@@ -21,8 +21,8 @@ describe('InMemoryToolProvider', () => {
     );
 
     const toolSet = provider.getToolSet();
-    expect(toolSet).toHaveProperty('echo');
-    expect(toolSet.echo.description).toBe('Echo input');
+    expect(toolSet.some((t) => t.name === 'echo')).toBe(true);
+    expect(toolSet.find((t) => t.name === 'echo')?.description).toBe('Echo input');
   });
 
   it('should execute a registered tool', async () => {

@@ -22,7 +22,7 @@ describe('todowrite tool registration', () => {
     const todoService = new DefaultTodoService(todoStore as any);
 
     const baseProvider = {
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       register: () => {},
       execute: async () => [],
       isDangerous: () => false,
@@ -34,8 +34,8 @@ describe('todowrite tool registration', () => {
     overlay.register(def, exec);
 
     const toolSet = overlay.getToolSet();
-    expect(Object.keys(toolSet)).toContain('todowrite');
-    expect(toolSet.todowrite.description).toMatch(/todo/i);
+    expect(toolSet.map((t) => t.name)).toContain('todowrite');
+    expect(toolSet.find((t) => t.name === 'todowrite')?.description).toMatch(/todo/i);
 
     const result = await exec(
       {
@@ -68,9 +68,9 @@ describe('todowrite tool registration (end-to-end)', () => {
 
     // 2. base provider with one pre-existing tool (to verify overlay merges)
     const baseProvider = {
-      getToolSet: () => ({
-        bash: { description: 'run shell', parameters: {} },
-      }),
+      getToolSet: () => [
+        { name: 'bash', description: 'run shell', parameters: {} },
+      ],
       register: () => {},
       execute: async () => [],
       isDangerous: () => false,
@@ -89,14 +89,11 @@ describe('todowrite tool registration (end-to-end)', () => {
 
     // 4. toolSet must contain both base tool and todowrite
     const toolSet = overlay.getToolSet();
-    expect(Object.keys(toolSet).sort()).toEqual(['bash', 'todowrite']);
-    expect(toolSet.todowrite.description).toMatch(/todo/i);
+    expect(toolSet.map((t) => t.name).sort()).toEqual(['bash', 'todowrite']);
+    expect(toolSet.find((t) => t.name === 'todowrite')?.description).toMatch(/todo/i);
 
     // 5. tools array shape used by run-agent.ts:191-194 (fed into system prompt)
-    const tools = Object.entries(toolSet).map(([name, schema]) => ({
-      name,
-      description: schema.description,
-    }));
+    const tools = toolSet.map((t) => ({ name: t.name, description: t.description }));
     expect(tools.find((t) => t.name === 'todowrite')).toBeDefined();
 
     // 6. execute via the same path the loop uses (OverlayToolProvider.execute)
@@ -131,7 +128,7 @@ describe('todowrite tool registration (end-to-end)', () => {
     };
     const todoService = new DefaultTodoService(todoStore as any);
     const baseProvider = {
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       register: () => {},
       execute: async () => [],
       isDangerous: () => false,

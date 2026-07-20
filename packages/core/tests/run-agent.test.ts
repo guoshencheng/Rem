@@ -1,8 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentContext } from '../src/agent-context.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
-import type { LanguageModelUsage } from '../src/types.js';
+
+const emptyUsage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
 
 const createMockContextBase = () => ({
   configProvider: {
@@ -13,7 +22,7 @@ const createMockContextBase = () => ({
     resolveAgent: () => ({ id: 'default', name: 'test', corePrompt: 'Default prompt.' }),
   },
   sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-  toolProvider: { getToolSet: () => ({}), register: () => {} },
+  toolProvider: { getToolSet: () => [], register: () => {} },
   contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
   skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
   budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
@@ -25,11 +34,17 @@ const createMockContextBase = () => ({
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
   toolComposer: {
     compose: () => ({
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       execute: async () => [],
       register: () => {},
       isDangerous: () => false,
     }),
+  },
+  mcpProviders: [],
+  models: {
+    getModel: () => ({ id: 'gpt-4o-mini', provider: 'openai' }),
+    stream: vi.fn(),
+    complete: vi.fn(),
   },
 });
 
@@ -40,8 +55,7 @@ describe('runAgent', () => {
       loopStrategy: {
         run: async () => ({
           content: 'hello back',
-          newMessages: [],
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
         }),
       },
     } as unknown as AgentContext;
@@ -66,7 +80,7 @@ describe('runAgent', () => {
   });
 
   it('calls toolComposer.compose and uses the effective tool provider', async () => {
-    const composedToolSet = { composedTool: { description: 'composed', parameters: { type: 'object', properties: {} } } };
+    const composedToolSet = [{ name: 'composedTool', description: 'composed', parameters: { type: 'object', properties: {} } }];
     const compose = vi.fn(() => ({
       getToolSet: () => composedToolSet,
       execute: async () => [],
@@ -76,15 +90,14 @@ describe('runAgent', () => {
 
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: { compose },
       loopStrategy: {
         run: async (ctx: any) => {
-          expect(ctx.reason).toBeDefined();
+          expect(ctx.stream).toBeDefined();
+          expect(ctx.generate).toBeDefined();
           return {
             content: 'hello back',
-            newMessages: [],
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
           };
         },
       },
@@ -112,21 +125,24 @@ describe('runAgent', () => {
   });
 
   it('accumulates usage and writes history', async () => {
-    const usage: LanguageModelUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const usage: Usage = { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     const savedSessions: any[] = [];
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
         }),
       },
       loopStrategy: {
-        run: async () => ({ content: 'hello back', newMessages: [], usage }),
+        run: async () => ({
+          content: 'hello back',
+          usage: { ...emptyUsage, input: 10, output: 5, totalTokens: 15 },
+          message: { role: 'assistant', content: [], usage: { ...emptyUsage, input: 10, output: 5, totalTokens: 15 } },
+        }),
       },
       sessionProvider: {
         load: async () => null,
@@ -170,10 +186,9 @@ describe('runAgent', () => {
   it('emits error chunk when loopStrategy throws', async () => {
     const mockCtx = {
       ...createMockContextBase(),
-      mcpProviders: [],
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -192,7 +207,7 @@ describe('runAgent', () => {
       agentState: new AgentState(),
     });
 
-    const chunks: import('../src/types.js').AgentStreamChunk[] = [];
+    const chunks: import('../src/types.js').AgentStreamEvent[] = [];
     for await (const chunk of result.stream.fullStream) {
       chunks.push(chunk);
     }
@@ -205,5 +220,105 @@ describe('runAgent', () => {
     const output = await result.output;
     expect(output.completed).toBe(true);
     expect(output.content).toContain('LLM failed');
+  });
+
+  it('passes reasoning to stream/generate when model supports reasoning', async () => {
+    const stream = vi.fn(async function* () {
+      yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
+    });
+    const complete = vi.fn();
+    const mockCtx = {
+      ...createMockContextBase(),
+      models: {
+        getModel: () => ({ id: 'gpt-4o-mini', provider: 'openai', reasoning: true }),
+        stream,
+        complete,
+      },
+      loopStrategy: {
+        run: async (ctx: any) => {
+          const s = ctx.stream();
+          for await (const _ of s) {
+            // drain
+          }
+          await ctx.generate();
+          return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
+        },
+      },
+    } as unknown as AgentContext;
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+
+    for await (const _ of result.stream.fullStream) {
+      // drain
+    }
+    await result.output;
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
+      expect.anything(),
+      expect.objectContaining({ reasoning: 'medium' }),
+    );
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
+      expect.anything(),
+      expect.objectContaining({ reasoning: 'medium' }),
+    );
+  });
+
+  it('always enables thinking for MiniMax regardless of reasoning config', async () => {
+    const stream = vi.fn(async function* () {
+      yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
+    });
+    const complete = vi.fn();
+    const base = createMockContextBase();
+    const mockCtx = {
+      ...base,
+      configProvider: {
+        ...base.configProvider,
+        getModelConfig: () => ({ provider: 'minimax', model: 'MiniMax-M3', apiKey: 'sk-test', baseURL: undefined, reasoning: 'off' }),
+      },
+      models: {
+        getModel: () => ({ id: 'MiniMax-M3', provider: 'minimax', reasoning: true }),
+        stream,
+        complete,
+      },
+      loopStrategy: {
+        run: async (ctx: any) => {
+          const s = ctx.stream();
+          for await (const _ of s) {
+            // drain
+          }
+          await ctx.generate();
+          return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
+        },
+      },
+    } as unknown as AgentContext;
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: 'hello', timestamp: new Date() },
+      sessionId: 'test-session',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+
+    for await (const _ of result.stream.fullStream) {
+      // drain
+    }
+    await result.output;
+
+    const streamOptions = stream.mock.calls[0][2] as Record<string, unknown>;
+    expect(streamOptions.thinkingEnabled).toBe(true);
+    expect(streamOptions.reasoning).toBeUndefined();
+
+    const completeOptions = complete.mock.calls[0][2] as Record<string, unknown>;
+    expect(completeOptions.thinkingEnabled).toBe(true);
+    expect(completeOptions.reasoning).toBeUndefined();
   });
 });

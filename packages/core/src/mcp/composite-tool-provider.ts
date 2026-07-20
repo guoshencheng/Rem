@@ -1,8 +1,9 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import type { TObject } from '@sinclair/typebox';
 import type {
   ToolCall, ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolResult,
 } from '../sdk/tool-provider.js';
-import type { ToolSet } from '../llm/types.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
 import { log } from '../shared/debug-log.js';
 
 export class CompositeToolProvider implements ToolProvider {
@@ -21,17 +22,19 @@ export class CompositeToolProvider implements ToolProvider {
   }
 
   getToolSet(): ToolSet {
-    const result: ToolSet = { ...this.primary.getToolSet() };
+    const map = new Map<string, Tool>();
+    for (const tool of this.primary.getToolSet()) {
+      map.set(tool.name, tool);
+    }
     for (const provider of this.mcpProviders) {
-      const set = provider.getToolSet();
-      for (const [name, schema] of Object.entries(set)) {
-        if (result[name]) {
-          log('tools', 'duplicate tool overwritten by MCP provider', { toolName: name });
+      for (const tool of provider.getToolSet()) {
+        if (map.has(tool.name)) {
+          log('tools', 'duplicate tool overwritten by MCP provider', { toolName: tool.name });
         }
-        result[name] = schema;
+        map.set(tool.name, tool);
       }
     }
-    return result;
+    return Array.from(map.values());
   }
 
   isDangerous(toolName: string): boolean {
@@ -65,8 +68,8 @@ export class CompositeToolProvider implements ToolProvider {
   private refreshOwnership(): void {
     this.ownership.clear();
     for (const provider of this.mcpProviders) {
-      for (const name of Object.keys(provider.getToolSet())) {
-        this.ownership.set(name, provider);
+      for (const tool of provider.getToolSet()) {
+        this.ownership.set(tool.name, provider);
       }
     }
   }

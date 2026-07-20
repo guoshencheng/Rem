@@ -11,7 +11,7 @@ import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.j
 import type { McpServerConfig } from '../../../mcp/types.js';
 import type { AgentPaths } from '../../../config/paths.js';
 import { resolveConfigPath, loadConfigFile, resolveConfigPaths } from './config-loader.js';
-import { resolveTemplate, resolveOptionalTemplate } from './config-parser.js';
+import { resolveTemplate, resolveOptionalTemplate, isThinkingLevel } from './config-parser.js';
 import {
   mergeFileConfig,
   mergeEnvConfig,
@@ -116,11 +116,13 @@ export class DefaultConfigProvider implements ConfigProvider {
     const resolvedBaseURL =
       resolveOptionalTemplate(model.baseURL, this.env) ??
       this.readProviderEnv(model.provider, 'BASE_URL');
+    const configuredReasoning = model.reasoning ?? this.readProviderEnv(model.provider, 'REASONING_LEVEL');
     return {
       provider: model.provider,
       model: resolvedModel,
-      apiKey: this.resolveApiKey(model),
+      apiKey: model.apiKey ? resolveTemplate(model.apiKey, this.env) : '',
       baseURL: resolvedBaseURL,
+      reasoning: isThinkingLevel(configuredReasoning) ? configuredReasoning : undefined,
     };
   }
 
@@ -177,15 +179,4 @@ export class DefaultConfigProvider implements ConfigProvider {
     return resolved;
   }
 
-  private resolveApiKey(model: AgentModelConfig): string {
-    if (model.apiKeyEnv) {
-      const value = this.env[model.apiKeyEnv];
-      if (value) return value;
-    }
-    if (model.apiKey) {
-      return resolveTemplate(model.apiKey, this.env);
-    }
-    const defaultEnv = model.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
-    return this.env[defaultEnv] ?? '';
-  }
 }

@@ -3,7 +3,6 @@ import { join } from 'path';
 import type { Session, SessionSummary } from '../../../sdk/session-provider.js';
 import { BaseSessionProvider } from '../base.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
-import type { ContentPart } from '../../../types.js';
 
 interface IndexEntry {
   sessionId: string;
@@ -14,7 +13,6 @@ interface IndexEntry {
 }
 
 export class LocalSessionProvider extends BaseSessionProvider {
-  private msgCache = new Map<string, ContentPart[]>();
   private dir: string;
 
   constructor(dir: string) {
@@ -26,10 +24,6 @@ export class LocalSessionProvider extends BaseSessionProvider {
     return join(this.dir, 'index.json');
   }
 
-  private msgPath(sessionId: string): string {
-    return join(this.dir, `${sessionId}.msg.json`);
-  }
-
   async create(): Promise<Session> {
     const session = await super.create();
     await this.updateIndex(session);
@@ -37,23 +31,11 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async load(sessionId: string): Promise<Session | null> {
-    const session = await this.store.load(sessionId);
-    if (!session) return null;
-    try {
-      const raw = await readFile(this.msgPath(sessionId), 'utf-8');
-      const data = JSON.parse(raw);
-      if (Array.isArray(data)) {
-        this.msgCache.set(sessionId, data);
-      }
-    } catch {
-      // msg cache is optional
-    }
-    return session;
+    return super.load(sessionId);
   }
 
   async save(session: Session): Promise<void> {
     await this.store.save(session);
-    await this.writeMsgCache(session.sessionId);
     await this.updateIndex(session);
   }
 
@@ -69,24 +51,8 @@ export class LocalSessionProvider extends BaseSessionProvider {
   }
 
   async delete(sessionId: string): Promise<void> {
-    this.msgCache.delete(sessionId);
     await this.store.delete(sessionId);
-    await this.unlinkQuiet(this.msgPath(sessionId));
     await this.removeFromIndex(sessionId);
-  }
-
-  cueMessages(sessionId: string, messages: ContentPart[]): void {
-    this.msgCache.set(sessionId, messages);
-  }
-
-  pullMessages(sessionId: string): ContentPart[] {
-    return this.msgCache.get(sessionId) ?? [];
-  }
-
-  private async writeMsgCache(sessionId: string): Promise<void> {
-    const messages = this.msgCache.get(sessionId);
-    if (!messages) return;
-    await writeFile(this.msgPath(sessionId), JSON.stringify(messages, null, 2), 'utf-8');
   }
 
   private async updateIndex(session: Session): Promise<void> {
@@ -125,13 +91,5 @@ export class LocalSessionProvider extends BaseSessionProvider {
 
   private async writeIndex(index: IndexEntry[]): Promise<void> {
     await writeFile(this.indexPath(), JSON.stringify(index, null, 2), 'utf-8');
-  }
-
-  private async unlinkQuiet(path: string): Promise<void> {
-    try {
-      await unlink(path);
-    } catch {
-      // ignore
-    }
   }
 }

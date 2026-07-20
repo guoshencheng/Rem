@@ -1,7 +1,8 @@
+import type { Message } from '@earendil-works/pi-ai';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session.js';
 import type { Rule, RuleSource } from '../security/rules/rule.js';
 import type { TodoItem } from '../todo/types.js';
-import type { ModelMessage, LanguageModelUsage } from '../types.js';
 
 export interface ArchiveRecord {
   id: string;
@@ -9,10 +10,10 @@ export interface ArchiveRecord {
   compressedAt: Date;
   version: number;
   parentArchiveId?: string;
-  conversationSnapshot: ModelMessage[];
+  conversationSnapshot: Message[];
   summary: string;
-  tokenUsageBefore?: LanguageModelUsage;
-  tokenUsageAfter?: LanguageModelUsage;
+  tokenUsageBefore?: Usage;
+  tokenUsageAfter?: Usage;
   metadata?: Record<string, unknown>;
 }
 

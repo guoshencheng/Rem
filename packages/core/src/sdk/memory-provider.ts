@@ -1,11 +1,11 @@
-import type { ModelMessage } from '../types.js';
+import type { Message } from '@earendil-works/pi-ai';
 import type { Session } from '../session.js';
 import type { ContextProvider } from './context-provider.js';
 
 /** @deprecated Use ContextProvider instead */
 export interface MemoryContext {
   systemPrompt: string;
-  messages: ModelMessage[];
+  messages: Message[];
 }
 
 /** @deprecated Use ContextProvider instead */

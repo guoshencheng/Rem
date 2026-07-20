@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
-import type { ModelMessage, ContentPart } from '../../../types.js';
+import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
-
+import type { RemMessage } from '../../../types.js';
+import { UnsupportedSessionSchemaError } from '../errors.js';
 import { getMetaBoolean, getMetaString } from '../metadata.js';
 
 export class InMemorySessionProvider implements SessionProvider {
@@ -13,7 +14,7 @@ export class InMemorySessionProvider implements SessionProvider {
       sessionId: randomUUID(),
       conversation: [],
       currentTurn: 0,
-      metadata: {},
+      metadata: { schemaVersion: 2 },
       createdAt: now,
       updatedAt: now,
     };
@@ -24,18 +25,32 @@ export class InMemorySessionProvider implements SessionProvider {
   async load(sessionId: string): Promise<Session | null> {
     const stored = this.sessions.get(sessionId);
     if (!stored) return null;
-    return structuredClone(stored);
+    const session = structuredClone(stored);
+    const schemaVersion = session.metadata?.schemaVersion ?? 1;
+    if (schemaVersion < 2) {
+      throw new UnsupportedSessionSchemaError(schemaVersion, sessionId);
+    }
+    return session;
   }
 
-  addMessage(session: Session, role: 'assistant' | 'tool'): ModelMessage {
-    const msg: ModelMessage = { id: randomUUID(), role, content: [] };
-    session.conversation.push(msg);
+  addMessage(session: Session, role: 'assistant' | 'tool'): RemMessage {
+    const messageId = randomUUID();
+    let message: Message;
+    if (role === 'assistant') {
+      message = { role: 'assistant', content: [], timestamp: Date.now() } as unknown as Message;
+    } else {
+      message = { role: 'toolResult', toolCallId: '', toolName: '', content: [], isError: false, timestamp: Date.now() } as unknown as Message;
+    }
+    session.conversation.push(message);
+    const messageMeta = (session.metadata.messageMeta ?? {}) as Record<string, string>;
+    messageMeta[messageId] = messageId;
+    session.metadata = { ...session.metadata, messageMeta };
     void this.save(session).catch(() => {});
-    return msg;
+    return { messageId, message };
   }
 
-  appendContent(session: Session, msg: ModelMessage, part: ContentPart): void {
-    msg.content.push(part);
+  appendContent(session: Session, message: Message, block: TextContent | ThinkingContent | ToolCall): void {
+    (message.content as unknown[]).push(block);
     void this.save(session).catch(() => {});
   }
 

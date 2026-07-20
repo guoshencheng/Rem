@@ -1,14 +1,64 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest, LanguageModelUsage, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
+import type { StreamErrorInfo } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
-import { reduceStreamChunk } from 'rem-agent-bridge/client';
+import { reduceStreamEvent } from 'rem-agent-bridge/client';
+import type { UiContentBlock } from 'rem-agent-bridge';
 import { useAgentBus } from './agent-bus';
 import { generateUUID } from './utils';
 
+function cleanErrorString(value: string): string {
+  const trimmed = value.trim();
+  // Try to extract nested error message from strings like "401 { ... }"
+  const jsonMatch = trimmed.match(/^\d+\s+(\{.*\})$/s) ?? trimmed.match(/^(\{.*\})$/s);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (typeof parsed?.error?.message === 'string') return parsed.error.message;
+      if (typeof parsed?.message === 'string') return parsed.message;
+    } catch {
+      // ignore parse errors, fall back to original string
+    }
+  }
+  return value;
+}
+
+function formatError(error: string | StreamErrorInfo | unknown): string {
+  if (typeof error === 'string') {
+    return cleanErrorString(error);
+  }
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>;
+    // pi-ai 的 error 事件会携带完整 AssistantMessage，错误文本在 errorMessage 里
+    if (typeof e.errorMessage === 'string' && e.errorMessage) return cleanErrorString(e.errorMessage);
+    if (typeof e.message === 'string' && e.message) return cleanErrorString(e.message);
+  }
+  return String(error);
+}
+
 type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
+
+export interface ChildAgentInfo {
+  childSessionId: string;
+  toolCallId?: string;
+  summary: string;
+  status: 'running' | 'completed' | 'failed';
+  tokenUsage?: Usage;
+}
+
+export interface SessionView {
+  id: string;
+  messages: UIMessage[];
+  status: SessionStatus;
+  error: string | null;
+  activity?: SessionActivity;
+  pendingApprovals: ApprovalRequest[];
+  tokenUsage?: Usage;
+  childAgents: Map<string, ChildAgentInfo>;
+}
 
 interface SessionState {
   messages: UIMessage[];
@@ -17,13 +67,8 @@ interface SessionState {
   activity?: SessionActivity;
   pendingToolCalls: Set<string>;
   pendingApprovals: ApprovalRequest[];
-  tokenUsage?: LanguageModelUsage;
-  childAgents: Map<string, {
-    childSessionId: string;
-    summary: string;
-    status: 'running' | 'completed' | 'failed';
-    tokenUsage?: LanguageModelUsage;
-  }>;
+  tokenUsage?: Usage;
+  childAgents: Map<string, ChildAgentInfo>;
 }
 
 export interface SessionSummary {
@@ -34,7 +79,7 @@ export interface SessionSummary {
   messageCount: number;
   pinned?: boolean;
   activity?: SessionActivity;
-  tokenUsage?: LanguageModelUsage;
+  tokenUsage?: Usage;
   parentSessionId?: string;
 }
 
@@ -98,7 +143,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
   );
 
   const ensureSession = useCallback(
-    async (sessionId: string, initialTokenUsage?: LanguageModelUsage) => {
+    async (sessionId: string, initialTokenUsage?: Usage) => {
       if (sessionMapRef.current.has(sessionId)) return;
       try {
         const [messages, pendingApprovals] = await Promise.all([
@@ -147,6 +192,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           role: 'assistant',
           parts: [],
           status: 'streaming',
+          toolResults: {},
         },
       ];
     },
@@ -197,6 +243,28 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     });
   }, [workspace]);
 
+  // 从历史 sessionList 重建子 agent 条目（child-agent-update 是运行时事件不持久化，
+  // 刷新后靠 parentSessionId 恢复卡片入口；运行时已有的条目优先，不覆盖）
+  useEffect(() => {
+    let changed = false;
+    for (const s of sessionList) {
+      if (!s.parentSessionId) continue;
+      const parentState = sessionMapRef.current.get(s.parentSessionId);
+      if (!parentState) continue;
+      const existing = parentState.childAgents.get(s.sessionId);
+      if (existing && (existing.toolCallId || existing.status === 'running')) continue;
+      parentState.childAgents.set(s.sessionId, {
+        childSessionId: s.sessionId,
+        summary: s.title ?? '',
+        status: 'completed',
+        tokenUsage: s.tokenUsage,
+      });
+      changed = true;
+    }
+    if (changed) notifyChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionList, version]);
+
   // Subscribe to bus events
   useEffect(() => {
     const handleEvent = (event: BusEvent) => {
@@ -225,7 +293,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           currentMsgIdRef.current.set(event.sessionId, event.messageId);
           state.messages = state.messages.map((m) =>
             m.id === event.messageId
-              ? { ...m, parts: event.parts }
+              ? { ...m, parts: event.parts, toolResults: m.toolResults }
               : m,
           );
           notifyChange();
@@ -233,6 +301,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         }
         case 'chunk': {
           const chunk = event.chunk;
+          console.log('[use-agents] chunk type:', chunk.type, 'sessionId:', event.sessionId);
 
           // LLM-generated session title — update session list immediately
           if (chunk.type === 'session-title' && (chunk as any).title) {
@@ -271,7 +340,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
               return;
             }
             state.activity = undefined;
-            state.error = String(chunk.error);
+            state.error = formatError(chunk.error);
             state.status = 'error';
             notifyChange();
             return;
@@ -286,22 +355,18 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           // streaming message can be updated in a single pass.
           let nextActivePartType: UIMessage['activePartType'] | undefined;
           switch (chunk.type) {
-            case 'reasoning-start':
-              nextActivePartType = 'reasoning';
+            case 'thinking_start':
+              nextActivePartType = 'thinking';
               break;
-            case 'text-start':
+            case 'text_start':
               nextActivePartType = 'text';
               break;
-            case 'tool-call-start':
-              nextActivePartType = 'tool-call';
+            case 'toolcall_start':
+            case 'toolcall_end':
+              nextActivePartType = 'toolCall';
               break;
-            case 'tool-result-start':
-              nextActivePartType = 'tool-result';
-              break;
-            case 'reasoning-finish':
-            case 'text-finish':
-            case 'tool-call-finish':
-            case 'tool-result-finish':
+            case 'thinking_end':
+            case 'text_end':
             case 'finish':
             case 'error':
               nextActivePartType = undefined;
@@ -313,6 +378,30 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             currentMsgIdRef.current.set(event.sessionId, chunk.messageId);
           }
 
+          if (chunk.type === 'tool-result') {
+            const msgId = currentMsgIdRef.current.get(event.sessionId);
+            if (msgId) {
+              state.messages = state.messages.map((m) => {
+                if (m.id === msgId && m.status === 'streaming') {
+                  return {
+                    ...m,
+                    toolResults: {
+                      ...m.toolResults,
+                      [chunk.toolCallId]: {
+                        type: 'toolResult',
+                        toolCallId: chunk.toolCallId,
+                        toolName: chunk.toolName,
+                        output: chunk.output,
+                        error: chunk.error,
+                      },
+                    },
+                  };
+                }
+                return m;
+              });
+            }
+          }
+
           const msgId = currentMsgIdRef.current.get(event.sessionId);
           if (msgId) {
             const target = state.messages.find((m) => m.id === msgId);
@@ -321,7 +410,22 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             }
             state.messages = state.messages.map((m) => {
               if (m.id === msgId && m.status === 'streaming') {
-                const newParts = reduceStreamChunk(m.parts, chunk);
+                const isAssistantEvent =
+                  chunk.type === 'text_start' ||
+                  chunk.type === 'text_delta' ||
+                  chunk.type === 'text_end' ||
+                  chunk.type === 'thinking_start' ||
+                  chunk.type === 'thinking_delta' ||
+                  chunk.type === 'thinking_end' ||
+                  chunk.type === 'toolcall_start' ||
+                  chunk.type === 'toolcall_delta' ||
+                  chunk.type === 'toolcall_end' ||
+                  chunk.type === 'start' ||
+                  chunk.type === 'done' ||
+                  chunk.type === 'error';
+                const newParts = isAssistantEvent
+                  ? reduceStreamEvent(m.parts, chunk as import('rem-agent-core').AssistantMessageEvent)
+                  : m.parts;
                 return {
                   ...m,
                   parts: newParts,
@@ -329,7 +433,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
                   status: chunk.type === 'finish' ? 'done'
                     : chunk.type === 'error' ? 'error'
                     : 'streaming',
-                  error: chunk.type === 'error' ? String(chunk.error) : undefined,
+                  error: chunk.type === 'error' ? formatError(chunk.error) : undefined,
                 };
               }
               return m;
@@ -340,7 +444,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             : chunk.type === 'error' ? 'error'
             : 'streaming';
           if (chunk.type === 'error') {
-            state.error = String(chunk.error);
+            state.error = formatError(chunk.error);
           }
 
           if (chunk.type === 'approval-request') {
@@ -351,40 +455,25 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
             state.pendingApprovals = state.pendingApprovals.filter(
               (r) => r.approvalId !== chunk.approvalId,
             );
-          } else if (chunk.type === 'usage') {
-            state.tokenUsage = {
-              inputTokens: chunk.inputTokens,
-              outputTokens: chunk.outputTokens,
-              totalTokens: chunk.totalTokens,
-              inputTokenDetails: chunk.inputTokenDetails,
-              outputTokenDetails: chunk.outputTokenDetails,
-            };
-            // 把本次 usage 绑定到当前正在生成的 assistant 消息
-            if (msgId) {
-              state.messages = state.messages.map((m) =>
-                m.id === msgId ? { ...m, tokenUsage: state.tokenUsage } : m,
-              );
-            }
           } else if (chunk.type === 'finish' || chunk.type === 'error') {
             state.activity = 'idle';
             state.pendingToolCalls.clear();
-          } else if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta') {
+          } else if (chunk.type === 'thinking_start' || chunk.type === 'thinking_delta') {
             state.activity = 'thinking';
-          } else if (chunk.type === 'tool-call-start' || chunk.type === 'tool-call') {
+          } else if (chunk.type === 'toolcall_start' || chunk.type === 'toolcall_end') {
             state.activity = 'calling-function';
-            state.pendingToolCalls.add(chunk.toolCallId);
-          } else if (chunk.type === 'tool-result-start' || chunk.type === 'tool-result' || chunk.type === 'tool-result-finish') {
-            state.pendingToolCalls.delete(chunk.toolCallId);
-            if (state.pendingToolCalls.size > 0) {
-              state.activity = 'calling-function';
+            if (chunk.type === 'toolcall_end') {
+              state.pendingToolCalls.add(chunk.toolCall.id);
             }
-          } else if (chunk.type === 'text-start' || chunk.type === 'text-delta') {
+          } else if (chunk.type === 'text_start' || chunk.type === 'text_delta') {
             if (state.pendingToolCalls.size === 0) {
               state.activity = 'outputting';
             }
           } else if (chunk.type === 'step-finish') {
             state.activity = state.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
             state.pendingToolCalls.clear();
+          } else if (chunk.type === 'step-start') {
+            state.activity = 'pending';
           }
 
           notifyChange();
@@ -399,8 +488,16 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         }
         case 'session-error': {
           if (!state) return;
+          const errorText = formatError(event.error);
           state.status = 'error';
-          state.error = event.error;
+          state.error = errorText;
+          // 把错误文本也写入当前 assistant 消息体，避免只在 error tag 里显示
+          const lastAssistant = [...state.messages].reverse().find((m) => m.role === 'assistant');
+          if (lastAssistant && lastAssistant.parts.length === 0) {
+            lastAssistant.status = 'error';
+            lastAssistant.error = errorText;
+            lastAssistant.parts.push({ type: 'text', text: errorText });
+          }
           notifyChange();
           break;
         }
@@ -434,6 +531,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           }
           state.childAgents.set(event.childSessionId, {
             childSessionId: event.childSessionId,
+            toolCallId: event.toolCallId,
             summary: event.summary,
             status: event.status,
             tokenUsage: event.tokenUsage,
@@ -477,7 +575,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     };
   }, [workspace, bus, ensureSession, notifyChange, refreshSession, bufferEvent, ensureAssistantMessage]);
 
-  const currentSession = useMemo(() => {
+  const currentSession = useMemo((): SessionView | null => {
     if (!currentId) return null;
     const state = sessionMapRef.current.get(currentId);
     if (!state) return null;
@@ -493,6 +591,22 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);
+
+  const getSessionState = useCallback((sessionId: string): SessionView | null => {
+    const state = sessionMapRef.current.get(sessionId);
+    if (!state) return null;
+    return {
+      id: sessionId,
+      messages: state.messages,
+      status: state.status,
+      error: state.error,
+      activity: state.activity,
+      pendingApprovals: state.pendingApprovals,
+      tokenUsage: state.tokenUsage,
+      childAgents: state.childAgents,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   const send = useCallback(
     async (content: string) => {
@@ -606,5 +720,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     interrupt,
     resolveApproval,
     initialized,
+    getSessionState,
+    loadSession: ensureSession,
   };
 }

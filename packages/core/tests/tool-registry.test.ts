@@ -21,8 +21,8 @@ describe('AgentToolRegistry', () => {
     );
 
     const tools = registry.getToolSet();
-    expect(tools.echo).toBeDefined();
-    expect(tools.echo.description).toBe('Echo');
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
+    expect(tools.find((t) => t.name === 'echo')?.description).toBe('Echo');
   });
 
   it('executes a registered tool', async () => {
@@ -68,8 +68,8 @@ describe('AgentToolRegistry', () => {
     );
 
     const tools = registry.getToolSet();
-    expect(tools.echo).toBeDefined();
-    expect(tools.write).toBeUndefined();
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
+    expect(tools.some((t) => t.name === 'write')).toBe(false);
   });
 
   it('filters tools by deny policy', () => {
@@ -84,8 +84,8 @@ describe('AgentToolRegistry', () => {
     );
 
     const tools = registry.getToolSet();
-    expect(tools.echo).toBeDefined();
-    expect(tools.write).toBeUndefined();
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
+    expect(tools.some((t) => t.name === 'write')).toBe(false);
   });
 
   it('removes non-readOnly tools in readOnly mode', () => {
@@ -100,7 +100,7 @@ describe('AgentToolRegistry', () => {
     );
 
     const tools = registry.getToolSet();
-    expect(tools.read).toBeDefined();
-    expect(tools.write).toBeUndefined();
+    expect(tools.some((t) => t.name === 'read')).toBe(true);
+    expect(tools.some((t) => t.name === 'write')).toBe(false);
   });
 });

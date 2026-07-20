@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { InMemorySessionProvider } from '../src/plugins/session/in-memory/index.js';
 import { AgentState } from '../src/agent-state.js';
+import type { BusEvent } from '../src/bus-events.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import {
   createDelegateTaskToolExecutor,
@@ -22,7 +23,7 @@ describe('delegate_task tool', () => {
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
+      toolProvider: { getToolSet: () => [], register: () => {} },
       mcpProviders: [],
       contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
       skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
@@ -35,7 +36,7 @@ describe('delegate_task tool', () => {
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -48,7 +49,7 @@ describe('delegate_task tool', () => {
       loopStrategy: {
         run: async () => ({
           content: 'child result',
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
         }),
       },
     } as unknown as AgentContext;
@@ -79,7 +80,7 @@ describe('delegate_task tool', () => {
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
-      toolProvider: { getToolSet: () => ({}), register: () => {} },
+      toolProvider: { getToolSet: () => [], register: () => {} },
       mcpProviders: [],
       contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
       skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
@@ -92,7 +93,7 @@ describe('delegate_task tool', () => {
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -114,5 +115,87 @@ describe('delegate_task tool', () => {
 
     expect(result.output).toContain('state="failed"');
     expect(result.output).toContain('Child agent failure');
+  });
+
+  it('drives child stream chunks into the bus and tags child-agent-update with toolCallId', async () => {
+    const sessionProvider = new InMemorySessionProvider();
+    const agentState = new AgentState();
+    const events: BusEvent[] = [];
+    agentState.subscribe((event) => events.push(event));
+
+    const mockCtx = {
+      configProvider: {
+        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+        getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
+        getToolConfig: () => ({}),
+        getMcpConfig: () => ({}),
+        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
+        resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
+      },
+      sessionProvider,
+      toolProvider: { getToolSet: () => [], register: () => {} },
+      mcpProviders: [],
+      contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
+      skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
+      budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 10, consecutiveErrors: 0, atRisk: false }) },
+      compressor: { shouldCompress: () => false, compress: async (msgs: any[]) => msgs },
+      errorHandler: { classify: () => 'unknown', isRetryable: () => false },
+      titleProvider: { generateTitle: async () => undefined },
+      mcpManager: { connectAll: async () => [], closeAll: async () => {} },
+      fileMutationQueue: createFileMutationQueue(),
+      systemPromptAssembler: { assemble: async () => 'mock system prompt' },
+      toolComposer: {
+        compose: () => ({
+          getToolSet: () => [],
+          execute: async () => [],
+          register: () => {},
+          isDangerous: () => false,
+        }),
+      },
+      ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
+      ruleStore: { saveApproved: async () => {}, loadAll: async () => [] } as any,
+      permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
+      securityMode: 'interactive' as const,
+      loopStrategy: {
+        run: async (loopCtx: any) => {
+          loopCtx.emit({ type: 'message-start', step: 1, messageId: 'child-msg-1' });
+          loopCtx.emit({ type: 'text_start', contentIndex: 0, partial: {} });
+          loopCtx.emit({ type: 'text_delta', contentIndex: 0, delta: 'hello', partial: {} });
+          return {
+            content: 'child result',
+            usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          };
+        },
+      },
+    } as unknown as AgentContext;
+
+    const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
+    const result = await executor(
+      { task: 'stream sub work' },
+      { cwd: '/tmp', workspaceRoot: '/tmp', sessionId: 'parent-1', toolCallId: 'tc-1' },
+    );
+
+    expect(result.output).toContain('state="completed"');
+
+    const childSessionId = events.find((e) => e.type === 'child-agent-update')?.type === 'child-agent-update'
+      ? (events.find((e) => e.type === 'child-agent-update') as Extract<BusEvent, { type: 'child-agent-update' }>).childSessionId
+      : undefined;
+    expect(childSessionId).toBeDefined();
+
+    const childChunks = events.filter(
+      (e): e is Extract<BusEvent, { type: 'chunk' }> => e.type === 'chunk' && e.sessionId === childSessionId,
+    );
+    expect(childChunks.some((c) => c.chunk.type === 'text_delta')).toBe(true);
+    expect(childChunks.some((c) => c.chunk.type === 'finish')).toBe(true);
+
+    const sessionEnd = events.find((e) => e.type === 'session-end' && e.sessionId === childSessionId);
+    expect(sessionEnd).toBeDefined();
+
+    const updates = events.filter(
+      (e): e is Extract<BusEvent, { type: 'child-agent-update' }> => e.type === 'child-agent-update',
+    );
+    expect(updates.length).toBeGreaterThan(0);
+    expect(updates.every((u) => u.toolCallId === 'tc-1')).toBe(true);
+    expect(updates[updates.length - 1].status).toBe('completed');
   });
 });

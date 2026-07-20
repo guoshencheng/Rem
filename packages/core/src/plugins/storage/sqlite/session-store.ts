@@ -23,7 +23,7 @@ export class SqliteSessionStore implements SessionStore {
         sessionId,
         conversation: [],
         currentTurn: 0,
-        metadata: { workspace },
+        metadata: { workspace, schemaVersion: 2 },
         createdAt: now,
         updatedAt: now,
       };
@@ -41,7 +41,7 @@ export class SqliteSessionStore implements SessionStore {
 
       const messages = this.db
         .prepare(
-          'SELECT id, role, content_json, created_at FROM messages WHERE session_id = ? ORDER BY sequence'
+          'SELECT id, role, content_json, tool_call_id, tool_name, created_at FROM messages WHERE session_id = ? ORDER BY sequence'
         )
         .all(sessionId) as import('./session-converter.js').MessageRow[];
 
@@ -79,7 +79,7 @@ export class SqliteSessionStore implements SessionStore {
           new Date().toISOString()
         );
 
-      const messageIds = session.conversation.map((m) => m.id);
+      const messageIds = session.conversation.map(() => randomUUID());
       if (messageIds.length > 0) {
         const placeholders = messageIds.map(() => '?').join(',');
         this.db
@@ -90,16 +90,18 @@ export class SqliteSessionStore implements SessionStore {
       }
 
       const insert = this.db.prepare(
-        `INSERT OR REPLACE INTO messages (id, session_id, role, content_json, sequence, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT OR REPLACE INTO messages (id, session_id, role, content_json, tool_call_id, tool_name, sequence, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       );
       for (let i = 0; i < session.conversation.length; i++) {
         const msg = session.conversation[i];
         insert.run(
-          msg.id,
+          messageIds[i],
           session.sessionId,
           msg.role,
           JSON.stringify(msg.content),
+          msg.role === 'toolResult' ? (msg as any).toolCallId ?? null : null,
+          msg.role === 'toolResult' ? (msg as any).toolName ?? null : null,
           i,
           new Date().toISOString()
         );

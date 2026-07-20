@@ -4,10 +4,14 @@
 
 ## 目标
 
-- 核心聚焦 Agent 推理循环、记忆、工具、技能
+- 核心聚焦 Agent 推理循环、状态、事件、预算与工具
 - 通过稳定的 SDK 接口支持扩展
 - TypeScript/Node.js 实现，本地个人运行
-- 参考 Hermes Agent 的架构逻辑，吸收 OpenClaw 的插件边界设计
+
+## 环境要求
+
+- Node.js >= 22.19.0
+- pnpm
 
 ## 包结构
 
@@ -16,7 +20,6 @@ packages/
   core/    — rem-agent-core：Agent 生命周期、ReAct 循环、事件、预算、LLM 抽象层
   bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService
   web/     — rem-agent-web：Next.js 15 + React 19 聊天 UI
-  tui/     — rem-agent-tui：基于 @opentui/core 的终端 UI 组件
 ```
 
 ## 快速开始

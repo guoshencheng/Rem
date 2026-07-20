@@ -23,20 +23,19 @@
 ### 1.1 顶层模块
 
 #### `src/index.ts`（23 行）— 主 barrel 导出
-重导出所有公开 API：类型（`ModelMessage`, `AgentStreamChunk`, ...）、类（`CoreAgent`, `ReactLoop`, ...）、函数（`createAgentFromEnv`, `runAgent`, ...）。
+重导出所有公开 API：类型（`RemMessage`, `AgentStreamEvent`, `AgentStream`, `AgentOutput`, ...）、类（`CoreAgent`, `ReactLoop`, ...）、函数（`createAgentFromEnv`, `runAgent`, ...）。
 
 #### `src/types.ts`（93 行）— 核心类型定义
 **关键导出：**
 | 类型 | 说明 |
 |------|------|
-| `ModelMessage` | 模型消息（role + content） |
-| `LanguageModelUsage` | Token 使用统计 |
+| `RemMessage` | 运行时消息包装（`messageId` + `pi.Message` + `tokenUsage`） |
+| `AgentStreamEvent` | 流式事件联合类型（`pi.AssistantMessageEvent` + `RemMetaEvent`） |
+| `AgentStream` | 流聚合接口（fullStream, text, usage, steps promises） |
+| `AgentStreamStepResult` | 单个流步骤结果 |
 | `UserInput` | 用户输入结构体 |
 | `AgentOutput` | Agent 输出结构体 |
-| `AgentStreamChunk` | 流式块联合类型（18 个变体：`text-start/delta`, `reasoning-start/delta/finish`, `tool-call-start/call/finish`, `tool-result-start/result`, `finish`, `error`, `session-title`, ...） |
-| `AgentStreamStepResult` | 单个流步骤结果 |
-| `AgentStream` | 流聚合接口（fullStream, text, usage, steps promises） |
-| `AgentStatus` | 状态类型：`'idle' \| 'running' \| 'paused' \| 'stopping' \| 'error'` |
+| `AgentStatus` | 状态类型：`'idle' \| 'running' \| 'error'` |
 | `ToolCallRecord` | 工具调用记录 |
 | `TurnResult` | 轮次执行结果 |
 
@@ -73,7 +72,7 @@
 #### `src/state.ts`（59 行）— Agent 运行时状态
 **关键导出：**
 - `AgentState` — 持有 Session、budget、status
-  - `addMessage(msg)` — 添加消息到会话
+  - `addMessage(msg)` — 添加消息到会话（`pi.Message`）
   - `canContinue()` — 检查状态和预算是否允许继续
   - `reset()` — 重置状态
   - `currentTurn`, `conversation`, `budget`, `status` — 公共属性
@@ -246,7 +245,7 @@
 
 `AgentToolRegistry` 实现 `ToolProvider`，提供：
 - `register(tool)` — 注册工具定义
-- `getToolSet()` — 获取所有工具 schema
+- `getToolSet()` — 获取所有工具（直接返回 `pi.Tool[]`）
 - `execute(calls, ctx)` — 执行工具调用（含 TypeBox 参数校验、策略过滤、审批、钩子管道）
 - `getApprovalManager()` — 获取审批管理器
 
@@ -398,9 +397,9 @@
 |------|------|-----|------|
 | `session/in-memory/` | 53 | `InMemorySessionProvider` | 基于 Map 的内存会话存储 |
 | `session/file/` | 131 | `FileSessionProvider` | 基于文件系统的会话存储（每会话一个 JSON 文件） |
-| `session/local/` | 190 | `LocalSessionProvider` | 本地会话存储（带索引文件 + ServerMessage 缓存，供 TUI/Server 使用） |
+| `session/local/` | 190 | `LocalSessionProvider` | 本地会话存储（带索引文件） |
 
-所有 session provider 实现 `SessionProvider`，提供 `create()`, `load()`, `save()`, `list()` 等方法。`LocalSessionProvider` 额外提供 `delete()`, `cueMessages()`, `pullMessages()`。
+所有 session provider 实现 `SessionProvider`，提供 `create()`, `load()`, `save()`, `list()` 等方法。`LocalSessionProvider` 额外提供 `delete()`。`Session.conversation` 直接存储 `pi.Message[]`，`schemaVersion < 2` 的旧数据加载时会抛出 `UnsupportedSessionSchemaError`。
 
 #### Tool Providers
 
@@ -536,7 +535,7 @@ types.ts (叶子)
 ### 2.1 模块清单
 
 #### `src/index.ts`（17 行）— barrel 导出
-重导出所有公开 API 和从 core 重导出的类型（`AgentStreamChunk`, `ModelMessage`, `ServerMessage`）。
+重导出所有公开 API 和从 core 重导出的类型（`AgentStreamEvent`）。
 
 #### `src/types.ts`（23 行）— API 通信类型
 | 导出 | 说明 |
@@ -606,7 +605,7 @@ index.ts
   └── errors.ts    → (无内部依赖)
 ```
 
-**外部依赖（Core）：** `runAgent`（值导入）、`AgentStreamChunk`, `AgentStream`, `AgentOutput`, `ServerMessage`, `ContentPart`, `ProviderManager`, `SessionProvider`（类型导入）
+**外部依赖（Core）：** `runAgent`（值导入）、`AgentStreamEvent`, `AgentStream`, `AgentOutput`, `ProviderManager`, `SessionProvider`（类型导入）
 
 ---
 

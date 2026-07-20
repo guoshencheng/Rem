@@ -12,7 +12,7 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
     resolveAgent: () => ({ id: 'default', name: 'test', corePrompt: 'Default prompt.' }),
   },
   sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-  toolProvider: { getToolSet: () => ({}), register: () => {} },
+  toolProvider: { getToolSet: () => [], register: () => {} },
   contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
   skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
   budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
@@ -24,7 +24,7 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
   toolComposer: {
     compose: () => ({
-      getToolSet: () => ({}),
+      getToolSet: () => [],
       execute: async () => [],
       register: () => {},
       isDangerous: () => false,
@@ -40,7 +40,7 @@ describe('runAgent workspaceRoot', () => {
       mcpProviders: [],
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -49,7 +49,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;
@@ -79,7 +79,7 @@ describe('runAgent workspaceRoot', () => {
       mcpProviders: [],
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -88,7 +88,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;
@@ -117,7 +117,7 @@ describe('runAgent workspaceRoot', () => {
       mcpProviders: [],
       toolComposer: {
         compose: () => ({
-          getToolSet: () => ({}),
+          getToolSet: () => [],
           execute: async () => [],
           register: () => {},
           isDangerous: () => false,
@@ -126,7 +126,7 @@ describe('runAgent workspaceRoot', () => {
       loopStrategy: {
         run: async (ctx: any) => {
           capturedWorkspaceRoot = ctx.workspaceRoot;
-          return { content: 'ok', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+          return { content: 'ok', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
         },
       },
     } as unknown as AgentContext;

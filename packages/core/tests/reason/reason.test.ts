@@ -1,37 +1,44 @@
 import { describe, it, expect, vi } from 'vitest';
 import { reason } from '../../src/reason/reason.js';
-import * as apiRegistry from '../../src/llm/api-registry.js';
-import type { LLMProvider, StreamChunk } from '../../src/llm/types.js';
-import type { ModelMessage } from '../../src/types.js';
+import type { Model, AssistantMessageEventStream, AssistantMessage, Message } from '@earendil-works/pi-ai';
+import type { Models } from '@earendil-works/pi-ai';
 
 describe('reason usage forwarding', () => {
-  it('forwards usage chunk to emit', async () => {
-    const emitted: any[] = [];
-    const emit = (chunk: any) => { emitted.push(chunk); };
+  it('forwards pi-ai events to emit', async () => {
+    const emitted: unknown[] = [];
+    const emit = (event: unknown) => { emitted.push(event); };
 
-    const mockProvider: LLMProvider = {
-      async *stream() {
-        yield { type: 'text', text: 'hello' };
-        yield { type: 'usage', inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const mockModel = { id: 'mock', provider: 'mock' } as Model<any>;
+    const mockStream: AssistantMessageEventStream = {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'text_delta', contentIndex: 0, delta: 'hello', partial: {} as any };
       },
-      async generate() {
-        throw new Error('not used');
-      },
-    };
+      result: vi.fn().mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hello' }],
+        usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: 'stop',
+      } as AssistantMessage),
+    } as unknown as AssistantMessageEventStream;
 
-    vi.spyOn(apiRegistry, 'resolveProvider').mockReturnValue(mockProvider);
+    const mockModels: Models = {
+      getModel: vi.fn().mockReturnValue(mockModel),
+      stream: vi.fn().mockReturnValue(mockStream),
+    } as unknown as Models;
 
-    const messages: ModelMessage[] = [];
-    await reason({
+    const messages: Message[] = [];
+    const result = await reason({
+      models: mockModels,
       provider: 'mock',
       model: 'mock',
       apiKey: 'key',
       system: 'sys',
       messages,
-    }, emit);
+      emit,
+    });
 
-    const usageChunk = emitted.find(c => c.type === 'usage');
-    expect(usageChunk).toBeDefined();
-    expect(usageChunk.totalTokens).toBe(15);
+    expect(emitted.some((c) => (c as any).type === 'text_delta')).toBe(true);
+    expect(result.text).toBe('hello');
+    expect(result.usage.totalTokens).toBe(15);
   });
 });

@@ -1,3 +1,4 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import type { TObject } from '@sinclair/typebox';
 import type {
@@ -8,7 +9,7 @@ import type {
   ToolProvider,
   ToolResult,
 } from '../sdk/tool-provider.js';
-import type { ToolSet } from '../llm/types.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
 import type { McpClient } from './client.js';
 import type { McpToolInfo } from './types.js';
 import { convertJsonSchemaToTypeBoxObject } from './schema-converter.js';
@@ -67,11 +68,11 @@ export class McpToolProvider implements ToolProvider {
   }
 
   getToolSet(): ToolSet {
-    const result: ToolSet = {};
-    for (const [name, { def }] of this.tools) {
-      result[name] = { description: def.description, parameters: def.parameters as Record<string, unknown> };
-    }
-    return result;
+    return Array.from(this.tools.values()).map(({ def }) => ({
+      name: def.name,
+      description: def.description,
+      parameters: def.parameters as Record<string, unknown>,
+    }));
   }
 
   isDangerous(toolName: string): boolean {

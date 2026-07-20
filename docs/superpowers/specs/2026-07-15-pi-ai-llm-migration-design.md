@@ -534,6 +534,8 @@ metadata.messageMeta = {
 - 新创建的 session 文件格式为 pi-ai `Message[]`，`schemaVersion: 2`；
 - 旧会话迁移后再次加载不再重复迁移。
 
+> 2026-07-16 后续清理：本阶段已彻底删除 `packages/core/src/pi-adapter.ts`，移除 `ModelMessage` / `ContentPart` 自建类型、`migrateConversationToPiAi` 等旧 schema 迁移逻辑，并把 `ToolSet` 统一为 `pi.Tool[]`。详细实施计划见 `docs/superpowers/plans/2026-07-16-remove-pi-adapter-conversion-layer.md`。
+
 ---
 
 ## 8. 错误处理与重试

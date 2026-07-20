@@ -6,12 +6,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ChatComposer } from './chat-composer';
-import type { LanguageModelUsage } from 'rem-agent-core';
+import type { Usage } from 'rem-agent-core';
 
-const baseUsage: LanguageModelUsage = {
-  inputTokens: 6789,
-  outputTokens: 5556,
+const baseUsage: Usage = {
+  input: 6789,
+  output: 5556,
+  cacheRead: 0,
+  cacheWrite: 0,
   totalTokens: 12345,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
 const noop = () => {};

@@ -1,8 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { AgentSessionManager } from '../src/agent-session.js';
+import type { Usage } from 'rem-agent-core';
+
+const baseUsage = (overrides?: Partial<Usage>): Usage => ({
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  ...overrides,
+});
 
 describe('AgentSessionManager.listSessions tokenUsage', () => {
-  it('preserves inputTokenDetails when computing total tokenUsage', async () => {
+  it('computes total tokenUsage from messageTokenUsage', async () => {
     const sessionProvider = {
       list: async () => [
         { sessionId: 's1', title: 'Test', updatedAt: new Date(), messageCount: 2 },
@@ -11,18 +22,8 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
         sessionId,
         metadata: {
           messageTokenUsage: {
-            msg1: {
-              inputTokens: 100,
-              outputTokens: 20,
-              totalTokens: 120,
-              inputTokenDetails: { noCacheTokens: 70, cacheReadTokens: 30 },
-            },
-            msg2: {
-              inputTokens: 50,
-              outputTokens: 10,
-              totalTokens: 60,
-              inputTokenDetails: { noCacheTokens: 40, cacheReadTokens: 10 },
-            },
+            msg1: baseUsage({ input: 100, output: 20, cacheRead: 30, totalTokens: 120 }),
+            msg2: baseUsage({ input: 50, output: 10, cacheRead: 10, totalTokens: 60 }),
           },
         },
         conversation: [],
@@ -36,11 +37,9 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
     const list = await manager.listSessions('default');
 
     expect(list).toHaveLength(1);
-    expect(list[0].tokenUsage?.inputTokenDetails).toEqual({
-      noCacheTokens: 110,
-      cacheReadTokens: 40,
-      cacheWriteTokens: 0,
-    });
+    expect(list[0].tokenUsage?.totalTokens).toBe(180);
+    expect(list[0].tokenUsage?.input).toBe(150);
+    expect(list[0].tokenUsage?.cacheRead).toBe(40);
   });
 
   it('restores tokenUsage per message from metadata', async () => {
@@ -50,7 +49,7 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
         sessionId,
         metadata: {
           messageTokenUsage: {
-            msg1: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            msg1: baseUsage({ input: 10, output: 5, totalTokens: 15 }),
           },
         },
         conversation: [

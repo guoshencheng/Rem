@@ -12,20 +12,20 @@ describe('CompositeToolProvider', () => {
     );
 
     const mcp = {
-      getToolSet: () => ({ 'fs__read': { description: 'Read', parameters: { type: 'object' } } }),
+      getToolSet: () => [{ name: 'fs__read', description: 'Read', parameters: { type: 'object' } }],
       execute: vi.fn().mockResolvedValue([{ toolCallId: 'tc1', toolName: 'fs__read', output: 'data' }]),
     };
 
     const composite = new CompositeToolProvider(primary, [mcp as any]);
     const tools = composite.getToolSet();
-    expect(tools).toHaveProperty('echo');
-    expect(tools).toHaveProperty('fs__read');
+    expect(tools.some((t) => t.name === 'echo')).toBe(true);
+    expect(tools.some((t) => t.name === 'fs__read')).toBe(true);
   });
 
   it('routes calls to MCP provider by tool name ownership', async () => {
     const primary = new InMemoryToolProvider();
     const mcp = {
-      getToolSet: () => ({ 'fs__read': { description: 'Read', parameters: { type: 'object' } } }),
+      getToolSet: () => [{ name: 'fs__read', description: 'Read', parameters: { type: 'object' } }],
       execute: vi.fn().mockResolvedValue([{ toolCallId: 'tc1', toolName: 'fs__read', output: 'data' }]),
     };
 
@@ -62,7 +62,7 @@ describe('CompositeToolProvider', () => {
       { name: 'new', description: 'New', parameters: Type.Object({}) },
       async () => ({ output: '' }),
     );
-    expect(primary.getToolSet()).toHaveProperty('new');
+    expect(primary.getToolSet().some((t) => t.name === 'new')).toBe(true);
   });
 
   it('returns error for tool not owned by any provider', async () => {

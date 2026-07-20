@@ -13,3 +13,4 @@ vitest.config.js
 .sessions
 *.cpuprofile
 coverage
+.pnpm-store

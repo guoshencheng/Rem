@@ -1,4 +1,6 @@
-import type { UserInput, AgentOutput, AgentStream, ModelMessage, ProviderChunk } from './types.js';
+import type { Message, Model, Usage, ThinkingLevel, Api } from '@earendil-works/pi-ai';
+import { clampThinkingLevel } from '@earendil-works/pi-ai';
+import type { UserInput, AgentOutput, AgentStream, AgentStreamEvent } from './types.js';
 import type { PromptBuildContext } from './sdk/system-prompt.js';
 import type { Skill } from './sdk/skill-provider.js';
 import { EventBus } from './events.js';
@@ -7,15 +9,15 @@ import type { LoopContext } from './sdk/loop-strategy.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolCall, ToolResult } from './sdk/tool-provider.js';
-import { AgentStreamController } from './stream/agent-stream.js';
+import { AgentEventStreamController } from './stream/agent-event-stream.js';
 import type { AgentContext } from './agent-context.js';
 import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
+import { buildReasoningOptions } from './llm/reasoning-options.js';
 import { generateId } from './shared/generate-id.js';
-import { reason } from './reason/reason.js';
 import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';
-import type { TokenUsageDetail } from './token-usage.js';
+import { normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
 import { log } from './shared/debug-log.js';
 import { OverlayToolProvider } from './overlay-tool-provider.js';
 import {
@@ -44,7 +46,7 @@ export interface RunAgentResult {
 }
 
 export function runAgent(params: RunAgentParams): RunAgentResult {
-  const controller = new AgentStreamController();
+  const controller = new AgentEventStreamController();
   const stream = controller.stream;
 
   const outputPromise = (async (): Promise<AgentOutput> => {
@@ -60,7 +62,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     let session = await sessionProvider.load(params.sessionId);
     if (!session) {
       session = {
-        sessionId: params.sessionId, conversation: [], currentTurn: 0, metadata: {},
+        sessionId: params.sessionId, conversation: [], currentTurn: 0, metadata: { schemaVersion: 2 },
         createdAt: new Date(), updatedAt: new Date(),
       };
       await sessionProvider.save(session);
@@ -72,7 +74,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
     // 恢复累计 token usage（如果运行时状态为空）
     if (liveState.tokenUsage.totalTokens === 0) {
-      const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
+      const history = ((session.metadata.tokenUsageHistory as unknown[]) ?? []).map((entry) =>
+        normalizeUsageDetail(entry as TokenUsageDetail),
+      );
       if (history.length > 0) {
         params.agentState.restoreTokenUsage(params.sessionId, history);
       }
@@ -89,10 +93,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       return output;
     }
 
-    session.conversation.push({
-      id: generateId(), role: 'user',
-      content: [{ type: 'text', text: params.input.content }],
-    } as ModelMessage);
+    const userMessage: Message = { role: 'user', content: params.input.content, timestamp: Date.now() } as Message;
+    session.conversation.push(userMessage);
     await sessionProvider.save(session);
 
     forkTitleGeneration(session, ctx.titleProvider, controller, sessionProvider);
@@ -107,24 +109,26 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolComposer = ctx.toolComposer;
       const errorHandler = ctx.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
-      const appendContent = (msg: ModelMessage, part: any) => sessionProvider.appendContent(session, msg, part);
+      const appendContent = (msg: Message, part: any) => sessionProvider.appendContent(session, msg, part);
 
       // 跟踪当前 assistant 消息的 messageId，用于把本次 usage 绑定到消息
       let currentMessageId: string | undefined;
-      const trackMessageStart = (chunk: ProviderChunk) => {
-        if (chunk.type === 'message-start') {
-          currentMessageId = chunk.messageId;
+      const trackMessageStart = (event: AgentStreamEvent) => {
+        if (event.type === 'message-start') {
+          currentMessageId = event.messageId;
         }
-        controller.emit(chunk);
+        controller.emit(event);
       };
 
       const { messages } = await contextProvider.build(session, behavior.name);
 
       let msgs = messages;
       if (compressor.shouldCompress(session)) {
-        const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
-        const accumulated = history.reduce((sum, entry) => sum + entry.totalTokens, 0);
-        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model);
+        const history = ((session.metadata.tokenUsageHistory as unknown[]) ?? []).map((entry) =>
+          normalizeUsageDetail(entry as TokenUsageDetail),
+        );
+        const accumulated = history.reduce((sum: number, entry) => sum + entry.totalTokens, 0);
+        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, process.env, ctx.models);
         const compressionCfg = ctx.configProvider.getCompressionConfig();
         const threshold = maxTokens * compressionCfg.thresholdRatio;
 
@@ -139,10 +143,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
         const archiveId = generateId();
         const summaryText = compressed
-          .find((m) => m.role === 'system')
-          ?.content.filter((p) => p.type === 'text')
-          .map((p) => (p as { type: 'text'; text: string }).text)
-          .join('') ?? '';
+          .filter((m) => m.role === 'user')
+          .flatMap((m) => (typeof m.content === 'string' ? [m.content] : m.content.filter((p: any) => p.type === 'text').map((p: any) => p.text)))
+          .find((text: string) => text.includes('[上下文压缩摘要]')) ?? '';
 
         const archiveRecord: ArchiveRecord = {
           id: archiveId,
@@ -152,7 +155,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           parentArchiveId,
           conversationSnapshot: messages,
           summary: summaryText,
-          tokenUsageBefore: accumulated > 0 ? { totalTokens: accumulated, inputTokens: 0, outputTokens: 0 } : undefined,
+          tokenUsageBefore: accumulated > 0 ? { totalTokens: accumulated, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } : undefined,
         };
         await ctx.archiveStore.save(archiveRecord);
 
@@ -187,11 +190,8 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       );
       toolProviderWithDelegate.register(todoWriteDefinition, todoWriteExecutor);
 
-      const toolSet = toolProviderWithDelegate.getToolSet();
-      const tools = Object.entries(toolSet).map(([name, schema]) => ({
-        name,
-        description: schema.description,
-      }));
+      const piTools = toolProviderWithDelegate.getToolSet();
+      const tools = piTools.map((t) => ({ name: t.name, description: t.description }));
 
       const skills = await skillProvider.loadSkills().catch(() => [] as Skill[]);
 
@@ -212,6 +212,11 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       };
 
       const systemPrompt = await ctx.systemPromptAssembler.assemble(buildCtx);
+      const contextForModel = () => ({
+        systemPrompt,
+        messages: msgs,
+        tools: piTools,
+      });
 
       const loopCtx: LoopContext = {
         liveState,
@@ -219,49 +224,77 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         addMessage,
         appendContent,
         system: systemPrompt,
-        reason: () => reason(
-          {
-            provider: effectiveModel.provider, model: effectiveModel.model, apiKey: effectiveModel.apiKey,
-            baseURL: effectiveModel.baseURL, system: systemPrompt, messages: msgs,
-            tools: toolProviderWithDelegate.getToolSet(), signal: params.signal, errorHandler,
-          },
-          (chunk) => trackMessageStart(chunk),
-        ),
+        stream: () => {
+          const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
+          if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
+          return ctx.models.stream(model, contextForModel(), {
+            thinkingEnabled: true,
+            apiKey: effectiveModel.apiKey || undefined,
+            baseURL: effectiveModel.baseURL || undefined,
+            signal: params.signal,
+            maxRetries: 0,
+          });
+        },
+        generate: () => {
+          const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
+          if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
+          return ctx.models.complete(model, contextForModel(), {
+            thinkingEnabled: true,
+            apiKey: effectiveModel.apiKey || undefined,
+            baseURL: effectiveModel.baseURL || undefined,
+            signal: params.signal,
+            maxRetries: 0,
+          });
+        },
         execute: (calls: ToolCall[]): Promise<ToolResult[]> => executeTools({
-          toolCalls: calls, toolProvider: toolProviderWithDelegate, addMessage, appendContent,
+          toolCalls: calls,
+          toolProvider: toolProviderWithDelegate,
+          messages: msgs,
           agentState: params.agentState,
           permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,
           ruleStore: ctx.ruleStore,
           securityMode: ctx.securityMode,
-          workspaceRoot, agentName: behavior.name,
-          readOnly: behavior.readOnly, sessionId: params.sessionId, signal: params.signal,
-          emit: (chunk) => trackMessageStart(chunk),
+          workspaceRoot,
+          agentName: behavior.name,
+          readOnly: behavior.readOnly,
+          sessionId: params.sessionId,
+          signal: params.signal,
+          emit: (event) => trackMessageStart(event),
         }),
-        emit: (chunk) => trackMessageStart(chunk),
-        signal: params.signal, maxSteps: behavior.maxTurns,
-        workspaceRoot, readOnly: behavior.readOnly,
-        agentName: behavior.name, sessionId: params.sessionId,
+        emit: (event) => trackMessageStart(event),
+        signal: params.signal,
+        maxSteps: behavior.maxTurns,
+        workspaceRoot,
+        readOnly: behavior.readOnly,
+        agentName: behavior.name,
+        sessionId: params.sessionId,
       };
 
       const result = await loopStrategy.run(loopCtx);
+      const usage = result.usage;
 
       // 累加 token usage，发布事件，持久化明细
-      liveState.addTokenUsage(result.usage);
+      liveState.addTokenUsage(usage);
       params.agentState.publishUsageChange(workspace, params.sessionId, liveState.tokenUsage);
 
-      const history = (session.metadata.tokenUsageHistory ?? []) as TokenUsageDetail[];
+      const history = ((session.metadata.tokenUsageHistory as unknown[]) ?? []).map((entry) =>
+        normalizeUsageDetail(entry as TokenUsageDetail),
+      );
       history.push({
-        ...result.usage,
+        ...usage,
         runAt: new Date(),
-        turns: [result.usage],
+        turns: [usage],
       });
       session.metadata.tokenUsageHistory = history;
 
       // 把本次 usage 绑定到当前 assistant 消息
       if (currentMessageId) {
-        const messageTokenUsage = (session.metadata.messageTokenUsage ?? {}) as Record<string, import('./types.js').LanguageModelUsage>;
-        messageTokenUsage[currentMessageId] = result.usage;
+        const messageTokenUsage: Record<string, Usage> = {};
+        for (const [key, value] of Object.entries(session.metadata.messageTokenUsage ?? {})) {
+          messageTokenUsage[key] = normalizeUsage(value as Usage);
+        }
+        messageTokenUsage[currentMessageId] = usage;
         session.metadata.messageTokenUsage = messageTokenUsage;
       }
 
@@ -269,7 +302,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       await sessionProvider.save(session);
 
       const output: AgentOutput = { content: result.content, completed: true };
-      controller.finish(output);
+      controller.finish(output, result.message);
       return output;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -290,7 +323,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 function forkTitleGeneration(
   session: Session,
   titleProvider: TitleProvider,
-  controller: AgentStreamController,
+  controller: AgentEventStreamController,
   sessionProvider: SessionProvider,
 ): void {
   if (session.metadata.title) return;

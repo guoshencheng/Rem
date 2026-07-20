@@ -245,4 +245,22 @@ describe('DefaultConfigProvider', () => {
     await provider.init();
     expect(provider.getBehaviorConfig().name).toBe('Subdir Agent');
   });
+
+  it('reads model from env when only provider is set in config', async () => {
+    await writeFile(
+      join(tempDir, 'rem-agent.config.json'),
+      JSON.stringify({
+        model: { provider: 'minimax' },
+      }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({
+      paths,
+      cwd: tempDir,
+      env: { MINIMAX_MODEL: 'MiniMax-M3' },
+    });
+    await provider.init();
+    expect(provider.getModelConfig().provider).toBe('minimax');
+    expect(provider.getModelConfig().model).toBe('MiniMax-M3');
+  });
 });

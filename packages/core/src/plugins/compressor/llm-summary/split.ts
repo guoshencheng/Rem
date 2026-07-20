@@ -1,13 +1,13 @@
-import type { ModelMessage } from '../../../types.js';
+import type { Message } from '@earendil-works/pi-ai';
 
 export interface SplitResult {
-  head: ModelMessage[];
-  middle: ModelMessage[];
-  tail: ModelMessage[];
+  head: Message[];
+  middle: Message[];
+  tail: Message[];
 }
 
 export function splitHeadTail(
-  messages: ModelMessage[],
+  messages: Message[],
   protectHead: number,
   protectTail: number,
 ): SplitResult {

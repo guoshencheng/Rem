@@ -1,6 +1,6 @@
 import type { ContextProvider } from '../../../sdk/context-provider.js';
 import type { MemoryProvider, MemoryContext } from '../../../sdk/memory-provider.js';
-import type { ModelMessage } from '../../../types.js';
+import type { Message } from '@earendil-works/pi-ai';
 import type { Session } from '../../../session.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
 
@@ -11,7 +11,7 @@ export class SimpleContextProvider implements ContextProvider, MemoryProvider {
     this.agentName = configProvider.getBehaviorConfig().name;
   }
 
-  async build(session: Session, _agentName: string): Promise<{ system: string; messages: ModelMessage[] }> {
+  async build(session: Session, _agentName: string): Promise<{ system: string; messages: Message[] }> {
     return {
       system: '',
       messages: session.conversation,

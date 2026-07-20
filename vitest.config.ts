@@ -13,6 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      { find: 'rem-agent-core/stream/event-aggregators', replacement: resolve(__dirname, 'packages/core/src/stream/event-aggregators.ts') },
       { find: 'rem-agent-core/token-usage', replacement: resolve(__dirname, 'packages/core/src/token-usage.ts') },
       { find: 'rem-agent-core/llm/context-window', replacement: resolve(__dirname, 'packages/core/src/llm/context-window.ts') },
       { find: 'rem-agent-core', replacement: resolve(__dirname, 'packages/core/src/index.ts') },

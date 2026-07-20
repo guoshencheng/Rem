@@ -1,6 +1,13 @@
+import type { Tool } from '@earendil-works/pi-ai';
 import type { Static, TObject } from '@sinclair/typebox';
-import type { ToolSet } from '../llm/types.js';
 import type { Rule } from '../security/rules/rule.js';
+
+export interface ToolSchema {
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export type ToolSet = Tool[];
 
 export interface ToolContext {
   cwd: string;
@@ -9,6 +16,7 @@ export interface ToolContext {
   agentName?: string;
   readOnly?: boolean;
   sessionId?: string;
+  toolCallId?: string;
   outsideAllowed?: boolean;
 }
 

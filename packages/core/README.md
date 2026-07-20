@@ -295,7 +295,7 @@ const models = createCoreModels({ all: true });
 
 #### `context-window`
 
-`resolveContextWindow(provider, model)` returns a fallback context-window size for known models, respecting `MAX_CONTEXT_TOKENS` and per-model environment overrides.
+`resolveContextWindow(provider, model, env?, models?)` resolves the context-window size from pi-ai model metadata (`models.getModel(provider, model).contextWindow`), respecting `MAX_CONTEXT_TOKENS` and per-model environment overrides, with a 1M fallback for unknown models.
 
 ---
 

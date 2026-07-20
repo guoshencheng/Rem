@@ -128,7 +128,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           normalizeUsageDetail(entry as TokenUsageDetail),
         );
         const accumulated = history.reduce((sum: number, entry) => sum + entry.totalTokens, 0);
-        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model);
+        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, process.env, ctx.models);
         const compressionCfg = ctx.configProvider.getCompressionConfig();
         const threshold = maxTokens * compressionCfg.thresholdRatio;
 

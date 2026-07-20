@@ -61,6 +61,11 @@ export function formatUsage(usage: Usage): string {
   return `${usage.totalTokens.toLocaleString()} tokens (${usage.input.toLocaleString()} in / ${usage.output.toLocaleString()} out)`;
 }
 
+export function formatCost(cost: Usage['cost']): string {
+  const total = cost.total ?? 0;
+  return total >= 1 ? `$${total.toFixed(2)}` : `$${total.toFixed(4)}`;
+}
+
 export function normalizeUsage(usage: unknown): Usage {
   if (!usage || typeof usage !== 'object') return emptyUsage();
   const u = usage as Record<string, any>;

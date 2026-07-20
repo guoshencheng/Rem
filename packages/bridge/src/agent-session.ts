@@ -32,6 +32,7 @@ export class AgentSessionManager {
           title: s.title ?? 'New Chat',
           pinned: s.pinned,
           parentSessionId: (session.metadata?.parentSessionId as string | undefined),
+          parentToolCallId: (session.metadata?.parentToolCallId as string | undefined),
           updatedAt: s.updatedAt.getTime(),
           messageCount: s.messageCount,
           tokenUsage,

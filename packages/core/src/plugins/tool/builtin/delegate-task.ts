@@ -42,6 +42,7 @@ export function createDelegateTaskToolExecutor(
     const childSession = await parentCtx.sessionProvider.create();
     const childSessionId = childSession.sessionId;
     childSession.metadata.parentSessionId = parentSessionId;
+    childSession.metadata.parentToolCallId = toolCtx.toolCallId;
     childSession.metadata.workspace = workspace;
     childSession.metadata.title = input.task.slice(0, 50);
     await parentCtx.sessionProvider.save(childSession);

@@ -81,6 +81,7 @@ export interface SessionSummary {
   activity?: SessionActivity;
   tokenUsage?: Usage;
   parentSessionId?: string;
+  parentToolCallId?: string;
 }
 
 interface UseAgentsOptions {
@@ -255,6 +256,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       if (existing && (existing.toolCallId || existing.status === 'running')) continue;
       parentState.childAgents.set(s.sessionId, {
         childSessionId: s.sessionId,
+        toolCallId: s.parentToolCallId,
         summary: s.title ?? '',
         status: 'completed',
         tokenUsage: s.tokenUsage,

@@ -38,10 +38,31 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
     message.parts.filter((p) => p.type === 'toolCall').map((p) => (p as { id: string }).id),
   );
 
+  // 旧数据没有持久化 toolCallId，按 delegate_task 入参 task 与卡片 summary 前缀匹配兜底
+  const matchByTask = (toolCallId: string, toolName: string, args: unknown): ChildAgentInfo | undefined => {
+    const byId = childByToolCallId.get(toolCallId);
+    if (byId) return byId;
+    if (toolName !== 'delegate_task' || !childAgents) return undefined;
+    const task = (args as { task?: unknown })?.task;
+    if (typeof task !== 'string') return undefined;
+    for (const c of childAgents.values()) {
+      if (c.toolCallId) continue;
+      if (task === c.summary || task.startsWith(c.summary)) return c;
+    }
+    return undefined;
+  };
+
   const unlinkedChildren = childAgents
-    ? Array.from(childAgents.values()).filter(
-        (c) => !c.toolCallId || !embeddedToolCallIds.has(c.toolCallId),
-      )
+    ? Array.from(childAgents.values()).filter((c) => {
+        if (c.toolCallId && embeddedToolCallIds.has(c.toolCallId)) return false;
+        if (!c.toolCallId) {
+          const matched = message.parts.some(
+            (p) => p.type === 'toolCall' && !!matchByTask((p as { id: string }).id, (p as { name: string }).name, (p as { arguments: unknown }).arguments),
+          );
+          if (matched) return false;
+        }
+        return true;
+      })
     : [];
 
   if (isUser) {
@@ -80,7 +101,7 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
           }
           if (part.type === 'toolCall') {
             const result = message.toolResults?.[part.id];
-            const child = childByToolCallId.get(part.id);
+            const child = matchByTask(part.id, part.name, part.arguments);
             return <ToolCallBlock key={i} tool={part} result={result} child={child} onOpenChild={onOpenChild} />;
           }
           if (part.type === 'text' && part.text) {

@@ -1,5 +1,5 @@
 import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
-import type { Message, AssistantMessageEvent, Usage } from '@earendil-works/pi-ai';
+import type { Message, AssistantMessageEvent, Usage, TextContent, ImageContent } from '@earendil-works/pi-ai';
 
 export interface StreamErrorInfo {
   name: string;
@@ -30,8 +30,10 @@ export type RemMetaEvent =
 
 export type AgentStreamEvent = AssistantMessageEvent | RemMetaEvent;
 
+export type UserInputContent = string | (TextContent | ImageContent)[];
+
 export interface UserInput {
-  content: string;
+  content: UserInputContent;
   timestamp?: Date;
 }
 

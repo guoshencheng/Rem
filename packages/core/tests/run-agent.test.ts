@@ -79,6 +79,44 @@ describe('runAgent', () => {
     expect(output.completed).toBe(true);
   });
 
+  it('passes through multipart user content (text + image) to the session', async () => {
+    const saveMock = vi.fn();
+    const base = createMockContextBase();
+    const mockCtx = {
+      ...base,
+      sessionProvider: { ...base.sessionProvider, save: saveMock },
+      loopStrategy: {
+        run: async () => ({
+          content: 'ok',
+          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
+        }),
+      },
+    } as unknown as AgentContext;
+
+    const parts = [
+      { type: 'text' as const, text: 'look at this' },
+      { type: 'image' as const, data: 'aGVsbG8=', mimeType: 'image/png' },
+    ];
+
+    const { runAgent } = await import('../src/run-agent.js');
+    const result = runAgent({
+      input: { content: parts, timestamp: new Date() },
+      sessionId: 'test-session-parts',
+      ctx: mockCtx,
+      agentState: new AgentState(),
+    });
+    for await (const _chunk of result.stream.fullStream) {
+      // drain
+    }
+    await result.output;
+
+    expect(saveMock).toHaveBeenCalled();
+    const savedSession = saveMock.mock.calls[0][0] as { conversation: Array<{ role: string; content: unknown }> };
+    const last = savedSession.conversation[savedSession.conversation.length - 1];
+    expect(last.role).toBe('user');
+    expect(last.content).toEqual(parts);
+  });
+
   it('calls toolComposer.compose and uses the effective tool provider', async () => {
     const composedToolSet = [{ name: 'composedTool', description: 'composed', parameters: { type: 'object', properties: {} } }];
     const compose = vi.fn(() => ({

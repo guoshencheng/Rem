@@ -6,7 +6,7 @@ import { TodoPanel } from './todo-panel';
 import { useTodos } from '@/lib/use-todos';
 import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
 import type { UIMessage, SessionActivity } from '@/lib/types';
-import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
 import type { IAgentService } from 'rem-agent-bridge/client';
 import type { ChildAgentInfo } from '@/lib/use-agents';
 
@@ -23,7 +23,7 @@ interface ChatPanelProps {
   maxTokens?: number;
   childAgents?: Map<string, ChildAgentInfo>;
   onOpenChild?: (sessionId: string) => void;
-  onSend(content: string): void;
+  onSend(content: UserInputContent): void | Promise<void>;
   onInterrupt(): void;
   onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
   agentService: IAgentService;

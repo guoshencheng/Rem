@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
 import type { StreamErrorInfo } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
@@ -611,16 +611,25 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
   }, [version]);
 
   const send = useCallback(
-    async (content: string) => {
+    async (content: UserInputContent) => {
       if (!currentId) return;
       const map = sessionMapRef.current;
       const state = map.get(currentId);
       if (!state) return;
 
+      const parts: UIMessage['parts'] =
+        typeof content === 'string'
+          ? [{ type: 'text', text: content }]
+          : content.map((p) =>
+              p.type === 'text'
+                ? { type: 'text' as const, text: p.text }
+                : { type: 'image' as const, data: p.data, mimeType: p.mimeType },
+            );
+
       const userMsg: UIMessage = {
         id: generateUUID(),
         role: 'user',
-        parts: [{ type: 'text', text: content }],
+        parts,
         status: 'done',
       };
 
@@ -636,6 +645,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         state.status = 'error';
         state.error = err instanceof Error ? err.message : 'Send failed';
         notifyChange();
+        throw err;
       }
     },
     [currentId, bus, notifyChange, workspace],

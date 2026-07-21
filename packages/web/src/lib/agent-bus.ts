@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import type { IAgentService, BusEvent } from 'rem-agent-bridge/client';
+import type { UserInputContent } from 'rem-agent-core';
 
 type Listener = (event: BusEvent) => void;
 type ReconnectListener = () => void;
@@ -92,7 +93,7 @@ export function getAgentBus(service: IAgentService) {
         reconnectListeners.delete(listener);
       };
     },
-    async send(workspace: string, sessionId: string, content: string) {
+    async send(workspace: string, sessionId: string, content: UserInputContent) {
       await service.run(workspace, sessionId, content);
     },
     async interrupt(workspace: string, sessionId: string) {
@@ -120,7 +121,7 @@ export function useAgentBus(agentService: IAgentService) {
   const onEvent = useCallback((listener: Listener) => busRef.current?.onEvent(listener) ?? (() => {}), []);
   const onReconnect = useCallback((listener: ReconnectListener) => busRef.current?.onReconnect(listener) ?? (() => {}), []);
   const send = useCallback(
-    async (workspace: string, sessionId: string, content: string) => {
+    async (workspace: string, sessionId: string, content: UserInputContent) => {
       await busRef.current?.send(workspace, sessionId, content);
     },
     [],

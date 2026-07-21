@@ -1,7 +1,7 @@
 'use client';
 
 import type { SessionActivity } from 'rem-agent-bridge';
-import type { ApprovalDecision, ApprovalRequest, Usage, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
 import { ActivityBar } from './activity-bar';
 import { InputBox } from './input-box';
 import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
@@ -13,7 +13,7 @@ export interface ChatComposerProps {
   tokenUsage?: Usage;
   maxTokens?: number;
   pendingApprovals?: ApprovalRequest[];
-  onSend(content: string): void;
+  onSend(content: UserInputContent): void | Promise<void>;
   onInterrupt(): void;
   onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
 }

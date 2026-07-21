@@ -31,6 +31,7 @@ export function InputBox({
 }: InputBoxProps) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composingRef = useRef(false);
 
   const handleSend = useCallback(() => {
     const text = content.trim();
@@ -44,6 +45,7 @@ export function InputBox({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (composingRef.current || e.nativeEvent.isComposing) return;
       e.preventDefault();
       handleSend();
     }
@@ -65,10 +67,12 @@ export function InputBox({
         value={content}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={() => { composingRef.current = false; }}
         disabled={streaming || !initialized}
         placeholder={placeholder}
-        rows={1}
-        className="w-full bg-transparent text-sm text-tx placeholder-tx3 outline-none resize-none min-h-[24px] max-h-[160px]"
+        rows={2}
+        className="w-full bg-transparent text-sm text-tx placeholder-tx3 outline-none resize-none min-h-[48px] max-h-[160px]"
       />
       <div className="flex items-center justify-between mt-3 gap-4">
         <div className="flex items-center gap-3">

@@ -67,4 +67,35 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
     expect(messages).toHaveLength(1);
     expect(messages[0].tokenUsage?.totalTokens).toBe(15);
   });
+
+  it('passes through user image blocks instead of collapsing to [image]', async () => {
+    const sessionProvider = {
+      list: async () => [],
+      load: async (sessionId: string) => ({
+        sessionId,
+        metadata: {},
+        conversation: [
+          {
+            id: 'u1',
+            role: 'user',
+            content: [
+              { type: 'text', text: 'look at this' },
+              { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' },
+            ],
+            timestamp: Date.now(),
+          },
+        ],
+        currentTurn: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    } as any;
+
+    const manager = new AgentSessionManager(sessionProvider, {} as any);
+    const messages = await manager.getMessages('s1');
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].parts).toContainEqual({ type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' });
+    expect(messages[0].parts).toContainEqual({ type: 'text', text: 'look at this' });
+  });
 });

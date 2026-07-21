@@ -1,9 +1,9 @@
-import type { TextContent, ThinkingContent, ToolCall, UserInputContent } from 'rem-agent-core';
+import type { TextContent, ThinkingContent, ToolCall, ImageContent, UserInputContent } from 'rem-agent-core';
 import type { AgentStreamEvent, BusEvent, SessionActivity, Usage } from 'rem-agent-core';
 
 export type { BusEvent, SessionActivity, Usage };
 
-export type UiContentBlock = TextContent | ThinkingContent | ToolCall;
+export type UiContentBlock = TextContent | ThinkingContent | ToolCall | ImageContent;
 
 export interface ToolResultBlock {
   type: 'toolResult';

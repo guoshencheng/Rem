@@ -161,7 +161,7 @@ function messageToContentBlocks(message: Message): UiContentBlock[] {
     }
     return message.content
       .filter((c): c is TextContent | ImageContent => c.type === 'text' || c.type === 'image')
-      .map((c) => c.type === 'text' ? { type: 'text', text: c.text } : { type: 'text', text: '[image]' });
+      .map((c) => (c.type === 'text' ? { type: 'text' as const, text: c.text } : { type: 'image' as const, data: c.data, mimeType: c.mimeType }));
   }
   const parts: UiContentBlock[] = [];
   for (const block of message.content) {

@@ -73,6 +73,16 @@ export function MessageItem({ message, childAgents, onOpenChild }: MessageItemPr
             if (part.type === 'text') {
               return <span key={i}>{part.text}</span>;
             }
+            if (part.type === 'image') {
+              return (
+                <img
+                  key={i}
+                  src={`data:${part.mimeType};base64,${part.data}`}
+                  alt="attachment"
+                  className="block max-w-[240px] max-h-[180px] rounded-lg mb-1"
+                />
+              );
+            }
             return null;
           })}
         </div>

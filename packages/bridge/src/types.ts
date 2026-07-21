@@ -1,4 +1,4 @@
-import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core';
+import type { TextContent, ThinkingContent, ToolCall, UserInputContent } from 'rem-agent-core';
 import type { AgentStreamEvent, BusEvent, SessionActivity, Usage } from 'rem-agent-core';
 
 export type { BusEvent, SessionActivity, Usage };
@@ -28,7 +28,7 @@ export interface UIMessage {
 
 export interface RunRequest {
   sessionId: string;
-  content: string;
+  content: UserInputContent;
 }
 
 export interface InterruptRequest {

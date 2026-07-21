@@ -23,6 +23,27 @@ describe('AgentRemoteService', () => {
     );
   });
 
+  it('posts multipart content parts as JSON body', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+
+    const parts = [
+      { type: 'text' as const, text: 'hi' },
+      { type: 'image' as const, data: 'aGVsbG8=', mimeType: 'image/png' },
+    ];
+    const client = new AgentRemoteService('http://localhost:8321');
+    await client.run(WORKSPACE, 's1', parts);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:8321/api/agent/run?workspace=${encodeURIComponent(WORKSPACE)}`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ sessionId: 's1', content: parts }),
+      }),
+    );
+  });
+
   it('throws when run response is not ok', async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock as any;

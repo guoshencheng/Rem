@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 
 export interface IAgentService {
@@ -10,7 +10,7 @@ export interface IAgentService {
   removeWorkspace(path: string): Promise<void>;
 
   // Session operations now require workspace
-  run(workspace: string, sessionId: string, input: string): Promise<void>;
+  run(workspace: string, sessionId: string, input: UserInputContent): Promise<void>;
   interrupt(workspace: string, sessionId: string): Promise<void>;
   reset(workspace: string, sessionId: string): Promise<void>;
   createSession(workspace: string): Promise<SessionSummary>;

@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
 import type { BusEvent } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import type {
@@ -6,6 +6,7 @@ import type {
   SessionUpdate,
   InterruptRequest,
   ResetRequest,
+  RunRequest,
   UIMessage,
   Workspace,
 } from './types.js';
@@ -36,11 +37,11 @@ export class AgentRemoteService implements IAgentService {
     return `workspace=${encodeURIComponent(workspace)}`;
   }
 
-  async run(workspace: string, sessionId: string, input: string): Promise<void> {
+  async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
     const response = await fetch(`${this.resolvedBaseUrl}/api/agent/run?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, content: input }),
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
     });
 
     if (!response.ok) {

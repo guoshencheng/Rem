@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, UserInputContent } from 'rem-agent-core';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import { runAgent as coreRunAgent, buildAgentContext, AgentState, log } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
@@ -63,7 +63,7 @@ export class AgentService implements IAgentService {
 
   /* ---- Agent lifecycle ---- */
 
-  async run(workspace: string, sessionId: string, input: string): Promise<void> {
+  async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
     this.ensureInitialized();
 
     if (this.agentState.isRunning(sessionId)) {

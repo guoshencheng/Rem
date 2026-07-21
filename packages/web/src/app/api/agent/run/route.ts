@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ServiceError, type IAgentService } from 'rem-agent-bridge';
-import { log } from 'rem-agent-core';
+import { log, type UserInputContent } from 'rem-agent-core';
 import { getContainer } from '@/lib/container';
 
 function errorResponse(err: unknown) {
@@ -21,14 +21,19 @@ export async function POST(request: NextRequest) {
     body = await request.json();
     const { sessionId, content } = body as {
       sessionId: string;
-      content?: string;
+      content?: UserInputContent;
     };
     workspace = getWorkspace(request);
 
     const container = await getContainer();
     const agentService = container.resolve<IAgentService>('agentService');
 
-    if (!content || !sessionId) {
+    const isEmpty =
+      content === undefined ||
+      content === null ||
+      (typeof content === 'string' && !content) ||
+      (Array.isArray(content) && content.length === 0);
+    if (!sessionId || isEmpty) {
       return NextResponse.json({ error: 'sessionId and content are required' }, { status: 400 });
     }
 

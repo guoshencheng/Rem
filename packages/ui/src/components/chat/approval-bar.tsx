@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { ApprovalDecision, ApprovalRequest, Rule } from 'rem-agent-core';
 import { ShieldAlert, ShieldCheck, ShieldX, Shield } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 
 interface ApprovalBarProps {
   approvals: ApprovalRequest[];

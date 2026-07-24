@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { MoreHorizontal, Pin, Pencil, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import type { SessionSummary } from '@/lib/use-agents';
+import { cn } from '../../lib/utils';
+import type { SessionSummary } from '../../lib/use-agents';
 import type { SessionActivity } from 'rem-agent-bridge';
 
 function activityDot(activity?: SessionActivity) {

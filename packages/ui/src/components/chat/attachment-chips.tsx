@@ -1,7 +1,7 @@
 'use client';
 
 import { X, FileText } from 'lucide-react';
-import type { TextAttachment, ImageAttachment } from '@/lib/attachments';
+import type { TextAttachment, ImageAttachment } from '../../lib/attachments';
 
 interface AttachmentChipsProps {
   textFiles: TextAttachment[];

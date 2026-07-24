@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, Wrench, PenLine, Hourglass } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import type { SessionActivity } from 'rem-agent-bridge';
 
 interface ActivityBarProps {

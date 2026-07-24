@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronRight, Sparkles, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 
 import type { UIMessage } from 'rem-agent-bridge';
 

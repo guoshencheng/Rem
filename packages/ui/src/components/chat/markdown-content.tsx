@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { renderMarkdown } from '@/lib/markdown';
+import { renderMarkdown } from '../../lib/markdown';
 
 interface MarkdownContentProps {
   text: string;

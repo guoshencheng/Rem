@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import { MarkdownContent } from './markdown-content';
 import { ChildAgentCard } from './child-agent-card';
 import { CopyButton } from './copy-button';
 import type { UIMessage, UiContentBlock } from 'rem-agent-bridge';
-import type { ChildAgentInfo } from '@/lib/use-agents';
+import type { ChildAgentInfo } from '../../lib/use-agents';
 import { ReasoningBlock } from './reasoning-block';
 import { ToolCallBlock } from './tool-call-block';
 

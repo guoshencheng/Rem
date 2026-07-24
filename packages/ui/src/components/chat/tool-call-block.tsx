@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import type { ToolCall } from 'rem-agent-core';
 import type { ToolResultBlock } from 'rem-agent-bridge';
-import type { ChildAgentInfo } from '@/lib/use-agents';
+import type { ChildAgentInfo } from '../../lib/use-agents';
 import { ChildAgentCard } from './child-agent-card';
 
 interface ToolCallBlockProps {

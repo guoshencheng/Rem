@@ -3,12 +3,12 @@
 import { MessageList } from './message-list';
 import { ChatComposer } from './chat-composer';
 import { TodoPanel } from './todo-panel';
-import { useTodos } from '@/lib/use-todos';
-import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
-import type { UIMessage, SessionActivity } from '@/lib/types';
+import { useTodos } from '../../lib/use-todos';
+import { DEFAULT_CONTEXT_WINDOW } from '../../lib/context-window';
+import type { UIMessage, SessionActivity } from '../../lib/types';
 import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
 import type { IAgentService } from 'rem-agent-bridge/client';
-import type { ChildAgentInfo } from '@/lib/use-agents';
+import type { ChildAgentInfo } from '../../lib/use-agents';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
 

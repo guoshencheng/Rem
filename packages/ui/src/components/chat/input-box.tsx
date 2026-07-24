@@ -3,11 +3,11 @@
 import { useState, useRef, useCallback, KeyboardEvent, ClipboardEvent, DragEvent, ChangeEvent } from 'react';
 import { ArrowUp, Square, Plus } from 'lucide-react';
 import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import { ApprovalBar } from './approval-bar';
 import { TokenStatsBadge } from './token-stats';
 import { AttachmentChips } from './attachment-chips';
-import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
+import { DEFAULT_CONTEXT_WINDOW } from '../../lib/context-window';
 import {
   isTextFile,
   isImageFile,
@@ -20,7 +20,7 @@ import {
   MAX_IMAGES,
   type TextAttachment,
   type ImageAttachment,
-} from '@/lib/attachments';
+} from '../../lib/attachments';
 
 interface InputBoxProps {
   streaming: boolean;

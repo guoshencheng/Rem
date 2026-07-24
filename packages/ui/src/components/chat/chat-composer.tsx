@@ -4,7 +4,7 @@ import type { SessionActivity } from 'rem-agent-bridge';
 import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
 import { ActivityBar } from './activity-bar';
 import { InputBox } from './input-box';
-import { DEFAULT_CONTEXT_WINDOW } from '@/lib/context-window';
+import { DEFAULT_CONTEXT_WINDOW } from '../../lib/context-window';
 
 export interface ChatComposerProps {
   streaming: boolean;

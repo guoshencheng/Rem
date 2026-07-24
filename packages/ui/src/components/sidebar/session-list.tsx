@@ -1,7 +1,7 @@
 'use client';
 
 import { SessionItem } from './session-item';
-import type { SessionSummary } from '@/lib/use-agents';
+import type { SessionSummary } from '../../lib/use-agents';
 
 interface SessionListProps {
   sessions: SessionSummary[];

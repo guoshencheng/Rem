@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Loader2, CheckCircle2, XCircle, X, ExternalLink } from 'lucide-react';
 import { MessageItem } from './message-item';
-import type { ChildAgentInfo, SessionView } from '@/lib/use-agents';
+import type { ChildAgentInfo, SessionView } from '../../lib/use-agents';
 
 interface ChildAgentDrawerProps {
   child: ChildAgentInfo;

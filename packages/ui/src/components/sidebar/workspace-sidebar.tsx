@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Plus, Menu, X, ChevronRight, ChevronDown, Trash2, Folder, MessageSquarePlus } from 'lucide-react';
 import { SessionList } from './session-list';
-import type { SessionSummary } from '@/lib/use-agents';
+import type { SessionSummary } from '../../lib/use-agents';
 import type { Workspace } from 'rem-agent-bridge';
 
 function basename(filePath: string): string {

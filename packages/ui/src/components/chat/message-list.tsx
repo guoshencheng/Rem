@@ -2,9 +2,9 @@
 
 import { useRef, useEffect } from 'react';
 import { MessageItem } from './message-item';
-import type { UIMessage } from '@/lib/types';
+import type { UIMessage } from '../../lib/types';
 import type { UserInputContent } from 'rem-agent-core';
-import type { ChildAgentInfo } from '@/lib/use-agents';
+import type { ChildAgentInfo } from '../../lib/use-agents';
 
 interface MessageListProps {
   messages: UIMessage[];

@@ -2,6 +2,7 @@
   "name": "rem-agent-ui",
   "version": "0.1.0",
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./local": {
+      "types": "./dist/local.d.ts",
+      "import": "./dist/local.js",
+      "require": "./dist/local.cjs"
     },
     "./styles.css": "./dist/styles.css"
   },

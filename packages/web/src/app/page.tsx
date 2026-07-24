@@ -1,7 +1,9 @@
 'use client';
 
-import { RemApp } from 'rem-agent-ui';
+import { useMemo } from 'react';
+import { RemApp, AgentRemoteService } from 'rem-agent-ui';
 
 export default function Home() {
-  return <RemApp apiPrefix="/api/rem" />;
+  const service = useMemo(() => new AgentRemoteService('', { apiPrefix: '/api/rem' }), []);
+  return <RemApp service={service} />;
 }

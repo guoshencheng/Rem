@@ -23,6 +23,7 @@
     "rem-agent-bridge": "workspace:*",
     "rem-agent-core": "workspace:*",
     "rem-agent-routes": "workspace:*",
+    "rem-agent-ui": "workspace:*",
     "shiki": "^4.0.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.3.1",

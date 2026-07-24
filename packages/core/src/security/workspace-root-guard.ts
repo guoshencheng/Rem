@@ -2,19 +2,12 @@ import { accessSync, constants, realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as os from 'node:os';
+import { WorkspaceOutsideError } from './workspace-outside-error.js';
+
+export { WorkspaceOutsideError };
 
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 const NARROW_NO_BREAK_SPACE = '\u202F';
-
-export class WorkspaceOutsideError extends Error {
-  constructor(
-    public readonly absolutePath: string,
-    public readonly workspaceRoot: string,
-  ) {
-    super(`Path "${absolutePath}" resolves outside workspace root "${workspaceRoot}"`);
-    this.name = 'WorkspaceOutsideError';
-  }
-}
 
 export function expandPath(filePath: string): string {
   const normalized = filePath.replace(UNICODE_SPACES, ' ').trim();

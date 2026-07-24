@@ -5,7 +5,7 @@ import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall,
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
 import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
-import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
+import { WorkspaceOutsideError } from '../security/workspace-outside-error.js';
 
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;

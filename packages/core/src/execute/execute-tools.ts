@@ -7,7 +7,7 @@ import type { Rule } from '../security/rules/rule.js';
 import type { RuleStorage } from '../sdk/storage-provider.js';
 import { AgentState } from '../agent-state.js';
 import { RuleEngine } from '../security/rules/rule-engine.js';
-import { WorkspaceOutsideError } from '../security/workspace-root-guard.js';
+import { WorkspaceOutsideError } from '../security/workspace-outside-error.js';
 import { classifyTool } from '../security/permissions/tool-classifier.js';
 import type { ToolCategory } from '../security/permissions/tool-classifier.js';
 import { log } from '../shared/debug-log.js';

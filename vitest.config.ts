@@ -18,6 +18,7 @@ export default defineConfig({
       { find: 'rem-agent-core/llm/context-window', replacement: resolve(__dirname, 'packages/core/src/llm/context-window.ts') },
       { find: 'rem-agent-core', replacement: resolve(__dirname, 'packages/core/src/index.ts') },
       { find: 'rem-agent-bridge', replacement: resolve(__dirname, 'packages/bridge/src/index.ts') },
+      { find: 'rem-agent-ui', replacement: resolve(__dirname, 'packages/ui/src/index.ts') },
       { find: 'rem-agent-tui', replacement: resolve(__dirname, 'packages/tui/src/index.ts') },
       { find: '@/', replacement: resolve(__dirname, 'packages/web/src') + '/' },
     ],

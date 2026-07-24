@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as core from 'rem-agent-core';
+import * as coreBrowser from 'rem-agent-core/browser';
 import {
   createTestService,
   collectBusEvents,
@@ -94,7 +95,7 @@ describe('AgentService.run background driver', { timeout: 30000 }, () => {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
       const { events, stop } = collectBusEvents(service, summary.sessionId);
 
-      const runAgentSpy = vi.spyOn(core, 'runAgent').mockImplementationOnce(() => {
+      const runAgentSpy = vi.spyOn(coreBrowser, 'runAgent').mockImplementationOnce(() => {
         throw new Error('sync boom');
       });
 

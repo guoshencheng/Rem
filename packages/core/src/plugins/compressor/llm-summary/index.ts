@@ -20,6 +20,8 @@ export class LLMSummarizingCompressor implements ContextCompressor {
     private config: Required<CompressionConfig>,
     private modelConfig: ResolvedModelConfig,
     private models: Models,
+    private env: Record<string, string | undefined> =
+      typeof process !== 'undefined' ? process.env : {},
   ) {}
 
   shouldCompress(session: Session): boolean {
@@ -40,11 +42,11 @@ export class LLMSummarizingCompressor implements ContextCompressor {
         return sum + text.length;
       }, 0);
       const estimated = Math.ceil(totalChars / 4);
-      const maxTokens = resolveContextWindow(this.modelConfig.provider, this.modelConfig.model, process.env, this.models);
+      const maxTokens = resolveContextWindow(this.modelConfig.provider, this.modelConfig.model, this.env, this.models);
       return estimated >= maxTokens * this.config.thresholdRatio;
     }
 
-    const maxTokens = resolveContextWindow(this.modelConfig.provider, this.modelConfig.model, process.env, this.models);
+    const maxTokens = resolveContextWindow(this.modelConfig.provider, this.modelConfig.model, this.env, this.models);
     const threshold = maxTokens * this.config.thresholdRatio;
     return effectiveTokens >= threshold;
   }

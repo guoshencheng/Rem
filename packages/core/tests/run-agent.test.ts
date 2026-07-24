@@ -46,6 +46,7 @@ const createMockContextBase = () => ({
     stream: vi.fn(),
     complete: vi.fn(),
   },
+  runtime: { platform: 'test', cwd: '/tmp', env: {} },
 });
 
 describe('runAgent', () => {

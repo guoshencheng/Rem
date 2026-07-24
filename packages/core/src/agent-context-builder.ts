@@ -42,7 +42,7 @@ import {
   RuntimeSection,
   ProjectAgentsMdLoader,
 } from './system-prompt/index.js';
-import type { AgentContext } from './agent-context.js';
+import type { AgentContext, AgentRuntimeInfo } from './agent-context.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 
 import type { AgentPaths } from './config/paths.js';
@@ -63,6 +63,7 @@ export interface AgentContextBuildOptions {
   paths?: AgentPaths;
   storageProvider?: StorageProvider;
   models?: import('@earendil-works/pi-ai').Models;
+  runtime?: AgentRuntimeInfo;
 }
 
 async function buildRuleSecurity(
@@ -86,6 +87,13 @@ async function buildRuleSecurity(
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
   const models = options?.models ?? createCoreModels({ all: true });
+
+  const runtime: AgentRuntimeInfo = options?.runtime ?? {
+    platform: process.platform,
+    nodeVersion: process.version,
+    cwd: process.cwd(),
+    env: process.env,
+  };
 
   const paths = options?.paths ?? createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
   configureFileDebugLog(paths.debugLogFile);
@@ -121,7 +129,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   const contextProvider = new SimpleContextProvider(configProvider);
   const skillProvider = new FileSkillProvider(configProvider, paths);
   const budgetPolicy = new FixedBudgetPolicy(configProvider);
-    const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models);
+    const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models, runtime.env);
   const errorHandler = new SimpleErrorHandler();
   const titleProvider = new LLMTitleProvider(configProvider, models);
   const loopStrategy = new ReactLoop();
@@ -188,5 +196,6 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     archiveStore: storageProvider.archiveStore,
     workspaceStore: storageProvider.workspaceStore,
     models,
+    runtime,
   };
 }

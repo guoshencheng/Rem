@@ -52,6 +52,7 @@ describe('delegate_task tool', () => {
           usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
         }),
       },
+      runtime: { platform: 'test', cwd: '/tmp', env: {} },
     } as unknown as AgentContext;
 
     const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
@@ -108,6 +109,7 @@ describe('delegate_task tool', () => {
           throw new Error('Child agent failure');
         },
       },
+      runtime: { platform: 'test', cwd: '/tmp', env: {} },
     } as unknown as AgentContext;
 
     const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
@@ -167,6 +169,7 @@ describe('delegate_task tool', () => {
           };
         },
       },
+      runtime: { platform: 'test', cwd: '/tmp', env: {} },
     } as unknown as AgentContext;
 
     const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');

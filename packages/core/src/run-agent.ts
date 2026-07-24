@@ -128,7 +128,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           normalizeUsageDetail(entry as TokenUsageDetail),
         );
         const accumulated = history.reduce((sum: number, entry) => sum + entry.totalTokens, 0);
-        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, process.env, ctx.models);
+        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, ctx.runtime.env, ctx.models);
         const compressionCfg = ctx.configProvider.getCompressionConfig();
         const threshold = maxTokens * compressionCfg.thresholdRatio;
 
@@ -203,10 +203,10 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         skills,
         model: { provider: effectiveModel.provider, model: effectiveModel.model },
         runtime: {
-          platform: process.platform,
-          nodeVersion: process.version,
+          platform: ctx.runtime.platform,
+          nodeVersion: ctx.runtime.nodeVersion ?? ctx.runtime.platform,
           today: new Date().toISOString().split('T')[0],
-          cwd: process.cwd(),
+          cwd: ctx.runtime.cwd,
         },
         agentCorePrompt: agentRole.corePrompt,
       };

@@ -67,6 +67,7 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
         stopReason: 'stop',
       } as AssistantMessage),
     },
+    runtime: { platform: 'test', cwd: '/tmp', env: {} },
     loopStrategy: {
       run: async (loopCtx: any) => {
         await loopCtx.generate();

@@ -19,6 +19,13 @@ import type { TodoService } from './todo/service.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 
+export interface AgentRuntimeInfo {
+  platform: string;
+  nodeVersion?: string;
+  cwd: string;
+  env: Record<string, string | undefined>;
+}
+
 export interface AgentContext {
   configProvider: ConfigProvider;
   sessionProvider: SessionProvider;
@@ -43,4 +50,5 @@ export interface AgentContext {
   archiveStore: ArchiveStore;
   workspaceStore: WorkspaceStore;
   models: Models;
+  runtime: AgentRuntimeInfo;
 }

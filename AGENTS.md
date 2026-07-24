@@ -13,7 +13,9 @@
 packages/
   core/    — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
   bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService
-  web/     — rem-agent-web：Next.js 15 + React 19 聊天 UI
+  routes/  — rem-agent-routes：REM API 路由包（createRemHandler + rem-routes init CLI）
+  ui/      — rem-agent-ui：React 聊天组件包（<RemApp /> / <RemChat />，apiPrefix 可配）
+  web/     — rem-agent-web：Next.js 15 + React 19 宿主应用（薄组合层）
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
@@ -76,6 +78,10 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成 |
 | `packages/core/src/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
 | `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
+| `packages/routes/src/router.ts` | `createRemHandler`：REM API 路由分发 |
+| `packages/routes/src/cli.ts` | `rem-routes init`：生成宿主薄壳路由 |
+| `packages/ui/src/components/rem-app.tsx` | `<RemApp />` 完整聊天应用 |
+| `packages/ui/src/components/rem-chat.tsx` | `<RemChat />` 单独聊天框 |
 
 ## 深入文档
 

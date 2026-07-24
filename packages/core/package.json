@@ -9,6 +9,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./browser": {
+      "import": "./dist/browser.js",
+      "types": "./dist/browser.d.ts"
+    },
     "./stream/event-aggregators": {
       "import": "./dist/stream/event-aggregators.js",
       "types": "./dist/stream/event-aggregators.d.ts"

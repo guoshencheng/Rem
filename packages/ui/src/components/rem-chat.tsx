@@ -1,23 +1,18 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { AgentRemoteService } from 'rem-agent-bridge/client';
+import { useEffect } from 'react';
+import type { IAgentService } from 'rem-agent-bridge/client';
 import { useAgents } from '../lib/use-agents';
 import { ChatSessionView } from './chat-session-view';
 
 export interface RemChatProps {
+  service: IAgentService;
   sessionId: string;
   workspace?: string;
-  apiPrefix?: string;
-  baseUrl?: string;
   className?: string;
 }
 
-export function RemChat({ sessionId, workspace = 'default', apiPrefix = '/api/rem', baseUrl = '', className }: RemChatProps) {
-  const agentService = useMemo(
-    () => new AgentRemoteService(baseUrl, { apiPrefix }),
-    [baseUrl, apiPrefix],
-  );
+export function RemChat({ service: agentService, sessionId, workspace = 'default', className }: RemChatProps) {
   const agents = useAgents(agentService, { workspace });
   const { switchSession, currentSession } = agents;
 

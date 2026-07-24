@@ -12,6 +12,7 @@ interface SessionSidebarProps {
   onSwitch(id: string): void;
   onCreate(): void;
   onDelete(id: string): void;
+  onUpdate(id: string, updates: { title?: string; pinned?: boolean }): void;
   onSearch(query: string): void;
 }
 
@@ -22,6 +23,7 @@ export function SessionSidebar({
   onSwitch,
   onCreate,
   onDelete,
+  onUpdate,
   onSearch,
 }: SessionSidebarProps) {
   const [open, setOpen] = useState(false);
@@ -70,6 +72,7 @@ export function SessionSidebar({
         workspace={workspace}
         onSwitch={onSwitch}
         onDelete={onDelete}
+        onUpdate={onUpdate}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { AgentRemoteService } from 'rem-agent-bridge/client';
+import { useEffect, useState, useCallback } from 'react';
+import type { IAgentService } from 'rem-agent-bridge/client';
 import type { Workspace } from 'rem-agent-bridge';
 import { useAgents } from '../lib/use-agents';
 import type { SessionSummary } from '../lib/use-agents';
@@ -10,13 +10,11 @@ import { ChatSessionView } from './chat-session-view';
 import { AddWorkspaceDialog } from './workspace/add-workspace-dialog';
 
 export interface RemAppProps {
-  apiPrefix?: string;
-  baseUrl?: string;
+  service: IAgentService;
   className?: string;
 }
 
-export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemAppProps) {
-  const agentService = useMemo(() => new AgentRemoteService(baseUrl, { apiPrefix }), [baseUrl, apiPrefix]);
+export function RemApp({ service: agentService, className }: RemAppProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,7 +58,8 @@ export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemA
     setDialogOpen(false);
   }, [agentService]);
 
-  const handleRemoveWorkspace = useCallback((path: string) => {
+  const handleRemoveWorkspace = useCallback(async (path: string) => {
+    await agentService.removeWorkspace(path).catch(() => {});
     setWorkspaces((prev) => {
       const next = prev.filter((w) => w.path !== path);
       if (activeWorkspace === path) {
@@ -68,7 +67,7 @@ export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemA
       }
       return next;
     });
-  }, [activeWorkspace]);
+  }, [agentService, activeWorkspace]);
 
   const handleCreateSession = useCallback((wsPath: string) => {
     if (wsPath === activeWorkspace) {
@@ -79,14 +78,22 @@ export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemA
     }
   }, [activeWorkspace, createSession]);
 
+  const [searchResults, setSearchResults] = useState<SessionSummary[] | null>(null);
+
   const handleSearch = useCallback(async (q: string) => {
     if (!activeWorkspace) return;
     if (q) {
-      await fetch(`${apiPrefix}/sessions?workspace=${encodeURIComponent(activeWorkspace)}&q=${encodeURIComponent(q)}`);
+      const results = await agentService.searchSessions(activeWorkspace, q).catch(() => [] as SessionSummary[]);
+      setSearchResults(results);
     } else {
-      agentService.listSessions(activeWorkspace).catch(() => {});
+      setSearchResults(null);
     }
-  }, [agentService, apiPrefix, activeWorkspace]);
+  }, [agentService, activeWorkspace]);
+
+  const handleUpdateSession = useCallback(async (sessionId: string, updates: { title?: string; pinned?: boolean }) => {
+    if (!activeWorkspace) return;
+    await agentService.updateSession(activeWorkspace, sessionId, updates).catch(() => {});
+  }, [agentService, activeWorkspace]);
 
   if (!loaded) {
     return <div className="flex h-full items-center justify-center text-tx2 text-sm">Loading...</div>;
@@ -97,7 +104,7 @@ export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemA
       <WorkspaceSidebar
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
-        sessions={sessions as SessionSummary[]}
+        sessions={(searchResults ?? sessions) as SessionSummary[]}
         currentSessionId={currentSession?.id ?? null}
         onSelectWorkspace={setActiveWorkspace}
         onAddWorkspace={() => setDialogOpen(true)}
@@ -105,6 +112,7 @@ export function RemApp({ apiPrefix = '/api/rem', baseUrl = '', className }: RemA
         onSwitchSession={switchSession}
         onCreateSession={handleCreateSession}
         onDeleteSession={deleteSession}
+        onUpdateSession={handleUpdateSession}
         onSearch={handleSearch}
       />
       {activeWorkspace ? (

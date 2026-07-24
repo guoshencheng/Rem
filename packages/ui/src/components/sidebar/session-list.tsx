@@ -9,9 +9,10 @@ interface SessionListProps {
   workspace?: string;
   onSwitch(id: string): void;
   onDelete(id: string): void;
+  onUpdate(id: string, updates: { title?: string; pinned?: boolean }): void;
 }
 
-export function SessionList({ sessions, currentSessionId, workspace, onSwitch, onDelete }: SessionListProps) {
+export function SessionList({ sessions, currentSessionId, onSwitch, onDelete, onUpdate }: SessionListProps) {
   const sorted = [...sessions].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
@@ -31,9 +32,9 @@ export function SessionList({ sessions, currentSessionId, workspace, onSwitch, o
           key={s.sessionId}
           session={s}
           isActive={s.sessionId === currentSessionId}
-          workspace={workspace}
           onSwitch={onSwitch}
           onDelete={onDelete}
+          onUpdate={onUpdate}
         />
       ))}
     </div>

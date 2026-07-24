@@ -21,6 +21,7 @@ interface WorkspaceSidebarProps {
   onSwitchSession(id: string): void;
   onCreateSession(workspace: string): void;
   onDeleteSession(id: string): void;
+  onUpdateSession(id: string, updates: { title?: string; pinned?: boolean }): void;
   onSearch(query: string): void;
 }
 
@@ -35,6 +36,7 @@ export function WorkspaceSidebar({
   onSwitchSession,
   onCreateSession,
   onDeleteSession,
+  onUpdateSession,
   onSearch,
 }: WorkspaceSidebarProps) {
   const [open, setOpen] = useState(false);
@@ -139,6 +141,7 @@ export function WorkspaceSidebar({
                     workspace={ws.path}
                     onSwitch={(id) => { onSwitchSession(id); setOpen(false); }}
                     onDelete={onDeleteSession}
+                    onUpdate={onUpdateSession}
                   />
                 </div>
               )}

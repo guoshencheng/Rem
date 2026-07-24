@@ -24,21 +24,12 @@ function activityDot(activity?: SessionActivity) {
 interface SessionItemProps {
   session: SessionSummary;
   isActive: boolean;
-  workspace?: string;
   onSwitch(id: string): void;
   onDelete(id: string): void;
+  onUpdate(id: string, updates: { title?: string; pinned?: boolean }): void;
 }
 
-async function updateSession(id: string, workspace: string | undefined, updates: { title?: string; pinned?: boolean }): Promise<void> {
-  const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : '';
-  await fetch(`/api/sessions/${id}${qs}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
-}
-
-export function SessionItem({ session, isActive, workspace, onSwitch, onDelete }: SessionItemProps) {
+export function SessionItem({ session, isActive, onSwitch, onDelete, onUpdate }: SessionItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(session.title ?? 'New Chat');
@@ -67,7 +58,7 @@ export function SessionItem({ session, isActive, workspace, onSwitch, onDelete }
   const handleRename = () => {
     const trimmed = title.trim();
     if (trimmed) {
-      updateSession(session.sessionId, workspace, { title: trimmed }).catch(() => {});
+      onUpdate(session.sessionId, { title: trimmed });
     }
     setEditing(false);
   };
@@ -75,9 +66,7 @@ export function SessionItem({ session, isActive, workspace, onSwitch, onDelete }
   const handleTogglePin = () => {
     const newPinned = !pinned;
     setPinned(newPinned);
-    updateSession(session.sessionId, workspace, { pinned: newPinned }).catch(() => {
-      setPinned(!newPinned);
-    });
+    onUpdate(session.sessionId, { pinned: newPinned });
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {

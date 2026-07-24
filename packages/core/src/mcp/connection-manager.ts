@@ -1,5 +1,4 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { McpServerConfig, McpConnectionState } from './types.js';
 import { McpClient } from './client.js';
@@ -22,7 +21,7 @@ export class McpConnectionManager {
 
       try {
         const prefix = (config as { prefix?: string }).prefix ?? name;
-        const client = this.createClient(name, config);
+        const client = await this.createClient(name, config);
         await client.connect();
 
         const provider = new McpToolProvider(client, { name, prefix });
@@ -56,10 +55,11 @@ export class McpConnectionManager {
     await Promise.all(this.providers.map((provider) => provider.close().catch(() => {})));
   }
 
-  private createClient(name: string, config: McpServerConfig): McpClient {
+  private async createClient(name: string, config: McpServerConfig): Promise<McpClient> {
     const sdkClient = new Client({ name: `rem-agent-${name}`, version: '0.1.0' });
 
     if (config.transport === 'stdio') {
+      const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
       const transport = new StdioClientTransport({
         command: config.command,
         args: config.args,

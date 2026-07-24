@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { generateId } from '../../shared/generate-id.js';
 import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionProvider, SessionSummary } from '../../sdk/session-provider.js';
 import type { RemMessage } from '../../types.js';
@@ -15,7 +15,7 @@ export abstract class BaseSessionProvider implements SessionProvider {
   async create(): Promise<Session> {
     const now = new Date();
     const session: Session = {
-      sessionId: randomUUID(),
+      sessionId: generateId(),
       conversation: [],
       currentTurn: 0,
       metadata: { schemaVersion: 2 },
@@ -39,7 +39,7 @@ export abstract class BaseSessionProvider implements SessionProvider {
   }
 
   addMessage(session: Session, role: 'assistant' | 'tool'): RemMessage {
-    const messageId = randomUUID();
+    const messageId = generateId();
     let message: Message;
     if (role === 'assistant') {
       message = { role: 'assistant', content: [], timestamp: Date.now() } as unknown as Message;

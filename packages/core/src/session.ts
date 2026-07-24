@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import type { Message } from '@earendil-works/pi-ai';
 
 export interface Session {

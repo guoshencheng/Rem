@@ -54,10 +54,12 @@ Status semantics:
 - completed: only after verification, never based on intent.
 - cancelled: no longer needed.
 
-Priority semantics:
-- high: do next / blocking.
-- medium: normal priority.
-- low: can be deferred.
+Priority semantics (internal only, never shown to the user):
+- high: the immediate next step, or blocks other tasks. Do these first.
+- medium: required for the request but not blocking; do after all high items.
+- low: optional, cleanup, or nice-to-have; defer until nothing else remains.
+
+Assign priority by dependency and urgency, not by task size. A task that unblocks others is always high. Keep the list ordered consistently with priority: higher-priority tasks come earlier in the list.
 
 The list is ordered: position 0 is the current/next task. Always send the full updated list. Each call replaces the entire list for the session.`,
     parameters: TodoWriteSchema,

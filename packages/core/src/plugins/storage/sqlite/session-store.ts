@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { randomUUID } from 'node:crypto';
+import { generateId } from '../../../shared/generate-id.js';
 import type { Session, SessionSummary } from '../../../session.js';
 import type { SessionStore } from '../../../sdk/storage-provider.js';
 import { wrapSqliteError } from './errors.js';
@@ -11,7 +11,7 @@ export class SqliteSessionStore implements SessionStore {
   async create(workspace: string): Promise<Session> {
     try {
       const now = new Date();
-      const sessionId = randomUUID();
+      const sessionId = generateId();
       this.db
         .prepare(
           `INSERT INTO sessions (id, workspace, title, pinned, current_turn, metadata_json, created_at, updated_at)
@@ -79,7 +79,7 @@ export class SqliteSessionStore implements SessionStore {
           new Date().toISOString()
         );
 
-      const messageIds = session.conversation.map(() => randomUUID());
+      const messageIds = session.conversation.map(() => generateId());
       if (messageIds.length > 0) {
         const placeholders = messageIds.map(() => '?').join(',');
         this.db

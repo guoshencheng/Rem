@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile, unlink, readdir, rename, access } from 'fs/promises';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { generateId } from '../../shared/generate-id.js';
 import type { Message } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../../sdk/session-provider.js';
 import { log } from '../../shared/debug-log.js';
@@ -113,7 +113,7 @@ export class JsonlSessionStore {
   private async writeSave(session: Session): Promise<void> {
     await this.ensureDir();
     const lines = session.conversation.map((m) => JSON.stringify(m)).join('\n') + (session.conversation.length > 0 ? '\n' : '');
-    const tmpPath = `${this.jsonlPath(session.sessionId)}.${randomUUID()}.tmp`;
+    const tmpPath = `${this.jsonlPath(session.sessionId)}.${generateId()}.tmp`;
     await writeFile(tmpPath, lines, 'utf-8');
     await rename(tmpPath, this.jsonlPath(session.sessionId));
     this.counts.set(session.sessionId, session.conversation.length);
@@ -214,7 +214,7 @@ export class JsonlSessionStore {
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };
-    const tmpPath = `${this.metaPath(session.sessionId)}.${randomUUID()}.tmp`;
+    const tmpPath = `${this.metaPath(session.sessionId)}.${generateId()}.tmp`;
     await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
     await rename(tmpPath, this.metaPath(session.sessionId));
   }

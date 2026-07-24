@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { randomUUID } from 'node:crypto';
+import { generateId } from '../../../shared/generate-id.js';
 import type { Rule, RuleSource } from '../../../security/rules/rule.js';
 import type { RuleStorage } from '../../../sdk/storage-provider.js';
 import { wrapSqliteError } from './errors.js';
@@ -39,7 +39,7 @@ export class SqliteRuleStore implements RuleStorage {
           'INSERT INTO rules (id, source, permission, pattern, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
         )
         .run(
-          randomUUID(),
+          generateId(),
           'approved',
           rule.permission,
           rule.pattern,

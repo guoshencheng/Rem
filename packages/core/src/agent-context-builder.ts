@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { createCoreModels } from './llm/models.js';
 import { createDefaultAgentPaths } from './config/paths.js';
-import { configureDebugLog, configureConsoleOutput } from './shared/debug-log.js';
+import { configureConsoleOutput } from './shared/debug-log.js';
+import { configureFileDebugLog } from './shared/debug-log-file.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { SqliteSessionProvider } from './plugins/session/sqlite/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
@@ -87,7 +88,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   const models = options?.models ?? createCoreModels({ all: true });
 
   const paths = options?.paths ?? createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
-  configureDebugLog(paths.debugLogFile);
+  configureFileDebugLog(paths.debugLogFile);
   if (paths.debugLogFile && process.env.NODE_ENV === 'development') {
     configureConsoleOutput(true);
   }

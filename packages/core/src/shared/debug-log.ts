@@ -1,6 +1,4 @@
-import { appendFile } from 'fs/promises';
-
-let debugFile: string | null = null;
+let sink: LogSink | null = null;
 let consoleOutputEnabled = false;
 let buffer: string[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -20,13 +18,16 @@ export interface LogContext {
   [key: string]: string | number | boolean | undefined;
 }
 
+/** 日志落盘 sink，接收一批已格式化的日志行。 */
+export type LogSink = (chunk: string) => void | Promise<void>;
+
 /**
- * 配置调试日志输出文件。传入 null 禁用。
- * 应在应用初始化时调用，替代原来的环境变量读取。
+ * 注入日志落盘 sink。传入 null 禁用。
+ * 平台无关：Node 环境用 shared/debug-log-file.js 的 configureFileDebugLog。
  */
-export function configureDebugLog(file: string | null): void {
-  debugFile = file;
-  if (!debugFile) {
+export function setLogSink(s: LogSink | null): void {
+  sink = s;
+  if (!sink) {
     buffer = [];
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -57,11 +58,11 @@ function formatContext(context?: LogContext): string {
 }
 
 async function flushBuffer(): Promise<void> {
-  if (flushing || !debugFile || buffer.length === 0) return;
+  if (flushing || !sink || buffer.length === 0) return;
   flushing = true;
   const lines = buffer.splice(0, buffer.length).join('');
   try {
-    await appendFile(debugFile, lines);
+    await sink(lines);
   } catch {
     // silently ignore write failures
   } finally {
@@ -73,7 +74,7 @@ async function flushBuffer(): Promise<void> {
 }
 
 function scheduleFlush(): void {
-  if (flushTimer || !debugFile) return;
+  if (flushTimer || !sink) return;
   flushTimer = setTimeout(() => {
     flushTimer = null;
     void flushBuffer();
@@ -88,7 +89,7 @@ function writeToConsole(tag: string, message: string, context?: LogContext): voi
 }
 
 function writeToFile(line: string): void {
-  if (!debugFile) return;
+  if (!sink) return;
   buffer.push(line);
   if (buffer.length >= MAX_BUFFER_SIZE) {
     void flushBuffer();
@@ -126,5 +127,5 @@ export async function flushDebugLog(): Promise<void> {
  * Check whether debug logging is currently enabled.
  */
 export function isDebugEnabled(): boolean {
-  return debugFile !== null;
+  return sink !== null;
 }

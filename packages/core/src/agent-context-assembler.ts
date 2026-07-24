@@ -37,7 +37,8 @@ export interface AssembleAgentContextOptions {
   systemPromptAssembler: SystemPromptAssembler;
   models: Models;
   runtime: AgentRuntimeInfo;
-  mcpManager: McpConnectionManager;
+  /** 仅 Node 路径使用；浏览器可省略（runAgent 不触碰）。 */
+  mcpManager?: McpConnectionManager;
   toolProvider?: ToolProvider;
   mcpProviders?: ToolProvider[];
   skillProvider?: SkillProvider;
@@ -101,7 +102,7 @@ export async function assembleAgentContext(options: AssembleAgentContextOptions)
     errorHandler: options.errorHandler ?? new SimpleErrorHandler(),
     titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
     loopStrategy: options.loopStrategy ?? new ReactLoop(),
-    mcpManager: options.mcpManager,
+    mcpManager: options.mcpManager ?? ({} as McpConnectionManager),
     fileMutationQueue: options.fileMutationQueue ?? (new NoopFileMutationQueue() as FileMutationQueue),
     systemPromptAssembler: options.systemPromptAssembler,
     ruleEngine,

@@ -26,14 +26,17 @@ packages/
     src/
       components/  RemApp.tsx、RemChat.tsx、chat/*、sidebar/*、workspace/*（从 web 迁入）
       hooks/       use-agent-bus、use-agents、use-todos 等（从 web/lib 迁入）
-      lib/         agent-bus SSE 客户端、api-client.ts、markdown.ts
+      lib/         agent-bus SSE 客户端、markdown.ts、types.ts、utils 等（从 web/lib 迁入）
   web/      rem-agent-web      — layout.tsx、page.tsx（≈ <RemApp apiPrefix="/api/rem" />）、
                                  app/api/rem/[...path]/route.ts（CLI 生成的薄壳）、tailwind 配置
 ```
 
-数据流：`RemChat` → `api-client(apiPrefix)` → `fetch /api/rem/agent/run` → 薄壳 catch-all → `createRemHandler()` → `handlers/*` → `IAgentService`。
+数据流：`RemChat` → `AgentRemoteService(baseUrl, { apiPrefix })` → `fetch /api/rem/agent/run` → 薄壳 catch-all → `createRemHandler()` → `handlers/*` → `IAgentService`。
 
-关键决策：容器/DI 归宿主所有。薄壳生成时引用宿主提供的 `getAgentService()` 工厂（容器路径可配，默认 `@/lib/container`），路由包不实例化 core。
+关键决策：
+
+- 容器/DI 归宿主所有。薄壳生成时引用宿主提供的 `getAgentService()` 工厂（容器路径可配，默认 `@/lib/container`），路由包不实例化 core。
+- 前端请求层复用 bridge 的 `AgentRemoteService`，为其新增 `apiPrefix` 选项（默认 `/api`，保持旧行为）；UI 包不自建 fetch 层。
 
 ## routes 包设计
 
@@ -97,10 +100,11 @@ export { route as GET, route as POST, route as DELETE, route as PUT };
 ```
 
 - 共享 props：`apiPrefix`（默认 `/api/rem`）、`workspace`、`className`。
-- 所有请求收敛到 `lib/api-client.ts`：`createApiClient(apiPrefix)` 返回 `{ run, interrupt, reset, listSessions, createSession, ... }`；hooks 通过 context 获取 client；`apiPrefix` 变化时 client 重建。
-- SSE：`hooks/use-agent-bus.ts` 订阅 `${apiPrefix}/agent/stream?workspace=...`，从 web 迁入并改为接收 apiPrefix。
-- 组件迁移：`components/chat/*`、`sidebar/*`、`workspace/*` 原样迁入，仅将 fetch 调用替换为 api-client；`RemApp` 复刻现 `page.tsx` 的组合逻辑。
-- 数据获取方式：组件自拉数据（hooks 内 fetch + SSE），不外注入。
+- 请求层：`AgentRemoteService`（`rem-agent-bridge/client`）新增第二参数 `options.apiPrefix`（默认 `/api`）；组件按 `apiPrefix` prop 构造 service，经 context 传给 hooks；`apiPrefix` 变化时 service 重建。`use-agents.ts` 中残留的 2 处裸 `fetch('/api/sessions...')` 改为调用 service 方法。
+- SSE：`hooks/use-agent-bus.ts` 通过 `IAgentService.stream()` 订阅（底层走 `${apiPrefix}/agent/stream`），从 web 迁入，无需改动签名。
+- 组件迁移：`components/chat/*`、`sidebar/*`、`workspace/*` 原样迁入，仅调整 import 路径；`RemApp` 复刻现 `page.tsx` 的组合逻辑。
+- 数据获取方式：组件自拉数据（hooks 内经 IAgentService 接口 fetch + SSE），不外注入。
+- 主题样式：web 的 `@theme` 设计令牌（globals.css 中 `--color-*`、`--radius-*`）抽为 `rem-agent-ui/styles.css`，宿主 `@import` 引入。
 
 ### 样式与构建
 
@@ -116,7 +120,7 @@ export { route as GET, route as POST, route as DELETE, route as PUT };
 ## 错误处理
 
 - routes 包：见上方 `toErrorResponse()` 规则。
-- UI 包：api-client 非 2xx 抛 `ApiError(status, message)`；聊天发送失败在消息流内展示错误态，列表加载失败展示可重试占位 UI（沿用 web 现有行为）。
+- UI 包：`AgentRemoteService` 非 2xx 抛 `Error`（沿用 bridge 现有行为）；聊天发送失败在消息流内展示错误态，列表加载失败展示可重试占位 UI（沿用 web 现有行为）。
 
 ## 测试
 

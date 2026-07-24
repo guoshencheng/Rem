@@ -7,27 +7,12 @@ import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { SqliteSessionProvider } from './plugins/session/sqlite/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
 import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
-import { SimpleContextProvider } from './plugins/memory/simple/index.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
-import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
-import { LLMSummarizingCompressor } from './plugins/compressor/llm-summary/index.js';
-import { SimpleErrorHandler } from './plugins/error/simple/index.js';
-import { LLMTitleProvider } from './plugins/title/llm/index.js';
-import { ReactLoop } from './plugins/loop/react/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
-import { DefaultToolComposer } from './tool-composer.js';
-import { RuleEngine } from './security/rules/rule-engine.js';
-import { RuleStore } from './security/rules/rule-store.js';
-import { getProfileRules } from './security/rules/profiles.js';
-import type { Rule } from './security/rules/rule.js';
 import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
-import type { RuleStorage, StorageProvider } from './sdk/storage-provider.js';
-import { DefaultTodoService } from './todo/service.js';
-import {
-  createPermissionEvaluator,
-  type ApprovalRequestFactory,
-  type SecurityMode,
-} from './security/permissions/factory.js';
+import type { StorageProvider } from './sdk/storage-provider.js';
+import { assembleAgentContext } from './agent-context-assembler.js';
+import type { SecurityMode } from './security/permissions/factory.js';
 import {
   DefaultSystemPromptAssembler,
   ProviderAwareTemplateSelector,
@@ -36,14 +21,23 @@ import {
   ToolingSection,
   ExecutionBiasSection,
   SafetySection,
-  WorkspaceSection,
   AgentsMdSection,
   SkillsSection,
+  WorkspaceSection,
   RuntimeSection,
   ProjectAgentsMdLoader,
 } from './system-prompt/index.js';
 import type { AgentContext, AgentRuntimeInfo } from './agent-context.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
+import type { SessionProvider } from './sdk/session-provider.js';
+import type { ToolProvider } from './sdk/tool-provider.js';
+import type { ContextProvider } from './sdk/context-provider.js';
+import type { SkillProvider } from './sdk/skill-provider.js';
+import type { ContextCompressor } from './sdk/compressor.js';
+import type { TitleProvider } from './sdk/title-provider.js';
+import type { LoopStrategy } from './sdk/loop-strategy.js';
+import type { SystemPromptAssembler } from './sdk/system-prompt.js';
+import type { Rule } from './security/rules/rule.js';
 
 import type { AgentPaths } from './config/paths.js';
 
@@ -64,25 +58,16 @@ export interface AgentContextBuildOptions {
   storageProvider?: StorageProvider;
   models?: import('@earendil-works/pi-ai').Models;
   runtime?: AgentRuntimeInfo;
-}
-
-async function buildRuleSecurity(
-  configProvider: ConfigProvider,
-  ruleStore: RuleStorage,
-): Promise<{ ruleEngine: RuleEngine; ruleStore: RuleStorage }> {
-  const userRules = await ruleStore.loadAll();
-  const config = configProvider.getConfig();
-  const profileRules = getProfileRules(config.profile ?? 'coding');
-  // 只读 / 状态类工具默认放行。pattern 用 ** 才能跨路径分隔符匹配（派生 pattern 是 file:/abs/path）。
-  const defaultRules: Rule[] = [
-    { permission: 'read', pattern: '**', action: 'allow', source: 'default' },
-    { permission: 'ls', pattern: '**', action: 'allow', source: 'default' },
-    { permission: 'session_status', pattern: '*', action: 'allow', source: 'default' },
-    { permission: 'todowrite', pattern: '*', action: 'allow', source: 'default' },
-  ];
-  const sessionRules = config.sessionRules ?? [];
-  const ruleEngine = new RuleEngine([...defaultRules, ...profileRules, ...userRules, ...sessionRules]);
-  return { ruleEngine, ruleStore };
+  configProvider?: ConfigProvider;
+  sessionProvider?: SessionProvider;
+  toolProvider?: ToolProvider;
+  skillProvider?: SkillProvider;
+  contextProvider?: ContextProvider;
+  compressor?: ContextCompressor;
+  titleProvider?: TitleProvider;
+  loopStrategy?: LoopStrategy;
+  systemPromptAssembler?: SystemPromptAssembler;
+  mcpProviders?: ToolProvider[];
 }
 
 export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
@@ -101,7 +86,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     configureConsoleOutput(true);
   }
 
-  const configProvider = new DefaultConfigProvider({
+  const configProvider = options?.configProvider ?? new DefaultConfigProvider({
     paths,
     cwd: options?.workspaceRoot ?? process.cwd(),
     configPath: options?.configPath,
@@ -116,36 +101,24 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
       ...(options?.provider ? { model: { provider: options.provider, model: options.model ?? '' } } : {}),
     },
   });
-  await configProvider.init();
+  await (configProvider as { init?: () => Promise<void> }).init?.();
 
   const storageProvider = options?.storageProvider
     ?? new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
   await storageProvider.init();
 
-  const sessionProvider = new SqliteSessionProvider(storageProvider.sessionStore);
-  const todoService = new DefaultTodoService(storageProvider.todoStore);
   const fileMutationQueue = createFileMutationQueue();
-  const toolProvider = createFileSystemTools(configProvider, fileMutationQueue);
-  const contextProvider = new SimpleContextProvider(configProvider);
-  const skillProvider = new FileSkillProvider(configProvider, paths);
-  const budgetPolicy = new FixedBudgetPolicy(configProvider);
-    const compressor = new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models, runtime.env);
-  const errorHandler = new SimpleErrorHandler();
-  const titleProvider = new LLMTitleProvider(configProvider, models);
-  const loopStrategy = new ReactLoop();
+  const skillProvider = options?.skillProvider ?? new FileSkillProvider(configProvider, paths);
 
-  const mcpConfig = configProvider.getMcpConfig();
   const mcpManager = new McpConnectionManager();
-  const mcpProviders = await mcpManager.connectAll(mcpConfig);
-
-  const toolComposer = new DefaultToolComposer();
+  const mcpProviders = options?.mcpProviders ?? await mcpManager.connectAll(configProvider.getMcpConfig());
 
   const templateSelector = new ProviderAwareTemplateSelector(
     new ClaudeAgentPromptTemplate(),
     { openai: new OpenAiAgentPromptTemplate() },
   );
 
-  const systemPromptAssembler = new DefaultSystemPromptAssembler(
+  const defaultAssembler = new DefaultSystemPromptAssembler(
     templateSelector,
     [
       new ToolingSection(),
@@ -158,44 +131,22 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     ],
   );
 
-  const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, storageProvider.ruleStore);
-
-  const approvalFactory: ApprovalRequestFactory = {
-    create: (input) => input,
-  };
-
-  const securityMode = options?.securityMode ?? 'interactive';
-
-  const permissionEvaluator = createPermissionEvaluator(
-    securityMode,
-    ruleEngine,
-    approvalFactory,
-  );
-
-  return {
+  return assembleAgentContext({
     configProvider,
-    sessionProvider,
-    toolProvider,
-    mcpProviders,
-    skillProvider,
-    toolComposer,
-    contextProvider,
-    budgetPolicy,
-    compressor,
-    errorHandler,
-    titleProvider,
-    loopStrategy,
-    mcpManager,
-    fileMutationQueue,
-    systemPromptAssembler,
-    ruleEngine,
-    ruleStore,
-    todoService,
-    permissionEvaluator,
-    securityMode,
-    archiveStore: storageProvider.archiveStore,
-    workspaceStore: storageProvider.workspaceStore,
+    sessionProvider: options?.sessionProvider ?? new SqliteSessionProvider(storageProvider.sessionStore),
+    storageProvider,
+    systemPromptAssembler: options?.systemPromptAssembler ?? defaultAssembler,
     models,
     runtime,
-  };
+    mcpManager,
+    toolProvider: options?.toolProvider ?? createFileSystemTools(configProvider, fileMutationQueue),
+    mcpProviders,
+    skillProvider,
+    contextProvider: options?.contextProvider,
+    compressor: options?.compressor,
+    titleProvider: options?.titleProvider,
+    loopStrategy: options?.loopStrategy,
+    fileMutationQueue,
+    securityMode: options?.securityMode,
+  });
 }

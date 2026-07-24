@@ -23,6 +23,7 @@ export { reduceStreamEvent } from './stream-reducer.js';
 
 export type { IAgentService } from './agent-service.interface.js';
 export { AgentRemoteService } from './agent-remote-service.js';
+export type { AgentRemoteServiceOptions } from './agent-remote-service.js';
 
 export { AgentService } from './agent.js';
 export { BridgeAgentStateProvider } from './agent-state-provider.js';

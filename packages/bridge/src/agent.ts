@@ -171,6 +171,11 @@ export class AgentService implements IAgentService {
     }));
   }
 
+  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+    this.ensureInitialized();
+    return this.sessionManager!.searchSessions(workspace, q);
+  }
+
   async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
     this.ensureInitialized();
     return this.sessionManager!.updateSession(sessionId, updates);

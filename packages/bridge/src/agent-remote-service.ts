@@ -94,6 +94,14 @@ export class AgentRemoteService implements IAgentService {
     return (await response.json()) as SessionSummary[];
   }
 
+  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions?${AgentRemoteService.wsQuery(workspace)}&q=${encodeURIComponent(q)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to search sessions: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as SessionSummary[];
+  }
+
   async getMessages(workspace: string, sessionId: string): Promise<UIMessage[]> {
     const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`);
     if (!response.ok) {

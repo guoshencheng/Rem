@@ -48,6 +48,12 @@ export class AgentSessionManager {
     });
   }
 
+  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+    const all = await this.listSessions(workspace);
+    const lower = q.toLowerCase();
+    return all.filter((s) => (s.title ?? '').toLowerCase().includes(lower));
+  }
+
   private computeTotalTokenUsage(messageTokenUsage: unknown): Usage | undefined {
     if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
     const entries = Object.values(messageTokenUsage).map((entry) => normalizeUsage(entry));

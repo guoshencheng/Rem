@@ -99,3 +99,33 @@ describe('AgentSessionManager.listSessions tokenUsage', () => {
     expect(messages[0].parts).toContainEqual({ type: 'text', text: 'look at this' });
   });
 });
+
+describe('AgentSessionManager.searchSessions', () => {
+  const sessionProvider = {
+    list: async () => [
+      { sessionId: 's1', title: 'hello world', updatedAt: new Date(1000), messageCount: 1 },
+      { sessionId: 's2', title: 'other chat', updatedAt: new Date(2000), messageCount: 1 },
+    ],
+    load: async (sessionId: string) => ({
+      sessionId,
+      metadata: {},
+      conversation: [],
+      currentTurn: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+  } as any;
+
+  it('filters by title case-insensitively', async () => {
+    const manager = new AgentSessionManager(sessionProvider, { get: () => undefined } as any);
+    const results = await manager.searchSessions('default', 'HELLO');
+    expect(results).toHaveLength(1);
+    expect(results[0].sessionId).toBe('s1');
+  });
+
+  it('returns all for empty-ish match', async () => {
+    const manager = new AgentSessionManager(sessionProvider, { get: () => undefined } as any);
+    const results = await manager.searchSessions('default', 'a');
+    expect(results.length).toBeGreaterThan(0);
+  });
+});

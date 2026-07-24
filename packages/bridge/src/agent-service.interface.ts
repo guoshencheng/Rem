@@ -15,6 +15,7 @@ export interface IAgentService {
   reset(workspace: string, sessionId: string): Promise<void>;
   createSession(workspace: string): Promise<SessionSummary>;
   listSessions(workspace: string): Promise<SessionSummary[]>;
+  searchSessions(workspace: string, q: string): Promise<SessionSummary[]>;
   getMessages(workspace: string, sessionId: string): Promise<UIMessage[]>;
   updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void>;
   deleteSession(workspace: string, sessionId: string): Promise<void>;

@@ -674,9 +674,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
 
   const createSession = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions?workspace=${encodeURIComponent(workspace)}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed to create');
-      const session = await res.json() as SessionSummary;
+      const session = await agentService.createSession(workspace);
       setSessionList((prev) => [session, ...prev]);
       const id = session.sessionId;
       await ensureSession(id);
@@ -684,12 +682,12 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     } catch (err) {
       // silent fail
     }
-  }, [ensureSession, workspace]);
+  }, [agentService, ensureSession, workspace]);
 
   const deleteSession = useCallback(
     async (id: string) => {
       try {
-        await fetch(`/api/sessions/${id}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' });
+        await agentService.deleteSession(workspace, id);
         sessionMapRef.current.delete(id);
         currentMsgIdRef.current.delete(id);
         pendingEventsRef.current.delete(id);
@@ -707,7 +705,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
         // silent fail
       }
     },
-    [currentId, notifyChange, workspace],
+    [agentService, currentId, notifyChange, workspace],
   );
 
   const resolveApproval = useCallback(

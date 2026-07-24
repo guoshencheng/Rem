@@ -104,9 +104,6 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
-      next:
-        specifier: ^15.0.0
-        version: 15.5.19(@opentelemetry/api@1.9.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -155,6 +152,9 @@ importers:
       rem-agent-core:
         specifier: workspace:*
         version: link:../core
+      rem-agent-routes:
+        specifier: workspace:*
+        version: link:../routes
       shiki:
         specifier: ^4.0.0
         version: 4.3.0

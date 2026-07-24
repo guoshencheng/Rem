@@ -11,7 +11,7 @@ import { ChildAgentDrawer } from '@/components/chat/child-agent-drawer';
 import { AddWorkspaceDialog } from '@/components/workspace/add-workspace-dialog';
 
 export default function Home() {
-  const agentService = useMemo(() => new AgentRemoteService(''), []);
+  const agentService = useMemo(() => new AgentRemoteService('', { apiPrefix: '/api/rem' }), []);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -90,7 +90,7 @@ export default function Home() {
   const handleSearch = useCallback(async (q: string) => {
     if (!activeWorkspace) return;
     if (q) {
-      await fetch(`/api/sessions?workspace=${encodeURIComponent(activeWorkspace)}&q=${encodeURIComponent(q)}`);
+      await fetch(`/api/rem/sessions?workspace=${encodeURIComponent(activeWorkspace)}&q=${encodeURIComponent(q)}`);
     } else {
       agentService.listSessions(activeWorkspace).catch(() => {});
     }

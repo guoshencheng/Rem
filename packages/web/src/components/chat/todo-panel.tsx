@@ -21,12 +21,6 @@ const statusClasses: Record<TodoItem['status'], string> = {
   cancelled: 'bg-gray-100 text-gray-400',
 };
 
-const priorityClasses: Record<TodoItem['priority'], string> = {
-  high: 'bg-red-100 text-red-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  low: 'bg-green-100 text-green-800',
-};
-
 export function TodoPanel({ todos }: TodoPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const pendingCount = todos.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length;
@@ -65,9 +59,6 @@ export function TodoPanel({ todos }: TodoPanelProps) {
               </span>
               <span className={`text-xs px-1.5 py-0.5 rounded ${statusClasses[todo.status]}`}>
                 {statusLabels[todo.status]}
-              </span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${priorityClasses[todo.priority]}`}>
-                {todo.priority}
               </span>
             </li>
           ))}

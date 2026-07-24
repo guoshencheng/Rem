@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react';
 import { TodoPanel } from './todo-panel';
 
 describe('TodoPanel', () => {
-  it('renders todos with status and priority', () => {
+  it('renders todos with status but without priority', () => {
     render(
       <TodoPanel
         todos={[
@@ -21,7 +21,7 @@ describe('TodoPanel', () => {
     expect(screen.getByText('Tasks')).toBeInTheDocument();
     expect(screen.getByText('Design DB')).toBeInTheDocument();
     expect(screen.getByText('in_progress')).toBeInTheDocument();
-    expect(screen.getByText('high')).toBeInTheDocument();
+    expect(screen.queryByText('high')).not.toBeInTheDocument();
     expect(screen.getByText('2 pending')).toBeInTheDocument();
   });
 

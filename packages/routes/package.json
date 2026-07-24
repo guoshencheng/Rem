@@ -22,12 +22,8 @@
     "rem-agent-bridge": "workspace:*",
     "rem-agent-core": "workspace:*"
   },
-  "peerDependencies": {
-    "next": ">=15"
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "next": "^15.0.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

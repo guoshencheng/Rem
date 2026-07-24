@@ -1,4 +1,3 @@
-import type { NextRequest } from 'next/server';
 import type { IAgentService } from 'rem-agent-bridge';
 
 export type GetAgentService = () => Promise<IAgentService> | IAgentService;
@@ -8,7 +7,7 @@ export interface RemRoutesOptions {
 }
 
 export interface HandlerContext {
-  req: NextRequest;
+  req: Request;
   params: Record<string, string>;
   getAgentService: GetAgentService;
 }

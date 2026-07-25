@@ -27,6 +27,15 @@ export function CredentialSetup({ initial, onSave, onCancel }: CredentialSetupPr
 
   const preset = PROVIDER_PRESETS[provider] ?? PROVIDER_PRESETS.custom;
 
+  const handleProviderChange = (id: string) => {
+    setProvider(id);
+    // 切换 provider 时，若 model 为空或还是其他预设的默认值，换成新预设的默认模型
+    const isPresetValue = Object.values(PROVIDER_PRESETS).some((p) => p.modelPlaceholder === model);
+    if (!model.trim() || isPresetValue) {
+      setModel(PROVIDER_PRESETS[id]?.modelPlaceholder ?? '');
+    }
+  };
+
   const handleSave = async () => {
     if (!apiKey.trim()) {
       setError('Please enter an API key');
@@ -38,7 +47,7 @@ export function CredentialSetup({ initial, onSave, onCancel }: CredentialSetupPr
       await onSave({
         provider,
         apiKey: apiKey.trim(),
-        model: model.trim() || undefined,
+        model: model.trim() || preset.modelPlaceholder || undefined,
         baseURL: baseURL.trim() || undefined,
       });
     } catch (err) {
@@ -57,7 +66,7 @@ export function CredentialSetup({ initial, onSave, onCancel }: CredentialSetupPr
       <select
         className="w-full bg-bd border border-bd2 rounded px-3 py-2 mb-3 text-tx text-sm outline-none"
         value={provider}
-        onChange={(e) => setProvider(e.target.value)}
+        onChange={(e) => handleProviderChange(e.target.value)}
         disabled={submitting}
       >
         {Object.entries(PROVIDER_PRESETS).map(([id, p]) => (

@@ -26,6 +26,10 @@ export function RemLocalApp({ tools, maxTurns, customProviders, className }: Rem
     store.load().then((c) => {
       setCredential(c);
       setLoading(false);
+      // 旧版本可能存过没有 model 的凭据，直接打开设置页补全
+      if (c && !c.model) {
+        setSettingsOpen(true);
+      }
     }).catch(() => setLoading(false));
   }, [store]);
 

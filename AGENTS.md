@@ -87,6 +87,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | `packages/ui/src/components/rem-app.tsx` | `<RemApp />` 完整聊天应用 |
 | `packages/ui/src/components/rem-chat.tsx` | `<RemChat />` 单独聊天框 |
 | `packages/ui/src/components/rem-local-app.tsx` | `<RemLocalApp />` 纯前端聊天应用（内置 key 设置，`rem-agent-ui/local`） |
+| `packages/ui/src/components/rem-local-chat.tsx` | `<RemLocalChat />` 纯聊天版（无侧栏，sessionId 缺省自动创建，`rem-agent-ui/local`） |
 
 ## 深入文档
 

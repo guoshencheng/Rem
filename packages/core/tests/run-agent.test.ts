@@ -261,7 +261,7 @@ describe('runAgent', () => {
     expect(output.content).toContain('LLM failed');
   });
 
-  it('passes reasoning to stream/generate when model supports reasoning', async () => {
+  it('passes thinkingEnabled to stream/generate when model supports reasoning', async () => {
     const stream = vi.fn(async function* () {
       yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
     });
@@ -301,12 +301,12 @@ describe('runAgent', () => {
     expect(stream).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
       expect.anything(),
-      expect.objectContaining({ reasoning: 'medium' }),
+      expect.objectContaining({ thinkingEnabled: true }),
     );
     expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'gpt-4o-mini', reasoning: true }),
       expect.anything(),
-      expect.objectContaining({ reasoning: 'medium' }),
+      expect.objectContaining({ thinkingEnabled: true }),
     );
   });
 

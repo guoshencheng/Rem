@@ -13,7 +13,6 @@ import { AgentEventStreamController } from './stream/agent-event-stream.js';
 import type { AgentContext } from './agent-context.js';
 import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
-import { buildReasoningOptions } from './llm/reasoning-options.js';
 import { generateId } from './shared/generate-id.js';
 import { executeTools } from './execute/execute-tools.js';
 import { AgentState } from './agent-state.js';

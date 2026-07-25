@@ -1,0 +1,30 @@
+{
+  "name": "rem-agent-local-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.27.0",
+    "github-markdown-css": "^5.9.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "rem-agent-bridge": "workspace:*",
+    "rem-agent-core": "workspace:*",
+    "rem-agent-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^6.0.0"
+  }
+}

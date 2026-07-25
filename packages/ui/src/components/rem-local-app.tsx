@@ -3,17 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { LocalAgentService, CredentialStore } from 'rem-agent-bridge/local';
-import type { CustomTool, ProviderCredential } from 'rem-agent-bridge/local';
+import type { CustomTool, Provider, ProviderCredential } from 'rem-agent-bridge/local';
 import { RemApp } from './rem-app';
 import { CredentialSetup } from './credential-setup';
 
 export interface RemLocalAppProps {
   tools?: CustomTool[];
   maxTurns?: number;
+  customProviders?: Provider[];
   className?: string;
 }
 
-export function RemLocalApp({ tools, maxTurns, className }: RemLocalAppProps) {
+export function RemLocalApp({ tools, maxTurns, customProviders, className }: RemLocalAppProps) {
   const [store] = useState(() => new CredentialStore());
   const [credential, setCredential] = useState<ProviderCredential | null>(null);
   const [service, setService] = useState<LocalAgentService | null>(null);
@@ -33,7 +34,7 @@ export function RemLocalApp({ tools, maxTurns, className }: RemLocalAppProps) {
       setService(null);
       return;
     }
-    const svc = new LocalAgentService({ credential, tools, maxTurns });
+    const svc = new LocalAgentService({ credential, tools, maxTurns, customProviders });
     let cancelled = false;
     svc.init().then(() => {
       if (!cancelled) {
@@ -44,7 +45,7 @@ export function RemLocalApp({ tools, maxTurns, className }: RemLocalAppProps) {
       if (!cancelled) setError(err instanceof Error ? err.message : String(err));
     });
     return () => { cancelled = true; };
-  }, [credential, tools, maxTurns]);
+  }, [credential, tools, maxTurns, customProviders]);
 
   const handleSave = useCallback(async (c: ProviderCredential) => {
     await store.save(c);

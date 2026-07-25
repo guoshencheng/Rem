@@ -7,7 +7,7 @@ import {
   StaticToolProvider, EmptySkillProvider,
 } from 'rem-agent-core/browser';
 import type {
-  AgentContext, AgentInstructionLoader, CustomTool,
+  AgentContext, AgentInstructionLoader, CustomTool, Provider,
 } from 'rem-agent-core/browser';
 import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
 import { ServiceError } from '../errors.js';
@@ -28,6 +28,8 @@ export interface LocalAgentServiceOptions {
   maxTurns?: number;
   name?: string;
   dbName?: string;
+  /** 额外注册的 pi-ai Provider（如 OpenAI 兼容端点的自定义 provider） */
+  customProviders?: Provider[];
 }
 
 const noopInstructionLoader: AgentInstructionLoader = {
@@ -54,7 +56,7 @@ export class LocalAgentService implements IAgentService {
     const storageProvider = new IndexedDBStorageProvider(this.options.dbName ?? 'rem-agent');
     await storageProvider.init();
 
-    const models = createCoreModels({ all: true });
+    const models = createCoreModels({ all: true, customProviders: this.options.customProviders });
 
     const skillProvider = new EmptySkillProvider();
     const systemPromptAssembler = new DefaultSystemPromptAssembler(

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.80.7",
     "@sinclair/typebox": "^0.27.0",
     "github-markdown-css": "^5.9.0",
     "react": "^19.0.0",

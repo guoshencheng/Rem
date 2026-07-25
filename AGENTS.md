@@ -12,10 +12,11 @@
 ```text
 packages/
   core/    — rem-agent-core：生命周期、ReAct 循环、事件、预算、LLM 抽象层
-  bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService
+  bridge/  — rem-agent-bridge：HTTP client/server、SSE 编解码、AgentService / LocalAgentService
   routes/  — rem-agent-routes：REM API 路由包（createRemHandler + rem-routes init CLI）
-  ui/      — rem-agent-ui：React 聊天组件包（<RemApp /> / <RemChat />，apiPrefix 可配）
+  ui/      — rem-agent-ui：React 聊天组件包（<RemApp /> / <RemChat /> 必传 service；<RemLocalApp /> 见 rem-agent-ui/local）
   web/     — rem-agent-web：Next.js 15 + React 19 宿主应用（薄组合层）
+  local-demo/ — rem-agent-local-demo：纯前端 Vite demo（浏览器内跑 Agent，凭据存 IndexedDB）
 ```
 
 架构与设计细节见 `docs/architecture.md` 和 `docs/core-design.md`。
@@ -78,10 +79,14 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成 |
 | `packages/core/src/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
 | `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
+| `packages/core/src/browser.ts` | `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用） |
+| `packages/core/src/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
+| `packages/bridge/src/local/agent-local-service.ts` | `LocalAgentService`：浏览器内 AgentService（`rem-agent-bridge/local`） |
 | `packages/routes/src/router.ts` | `createRemHandler`：REM API 路由分发 |
 | `packages/routes/src/cli.ts` | `rem-routes init`：生成宿主薄壳路由 |
 | `packages/ui/src/components/rem-app.tsx` | `<RemApp />` 完整聊天应用 |
 | `packages/ui/src/components/rem-chat.tsx` | `<RemChat />` 单独聊天框 |
+| `packages/ui/src/components/rem-local-app.tsx` | `<RemLocalApp />` 纯前端聊天应用（内置 key 设置，`rem-agent-ui/local`） |
 
 ## 深入文档
 

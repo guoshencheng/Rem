@@ -13,6 +13,9 @@ export default defineConfig({
       '@smithy/node-http-handler': stub,
       'http-proxy-agent': stub,
       'https-proxy-agent': stub,
+      // bash-parser 只被 exec 工具的分类器使用，浏览器无 exec 工具；其依赖
+      // iterable-transform-replace 的 package entry 损坏，整体 stub 掉
+      'bash-parser': stub,
       // bash-parser CLI 入口里的 require('fs')/require('path')（运行时不可达）
       fs: stub,
       path: stub,

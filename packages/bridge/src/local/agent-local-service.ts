@@ -20,6 +20,7 @@ import { BrowserSessionProvider } from './browser-session-provider.js';
 import { StaticConfigProvider } from './static-config-provider.js';
 import { NoopCompressor } from './noop-compressor.js';
 import { IdbWorkspaceRepository } from './idb-workspace-repository.js';
+import { browserCompatibleProviders } from './browser-providers.js';
 import type { ProviderCredential } from './credential-store.js';
 
 export interface LocalAgentServiceOptions {
@@ -56,7 +57,10 @@ export class LocalAgentService implements IAgentService {
     const storageProvider = new IndexedDBStorageProvider(this.options.dbName ?? 'rem-agent');
     await storageProvider.init();
 
-    const models = createCoreModels({ all: true, customProviders: this.options.customProviders });
+    const models = createCoreModels({
+      all: true,
+      customProviders: [...browserCompatibleProviders(), ...(this.options.customProviders ?? [])],
+    });
 
     const skillProvider = new EmptySkillProvider();
     const systemPromptAssembler = new DefaultSystemPromptAssembler(

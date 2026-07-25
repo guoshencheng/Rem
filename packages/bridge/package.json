@@ -32,6 +32,7 @@
     "test": "cd ../.. && vitest run packages/bridge/tests"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.80.7",
     "rem-agent-core": "workspace:*"
   },
   "devDependencies": {

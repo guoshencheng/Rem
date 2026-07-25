@@ -12,6 +12,7 @@ interface CredentialSetupProps {
 const PROVIDER_PRESETS: Record<string, { label: string; modelPlaceholder: string; showBaseURL: boolean }> = {
   anthropic: { label: 'Anthropic', modelPlaceholder: 'claude-sonnet-4-5', showBaseURL: false },
   openai: { label: 'OpenAI', modelPlaceholder: 'gpt-4o', showBaseURL: false },
+  'minimax-openai': { label: 'MiniMax', modelPlaceholder: 'MiniMax-M3', showBaseURL: false },
   openrouter: { label: 'OpenRouter', modelPlaceholder: 'anthropic/claude-sonnet-4-5', showBaseURL: true },
   custom: { label: 'Custom (OpenAI-compatible)', modelPlaceholder: 'model name', showBaseURL: true },
 };

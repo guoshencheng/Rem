@@ -50,5 +50,5 @@ export type { SecurityMode } from './security/permissions/factory.js';
 export type { UserInput, UserInputContent, AgentOutput, AgentStream, AgentStreamEvent } from './types.js';
 export type { McpServerConfig } from './mcp/types.js';
 export type { Message, TextContent, ThinkingContent, ToolCall, Models, Usage } from '@earendil-works/pi-ai';
-export type { Provider } from '@earendil-works/pi-ai';
+export type { Model, Provider } from '@earendil-works/pi-ai';
 export type { RemMessage } from './types.js';

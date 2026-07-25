@@ -32,6 +32,9 @@ importers:
 
   packages/bridge:
     dependencies:
+      '@earendil-works/pi-ai':
+        specifier: ^0.80.7
+        version: 0.80.7(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
       rem-agent-core:
         specifier: workspace:*
         version: link:../core
@@ -97,9 +100,6 @@ importers:
 
   packages/local-demo:
     dependencies:
-      '@earendil-works/pi-ai':
-        specifier: ^0.80.7
-        version: 0.80.7(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
       '@sinclair/typebox':
         specifier: ^0.27.0
         version: 0.27.10

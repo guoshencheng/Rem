@@ -1,11 +1,8 @@
 import { createRemHandler } from 'rem-agent-routes';
 import type { NextRequest } from 'next/server';
-import type { IAgentService } from 'rem-agent-bridge';
-import { getContainer } from '@/lib/container';
+import { getAgentService } from '@/lib/agent-service';
 
-const handle = createRemHandler({
-  getAgentService: async () => (await getContainer()).resolve<IAgentService>('agentService'),
-});
+const handle = createRemHandler({ getAgentService });
 
 async function route(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;

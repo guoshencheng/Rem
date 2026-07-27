@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:all": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-bridge build",
-    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-bridge build && pnpm --filter rem-agent-bridge typecheck && pnpm --filter rem-agent-tui build && pnpm --filter rem-agent-tui typecheck"
+    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-bridge build && pnpm --filter rem-agent-bridge typecheck && pnpm --filter rem-agent-routes typecheck && pnpm --filter rem-agent-ui typecheck && pnpm --filter rem-agent-web typecheck"
   },
   "devDependencies": {
     "@opentui/core-darwin-arm64": "^0.4.2",

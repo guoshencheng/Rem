@@ -1,6 +1,6 @@
 # Rem Agent — 系统架构
 
-> 状态：✅ 与代码同步（2026-07-15）
+> 状态：✅ 与代码同步（2026-07-27）
 >
 > 基于 Hermes Agent 和 OpenClaw 架构分析，采用 Plugin-Core Balance 方案。
 
@@ -14,10 +14,12 @@
 
 | 包 | npm 名称 | 层级 | 职责 |
 |---|---|---|---|
-| `packages/core` | `rem-agent-core` | 核心层 | Agent 生命周期、ReAct 循环、状态、事件、预算、LLM、安全、SDK 接口 |
-| `packages/bridge` | `rem-agent-bridge` | 桥接层 | HTTP client/server、SSE 编解码、AgentService、IAgentService |
-| `packages/web` | `rem-agent-web` | 表现层 | Next.js 15 + React 19 聊天 UI，SSE 流消费，会话管理 |
-| `packages/tui` | `rem-agent-tui` | 表现层 | 基于 `@opentui/core` 的终端 UI 组件 |
+| `packages/core` | `rem-agent-core` | 核心层 | Agent 生命周期、ReAct 循环、状态、事件、预算、LLM 抽象、安全、SDK 接口 |
+| `packages/bridge` | `rem-agent-bridge` | 桥接层 | `IAgentService` 抽象、HTTP client/server、SSE 编解码、`LocalAgentService`（浏览器内运行） |
+| `packages/routes` | `rem-agent-routes` | 接入层 | REM API 路由包：`createRemHandler` + `rem-routes init` CLI（宿主薄壳生成） |
+| `packages/ui` | `rem-agent-ui` | 表现层 | React 聊天组件包：`<RemApp />` / `<RemChat />`（远程）与 `<RemLocalApp />` / `<RemLocalChat />`（本地，`rem-agent-ui/local`） |
+| `packages/web` | `rem-agent-web` | 宿主 | Next.js 15 + React 19 宿主应用，薄组合层（DI 容器 + 路由挂载 + 页面） |
+| `packages/local-demo` | `rem-agent-local-demo` | 宿主 | 纯前端 Vite demo：浏览器内跑 Agent，凭据存 IndexedDB |
 
 ---
 
@@ -25,132 +27,95 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         表现层 (Presentation)                             │
+│                         表现层 / 宿主 (Presentation)                      │
 │                                                                          │
 │  ┌─────────────────────────────┐     ┌──────────────────────────────┐   │
-│  │       rem-agent-web         │     │       rem-agent-tui          │   │
-│  │   Next.js 15 + React 19     │     │      @opentui/core           │   │
-│  │                             │     │                              │   │
-│  │  components/chat/           │     │  TUIApp                      │   │
-│  │  ├─ ChatPanel              │     │  ├─ message-list (滚动区)     │   │
-│  │  ├─ MessageList             │     │  ├─ InputBox                 │   │
-│  │  ├─ InputBox                │     │  ├─ ReasoningBlock (可折叠)   │   │
-│  │  ├─ MessageItem             │     │  └─ ToolBlock (可折叠)       │   │
-│  │  ├─ ReasoningBlock          │     │                              │   │
-│  │  ├─ ToolCallBlock           │     │  message/                    │   │
-│  │  └─ ThinkingBar             │     │  ├─ reasoning-block.ts       │   │
-│  │                             │     │  ├─ function-tool-block.ts   │   │
-│  │  components/sidebar/        │     │  └─ tool-formatter.ts        │   │
-│  │  ├─ SessionSidebar          │     │                              │   │
-│  │  ├─ SessionList             │     └──────────────┬───────────────┘   │
-│  │  └─ SessionItem             │                    │                    │
-│  │                             │                    │                    │
-│  │  lib/                       │                    │                    │
-│  │  ├─ session-store.ts        │                    │                    │
-│  │  │   (zustand 全局状态)     │                    │                    │
-│  │  ├─ use-sse.ts (SSE hook)   │                    │                    │
-│  │  ├─ container.ts (awilix DI)│                    │                    │
-│  │  ├─ agent-client.ts         │                    │                    │
-│  │  ├─ stream-parser.ts        │                    │                    │
-│  │  ├─ types.ts                │                    │                    │
-│  │  └─ utils.ts                │                    │                    │
-│  │                             │                    │                    │
-│  │  app/api/                   │                    │                    │
-│  │  ├─ agent/run/route.ts      │                    │                    │
-│  │  │   POST → SSE Response    │                    │                    │
-│  │  └─ sessions/route.ts       │                    │                    │
-│  │      GET/POST CRUD          │                    │                    │
-│  └─────────────┬───────────────┘                    │                    │
-│                │                                     │                    │
-└────────────────┼─────────────────────────────────────┼────────────────────┘
-                 │                                     │
-                 │          depends on                 │
-                 ▼                                     ▼
+│  │       rem-agent-web         │     │     rem-agent-local-demo     │   │
+│  │   Next.js 15 + React 19     │     │     Vite 纯前端 demo          │   │
+│  │  （薄宿主）                  │     │                              │   │
+│  │  app/page.tsx → <RemApp/>   │     │  app.tsx → <RemLocalApp/>    │   │
+│  │  app/api/rem/[...path]      │     │         → <RemLocalChat/>    │   │
+│  │    → createRemHandler       │     │  demo-tools.ts (演示工具)     │   │
+│  │  lib/container.ts (awilix)  │     │                              │   │
+│  └──────┬──────────────┬───────┘     └──────────────┬───────────────┘   │
+│         │              │                            │                    │
+│         │ routes       │ ui                         │ ui/local           │
+│         ▼              ▼                            ▼                    │
+│  ┌──────────────┐  ┌────────────────────────────────────────────────┐   │
+│  │ rem-agent-   │  │              rem-agent-ui                       │   │
+│  │ routes       │  │  RemApp / RemChat（必传 service）                │   │
+│  │              │  │  RemLocalApp / RemLocalChat（内置凭据设置）       │   │
+│  │ createRem-   │  │  components/chat/* · sidebar/* · workspace/*    │   │
+│  │ Handler      │  │  lib/use-agents（多 session 流式状态管理）        │   │
+│  │ rem-routes   │  │  lib/use-agent-bus + agent-bus（SSE 客户端）     │   │
+│  │ init CLI     │  └───────────────┬────────────────┬───────────────┘   │
+│  └──────┬───────┘                  │                │                    │
+└─────────┼──────────────────────────┼────────────────┼────────────────────┘
+          │                          │                │
+          ▼                          ▼                ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        桥接层 (Bridge)                                    │
+│                        桥接层 (Bridge) — rem-agent-bridge                 │
 │                                                                          │
-│  ┌────────────────────── rem-agent-bridge ────────────────────────────┐  │
-│  │                                                                     │  │
-│  │  客户端                               服务端                         │  │
-│  │  AgentClient                          AgentService                  │  │
-│  │  ├─ run(sessionId, input)             ├─ run({sessionId, content})  │  │
-│  │  │   → AsyncIterable<                │   → {stream, output}        │  │
-│  │  │     AgentStreamChunk>              │   → 调用 core.runAgent()    │  │
-│  │  ├─ interrupt() / reset()             ├─ createSession()            │  │
-│  │  └─ listSessions()                    ├─ updateSession()            │  │
-│  │                                       ├─ deleteSession()            │  │
-│  │                                       └─ getMessages()              │  │
-│  │                                                                     │  │
-│  │  SSE 工具                            AgentSessionManager            │  │
-│  │  ├─ parseSSEStream(reader)           ├─ list / create / get         │  │
-│  │  ├─ parseAgentStreamEvent(event)     ├─ update / delete             │  │
-│  │  └─ createSSEResponse(stream)        └─ 委托 SessionProvider       │  │
-│  │                                                                     │  │
-│  │  errors.ts — ServiceError (HTTP 状态码错误类)                        │  │
-│  │  types.ts — RunRequest, InterruptRequest, ResetRequest,             │  │
-│  │             SessionSummary, ServerStreamEvent                       │  │
-│  │                                                                     │  │
-│  └─────────────────────────────────┬───────────────────────────────────┘  │
-│                                    │                                      │
-└────────────────────────────────────┼──────────────────────────────────────┘
-                                     │ depends on
-                                     ▼
+│  IAgentService（统一接口，UI 只依赖它）                                     │
+│  ┌────────────────────────┐  ┌────────────────────────────────────────┐  │
+│  │ AgentRemoteService     │  │ LocalAgentService（/local 入口）        │  │
+│  │ 浏览器端 HTTP 客户端    │  │ 浏览器内直接跑 Agent：                  │  │
+│  │ （apiPrefix 可配）      │  │  IndexedDB 存储 + CredentialStore      │  │
+│  ├────────────────────────┤  │  + browserCompatibleProviders          │  │
+│  │ AgentService           │  └────────────────────────────────────────┘  │
+│  │ 服务端：封装 core       │  AgentServiceCore：run/会话/审批/todos      │
+│  │ runAgent + 会话管理     │  的共享实现（AgentService 与                │  │
+│  │                        │  LocalAgentService 复用）                    │  │
+│  ├────────────────────────┤                                              │
+│  │ BroadcastBus           │  SSE 工具                                    │
+│  │ BusEvent 广播（多       │  ├─ parseSSEStream / parseAgentStreamEvent │  │
+│  │ session 流式事件总线）  │  └─ createSSEResponse / createBusSSEResponse│ │
+│  └────────────────────────┘  WorkspaceRepository（json / sqlite）        │
+└─────────────────────────────────┬────────────────────────────────────────┘
+                                  │ depends on
+                                  ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                        核心层 (Core) — rem-agent-core                     │
 │                                                                          │
-│  ┌───────────────┐  ┌───────────────┐  ┌──────────────────────────────┐ │
-│  │  CoreAgent    │  │  runAgent()   │  │  createAgentFromEnv()        │ │
-│  │  生命周期管理   │  │  无状态运行    │  │  工厂函数                     │ │
-│  └───────┬───────┘  └───────┬───────┘  └──────────────────────────────┘ │
-│          │                  │                                            │
-│          ▼                  ▼                                            │
+│  入口：                                                                   │
+│  ┌────────────────────────┐  ┌────────────────────────────────────────┐  │
+│  │ createAgentFromEnv()   │  │ runAgent()  无状态运行（唯一执行入口）   │  │
+│  │ agent-factory.ts       │  │ assembleAgentContext() 纯装配函数       │  │
+│  └────────────────────────┘  └────────────────────────────────────────┘  │
+│                                                                          │
+│  ReactLoop（plugins/loop/react）:                                        │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
- │  │                        ReactLoop (ReAct 循环)                      │   │
- │  │                                                                   │   │
- │  │  ReactTurnRunner (带 step 限制的迭代器)                              │   │
- │  │                                                                   │   │
- │  │  执行流程:                                                         │   │
- │  │  prepare → reason → plan → execute → observe → reflect             │   │
- │  │                     ↑                │                             │   │
- │  │                     └─── reflect ◄───┘                             │   │
- │  └──────────────────────────────┬───────────────────────────────────┘   │
- │                                 │                                        │
- │                  ┌──────────────┼──────────────┐                        │
- │                  ▼              ▼              ▼                        │
- │  ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐           │
- │  │ pi-ai Models     │ │ ToolRegistry  │ │ MemoryProvider   │           │
- │  │ (Models 集合)     │ │ (工具执行)     │ │ (上下文构建)      │           │
- │  └────────┬─────────┘ └───────────────┘ └──────────────────┘           │
- │           │                                                              │
- │           ▼                                                              │
- │  ┌─────────────────────────────────────────┐                           │
- │  │        pi-ai Provider 抽象                │                           │
- │  │  ├─ 统一封装 OpenAI / Anthropic / 其它   │                           │
- │  │  └─ 流式事件：AssistantMessageEvent        │                           │
- │  └─────────────────────────────────────────┘                           │
+│  │  prepare → reason → execute → observe → reflect                   │   │
+│  │  reason:  reason/reason.ts   → models.stream（流式 ReAct 推理）   │   │
+│  │          reason/generate.ts  → models.complete（非流式生成）      │   │
+│  │  execute: execute/execute-tools.ts + approval-engine.ts          │   │
+│  │  事件:    AgentStreamEvent = pi.AssistantMessageEvent             │   │
+│  │           | RemMetaEvent                                          │   │
+│  └──────────────────────────────┬───────────────────────────────────┘   │
+│                                 │                                        │
+│                  ┌──────────────┼──────────────┐                        │
+│                  ▼              ▼              ▼                        │
+│  ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐           │
+│  │ pi-ai Models     │ │ ToolComposer  │ │ SystemPrompt     │           │
+│  │ (llm/models.ts)  │ │ + Registry    │ │ Assembler        │           │
+│  └──────────────────┘ └───────────────┘ └──────────────────┘           │
+│                                                                          │
+│  类型直接复用 pi-ai：消息为 pi.Message，工具集为 pi.Tool[]，              │
+│  无 REM 自建消息表示层（无 adapter）。                                     │
 │                                                                          │
 │  基础设施:                                                               │
 │  ┌────────────┐ ┌───────────┐ ┌─────────────────┐ ┌──────────────────┐  │
-│  │ AgentState │ │ EventBus  │ │ IterationBudget │ │ AgentStream      │  │
-│  │ 对话历史/状态│ │ 事件系统   │ │ 轮次/错误护栏    │ │ Controller(队列流)│  │
+│  │ AgentState │ │ EventBus  │ │ IterationBudget │ │ AgentEventStream │  │
+│  │ 对话历史/状态│ │ 事件系统   │ │ 轮次/错误护栏    │ │ Controller(队列流)│ │
 │  └────────────┘ └───────────┘ └─────────────────┘ └──────────────────┘  │
 │                                                                          │
-│  SDK 接口 (sdk/):                                                        │
-│  ToolProvider · MemoryProvider · SessionProvider · SkillProvider         │
-│  ConfigProvider · BudgetPolicy · ContextCompressor · ErrorHandler        │
-│  ToolPolicy · ToolHook · ProviderLoader                                 │
+│  能力目录:                                                               │
+│  sdk/（19 个接口文件）· security/（审批/策略/工作区守卫）· mcp/（MCP 客户端）│
+│  todo/（session 级 TodoList）· sub-agent/（子 Agent 上下文）              │
+│  system-prompt/（模板化系统提示装配）· plugins/（14 类内置 Provider 实现， │
+│  含 loop/react 与 storage/sqlite）                                        │
 │                                                                          │
-│  安全 (security/):                                                        │
-│  ApprovalManager · ToolHookRunner · ToolPolicyPipeline · WorkspaceGuard │
-│                                                                          │
-│  内置插件 (plugins/):                                                     │
-│  session (in-memory/file/local) · tool (in-memory/file-system)          │
-│  memory/simple · skill/file · budget/fixed · compressor/no-op           │
-│  error/simple · config/default                                          │
-│                                                                          │
-│  注册表 (registry/):                                                     │
-│  AgentToolRegistry · AgentProviderRegistry · DefaultProviderLoader      │
-│                                                                          │
+│  browser.ts — `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用）   │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -159,135 +124,106 @@
 ## 3. 包间依赖关系
 
 ```
-                ┌──────────────────────────────┐
-                │       rem-agent-web           │
-                │  (Next.js 15 / React 19)      │
-                └─────────┬────────────────────┘
-                          │ depends on
-                ┌─────────┴────────────────────┐
-                │     rem-agent-bridge          │
-                │  (HTTP client/server, SSE)   │
-                └─────────┬────────────────────┘
-                          │ depends on
-          ┌───────────────┼───────────────┐
-          │               │               │
-     ┌─────────┴──────┐  ┌─────────┴──────────┐
-     │ rem-agent-tui  │  │  rem-agent-core    │
-     │  (终端 UI)     │  │  (核心引擎)         │
-     └────────────────┘  └────────────────────┘
+   ┌─────────────────────┐   ┌──────────────────────┐
+   │   rem-agent-web     │   │ rem-agent-local-demo │
+   │   (Next.js 薄宿主)   │   │   (Vite 纯前端)       │
+   └───┬────────┬────────┘   └──────┬───────────────┘
+       │        │                   │
+       ▼        ▼                   ▼
+   rem-agent-routes   rem-agent-ui (/local)
+       │        │                   │
+       │        ▼                   ▼
+       │    rem-agent-bridge (/client, /local)
+       │        │
+       └────────┤
+                ▼
+          rem-agent-core (/browser 子集供浏览器使用)
 ```
 
-**依赖方向：** `web → bridge → core`，`tui → bridge → core`
+**依赖方向：** 宿主 → {routes, ui} → bridge → core。UI 只依赖 `IAgentService` 接口；远程/本地只是注入不同的实现（`AgentRemoteService` / `LocalAgentService`）。
 
 ---
 
 ## 4. 关键数据流
 
-### 流程 A：Web UI 完整请求生命周期
+### 流程 A：Web 远程请求生命周期
 
 ```
 用户输入 "Hello"
   │
   ▼
-[web] InputBox → useSessionStore.sendMessage("Hello")
-  │  创建 userMsg + assistantMsg(pendingContent)
+[ui] InputBox → useAgents.send(workspace, sessionId, "Hello")
   │
   ▼
-[web] ChatPanel useEffect → POST /api/agent/run {sessionId, content}
+[bridge/client] AgentRemoteService.run()
+  │  POST /api/rem/agent/run {workspace, sessionId, content}
   │
   ▼
-[web] app/api/agent/run/route.ts
-  │  container.resolve('agentService').run({sessionId, content})
+[web] app/api/rem/[...path]/route.ts → createRemHandler
+  │  getAgentService() → container.resolve('agentService')
   │
   ▼
-[bridge] AgentService.run()
-  │  调用 core.runAgent({pm, sessionId, input, signal})
+[routes] handlers/agent.ts → AgentService.run()
+  │
+  ▼
+[bridge] AgentService.run() → core.runAgent({sessionId, input, signal})
   │
   ▼
 [core] runAgent()
-  │  创建 AgentStreamController
-  │  加载 Session → 构建 ReactLoop → 执行推理循环
+  │  加载 Session → ReactLoop 迭代：
+  │  ① 系统提示装配 + 记忆注入
+  │  ② ContextCompressor      → 按需压缩上下文
+  │  ③ reason() → models.stream(...) → LLM 流式调用
+  │  ④ execute-tools → 工具执行（含审批管线）
+  │  ⑤ AgentEventStreamController.emit → AgentStreamEvent
   │
   ▼
-[core] ReactLoop.iterate()
-  │  ① MemoryProvider.buildContext()    → 系统提示 + 记忆
-  │  ② ContextCompressor               → 按需压缩上下文
-  │  ③ pi-ai Models.stream(...) / Models.complete(...) → LLM 调用
-  │  ④ ToolRegistry.execute(calls)      → 工具执行
-  │  ⑤ AgentStreamController.emit()    → 产出 AgentStreamEvent (AssistantMessageEvent | RemMetaEvent)
+[bridge] 事件同时写入 SSE 响应流 + BroadcastBus（BusEvent）
   │
   ▼
-[bridge] AgentService 返回 {stream, output}
+[ui] use-agent-bus 消费 SSE → useAgents 归并 sessionMap 状态
+  │  （todos / tokenUsage / childAgents / pendingApprovals 均由 bus 事件驱动）
   │
   ▼
-[web route] createSSEResponse(stream.fullStream)
-  │  编码为 text/event-stream
-  │  event: chunk\ndata: {"type":"text-delta",...}\n\n
-  │
-  ▼
-[web/browser] useSSE → fetch() → ReadableStream
-  │  parseSSEStream(reader) → parseAgentStreamEvent → AgentStreamEvent
-  │
-  ▼
-[web] useSessionStore.onChunk(chunk)
-  │  更新 assistantMsg → React 重新渲染 MessageList
-  │
-  ▼
-用户看到流式响应
+React 重新渲染 MessageList → 用户看到流式响应
 ```
 
-### 流程 B：TUI 终端流程
+### 流程 B：浏览器内本地流程（local-demo）
 
 ```
-[用户] 输入文本
+[local-demo] <RemLocalApp tools={...} />
   │
   ▼
-[tui] TUIApp.handleSubmit(text)
-  │  client.run(sessionId, text)
+[ui/local] 凭据设置（CredentialStore → IndexedDB）
+  │  构造 LocalAgentService
   │
   ▼
-[bridge] AgentClient.run()
-  │  POST http://localhost:8321/api/agent/run {sessionId, content}
-  │  → SSE 流路径（同流程 A）
+[bridge/local] LocalAgentService.run()
+  │  IndexedDBStorageProvider（sessions/todos/rules/archives/workspaces）
+  │  browserCompatibleProviders（浏览器兼容的 LLM provider，如 MiniMax）
+  │  customProviders passthrough（自定义 OpenAI 兼容端点）
   │
   ▼
-[tui] 遍历 AgentStreamChunk
-  │  text-delta     → TextRenderable
-  │  reasoning-*    → ReasoningBlock (可折叠)
-  │  tool-call-*    → ToolBlock (可折叠，含格式化器)
-  │  error          → 错误消息
+[core/browser] runAgent() — 直接在浏览器内执行 ReAct 循环
+  │  事件经 BroadcastBus 回到 useAgents，渲染链路同流程 A
 ```
 
-### 流程 C：Core 内部事件驱动
+### 流程 C：Core 内部执行
 
 ```
-createAgentFromEnv({name, provider, maxTurns})
+createAgentFromEnv({name, maxTurns})
+  │  读取环境变量解析 provider/model（配置由 Core 拥有）
+  │  → AgentContext（models, providers, ...）
   │
   ▼
-new CoreAgent(config)
-  │  registerBuiltInProviders()
-  │  resolveProviderConfig() → 读取环境变量
-  │
-  ▼
-agent.initialize({sessionId?})
-  │  创建 AgentState，通过 SessionProvider 加载/保存
-  │  发出 'core-agent:init'
-  │
-  ▼
-agent.run({content: "Hello"})
-  │  发出 'core-agent:start'
-  │  进入 ReactTurnRunner 循环
-  │  对于每个 ReAct 步骤：
-  │    发出 'turn:before' → ReactLoop.iterate() → 发出 'turn:after'
-  │    检查 budgetPolicy.checkTurn()
+runAgent({context, sessionId, input, signal})
+  │  加载/创建 Session（schema v2，旧 v1 抛 UnsupportedSessionSchemaError）
+  │  进入 ReactLoop 迭代，每步受 IterationBudget 护栏约束
+  │  EventBus 发出 turn:before/after、phase:*、tool:* 等事件
   │  循环直到完成 / 中断 / 预算耗尽
-  │  发出 'core-agent:stop'
-  │  返回 {stream, output}
   │
   ▼
-agent.on('turn:after', handler) — 可观测性
-agent.interrupt() — 优雅停止
-agent.reset() — 清除状态
+返回 {stream, output}
 ```
 
 ---
@@ -296,10 +232,10 @@ agent.reset() — 清除状态
 
 | 原则 | 说明 |
 |------|------|
-| **Plugin-Core Balance** | Core 最小化（生命周期 + 循环 + 状态），所有能力通过 SDK 接口提供 |
-| **事件驱动** | Core 通过 EventBus 发出事件（`turn:before/after`、`phase:reason:*`），插件订阅 |
-| **Provider 注册表** | LLM provider 和 SDK provider 使用统一注册表模式（`registerProvider`/`resolveProvider`） |
-| **依赖注入** | Web 层通过 Awilix 连接，Core 通过 `ProviderManager`/`ProviderRegistry` 连接 |
+| **Plugin-Core Balance** | Core 最小化（生命周期 + 循环 + 状态），能力通过 SDK 接口与 plugins/ 提供 |
+| **事件驱动** | Core 通过 EventBus 发出生命周期/阶段事件；Bridge 通过 BroadcastBus 广播 UI 级 BusEvent |
+| **IAgentService 抽象** | UI 只依赖接口，远程 HTTP 与浏览器内本地运行可互换 |
+| **直接复用 pi-ai 类型** | 消息为 `pi.Message`、工具集为 `pi.Tool[]`，无自建表示层/adapter |
 | **SSE 流** | `AgentStreamEvent` 标准化事件类型，通过 HTTP SSE 传输 |
 | **预算护栏** | `IterationBudget` 强制执行最大轮次、连续错误、相同工具故障限制 |
 | **可扩展循环** | `LoopStrategy` 接口支持未来 Plan-and-Solve 等替代循环 |
@@ -308,29 +244,26 @@ agent.reset() — 清除状态
 
 | 红线 | 说明 |
 |------|------|
-| Provider 配置由 Core 拥有 | 客户端禁止直接读取 `OPENAI_API_KEY` 等环境变量，必须通过 `createAgentFromEnv()` |
-| Core 不依赖 Vercel AI SDK | LLM 调用通过自建 Provider 层直接调用 `openai` / `@anthropic-ai/sdk` |
-| 模块按分离规范拆分 | 每个文件 ≤ 200 行（上限），类型/接口/实现分离 |
+| Provider 配置由 Core 拥有 | 客户端禁止直接读取 `OPENAI_API_KEY` 等环境变量，必须通过 `createAgentFromEnv()`（浏览器侧由 CredentialStore/凭据注入走 Core 装配） |
+| Core 不依赖 Vercel AI SDK | LLM 调用统一通过 `@earendil-works/pi-ai` 的 `Models` 集合 |
+| 模块按分离规范拆分 | 文件精简、职责单一，类型/接口/实现分离 |
 
 ---
 
 ## 6. 事件系统
 
-Core 通过 `EventBus` 发出以下事件：
+**Core EventBus**（`core/src/events.ts`）发出的事件：
 
-| 事件 | 触发时机 | 订阅者示例 |
-|------|---------|-----------|
-| `core-agent:init` | agent 初始化完成 | 日志、状态同步 |
-| `core-agent:start` | agent 开始运行 | UI 状态更新 |
-| `core-agent:stop` | agent 运行完成 | UI 渲染最终结果 |
-| `turn:before` | 每轮开始前 | MemoryProvider 注入记忆 |
-| `turn:after` | 每轮结束后 | SkillProvider 提醒、日志记录 |
-| `phase:reason:before` | LLM 推理前 | BudgetChecker 检查预算 |
-| `phase:reason:after` | LLM 推理后 | 统计 token 消耗 |
-| `phase:execute:before` | 工具执行前 | SecurityPlugin 检查危险命令 |
-| `phase:execute:after` | 工具执行后 | 记录执行轨迹 |
-| `step:start` | ReactTurnRunner 步开始 | |
-| `step:finish` | ReactTurnRunner 步完成 | |
+| 类别 | 事件 |
+|------|------|
+| 状态 | `agent:state-change` |
+| 轮次 | `turn:before` / `turn:after` |
+| 阶段 | `phase:prepare` / `phase:reason:before|after|error` / `phase:execute:before|after` / `phase:observe` / `phase:reflect` |
+| 工具 | `tool:before` / `tool:after` / `tool:error` / `tool:blocked` |
+| 审批 | `tool:approval:requested` / `tool:approval:resolved` / `tool:approval:expired` |
+| 压缩 | `compress:before` / `compress:after` |
+
+**Bridge BroadcastBus**（`BusEvent`，面向 UI 多 session 广播）：消息流式事件、`usage-change`、`activity-change`、`todo-updated`、`child-agent-update`、审批请求等。UI 的 `useAgents` 全部经由 bus 事件驱动更新。
 
 ---
 
@@ -338,19 +271,20 @@ Core 通过 `EventBus` 发出以下事件：
 
 ```
 src/llm/
-├── models.ts              # pi-ai Models 集合初始化
-├── context-window.ts      # 上下文窗口（后续可替换为 pi-ai 模型元数据）
-└── pi-adapter.ts          # REM ↔ pi-ai 类型转换
+├── models.ts                # createCoreModels：pi-ai Models 集合初始化
+├── context-window.ts        # 上下文窗口大小解析
+├── reasoning-options.ts     # thinking/reasoning 选项
+└── patch-minimax-compat.ts  # MiniMax 兼容补丁
 ```
 
-Core 通过 `AgentContext.models` 使用 pi-ai `Models` 集合，`runAgent` 直接调用 `models.stream(model, context, options)` 和 `models.complete(...)`。
+Core 通过 `AgentContext.models` 使用 pi-ai `Models` 集合：`reason()` 调用 `models.stream(model, context, options)`，`generate()` 调用 `models.complete(...)`。
 
 **设计要点：**
 - Core 不依赖 Vercel AI SDK，LLM 能力由 `@earendil-works/pi-ai` 的 `Models` 集合提供
 - `Models` 负责 provider 路由、流式事件生成和 usage 统计
-- `pi-adapter.ts` 负责 REM 内部类型（`ModelMessage`、`ContentPart`、`ToolSchema`）与 `pi.Message`/`pi.Tool` 之间的转换
-- 流式事件统一为 `pi-ai` 的 `AssistantMessageEvent`；Core 在此基础上叠加 `RemMetaEvent`（如 `step-start`、`compress-start`、`approval-request` 等）
-- 工具结果以 `pi.Message` 中的 `toolResult` 角色进入 `Session.conversation`
+- 类型直接复用 pi-ai：`pi.Message`（user / assistant / toolResult）、`pi.Tool[]`、`pi.Usage`，无 adapter 转换层
+- 流式事件统一为 pi-ai 的 `AssistantMessageEvent`；Core 在此基础上叠加 `RemMetaEvent`（`step-start`、`compress-start`、`approval-request` 等）
+- 旧 schema v1 session 不再兼容，加载时抛出 `UnsupportedSessionSchemaError`
 
 ---
 
@@ -361,15 +295,14 @@ Core 通过 `AgentContext.models` 使用 pi-ai `Models` 集合，`runAgent` 直�
 | **包管理器** | pnpm (workspace) |
 | **测试** | Vitest |
 | **类型检查** | tsc --noEmit |
-| **Web 框架** | Next.js 15 (App Router) + React 19 |
-| **状态管理 (Web)** | Zustand |
-| **依赖注入 (Web)** | Awilix |
-| **TUI** | `@opentui/core` |
+| **Web 宿主** | Next.js 15 (App Router) + React 19 |
+| **本地 demo** | Vite 6 + React 19 |
+| **依赖注入 (web)** | Awilix |
 | **LLM SDK** | `@earendil-works/pi-ai` (统一 provider 抽象) |
 | **模式验证** | `@sinclair/typebox` |
-| **配置** | YAML + 环境变量 |
-| **样式 (Web)** | Tailwind CSS v4 |
-| **Markdown 渲染** | react-markdown + remark-gfm + rehype-highlight |
+| **配置** | YAML + 环境变量（Node）/ IndexedDB 凭据（浏览器） |
+| **样式** | Tailwind CSS v4 |
+| **Markdown 渲染** | marked + marked-shiki (shiki) |
 | **虚拟滚动** | react-virtuoso |
 
 ---
@@ -381,54 +314,66 @@ rem/
 ├── packages/
 │   ├── core/                    rem-agent-core — 核心引擎
 │   │   └── src/
-│   │       ├── core-agent.ts        CoreAgent 类 + createAgentFromEnv()
-│   │       ├── run-agent.ts         无状态 runAgent() 函数
-│   │       ├── loop-strategy.ts     ReactLoop + LoopStrategy 接口
-│   │       ├── turn.ts              ReactTurnRunner + TurnContext
-│   │       ├── state.ts             AgentState
-│   │       ├── events.ts            EventBus + AgentEvent
-│   │       ├── budget.ts            IterationBudget
-│   │       ├── session.ts           Session / SessionSummary 接口
-│   │       ├── types.ts             核心类型 (ModelMessage, AgentStreamEvent, Usage, ...)
-│   │       ├── provider-manager.ts  ProviderManager 门面
-│   │       ├── config/paths.ts      路径解析
-│   │       ├── shared/              共享工具 (id 生成, debug-log, thinking-tag, code-regions)
-│   │       ├── stream/agent-event-stream.ts  AgentEventStreamController
-│   │       ├── stream/event-aggregators.ts  事件聚合工具
-│   │       ├── llm/                 LLM 层 (models, context-window, pi-adapter)
-│   │       ├── sdk/                 11 个 SDK 接口
-│   │       ├── registry/            AgentToolRegistry, ProviderRegistry, ProviderLoader
+│   │       ├── agent-factory.ts     createAgentFromEnv()
+│   │       ├── agent-context-assembler.ts  assembleAgentContext() 纯装配
+│   │       ├── run-agent.ts         无状态 runAgent()（唯一执行入口）
+│   │       ├── loop-strategy.ts     ReactLoop / LoopStrategy 导出
+│   │       ├── reason/              reason()（流式）/ generate()（非流式）
+│   │       ├── execute/             工具执行 + 审批引擎
+│   │       ├── state.ts / agent-state.ts / budget.ts / session.ts / events.ts
+│   │       ├── bus-events.ts        BusEvent（UI 广播事件类型）
+│   │       ├── browser.ts           rem-agent-core/browser 平台无关入口
+│   │       ├── llm/                 models, context-window, reasoning-options
+│   │       ├── sdk/                 19 个 SDK 接口文件
 │   │       ├── security/            审批管理, 工具策略, 工作区守卫
-│   │       ├── ui/                  UI 会话封装
-│   │       ├── utils/skill-parser.ts SKILL.md 解析
-│   │       └── plugins/             9 类内置 Provider 实现
+│   │       ├── mcp/                 MCP 客户端与工具桥接
+│   │       ├── todo/                session 级 TodoList 服务
+│   │       ├── sub-agent/           子 Agent 上下文构建
+│   │       ├── system-prompt/       模板化系统提示装配
+│   │       ├── stream/              AgentEventStreamController, 事件聚合
+│   │       ├── registry/            AgentToolRegistry
+│   │       ├── shared/              id 生成, debug-log, text 工具
+│   │       └── plugins/             14 类内置 Provider（loop/react, storage/sqlite, ...）
 │   ├── bridge/                  rem-agent-bridge — 桥接层
 │   │   └── src/
-│   │       ├── client.ts            AgentClient (浏览器端 HTTP 客户端)
-│   │       ├── agent.ts             AgentService (服务端, 封装 core.runAgent + 会话管理)
-│   │       ├── agent-session.ts     AgentSessionManager (会话 CRUD，被 AgentService 使用)
-│   │       ├── sse.ts               SSE 解析 (parseSSEStream, parseAgentStreamEvent)
-│   │       ├── response.ts          createSSEResponse (流 → SSE Response)
-│   │       ├── types.ts             请求/响应类型
-│   │       └── errors.ts            ServiceError
-│   ├── web/                     rem-agent-web — Web UI
+│   │       ├── agent-service.interface.ts  IAgentService 统一接口
+│   │       ├── agent-service-core.ts  run/会话/审批/todos 共享实现
+│   │       ├── agent.ts             AgentService（Node 服务端）
+│   │       ├── agent-remote-service.ts  AgentRemoteService（HTTP 客户端）
+│   │       ├── local/               LocalAgentService, IndexedDB 存储, 凭据, 浏览器 provider
+│   │       ├── broadcast-bus.ts     BroadcastBus（BusEvent 多 session 总线）
+│   │       ├── sse.ts / response.ts SSE 编解码
+│   │       ├── stream-reducer.ts    流事件归并
+│   │       └── workspace-repository*.ts  工作区仓库（json / sqlite）
+│   ├── routes/                  rem-agent-routes — REM API 路由包
 │   │   └── src/
-│   │       ├── app/                 Next.js App Router (layout, page, api routes)
-│   │       ├── components/chat/     7 个聊天组件
-│   │       ├── components/sidebar/  3 个侧边栏组件
-│   │       ├── lib/                 7 个工具模块 (session-store, use-sse, container, ...)
-│   │       └── styles/globals.css   Tailwind v4 主题
-│   └── tui/                     rem-agent-tui — 终端 UI
+│   │       ├── router.ts            createRemHandler（pattern 匹配分发）
+│   │       ├── handlers/            agent / sessions / approvals / workspaces
+│   │       └── cli.ts               rem-routes init（生成宿主薄壳路由）
+│   ├── ui/                      rem-agent-ui — React 聊天组件包
+│   │   └── src/
+│   │       ├── components/          RemApp, RemChat, RemLocalApp, RemLocalChat,
+│   │       │                        chat/*, sidebar/*, workspace/*
+│   │       ├── lib/                 use-agents, use-agent-bus, agent-bus,
+│   │       │                        use-local-agent-service, pi-event-helpers, ...
+│   │       ├── index.ts             远程入口（RemApp / RemChat）
+│   │       └── local.ts             本地入口（RemLocalApp / RemLocalChat）
+│   ├── web/                     rem-agent-web — Next.js 薄宿主
+│   │   └── src/
+│   │       ├── app/page.tsx         <RemApp service={AgentRemoteService} />
+│   │       ├── app/api/rem/[...path]/route.ts  createRemHandler 挂载
+│   │       └── lib/container.ts     awilix DI（AgentService + SqliteStorageProvider）
+│   └── local-demo/              rem-agent-local-demo — Vite 纯前端 demo
 │       └── src/
-│           ├── app.ts               TUIApp 核心类
-│           └── message/             消息渲染 (reasoning-block, function-tool-block, tool-formatter)
+│           ├── app.tsx              RemLocalApp / RemLocalChat（?mode=chat 切换）
+│           └── demo-tools.ts        演示工具（calculator, webFetch）
 ├── docs/
 │   ├── architecture.md          本文档
-│   ├── core-design.md            Core 层详细设计
-│   └── module-reference.md       模块级参考
-└── CLAUDE.md                    项目规则手册
+│   ├── core-design.md           Core 层早期设计（历史参考）
+│   └── module-reference.md      模块级参考
+└── AGENTS.md                    项目规则手册
 ```
 
 ---
 
-*最后更新：2026-06-30*
+*最后更新：2026-07-27*

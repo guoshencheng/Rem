@@ -94,10 +94,10 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | 主题 | 文件 |
 |---|---|
 | 系统架构 | `docs/architecture.md` |
-| 预期架构（重构目标） | `docs/target-architecture.md` |
-| 模块边界审查 | `docs/boundary-review.md` |
 | 模块级参考 | `docs/module-reference.md` |
-| Core 层设计 | `docs/core-design.md` |
+| 边界审查报告（2026-06-30，历史） | `docs/boundary-review.md` |
+| 预期架构（已基本落地，历史） | `docs/target-architecture.md` |
+| Core 层早期设计（历史） | `docs/core-design.md` |
 | Core API 与事件 | `packages/core/README.md` |
 
 ## 测试

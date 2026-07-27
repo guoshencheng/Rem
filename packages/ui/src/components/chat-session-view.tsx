@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { IAgentService } from 'rem-agent-bridge/client';
 import { ChatPanel } from './chat/chat-panel';
 import { ChildAgentDrawer } from './chat/child-agent-drawer';
 import type { useAgents } from '../lib/use-agents';
@@ -9,12 +8,11 @@ import type { useAgents } from '../lib/use-agents';
 type Agents = ReturnType<typeof useAgents>;
 
 export interface ChatSessionViewProps {
-  agentService: IAgentService;
   workspace: string;
   agents: Agents;
 }
 
-export function ChatSessionView({ agentService, workspace, agents }: ChatSessionViewProps) {
+export function ChatSessionView({ workspace, agents }: ChatSessionViewProps) {
   const {
     currentSession,
     switchSession,
@@ -65,13 +63,11 @@ export function ChatSessionView({ agentService, workspace, agents }: ChatSession
         initialized={initialized}
         tokenUsage={currentSession.tokenUsage}
         childAgents={currentSession.childAgents}
+        todos={currentSession.todos}
         onOpenChild={handleOpenChild}
         onSend={send}
         onInterrupt={interrupt}
         onResolveApproval={resolveApproval}
-        agentService={agentService}
-        workspace={workspace}
-        sessionId={currentSession.id}
       />
       {drawerChild && (
         <ChildAgentDrawer

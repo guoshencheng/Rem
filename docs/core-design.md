@@ -5,22 +5,21 @@
 > **本文档描述早期设计阶段的概念模型（AgentHarness、ModelClient 等）。实际实现已偏离此设计。**
 >
 > 当前实现文档见 `docs/architecture.md`（Core 层实际架构）和 `docs/module-reference.md`（模块级别参考）。
-> 重构方向见 `docs/target-architecture.md`。
 >
 > 下文保留原始设计分析（Q1-Q4 设计问题讨论）作为决策历史，但代码接口示例不代表当前实现。
 
 ---
 
-## 当前实现概览（pi-ai 迁移后）
+## 当前实现概览（pi-ai 迁移后，2026-07-27 校正）
 
 迁移完成后，Core 层直接基于 `@earendil-works/pi-ai`：
 
-- **LLM 调用**：`AgentContext.models` 使用 `pi-ai` 的 `Models` 集合；`ReactLoop` 调用 `models.stream(model, context, options)` 和 `models.complete(...)`，不再通过自建的 `InferenceEngine` / `LLMProvider` 注册表。
+- **LLM 调用**：`AgentContext.models` 使用 `pi-ai` 的 `Models` 集合；`reason()` 调用 `models.stream(model, context, options)`，`generate()` 调用 `models.complete(...)`，不再通过自建的 `InferenceEngine` / `LLMProvider` 注册表。
 - **流式事件**：`AgentStreamEvent = AssistantMessageEvent | RemMetaEvent`。其中 `AssistantMessageEvent` 来自 `pi-ai`；`RemMetaEvent` 是 Core 自定义的元事件（`step-start`、`step-finish`、`message-start`、`compress-start`、`approval-request` 等）。
 - **会话消息**：`Session.conversation` 类型为 `pi.Message[]`，包含 `user`、`assistant`、`toolResult` 三种角色。工具执行结果以 `ToolResultMessage` 进入会话历史。
 - **Token usage**：统一使用 `pi.Usage`（字段：`input`、`output`、`cacheRead`、`cacheWrite`、`totalTokens`、`cost`）。旧的 `LanguageModelUsage` 兼容类型已删除。
-- **工具 schema**：`ToolSchema` 与 `ToolSet` 定义已移至 `src/sdk/tool-provider.ts`；`pi-adapter.ts` 负责 REM 内部类型与 `pi-ai` 类型的双向转换。
-- **Session 迁移**：`schemaVersion < 2` 的旧 session 会在 `load()` 时自动通过 `migrateConversationToPiAi()` 转换为 `pi.Message[]`，写入 `schemaVersion = 2` 与 `messageMeta` 后保存；再次加载不会重复迁移。
+- **类型直接复用 pi-ai**：`ToolSet` 统一为 `pi.Tool[]`，消息为 `pi.Message`；原 `pi-adapter.ts` 转换层与 `ModelMessage` / `ContentPart` 等自建表示层已删除。
+- **Session 兼容**：旧 schema v1 session 不再兼容，加载时抛出 `UnsupportedSessionSchemaError`（不再自动迁移）。
 
 ---
 

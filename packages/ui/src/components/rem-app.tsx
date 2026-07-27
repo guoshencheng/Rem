@@ -116,7 +116,7 @@ export function RemApp({ service: agentService, className }: RemAppProps) {
         onSearch={handleSearch}
       />
       {activeWorkspace ? (
-        <ChatSessionView agentService={agentService} workspace={activeWorkspace} agents={agents} />
+        <ChatSessionView workspace={activeWorkspace} agents={agents} />
       ) : (
         <div className="flex-1 flex items-center justify-center text-tx3 text-sm">
           Select or add a workspace

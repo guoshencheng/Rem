@@ -6,53 +6,60 @@ Core layer of the Rem Agent framework. Provides the foundational primitives for 
 
 ## Architecture Overview
 
-The Core is organized around a lifecycle agent that orchestrates a turn-based execution loop.
+The Core is organized around a stateless execution entry point (`runAgent`) operating over an assembled `AgentContext`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        CoreAgent                                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │   initialize │  │     run()    │  │    reset()   │              │
-│  └──────────────┘  └──────┬───────┘  └──────────────┘              │
-│                           │                                         │
-│                           ▼                                         │
-│                    ┌──────────────┐                                 │
-│  ┌─────────────────┤  ReactLoop   │─────────────────┐              │
-│  │                 │  iterate()   │                 │              │
-│  │                 └──────┬───────┘                 │              │
-│  │                        │                         │              │
-│  │           ┌────────────┼────────────┐            │              │
-│  │           ▼            ▼            ▼            │              │
-│  │   ┌──────────┐  ┌──────────┐  ┌──────────┐      │              │
-│  │   │AgentState│  │ EventBus │  │ Inference│      │              │
-│  │   └──────────┘  └──────────┘  │  Engine  │      │              │
-│  │                               └────┬─────┘      │              │
-│  │                                    ▼             │              │
-│  │                         ┌──────────────────┐    │              │
-│  │                         │ LLMProvider      │    │              │
-│  │                         │ (openai/anthropic│    │              │
-│  └─────────────────────────┤  direct SDK)     │────┘              │
-│                            └──────────────────┘                   │
-│                                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │              IterationBudget (guard rails)                  │  │
-│  └─────────────────────────────────────────────────────────────┘  │
+│  createAgentFromEnv()          assembleAgentContext()               │
+│  (agent-factory.ts)            (agent-context-assembler.ts)         │
+│        │                                │                           │
+│        └──────────────┬─────────────────┘                           │
+│                       ▼                                             │
+│                AgentContext (models, providers, config, storage)    │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌──────────────── runAgent() (single execution entry) ──────────┐  │
+│  │                         ReactLoop                              │  │
+│  │   prepare → reason → execute → observe → reflect               │  │
+│  │                                                                │  │
+│  │   reason:   reason/reason.ts    → models.stream()              │  │
+│  │             reason/generate.ts  → models.complete()            │  │
+│  │   execute:  execute/execute-tools.ts + approval-engine.ts      │  │
+│  │                                                                │  │
+│  │   events:   AgentStreamEvent = pi.AssistantMessageEvent        │  │
+│  │             | RemMetaEvent                                     │  │
+│  └──────────────────────────┬────────────────────────────────────┘  │
+│                             │                                       │
+│         ┌───────────────────┼───────────────────┐                   │
+│         ▼                   ▼                   ▼                   │
+│  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐            │
+│  │ pi-ai Models│    │ AgentState   │    │ EventBus     │            │
+│  │ (llm/models)│    │ + Broadcast- │    │ (lifecycle / │            │
+│  │             │    │   Bus        │    │  phase events)│           │
+│  └─────────────┘    └──────────────┘    └──────────────┘            │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │              IterationBudget (guard rails)                  │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+Types are reused directly from pi-ai: messages are `pi.Message`, tool sets are `pi.Tool[]` — there is no REM-specific message representation or adapter layer. Old schema v1 sessions are unsupported and rejected with `UnsupportedSessionSchemaError`.
+
 ### Data Flow
 
-A single `run()` invocation flows through these phases:
+A single `runAgent()` invocation flows through these phases:
 
-1. **Initialize** — `CoreAgent.initialize()` resets state, assigns `sessionId`, and emits `core-agent:init`.
-2. **Start** — `CoreAgent.run(input)` sets status to `running`, emits `core-agent:start`, and enters the turn loop.
-3. **Turn Execution** — `ReactTurnRunner.run()` enters the turn loop, calling `ReactLoop.iterate()` for each ReAct cycle:
+1. **Assemble** — `createAgentFromEnv()` (or `assembleAgentContext()` with injected providers) builds the `AgentContext`. Provider credentials, default model, and baseURL are resolved inside Core.
+2. **Load** — `runAgent()` loads or creates the `Session` via `SessionProvider` (schema v2).
+3. **Turn Execution** — the `ReactLoop` iterates ReAct cycles:
     - **Prepare** — Builds message list from conversation history + user input.
-    - **Reason** — Calls `pi-ai Models.stream()` or `Models.complete()` with the configured model.
-    - **Emit** — Fires `phase:reason:before` / `phase:reason:after` around the LLM call.
+    - **Reason** — `reason()` calls `models.stream()` (streaming) with the configured model.
+    - **Execute** — Tool calls run through the approval pipeline and `execute-tools`.
     - **Complete** — If the model returns text without tool calls, the turn completes.
-4. **Budget Check** — Before each turn, `IterationBudget.checkTurn()` verifies the agent has remaining budget (max turns, consecutive errors, same-tool failures).
-5. **End** — The loop exits when `completed=true`, `interrupted=true`, or budget is exhausted. Status returns to `idle`.
+4. **Budget Check** — Before each turn, `IterationBudget.checkTurn()` verifies remaining budget (max turns, consecutive errors, same-tool failures).
+5. **Emit** — `AgentEventStreamController` enqueues `AgentStreamEvent`s; `AgentState` publishes UI-level `BusEvent`s (chunks, session lifecycle, todos, usage) on the `BroadcastBus`.
+6. **End** — The loop exits when `completed=true`, aborted via `signal`, or budget is exhausted.
 
 ### Module Responsibilities
 
@@ -60,36 +67,43 @@ A single `run()` invocation flows through these phases:
 |--------|---------|
 | `types` | Defines `RemMessage`, `Usage`, `UserInput`, `AgentOutput`, `AgentStreamEvent`, `ToolCallRecord`, and `AgentStatus` |
 | `budget` | `IterationBudget` — enforces guard rails on turns, errors, and tool failures |
-| `state` | `AgentLiveState` — holds runtime status, activity, streaming snapshot, and accumulated token usage |
+| `state` / `agent-state` | `AgentLiveState` (per-session runtime state) and `AgentState` (session-keyed registry + `BroadcastBus` publisher) |
 | `events` | `EventBus` — typed, priority-ordered event system for observability and extension |
-| `loop` | `ReactLoop` / `ReactTurnRunner` — executes ReAct turns via `pi-ai` `Models` |
-| `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window.ts` |
-| `core-agent` | `CoreAgent` — lifecycle orchestrator: init, run, interrupt, reset, event subscription |
+| `bus-events` / `broadcast-bus` | UI-level `BusEvent` types and pub/sub bus |
+| `loop-strategy` | `ReactLoop` / `LoopStrategy` exports (implementation in `plugins/loop/react`) |
+| `reason` / `execute` | `reason()` (streaming), `generate()` (non-streaming), `executeTools()`, `ApprovalEngine` |
+| `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window`, `reasoning-options` |
+| `agent-factory` | `createAgentFromEnv()` — resolves provider config from env and builds `AgentContext` |
+| `agent-context-assembler` | `assembleAgentContext()` — pure assembly function, all providers injectable |
+| `run-agent` | `runAgent()` — stateless, single execution entry point |
 
 ---
 
 ## Quick Start
 
 ```typescript
-import { createAgentFromEnv } from 'rem-agent-core';
+import { createAgentFromEnv, runAgent, AgentState } from 'rem-agent-core';
 
-const agent = createAgentFromEnv({
-  name: 'MyAgent',
-  provider: 'openai',
-  maxTurns: 60,
+const ctx = await createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
+const agentState = new AgentState();
+
+const { stream, output } = runAgent({
+  ctx,
+  agentState,
+  sessionId: 'my-session',
+  input: { content: 'Hello!' },
 });
 
-await agent.initialize();
+for await (const event of stream.fullStream) {
+  // AgentStreamEvent = pi.AssistantMessageEvent | RemMetaEvent
+}
 
-agent.on('turn:after', ({ state }) => {
-  console.log(`Turn ${state.currentTurn} completed`);
-});
-
-const { output } = agent.run({ content: 'Hello!' });
 console.log((await output).content);
 ```
 
-Provider and model are resolved from environment variables (`OPENAI_API_KEY`, `OPENAI_MODEL`, etc.) by `createAgentFromEnv`. You can also construct `CoreAgent` directly with an explicit `provider` and `providerConfig`.
+Provider and model are resolved from environment variables (`OPENAI_API_KEY`, `OPENAI_MODEL`, etc.) by `createAgentFromEnv`. Clients must not read provider credentials directly — configuration is owned by Core.
+
+For browser/edge environments, use the platform-agnostic entry `rem-agent-core/browser` together with `assembleAgentContext()` and injected providers.
 
 ---
 
@@ -209,23 +223,17 @@ class IterationBudget {
 
 ### `state`
 
-#### `AgentState`
+#### `AgentLiveState` / `AgentState`
 
-Mutable container for the agent's runtime state.
+`AgentLiveState` holds per-session runtime state (status, activity, streaming snapshot, accumulated token usage). `AgentState` is a session-keyed registry of live states plus a `BroadcastBus` publisher for UI-level `BusEvent`s (`chunk`, `session-start`, `session-end`, `todo-updated`, `usage-change`, `activity-change`, `child-agent-update`, ...).
 
 ```typescript
 class AgentState {
-  readonly sessionId: string;       // UUID, auto-generated on construction
-  conversation: Message[] = [];     // full message history (pi.Message)
-  currentTurn = 0;                  // last executed turn number
-  budget: IterationBudget;          // shared budget instance
-  toolCalls: ToolCallRecord[] = []; // accumulated tool call records
-  status: AgentStatus = 'idle';     // current status
-
-  addMessage(msg: Message): void;
-  addToolCall(record: ToolCallRecord): void;
-  canContinue(): boolean;           // status === 'running' && budget.hasBudget()
-  reset(): void;                    // clear conversation, turns, tools; restore budget
+  get(sessionId: string): AgentLiveState | undefined;
+  getOrCreate(sessionId: string): AgentLiveState;
+  runningSessionIds(): string[];
+  subscribe(fn: (event: BusEvent) => void): () => void;
+  publish(event: BusEvent): void;
 }
 ```
 
@@ -254,12 +262,14 @@ class EventBus {
 
 ```typescript
 type AgentEvent =
-  | 'core-agent:init' | 'core-agent:start' | 'core-agent:error'
+  | 'agent:state-change'
   | 'turn:before' | 'turn:after'
-  | 'phase:prepare' | 'phase:reason:before' | 'phase:reason:after'
+  | 'phase:prepare'
+  | 'phase:reason:before' | 'phase:reason:after' | 'phase:reason:error'
   | 'phase:execute:before' | 'phase:execute:after'
   | 'phase:observe' | 'phase:reflect'
-  | 'tool:before' | 'tool:after' | 'tool:error'
+  | 'tool:before' | 'tool:after' | 'tool:error' | 'tool:blocked'
+  | 'tool:approval:requested' | 'tool:approval:resolved' | 'tool:approval:expired'
   | 'compress:before' | 'compress:after';
 ```
 
@@ -268,10 +278,13 @@ type AgentEvent =
 ```typescript
 interface EventContext {
   agent: unknown;
-  state: AgentState;
+  liveState: AgentLiveState;
+  prevStatus?: string;
+  currentStatus?: string;
   turn?: unknown;
   turnResult?: unknown;
   toolCall?: unknown;
+  error?: unknown;
 }
 ```
 
@@ -301,86 +314,60 @@ const models = createCoreModels({ all: true });
 
 ### `loop`
 
-#### `ReactLoop` / `ReactTurnRunner`
+#### `ReactLoop` / `LoopStrategy`
 
-Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentContext.models`.
+Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentContext.models`. The `LoopStrategy` interface allows alternative loop implementations (e.g. Plan-and-Solve) in the future.
 
 ---
 
-### `core-agent`
+### `agent-factory` / `run-agent`
 
-#### `CoreAgent`
-
-Main entry point. Manages the agent lifecycle.
+#### `createAgentFromEnv`
 
 ```typescript
-class CoreAgent {
-  get status(): AgentStatus;
-
-  constructor(config: CoreAgentConfig);
-
-  async initialize(options?: { sessionId?: string }): Promise<void>;
-  run(input: UserInput): AgentStreamResult;
-  interrupt(): void;               // signal graceful stop at end of current turn
-  async reset(): Promise<void>;    // clear state and re-emit core-agent:init
-  async generateTitle(): Promise<string>;
-  async listSessions(): Promise<SessionSummary[]>;
-  on(event: AgentEvent, handler: EventHandler): () => void;
-  once(event: AgentEvent, handler: EventHandler): void;
-}
+async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext>;
 ```
 
-**`CoreAgentConfig`:**
+Resolves provider credentials, default model, and baseURL from environment variables and assembles a full `AgentContext` (models, session storage, tools, security, budget, ...). This is the only supported way for clients to obtain an agent configuration — clients must not import provider SDKs or read `OPENAI_API_KEY` etc. directly.
+
+#### `runAgent`
 
 ```typescript
-interface CoreAgentConfig {
-  name: string;               // agent identity, used in system prompt
-  provider?: string;          // provider id, e.g. 'openai' or 'anthropic'
-  providerConfig?: {          // explicit provider config; otherwise resolved from env
-    apiKey: string;
-    baseURL?: string;
-    model: string;
-  };
-  budget?: IterationBudget;   // optional custom budget; defaults to 60-turn budget
+interface RunAgentParams {
+  input: UserInput;
+  sessionId: string;
+  signal?: AbortSignal;
+  ctx: AgentContext;
+  agentState: AgentState;
+  workspace?: string;
+  workspaceRoot?: string;
+  agent?: string;          // custom agent role name (see Custom Agents)
 }
+
+interface RunAgentResult {
+  stream: AgentStream;
+  output: Promise<AgentOutput>;
+}
+
+function runAgent(params: RunAgentParams): RunAgentResult;
 ```
 
-**`run()` behavior:**
-
-- Sets status to `running`, emits `core-agent:start`.
-- Enters a `while` loop calling `ReactTurnRunner.run()` per iteration.
-- Loop exits when:
-  - the turn result indicates completion
-  - `interrupt()` was called
-  - budget is exhausted
-- On success, status returns to `idle`.
-- On error, status becomes `error`, `core-agent:error` is emitted, and the error is re-thrown.
+Stateless execution entry point. Loads/creates the session, runs the `ReactLoop` until completion, abort, or budget exhaustion, and returns a stream of `AgentStreamEvent` plus an output promise. Concurrent title generation is handled internally.
 
 ---
 
 ## Event Reference
 
-| Event | When | Context fields |
-|-------|------|----------------|
-| `core-agent:init` | After `initialize()` or `reset()` | `agent`, `state` |
-| `core-agent:start` | At the start of `run()` | `agent`, `state` |
-| `core-agent:error` | On uncaught error during `run()` | `agent`, `state` |
-| `turn:before` | Before each `ReactLoop.iterate()` | `agent`, `state` |
-| `turn:after` | After each `ReactLoop.iterate()` | `agent`, `state` |
-| `phase:reason:before` | Before LLM call | `agent`, `state` |
-| `phase:reason:after` | After LLM call | `agent`, `state` |
-| `phase:prepare` | (reserved) | `agent`, `state` |
-| `phase:execute:before` | (reserved) | `agent`, `state`, `turn` |
-| `phase:execute:after` | (reserved) | `agent`, `state`, `turnResult` |
-| `phase:observe` | (reserved) | `agent`, `state` |
-| `phase:reflect` | (reserved) | `agent`, `state` |
-| `tool:before` | (reserved) | `agent`, `state`, `toolCall` |
-| `tool:after` | (reserved) | `agent`, `state`, `toolCall` |
-| `tool:error` | (reserved) | `agent`, `state`, `toolCall` |
-| `compress:before` | (reserved) | `agent`, `state` |
-| `compress:after` | (reserved) | `agent`, `state` |
-
-Events marked **(reserved)** are defined in the type system but not yet emitted by the current `AgentLoop` implementation; they are reserved for future ReAct phase expansion.
+| Event | When |
+|-------|------|
+| `agent:state-change` | Live state status/activity transitions |
+| `turn:before` / `turn:after` | Around each ReAct turn |
+| `phase:reason:before` / `phase:reason:after` / `phase:reason:error` | Around the LLM call |
+| `phase:prepare` / `phase:observe` / `phase:reflect` | ReAct phase boundaries |
+| `phase:execute:before` / `phase:execute:after` | Around tool execution |
+| `tool:before` / `tool:after` / `tool:error` / `tool:blocked` | Individual tool call lifecycle |
+| `tool:approval:requested` / `tool:approval:resolved` / `tool:approval:expired` | Approval pipeline |
+| `compress:before` / `compress:after` | Context compression |
 
 ## MCP Client
 

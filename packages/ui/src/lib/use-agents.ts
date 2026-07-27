@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent, TodoItem } from 'rem-agent-core';
 import type { StreamErrorInfo } from 'rem-agent-core';
 import type { IAgentService, BusEvent, SessionActivity } from 'rem-agent-bridge/client';
 import type { UIMessage } from 'rem-agent-bridge';
@@ -58,6 +58,7 @@ export interface SessionView {
   pendingApprovals: ApprovalRequest[];
   tokenUsage?: Usage;
   childAgents: Map<string, ChildAgentInfo>;
+  todos: TodoItem[];
 }
 
 interface SessionState {
@@ -69,6 +70,7 @@ interface SessionState {
   pendingApprovals: ApprovalRequest[];
   tokenUsage?: Usage;
   childAgents: Map<string, ChildAgentInfo>;
+  todos: TodoItem[];
 }
 
 export interface SessionSummary {
@@ -147,9 +149,10 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
     async (sessionId: string, initialTokenUsage?: Usage) => {
       if (sessionMapRef.current.has(sessionId)) return;
       try {
-        const [messages, pendingApprovals] = await Promise.all([
+        const [messages, pendingApprovals, todos] = await Promise.all([
           agentService.getMessages(workspace, sessionId),
           agentService.listPendingApprovals(workspace, sessionId).catch(() => [] as ApprovalRequest[]),
+          agentService.getTodos(workspace, sessionId).catch(() => [] as TodoItem[]),
         ]);
         sessionMapRef.current.set(sessionId, {
           messages,
@@ -159,6 +162,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           pendingApprovals,
           tokenUsage: initialTokenUsage,
           childAgents: new Map(),
+          todos,
         });
       } catch {
         sessionMapRef.current.set(sessionId, {
@@ -168,6 +172,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           pendingToolCalls: new Set(),
           pendingApprovals: [],
           childAgents: new Map(),
+          todos: [],
         });
       }
       notifyChange();
@@ -526,6 +531,15 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
           notifyChange();
           break;
         }
+        case 'todo-updated': {
+          if (!state) {
+            bufferEvent(event);
+            return;
+          }
+          state.todos = event.todos;
+          notifyChange();
+          break;
+        }
         case 'child-agent-update': {
           if (!state) {
             bufferEvent(event);
@@ -590,6 +604,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       pendingApprovals: state.pendingApprovals,
       tokenUsage: state.tokenUsage,
       childAgents: state.childAgents,
+      todos: state.todos,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, version]);
@@ -606,6 +621,7 @@ export function useAgents(agentService: IAgentService, options: UseAgentsOptions
       pendingApprovals: state.pendingApprovals,
       tokenUsage: state.tokenUsage,
       childAgents: state.childAgents,
+      todos: state.todos,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);

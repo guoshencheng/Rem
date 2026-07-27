@@ -3,11 +3,9 @@
 import { MessageList } from './message-list';
 import { ChatComposer } from './chat-composer';
 import { TodoPanel } from './todo-panel';
-import { useTodos } from '../../lib/use-todos';
 import { DEFAULT_CONTEXT_WINDOW } from '../../lib/context-window';
 import type { UIMessage, SessionActivity } from '../../lib/types';
-import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent } from 'rem-agent-core';
-import type { IAgentService } from 'rem-agent-bridge/client';
+import type { ApprovalDecision, ApprovalRequest, Usage, Rule, UserInputContent, TodoItem } from 'rem-agent-core';
 import type { ChildAgentInfo } from '../../lib/use-agents';
 
 export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error';
@@ -22,13 +20,11 @@ interface ChatPanelProps {
   tokenUsage?: Usage;
   maxTokens?: number;
   childAgents?: Map<string, ChildAgentInfo>;
+  todos?: TodoItem[];
   onOpenChild?: (sessionId: string) => void;
   onSend(content: UserInputContent): void | Promise<void>;
   onInterrupt(): void;
   onResolveApproval(approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): void;
-  agentService: IAgentService;
-  workspace: string;
-  sessionId: string;
 }
 
 export function ChatPanel({
@@ -41,16 +37,13 @@ export function ChatPanel({
   tokenUsage,
   maxTokens = DEFAULT_CONTEXT_WINDOW,
   childAgents,
+  todos,
   onOpenChild,
   onSend,
   onInterrupt,
   onResolveApproval,
-  agentService,
-  workspace,
-  sessionId,
 }: ChatPanelProps) {
   const streaming = status === 'streaming' || status === 'loading';
-  const { todos } = useTodos(agentService, workspace, sessionId);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -62,7 +55,7 @@ export function ChatPanel({
       </header>
       <MessageList messages={messages} onSend={onSend} childAgents={childAgents} onOpenChild={onOpenChild} />
       <div className="max-w-3xl mx-auto w-full px-4 pb-4">
-        <TodoPanel todos={todos} />
+        <TodoPanel todos={todos ?? []} />
         <ChatComposer
           streaming={streaming}
           initialized={initialized}

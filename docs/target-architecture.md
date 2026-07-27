@@ -1,5 +1,13 @@
 # 预期架构 — 模块边界修正后
 
+> 状态：📦 历史参考（2026-07-27 标注）
+>
+> 本文档是 2026-06 底边界审查后的重构目标。核心决策已落地（`CoreAgent` 类已移除，`runAgent` 为唯一执行入口），但包结构后续又经历了更大演进（新增 `routes` / `ui` / `local-demo` 包，`tui` 包已移除），文中包结构与目录清单已不代表现状。
+>
+> 当前实际架构见 `docs/architecture.md` 与 `docs/module-reference.md`。下文保留作为决策历史。
+
+---
+
 > 基于 `docs/boundary-review.md` 审查报告。
 >
 > 核心决策：**仅保留 `run-agent` 作为唯一 agent 执行入口**，移除 `CoreAgent` 类。

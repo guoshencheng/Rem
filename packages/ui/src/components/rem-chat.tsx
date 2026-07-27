@@ -30,7 +30,7 @@ export function RemChat({ service: agentService, sessionId, workspace = 'default
 
   return (
     <div className={className ?? 'flex h-full flex-1'}>
-      <ChatSessionView agentService={agentService} workspace={workspace} agents={agents} />
+      <ChatSessionView workspace={workspace} agents={agents} />
     </div>
   );
 }

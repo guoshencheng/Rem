@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
     'rem-agent-core',
     'rem-agent-bridge',
     'better-sqlite3',
-    'awilix',
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {

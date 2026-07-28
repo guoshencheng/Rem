@@ -40,9 +40,9 @@ export interface ConfigProvider {
 
 `agent-context-assembler.ts`：
 
-- `assembleAgentContext(options): AgentAssembly` 改为**同步**。ruleEngine 只含 config 可见规则（default + profile + sessionRules）；不再调用 `ruleStore.loadAll()`。
-- 新增导出 `loadUserRules(di: AgentDI): Promise<void>`：`ruleStore.loadAll()` 结果逐条 `addRule` 进 `di.ruleEngine`（permissionEvaluator 持有引用，规则后补即可见）。
-- 移除 `buildRuleSecurity`（拆为内部同步 `buildConfigRules` + 导出 `loadUserRules`），`browser.ts` 导出同步更新。
+- `assembleAgentContext(options): AgentAssembly` 改为**同步**。ruleEngine 同步阶段只含 `[defaultRules, profileRules]`；不再调用 `ruleStore.loadAll()`。
+- 新增导出 `initRuleEngine(di: AgentDI): Promise<void>`：依次将 `ruleStore.loadAll()` 的 userRules 与 config 的 `sessionRules` 逐条 `addRule` 进 `di.ruleEngine`，最终顺序 `[default, profile, user, session]` 与现状完全一致（`evaluate` 用 `findLast`，后规则优先，顺序必须保持）。permissionEvaluator 持有 ruleEngine 引用，规则后补即可见。
+- 移除 `buildRuleSecurity`（拆为内部同步 `buildConfigRules`（不含 sessionRules）+ 导出 `initRuleEngine`），`browser.ts` 导出同步更新。
 
 `agent-context-builder.ts`（Node）：
 
@@ -54,8 +54,8 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 ```
 
 - `createAgentAssembly`：models、runtime、paths、debug log、configProvider（构造即就绪）、storageProvider 实例、fileMutationQueue、skillProvider、mcpManager、system prompt assembler、toolProvider、`assembleAgentContext`（同步，含 compressor/titleProvider/ruleEngine/permissionEvaluator）。`mcpProviders: []`。
-- `initAgentAssembly`：`await di.storage.init()`（注入实现可能真异步；Sqlite 已 no-op）→ `await loadUserRules(di)` → `di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig())`。
-- `index.ts` 导出 `createAgentAssembly` / `initAgentAssembly` / `loadUserRules`；`browser.ts` 导出 `loadUserRules`。
+- `initAgentAssembly`：`await di.storage.init()`（注入实现可能真异步；Sqlite 已 no-op）→ `await initRuleEngine(di)` → `di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig())`。
+- `index.ts` 导出 `createAgentAssembly` / `initAgentAssembly` / `initRuleEngine`；`browser.ts` 导出 `initRuleEngine`。
 
 ### 4. bridge AgentService
 
@@ -97,7 +97,7 @@ export class AgentService implements IAgentService {
 ```ts
 await storageProvider.init();
 const { di, runtimeConfig } = assembleAgentContext({ ... });  // 去 await
-await loadUserRules(di);
+await initRuleEngine(di);
 this.core = new AgentServiceCore({ di, runtimeConfig, agentState });
 ```
 
@@ -111,12 +111,12 @@ this.core = new AgentServiceCore({ di, runtimeConfig, agentState });
 | `packages/core/src/plugins/config/default/index.ts` | MODIFY | 构造函数同步加载配置；`init()` 重加载语义 |
 | `packages/core/src/sub-agent/build-child-context.ts` | MODIFY | `ChildConfigProvider` 补 no-op `init()` |
 | `packages/core/src/plugins/storage/sqlite/provider.ts` | MODIFY | 构造时同步开库 + 迁移 + 建 store；`init()` no-op |
-| `packages/core/src/agent-context-assembler.ts` | MODIFY | `assembleAgentContext` 同步化；新增 `loadUserRules`；移除 `buildRuleSecurity` |
+| `packages/core/src/agent-context-assembler.ts` | MODIFY | `assembleAgentContext` 同步化；新增 `initRuleEngine`；移除 `buildRuleSecurity` |
 | `packages/core/src/agent-context-builder.ts` | MODIFY | 拆 `createAgentAssembly` / `initAgentAssembly`；`buildAgentContext` 组合委托；as-cast 消除 |
 | `packages/core/src/index.ts` / `browser.ts` | MODIFY | 导出更新 |
 | `packages/bridge/src/agent.ts` | MODIFY | 构造函数同步装配 + 创建 core；`init()` 只做异步初始化；getter 去 undefined |
 | `packages/bridge/src/local/static-config-provider.ts` | MODIFY | 补 no-op `init()` |
-| `packages/bridge/src/local/agent-local-service.ts` | MODIFY | 适配同步 assemble + `loadUserRules` |
+| `packages/bridge/src/local/agent-local-service.ts` | MODIFY | 适配同步 assemble + `initRuleEngine` |
 | `packages/core/tests/*` | MODIFY | `tool-pattern-derivation.test.ts` mock 补 `init`；assembler/builder 测试适配同步签名与两阶段；storage 测试适配构造即就绪 |
 | `packages/bridge/tests/agent-service/*` | MODIFY | `service.di!` 去 `!`；新增"new 后 di/core 可用、未 init 业务方法 503"断言 |
 | `packages/core/README.md` / `AGENTS.md` | MODIFY | 装配入口文档同步 |

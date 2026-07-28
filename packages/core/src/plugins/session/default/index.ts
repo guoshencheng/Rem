@@ -1,12 +1,11 @@
-import { generateId } from '../../../shared/generate-id.js';
 import type { Message, TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Session, SessionProvider, SessionSummary } from '../../../sdk/session-provider.js';
-import type { RemMessage } from '../../../types.js';
 import type { SessionStore } from '../../../sdk/storage-provider.js';
-import { getMetaBoolean, getMetaString } from '../metadata.js';
+import type { RemMessage } from '../../../types.js';
+import { generateId } from '../../../shared/generate-id.js';
 import { UnsupportedSessionSchemaError } from '../errors.js';
 
-export class SqliteSessionProvider implements SessionProvider {
+export class DefaultSessionProvider implements SessionProvider {
   constructor(private store: SessionStore) {}
 
   async create(): Promise<Session> {

@@ -15,6 +15,7 @@ export { EmptySkillProvider } from './plugins/skill/empty/index.js';
 export { SimpleContextProvider } from './plugins/memory/simple/index.js';
 export { ReactLoop } from './plugins/loop/react/index.js';
 export { UnsupportedSessionSchemaError } from './plugins/session/errors.js';
+export { DefaultSessionProvider } from './plugins/session/default/index.js';
 // system-prompt 纯件：从具体模块文件导入，避开含 fs 的 loaders/project-agents-md-loader。
 export { DefaultSystemPromptAssembler } from './system-prompt/assembler.js';
 export { ProviderAwareTemplateSelector } from './system-prompt/template-selector.js';
@@ -46,6 +47,8 @@ export type * from './sdk/agent-state-provider.js';
 export type { Session, SessionSummary } from './session.js';
 export type { Rule, RuleSource } from './security/rules/rule.js';
 export type { TodoItem } from './todo/types.js';
+export { DefaultTodoService } from './todo/service.js';
+export type { TodoService } from './todo/service.js';
 export type { SecurityMode } from './security/permissions/factory.js';
 export type { UserInput, UserInputContent, AgentOutput, AgentStream, AgentStreamEvent } from './types.js';
 export type { McpServerConfig } from './mcp/types.js';

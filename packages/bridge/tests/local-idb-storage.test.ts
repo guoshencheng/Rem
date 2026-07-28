@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { IndexedDBStorageProvider } from '../src/local/idb-storage-provider.js';
-import { BrowserSessionProvider } from '../src/local/browser-session-provider.js';
+import { DefaultSessionProvider } from 'rem-agent-core/browser';
 
 describe('IndexedDBStorageProvider', () => {
   let provider: IndexedDBStorageProvider;
@@ -51,8 +51,8 @@ describe('IndexedDBStorageProvider', () => {
     expect(await provider.workspaceStore.list()).toHaveLength(0);
   });
 
-  it('BrowserSessionProvider create/load/addMessage', async () => {
-    const sp = new BrowserSessionProvider(provider.sessionStore);
+  it('DefaultSessionProvider create/load/addMessage', async () => {
+    const sp = new DefaultSessionProvider(provider.sessionStore);
     const s = await sp.create();
     const { messageId, message } = sp.addMessage(s, 'assistant');
     sp.appendContent(s, message, { type: 'text', text: 'hi' } as never);

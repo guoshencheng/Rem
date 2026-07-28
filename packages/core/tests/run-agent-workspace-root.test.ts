@@ -30,6 +30,11 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
       isDangerous: () => false,
     }),
   },
+  storage: {
+    todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
+    archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
+    ruleStore: { loadAll: async () => [], loadBySource: async () => [], saveApproved: async () => {} },
+  },
 });
 
 describe('runAgent workspaceRoot', () => {

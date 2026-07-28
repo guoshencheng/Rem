@@ -17,6 +17,7 @@ import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-m
 import type { SecurityMode } from './security/permissions/factory.js';
 import type { Rule } from './security/rules/rule.js';
 import { StaticToolProvider } from './plugins/tool/static/index.js';
+import { DefaultSessionProvider } from './plugins/session/default/index.js';
 import { EmptySkillProvider } from './plugins/skill/empty/index.js';
 import { SimpleContextProvider } from './plugins/memory/simple/index.js';
 import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
@@ -25,14 +26,14 @@ import { SimpleErrorHandler } from './plugins/error/simple/index.js';
 import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
 import { DefaultToolComposer } from './tool-composer.js';
-import { DefaultTodoService } from './todo/service.js';
 import { RuleEngine } from './security/rules/rule-engine.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import { createPermissionEvaluator, type ApprovalRequestFactory } from './security/permissions/factory.js';
 
 export interface AssembleAgentContextOptions {
   configProvider: ConfigProvider;
-  sessionProvider: SessionProvider;
+  /** 缺省时由 storage.sessionStore 装配 DefaultSessionProvider。 */
+  sessionProvider?: SessionProvider;
   storageProvider: StorageProvider;
   systemPromptAssembler: SystemPromptAssembler;
   models: Models;
@@ -83,7 +84,7 @@ export async function assembleAgentContext(options: AssembleAgentContextOptions)
   const compressor = options.compressor
     ?? new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models, runtime.env);
 
-  const { ruleEngine, ruleStore } = await buildRuleSecurity(configProvider, storageProvider.ruleStore);
+  const { ruleEngine } = await buildRuleSecurity(configProvider, storageProvider.ruleStore);
 
   const approvalFactory: ApprovalRequestFactory = { create: (input) => input };
   const securityMode = options.securityMode ?? 'interactive';
@@ -91,7 +92,7 @@ export async function assembleAgentContext(options: AssembleAgentContextOptions)
 
   return {
     configProvider,
-    sessionProvider: options.sessionProvider,
+    sessionProvider: options.sessionProvider ?? new DefaultSessionProvider(storageProvider.sessionStore),
     toolProvider: options.toolProvider ?? new StaticToolProvider(),
     mcpProviders: options.mcpProviders ?? [],
     skillProvider: options.skillProvider ?? new EmptySkillProvider(),
@@ -106,12 +107,9 @@ export async function assembleAgentContext(options: AssembleAgentContextOptions)
     fileMutationQueue: options.fileMutationQueue ?? (new NoopFileMutationQueue() as FileMutationQueue),
     systemPromptAssembler: options.systemPromptAssembler,
     ruleEngine,
-    ruleStore,
-    todoService: new DefaultTodoService(storageProvider.todoStore),
+    storage: storageProvider,
     permissionEvaluator,
     securityMode,
-    archiveStore: storageProvider.archiveStore,
-    workspaceStore: storageProvider.workspaceStore,
     models,
     runtime,
   };

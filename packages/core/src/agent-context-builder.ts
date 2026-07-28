@@ -4,7 +4,6 @@ import { createDefaultAgentPaths } from './config/paths.js';
 import { configureConsoleOutput } from './shared/debug-log.js';
 import { configureFileDebugLog } from './shared/debug-log-file.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
-import { SqliteSessionProvider } from './plugins/session/sqlite/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
 import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
@@ -133,7 +132,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   return assembleAgentContext({
     configProvider,
-    sessionProvider: options?.sessionProvider ?? new SqliteSessionProvider(storageProvider.sessionStore),
+    sessionProvider: options?.sessionProvider,
     storageProvider,
     systemPromptAssembler: options?.systemPromptAssembler ?? defaultAssembler,
     models,

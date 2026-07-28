@@ -43,7 +43,11 @@ describe('delegate_task tool', () => {
         }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
-      ruleStore: { saveApproved: async () => {}, loadAll: async () => [] } as any,
+      storage: {
+        todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
+        archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
+        ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
+      } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
       securityMode: 'interactive' as const,
       loopStrategy: {
@@ -101,7 +105,11 @@ describe('delegate_task tool', () => {
         }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
-      ruleStore: { saveApproved: async () => {}, loadAll: async () => [] } as any,
+      storage: {
+        todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
+        archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
+        ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
+      } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
       securityMode: 'interactive' as const,
       loopStrategy: {
@@ -155,7 +163,11 @@ describe('delegate_task tool', () => {
         }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
-      ruleStore: { saveApproved: async () => {}, loadAll: async () => [] } as any,
+      storage: {
+        todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
+        archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
+        ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
+      } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
       securityMode: 'interactive' as const,
       loopStrategy: {

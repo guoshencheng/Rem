@@ -1,5 +1,5 @@
 import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
-import { AgentState, runAgent as coreRunAgent, log } from 'rem-agent-core/browser';
+import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService } from 'rem-agent-core/browser';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core/browser';
 import { ServiceError } from './errors.js';
@@ -136,7 +136,7 @@ export class AgentServiceCore implements IAgentService {
   }
 
   async getTodos(_workspace: string, sessionId: string): Promise<TodoItem[]> {
-    return this.ctx.todoService.get(sessionId);
+    return new DefaultTodoService(this.ctx.storage.todoStore).get(sessionId);
   }
 
   async createSession(workspace: string): Promise<SessionSummary> {
@@ -173,7 +173,7 @@ export class AgentServiceCore implements IAgentService {
   async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
     // Persist the approved rule before resolving so the engine sees it immediately.
     if (decision === 'allow-always' && rule) {
-      await this.ctx.ruleStore.saveApproved(rule);
+      await this.ctx.storage.ruleStore.saveApproved(rule);
       this.ctx.ruleEngine.addRule({ ...rule, source: 'approved' });
     }
     return this.agentState.resolveApproval(sessionId, approvalId, decision, rule);

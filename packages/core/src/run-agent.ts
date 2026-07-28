@@ -19,6 +19,7 @@ import { AgentState } from './agent-state.js';
 import { normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
 import { log } from './shared/debug-log.js';
 import { OverlayToolProvider } from './overlay-tool-provider.js';
+import { DefaultTodoService } from './todo/service.js';
 import {
   createDelegateTaskToolDefinition,
   createDelegateTaskToolExecutor,
@@ -133,7 +134,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
         controller.emit({ type: 'compress-start', sessionId: params.sessionId, estimatedTokens: accumulated, threshold });
 
-        const previousArchive = await ctx.archiveStore.getLatest(params.sessionId);
+        const previousArchive = await ctx.storage.archiveStore.getLatest(params.sessionId);
         const version = previousArchive ? previousArchive.version + 1 : 1;
         const parentArchiveId = previousArchive?.id;
 
@@ -156,7 +157,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           summary: summaryText,
           tokenUsageBefore: accumulated > 0 ? { totalTokens: accumulated, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } : undefined,
         };
-        await ctx.archiveStore.save(archiveRecord);
+        await ctx.storage.archiveStore.save(archiveRecord);
 
         session.conversation = compressed;
         session.metadata.compressionTokenOffset = accumulated;
@@ -183,7 +184,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
       const todoWriteDefinition = createTodoWriteToolDefinition();
       const todoWriteExecutor = createTodoWriteToolExecutor(
-        ctx.todoService,
+        new DefaultTodoService(ctx.storage.todoStore),
         (event) => params.agentState.publish(event),
         workspace,
       );
@@ -252,7 +253,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           agentState: params.agentState,
           permissionEvaluator: ctx.permissionEvaluator,
           ruleEngine: ctx.ruleEngine,
-          ruleStore: ctx.ruleStore,
+          ruleStore: ctx.storage.ruleStore,
           securityMode: ctx.securityMode,
           workspaceRoot,
           agentName: behavior.name,

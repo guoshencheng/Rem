@@ -16,7 +16,6 @@ import type { IAgentService } from '../agent-service.interface.js';
 import { AgentSessionManager } from '../agent-session.js';
 import { AgentServiceCore } from '../agent-service-core.js';
 import { IndexedDBStorageProvider } from './idb-storage-provider.js';
-import { BrowserSessionProvider } from './browser-session-provider.js';
 import { StaticConfigProvider } from './static-config-provider.js';
 import { NoopCompressor } from './noop-compressor.js';
 import { IdbWorkspaceRepository } from './idb-workspace-repository.js';
@@ -81,7 +80,6 @@ export class LocalAgentService implements IAgentService {
 
     const ctx: AgentContext = await assembleAgentContext({
       configProvider,
-      sessionProvider: new BrowserSessionProvider(storageProvider.sessionStore),
       storageProvider,
       systemPromptAssembler,
       models,

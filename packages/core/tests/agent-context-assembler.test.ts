@@ -81,8 +81,7 @@ describe('assembleAgentContext', () => {
     expect(await ctx.skillProvider.loadSkills()).toEqual([]);
     expect(ctx.compressor).toBeDefined();
     expect(ctx.ruleEngine).toBeDefined();
-    expect(ctx.ruleStore).toBeDefined();
-    expect(ctx.todoService).toBeDefined();
+    expect(ctx.storage).toBeDefined();
     expect(ctx.permissionEvaluator).toBeDefined();
     expect(ctx.securityMode).toBe('interactive');
     expect(ctx.runtime.platform).toBe('test');

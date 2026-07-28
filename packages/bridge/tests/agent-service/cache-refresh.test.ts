@@ -25,7 +25,7 @@ describe('AgentService.listSessions preserves usage through JSON', () => {
     const service = new AgentService({ storageProvider });
     await service.init();
 
-    const di = service.di!;
+    const di = service.di;
     const session = await di.sessionProvider.create();
     (session.metadata as any).workspace = DEFAULT_WORKSPACE;
     (session.metadata as any).messageTokenUsage = {

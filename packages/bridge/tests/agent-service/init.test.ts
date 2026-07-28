@@ -30,6 +30,12 @@ describe('AgentService init', { timeout: 20000 }, () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('exposes di and runtimeConfig right after construction, before init', () => {
+    expect(service.di).toBeDefined();
+    expect(service.di.sessionProvider).toBeDefined();
+    expect(service.runtimeConfig.securityMode).toBe('interactive');
+  });
+
   it('builds AgentDI and runtime config on init', async () => {
     await service.init();
     const summary = await service.createSession(DEFAULT_WORKSPACE);

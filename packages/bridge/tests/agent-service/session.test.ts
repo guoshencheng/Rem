@@ -122,7 +122,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
     const { service, cleanup } = await createTestService();
     try {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
-      const sessionProvider = service.di!.sessionProvider;
+      const sessionProvider = service.di.sessionProvider;
       const session = await sessionProvider.load(summary.sessionId);
       if (!session) throw new Error('Session not found');
 
@@ -165,7 +165,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
       await service.updateSession(DEFAULT_WORKSPACE, summary.sessionId, { title: 'Persisted' });
 
-      const sessionProvider = service.di!.sessionProvider;
+      const sessionProvider = service.di.sessionProvider;
       const session = await sessionProvider.load(summary.sessionId);
       if (!session) throw new Error('Session not found');
       session.conversation.push({

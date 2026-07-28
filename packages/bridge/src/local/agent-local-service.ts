@@ -1,5 +1,5 @@
 import {
-  AgentState, assembleAgentContext, createCoreModels,
+  AgentState, assembleAgentContext, initRuleEngine, createCoreModels,
   DefaultSystemPromptAssembler, ProviderAwareTemplateSelector,
   ClaudeAgentPromptTemplate, OpenAiAgentPromptTemplate,
   ToolingSection, ExecutionBiasSection, SafetySection, AgentsMdSection,
@@ -76,7 +76,7 @@ export class LocalAgentService implements IAgentService {
       ],
     );
 
-    const { di, runtimeConfig } = await assembleAgentContext({
+    const { di, runtimeConfig } = assembleAgentContext({
       configProvider,
       storageProvider,
       systemPromptAssembler,
@@ -89,6 +89,7 @@ export class LocalAgentService implements IAgentService {
     });
 
     const agentState = new AgentState();
+    await initRuleEngine(di);
     this.core = new AgentServiceCore({ di, runtimeConfig, agentState });
   }
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
-import { buildAgentContext, AgentState } from 'rem-agent-core';
+import { createAgentAssembly, initAgentAssembly, AgentState } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
@@ -12,20 +12,15 @@ export type AgentServiceOptions = AgentContextBuildOptions;
 
 export class AgentService implements IAgentService {
   private options: AgentServiceOptions;
-  private _di: AgentDI | undefined;
-  private _runtimeConfig: AgentRuntimeConfig | undefined;
+  private _di: AgentDI;
+  private _runtimeConfig: AgentRuntimeConfig;
   private agentState = new AgentState();
-  private core: AgentServiceCore | undefined;
+  private core: AgentServiceCore;
   private initialized = false;
 
   constructor(options: AgentServiceOptions) {
     this.options = options;
-  }
-
-  async init(): Promise<void> {
-    if (this.initialized) return;
-
-    const { di, runtimeConfig } = await buildAgentContext(this.options);
+    const { di, runtimeConfig } = createAgentAssembly(options);
     this._di = di;
     this._runtimeConfig = runtimeConfig;
     this.core = new AgentServiceCore({
@@ -33,15 +28,21 @@ export class AgentService implements IAgentService {
       runtimeConfig,
       agentState: this.agentState,
     });
+  }
+
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    await initAgentAssembly({ di: this._di, runtimeConfig: this._runtimeConfig }, this.options);
 
     this.initialized = true;
   }
 
-  get di(): AgentDI | undefined {
+  get di(): AgentDI {
     return this._di;
   }
 
-  get runtimeConfig(): AgentRuntimeConfig | undefined {
+  get runtimeConfig(): AgentRuntimeConfig {
     return this._runtimeConfig;
   }
 
@@ -50,7 +51,7 @@ export class AgentService implements IAgentService {
   }
 
   private ensureCore(): AgentServiceCore {
-    if (!this.initialized || !this.core) {
+    if (!this.initialized) {
       throw new ServiceError('AgentService not initialized', 503);
     }
     return this.core;

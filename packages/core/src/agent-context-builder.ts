@@ -129,9 +129,3 @@ export async function initAgentAssembly(assembly: AgentAssembly, options?: Agent
     di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig());
   }
 }
-
-export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentAssembly> {
-  const assembly = createAgentAssembly(options);
-  await initAgentAssembly(assembly, options);
-  return assembly;
-}

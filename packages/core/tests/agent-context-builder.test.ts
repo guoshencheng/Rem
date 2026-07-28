@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { buildAgentContext } from '../src/agent-context-builder.js';
+import { createAgentAssembly, initAgentAssembly } from '../src/agent-context-builder.js';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createDefaultAgentPaths } from '../src/config/paths.js';
 
-describe('buildAgentContext', () => {
+describe('createAgentAssembly + initAgentAssembly', () => {
   it('returns raw providers and a toolComposer without pre-merging tools', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-agent-test-'));
     writeFileSync(join(dir, 'config.json'), JSON.stringify({ name: 'test-agent' }));
 
     const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
 
-    const { di } = await buildAgentContext({ paths });
+    const assembly = createAgentAssembly({ paths });
+    await initAgentAssembly(assembly);
+    const { di } = assembly;
 
     expect(di.toolProvider).toBeDefined();
     expect(di.mcpProviders).toBeDefined();

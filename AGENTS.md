@@ -83,7 +83,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
 | `packages/core/src/browser.ts` | `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用） |
 | `packages/core/src/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
-| `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配）/ `initAgentAssembly`（异步资源初始化）/ `buildAgentContext`（两阶段组合） |
+| `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配）/ `initAgentAssembly`（异步资源初始化） |
 | `packages/bridge/src/local/agent-local-service.ts` | `LocalAgentService`：浏览器内 AgentService（`rem-agent-bridge/local`） |
 | `packages/routes/src/router.ts` | `createRemHandler`：REM API 路由分发 |
 | `packages/routes/src/cli.ts` | `rem-routes init`：生成宿主薄壳路由 |

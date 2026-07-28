@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
 import { buildAgentContext, AgentState } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
@@ -12,7 +12,8 @@ export type AgentServiceOptions = AgentContextBuildOptions;
 
 export class AgentService implements IAgentService {
   private options: AgentServiceOptions;
-  private ctx: AgentContext | undefined;
+  private _di: AgentDI | undefined;
+  private _runtimeConfig: AgentRuntimeConfig | undefined;
   private agentState = new AgentState();
   private core: AgentServiceCore | undefined;
   private initialized = false;
@@ -24,17 +25,24 @@ export class AgentService implements IAgentService {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    this.ctx = await buildAgentContext(this.options);
+    const { di, runtimeConfig } = await buildAgentContext(this.options);
+    this._di = di;
+    this._runtimeConfig = runtimeConfig;
     this.core = new AgentServiceCore({
-      ctx: this.ctx,
+      di,
+      runtimeConfig,
       agentState: this.agentState,
     });
 
     this.initialized = true;
   }
 
-  get context(): AgentContext | undefined {
-    return this.ctx;
+  get di(): AgentDI | undefined {
+    return this._di;
+  }
+
+  get runtimeConfig(): AgentRuntimeConfig | undefined {
+    return this._runtimeConfig;
   }
 
   get state(): AgentState {

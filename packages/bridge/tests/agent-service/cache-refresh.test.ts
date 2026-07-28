@@ -25,13 +25,13 @@ describe('AgentService.listSessions preserves usage through JSON', () => {
     const service = new AgentService({ storageProvider });
     await service.init();
 
-    const ctx = service.context!;
-    const session = await ctx.sessionProvider.create();
+    const di = service.di!;
+    const session = await di.sessionProvider.create();
     (session.metadata as any).workspace = DEFAULT_WORKSPACE;
     (session.metadata as any).messageTokenUsage = {
       msg1: baseUsage({ input: 100, output: 20, cacheRead: 30, totalTokens: 120 }),
     };
-    await ctx.sessionProvider.save(session);
+    await di.sessionProvider.save(session);
 
     const list = await service.listSessions(DEFAULT_WORKSPACE);
     console.log('listSessions tokenUsage:', JSON.stringify(list[0].tokenUsage, null, 2));

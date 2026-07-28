@@ -7,7 +7,7 @@ import {
   StaticToolProvider, EmptySkillProvider,
 } from 'rem-agent-core/browser';
 import type {
-  AgentContext, AgentInstructionLoader, CustomTool, Provider,
+  AgentInstructionLoader, CustomTool, Provider,
 } from 'rem-agent-core/browser';
 import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
 import { ServiceError } from '../errors.js';
@@ -76,7 +76,7 @@ export class LocalAgentService implements IAgentService {
       ],
     );
 
-    const ctx: AgentContext = await assembleAgentContext({
+    const { di, runtimeConfig } = await assembleAgentContext({
       configProvider,
       storageProvider,
       systemPromptAssembler,
@@ -89,7 +89,7 @@ export class LocalAgentService implements IAgentService {
     });
 
     const agentState = new AgentState();
-    this.core = new AgentServiceCore({ ctx, agentState });
+    this.core = new AgentServiceCore({ di, runtimeConfig, agentState });
   }
 
   private ensureCore(): AgentServiceCore {

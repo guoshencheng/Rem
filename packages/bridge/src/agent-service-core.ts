@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
+import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
 import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core/browser';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core/browser';
@@ -7,20 +7,23 @@ import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } fr
 import type { IAgentService } from './agent-service.interface.js';
 
 export interface AgentServiceCoreDeps {
-  ctx: AgentContext;
+  di: AgentDI;
+  runtimeConfig: AgentRuntimeConfig;
   agentState: AgentState;
 }
 
 /** IAgentService 的平台无关实现，AgentService（Node）与 LocalAgentService（浏览器）共用。 */
 export class AgentServiceCore implements IAgentService {
-  private ctx: AgentContext;
+  private di: AgentDI;
+  private runtimeConfig: AgentRuntimeConfig;
   private agentState: AgentState;
   private sessionManager: AgentSessionManager;
 
   constructor(deps: AgentServiceCoreDeps) {
-    this.ctx = deps.ctx;
+    this.di = deps.di;
+    this.runtimeConfig = deps.runtimeConfig;
     this.agentState = deps.agentState;
-    this.sessionManager = new AgentSessionManager(deps.ctx.sessionProvider, deps.agentState);
+    this.sessionManager = new AgentSessionManager(deps.di.sessionProvider, deps.agentState);
   }
 
   async init(): Promise<void> {
@@ -30,15 +33,15 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Workspace management ---- */
 
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.ctx.storage.workspaceStore.list();
+    return this.di.storage.workspaceStore.list();
   }
 
   async addWorkspace(path: string): Promise<Workspace> {
-    return this.ctx.storage.workspaceStore.add(path);
+    return this.di.storage.workspaceStore.add(path);
   }
 
   async removeWorkspace(path: string): Promise<void> {
-    return this.ctx.storage.workspaceStore.remove(path);
+    return this.di.storage.workspaceStore.remove(path);
   }
 
   /* ---- Agent lifecycle ---- */
@@ -57,7 +60,8 @@ export class AgentServiceCore implements IAgentService {
         input: { content: input, timestamp: new Date() },
         sessionId,
         signal: abortController.signal,
-        ctx: this.ctx,
+        di: this.di,
+        runtimeConfig: this.runtimeConfig,
         agentState: this.agentState,
         workspace,
         workspaceRoot: workspace,
@@ -130,7 +134,7 @@ export class AgentServiceCore implements IAgentService {
   }
 
   async getTodos(_workspace: string, sessionId: string): Promise<TodoItem[]> {
-    return new DefaultTodoService(this.ctx.storage.todoStore).get(sessionId);
+    return new DefaultTodoService(this.di.storage.todoStore).get(sessionId);
   }
 
   async createSession(workspace: string): Promise<SessionSummary> {
@@ -178,8 +182,8 @@ export class AgentServiceCore implements IAgentService {
   async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
     // Persist the approved rule before resolving so the engine sees it immediately.
     if (decision === 'allow-always' && rule) {
-      await this.ctx.storage.ruleStore.saveApproved(rule);
-      this.ctx.ruleEngine.addRule({ ...rule, source: 'approved' });
+      await this.di.storage.ruleStore.saveApproved(rule);
+      this.di.ruleEngine.addRule({ ...rule, source: 'approved' });
     }
     return this.agentState.resolveApproval(sessionId, approvalId, decision, rule);
   }

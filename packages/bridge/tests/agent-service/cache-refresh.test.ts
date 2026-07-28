@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { SqliteStorageProvider } from 'rem-agent-core';
+import { createDefaultAgentPaths } from 'rem-agent-core';
 import type { Usage } from 'rem-agent-core';
 
 const DEFAULT_WORKSPACE = 'default';
@@ -21,8 +21,8 @@ const baseUsage = (overrides?: Partial<Usage>): Usage => ({
 describe('AgentService.listSessions preserves usage through JSON', () => {
   it('returns tokenUsage with cacheRead', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'rem-cache-test-'));
-    const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
-    const service = new AgentService({ storageProvider });
+    const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
+    const service = new AgentService({ paths });
     await service.init();
 
     const di = service.di;
@@ -43,10 +43,12 @@ describe('AgentService.listSessions preserves usage through JSON', () => {
     // Simulate JSON serialization as in HTTP response
     const serialized = JSON.parse(JSON.stringify(list));
     console.log('serialized tokenUsage:', JSON.stringify(serialized[0].tokenUsage, null, 2));
-    expect(serialized[0].tokenUsage.totalTokens).toBe(120);
-    expect(serialized[0].tokenUsage.cacheRead).toBe(30);
 
-    await storageProvider.close();
+    expect(serialized[0].tokenUsage?.totalTokens).toBe(120);
+    expect(serialized[0].tokenUsage?.cacheRead).toBe(30);
+    expect(serialized[0].tokenUsage?.cacheWrite).toBe(0);
+
+    service.di.storage.close();
     await rm(dir, { recursive: true, force: true });
   });
 });

@@ -51,7 +51,7 @@ const agent = await createAgentFromEnv();
 
 Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentAssembly`（`AgentDI` 含 `models` 与全部 provider；`AgentRuntimeConfig` 含 `securityMode` 与 `runtime`）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
 
-服务宿主（如 bridge `AgentService`）需要构造/init 分离时，改用 `createAgentAssembly` + `initAgentAssembly` 两阶段入口。
+服务宿主（如 bridge `AgentService`）需要构造/init 分离时，改用 `createAgentAssembly` 同步装配 + 内联异步初始化（`configProvider.init` / `storage.init` / `initRuleEngine` / MCP connectAll）。
 
 - ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `paths`、`storageProvider` 等装配选项；行为配置走配置文件或自定义 `ConfigProvider`）。
 - ❌ 客户端不直接导入 `openai` 或 `@anthropic-ai/sdk`，不读 `OPENAI_API_KEY`。
@@ -83,7 +83,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
 | `packages/core/src/browser.ts` | `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用） |
 | `packages/core/src/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
-| `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配）/ `initAgentAssembly`（异步资源初始化） |
+| `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配） |
 | `packages/bridge/src/local/agent-local-service.ts` | `LocalAgentService`：浏览器内 AgentService（`rem-agent-bridge/local`） |
 | `packages/routes/src/router.ts` | `createRemHandler`：REM API 路由分发 |
 | `packages/routes/src/cli.ts` | `rem-routes init`：生成宿主薄壳路由 |

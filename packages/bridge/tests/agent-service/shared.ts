@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
 import { StaticConfigProvider } from '../../src/local/static-config-provider.js';
-import { SqliteStorageProvider, type AgentState, createDefaultAgentPaths } from 'rem-agent-core';
+import { createDefaultAgentPaths, type AgentState } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';
 import type { BusEvent } from '../../src/types.js';
@@ -172,7 +172,7 @@ export function createMockModels(config?: MockProviderConfig): Models {
 export interface TestService {
   service: AgentService;
   dir: string;
-  storageProvider: SqliteStorageProvider;
+  paths: ReturnType<typeof createDefaultAgentPaths>;
   cleanup: () => Promise<void>;
 }
 
@@ -182,12 +182,10 @@ export async function createTestService(options: {
   agentOptions?: Partial<AgentServiceOptions>;
 } = {}): Promise<TestService> {
   const dir = await mkdtemp(join(tmpdir(), 'agent-service-test-'));
+  const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
   const models = createMockModels(options.provider);
 
-  const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
-  await storageProvider.init();
   const workspace = options.workspace ?? DEFAULT_WORKSPACE;
-  await storageProvider.workspaceStore.add(workspace).catch(() => {});
 
   const configProvider = new StaticConfigProvider({
     provider: options.provider?.name ?? 'mock-default',
@@ -197,20 +195,22 @@ export async function createTestService(options: {
   });
 
   const service = new AgentService({
+    paths,
     configProvider,
-    storageProvider,
     models,
     ...options.agentOptions,
   });
 
   await service.init();
+  // 将 workspace 写入 db（AgentService.init 只做核心资源初始化）
+  await service.di.storage.workspaceStore.add(workspace).catch(() => {});
 
   return {
     service,
     dir,
-    storageProvider,
+    paths,
     cleanup: async () => {
-      await storageProvider.close();
+      service.di.storage.close();
       await rm(dir, { recursive: true, force: true });
     },
   };

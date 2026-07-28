@@ -51,7 +51,7 @@ Types are reused directly from pi-ai: messages are `pi.Message`, tool sets are `
 A single `runAgent()` invocation flows through these phases:
 
 1. **Assemble** — `createAgentFromEnv()` (or `assembleAgentContext()` with injected providers) builds the `AgentAssembly` (`{ di, runtimeConfig }`). Provider credentials, default model, and baseURL are resolved inside Core.
-Assembly is two-phase: `createAgentAssembly()` synchronously builds the full `AgentDI` + `AgentRuntimeConfig` (config is loaded in the `DefaultConfigProvider` constructor, SQLite is opened in the `SqliteStorageProvider` constructor); `initAgentAssembly()` then performs async resource initialization (`storage.init()`, persisted rule loading via `initRuleEngine()`, MCP connections).
+Assembly is two-phase: `createAgentAssembly()` synchronously builds the full `AgentDI` + `AgentRuntimeConfig` (config loaded in constructor, SQLite opened in constructor); the caller then performs async initialization inline (`configProvider.init()`, `storage.init()`, `initRuleEngine()`, MCP connections).
 2. **Load** — `runAgent()` loads or creates the `Session` via `SessionProvider` (schema v2).
 3. **Turn Execution** — the `ReactLoop` iterates ReAct cycles:
     - **Prepare** — Builds message list from conversation history + user input.
@@ -76,7 +76,7 @@ Assembly is two-phase: `createAgentAssembly()` synchronously builds the full `Ag
 | `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window`, `reasoning-options` |
 | `agent-factory` | `createAgentFromEnv()` — resolves provider config from env and builds the `AgentAssembly` |
 | `agent-context-assembler` | `assembleAgentContext()` — pure assembly function, all providers injectable |
-| `agent-context-builder` | `createAgentAssembly()` / `initAgentAssembly()` — two-phase assembly |
+| `agent-context-builder` | `createAgentAssembly()` — synchronous assembly |
 | `run-agent` | `runAgent()` — stateless, single execution entry point |
 
 ---

@@ -9,8 +9,8 @@ import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-
 import { FileSkillProvider } from './plugins/skill/file/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
 import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
-import type { StorageProvider } from './sdk/storage-provider.js';
-import { assembleAgentContext, initRuleEngine } from './agent-context-assembler.js';
+import { assembleAgentContext } from './agent-context-assembler.js';
+import type { AgentAssembly } from './agent-context-assembler.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 import {
   DefaultSystemPromptAssembler,
@@ -26,7 +26,6 @@ import {
   RuntimeSection,
   ProjectAgentsMdLoader,
 } from './system-prompt/index.js';
-import type { AgentAssembly } from './agent-context-assembler.js';
 import type { AgentRuntimeInfo } from './agent-runtime-config.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { SessionProvider } from './sdk/session-provider.js';
@@ -42,7 +41,6 @@ import type { AgentPaths } from './config/paths.js';
 export interface AgentContextBuildOptions {
   securityMode?: SecurityMode;
   paths?: AgentPaths;
-  storageProvider?: StorageProvider;
   models?: import('@earendil-works/pi-ai').Models;
   runtime?: AgentRuntimeInfo;
   configProvider?: ConfigProvider;
@@ -74,8 +72,7 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
 
   // 注入的 configProvider 必须构造即可读（DefaultConfigProvider 需传 paths）
   const configProvider = options?.configProvider ?? new DefaultConfigProvider({ paths });
-  const storageProvider = options?.storageProvider
-    ?? new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
+  const storageProvider = new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
 
   const fileMutationQueue = createFileMutationQueue();
   const skillProvider = options?.skillProvider ?? new FileSkillProvider(configProvider, paths);
@@ -118,14 +115,4 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
     fileMutationQueue,
     securityMode: options?.securityMode,
   });
-}
-
-export async function initAgentAssembly(assembly: AgentAssembly, options?: AgentContextBuildOptions): Promise<void> {
-  const { di } = assembly;
-  await di.configProvider.init();
-  await di.storage.init();
-  await initRuleEngine(di);
-  if (!options?.mcpProviders) {
-    di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig());
-  }
 }

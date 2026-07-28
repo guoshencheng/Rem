@@ -160,7 +160,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
   });
 
   it('persists sessions across AgentService instances using the same storage', async () => {
-    const { service, dir, cleanup, storageProvider } = await createTestService();
+    const { service, dir, cleanup, paths } = await createTestService();
     try {
       const summary = await service.createSession(DEFAULT_WORKSPACE);
       await service.updateSession(DEFAULT_WORKSPACE, summary.sessionId, { title: 'Persisted' });
@@ -175,7 +175,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       } as any);
       await sessionProvider.save(session);
 
-      const newService = new AgentService({ storageProvider });
+      const newService = new AgentService({ paths });
       await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);

@@ -2,7 +2,7 @@
 export { runAgent } from './run-agent.js';
 export type { RunAgentParams, RunAgentResult } from './run-agent.js';
 export { AgentState } from './agent-state.js';
-export { assembleAgentContext, buildRuleSecurity } from './agent-context-assembler.js';
+export { assembleAgentContext, initRuleEngine } from './agent-context-assembler.js';
 export type { AssembleAgentContextOptions } from './agent-context-assembler.js';
 export type { AgentDI } from './agent-di.js';
 export type { AgentRuntimeConfig, AgentRuntimeInfo } from './agent-runtime-config.js';

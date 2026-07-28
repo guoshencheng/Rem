@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { assembleAgentContext } from '../src/agent-context-assembler.js';
+import { assembleAgentContext, initRuleEngine } from '../src/agent-context-assembler.js';
 import type { AssembleAgentContextOptions } from '../src/agent-context-assembler.js';
 import type { StorageProvider } from '../src/sdk/storage-provider.js';
+import type { Rule } from '../src/security/rules/rule.js';
 
 function stubStorageProvider(): StorageProvider {
   return {
@@ -38,10 +39,14 @@ function stubStorageProvider(): StorageProvider {
   };
 }
 
-function stubOptions(): AssembleAgentContextOptions {
+function stubOptions(overrides?: { userRules?: Rule[]; sessionRules?: Rule[] }): AssembleAgentContextOptions {
+  const storage = stubStorageProvider();
+  if (overrides?.userRules) {
+    storage.ruleStore.loadAll = async () => overrides.userRules!;
+  }
   return {
     configProvider: {
-      getConfig: () => ({ profile: 'coding' }),
+      getConfig: () => ({ profile: 'coding', sessionRules: overrides?.sessionRules ?? [] }),
       getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' }),
       getToolConfig: () => ({}),
       getBehaviorConfig: () => ({ name: 'test', maxTurns: 1 }),
@@ -58,7 +63,7 @@ function stubOptions(): AssembleAgentContextOptions {
       addMessage: () => { throw new Error('not used'); },
       appendContent: () => {},
     },
-    storageProvider: stubStorageProvider(),
+    storageProvider: storage,
     systemPromptAssembler: { assemble: async () => 'system' },
     models: { getModel: () => undefined, stream: () => { throw new Error('not used'); }, complete: () => { throw new Error('not used'); } } as never,
     runtime: { platform: 'test', env: {} },
@@ -74,7 +79,7 @@ describe('assembleAgentContext', () => {
   });
 
   it('assembles AgentDI and AgentRuntimeConfig with pure defaults', async () => {
-    const { di, runtimeConfig } = await assembleAgentContext(stubOptions());
+    const { di, runtimeConfig } = assembleAgentContext(stubOptions());
     expect(di.configProvider).toBeDefined();
     expect(di.sessionProvider).toBeDefined();
     expect(di.toolProvider.getToolSet()).toEqual([]);
@@ -86,5 +91,17 @@ describe('assembleAgentContext', () => {
     expect(runtimeConfig.securityMode).toBe('interactive');
     expect(runtimeConfig.runtime.platform).toBe('test');
     await expect(di.fileMutationQueue.withQueue('/x', async () => 42)).resolves.toBe(42);
+  });
+
+  it('initRuleEngine appends user rules then session rules preserving order', async () => {
+    const userRule: Rule = { permission: 'bash', pattern: 'bash:rm *', action: 'deny', source: 'user' };
+    const sessionRule: Rule = { permission: 'bash', pattern: 'bash:rm *', action: 'allow', source: 'session' };
+    const { di } = assembleAgentContext(stubOptions({ userRules: [userRule], sessionRules: [sessionRule] }));
+
+    const toolCall = { toolName: 'bash', input: undefined, derivedPatterns: ['bash:rm -rf'] };
+    expect(di.ruleEngine.evaluate(toolCall)).toBe('ask');
+
+    await initRuleEngine(di);
+    expect(di.ruleEngine.evaluate(toolCall)).toBe('allow');
   });
 });

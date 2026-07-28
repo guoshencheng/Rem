@@ -11,6 +11,7 @@ import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolCall, ToolResult } from './sdk/tool-provider.js';
 import { AgentEventStreamController } from './stream/agent-event-stream.js';
 import type { AgentDI } from './agent-di.js';
+import { DefaultToolComposer } from './tool-composer.js';
 import type { AgentRuntimeConfig } from './agent-runtime-config.js';
 import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
@@ -110,7 +111,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       const toolProvider = di.toolProvider;
       const mcpProviders = di.mcpProviders;
       const skillProvider = di.skillProvider;
-      const toolComposer = di.toolComposer;
       const errorHandler = di.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
       const appendContent = (msg: Message, part: any) => sessionProvider.appendContent(session, msg, part);
@@ -175,7 +175,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         msgs = compressed;
       }
 
-      const effectiveToolProvider = toolComposer.compose({
+      const effectiveToolProvider = new DefaultToolComposer().compose({
         toolProvider,
         mcpProviders,
         skillProvider,

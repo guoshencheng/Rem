@@ -21,13 +21,6 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
   titleProvider: { generateTitle: async () => undefined },
   mcpManager: { connectAll: async () => [], closeAll: async () => {} },
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
-  toolComposer: {
-    compose: () => ({
-      getToolSet: () => [],
-      execute: async () => [],
-      register: () => {},
-      isDangerous: () => false,
-    }),
   },
   storage: {
     todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
@@ -47,13 +40,6 @@ describe('runAgent workspaceRoot', () => {
     const mockDI = {
       ...createMockContextBase('/default-root'),
       mcpProviders: [],
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       loopStrategy: {
         run: async (ctx: any) => {
@@ -86,13 +72,6 @@ describe('runAgent workspaceRoot', () => {
     const mockDI = {
       ...createMockContextBase('/default-root'),
       mcpProviders: [],
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       loopStrategy: {
         run: async (ctx: any) => {
@@ -124,13 +103,6 @@ describe('runAgent workspaceRoot', () => {
     const mockDI = {
       ...createMockContextBase('/default-root'),
       mcpProviders: [],
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       loopStrategy: {
         run: async (ctx: any) => {

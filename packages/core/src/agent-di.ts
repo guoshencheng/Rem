@@ -11,7 +11,6 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
-import type { ToolComposer } from './sdk/tool-composer.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
@@ -38,9 +37,6 @@ export interface AgentDI {
   toolProvider: ToolProvider;        // 原始本地 tools，不再预合并
   mcpProviders: ToolProvider[];
   skillProvider: SkillProvider;
-  // TODO： 这个设计是不是不应该放在这里？
-  toolComposer: ToolComposer;
-
   // 统一存储入口：session/rule/todo/archive/workspace 全部由其实现
   storage: StorageProvider;
 

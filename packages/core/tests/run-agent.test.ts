@@ -31,15 +31,6 @@ const createMockContextBase = () => ({
   titleProvider: { generateTitle: async () => undefined },
   mcpManager: { connectAll: async () => [], closeAll: async () => {} },
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
-  toolComposer: {
-    compose: () => ({
-      getToolSet: () => [],
-      execute: async () => [],
-      register: () => {},
-      isDangerous: () => false,
-    }),
-  },
-  mcpProviders: [],
   storage: {
     todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
     archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
@@ -125,49 +116,6 @@ describe('runAgent', () => {
     expect(last.role).toBe('user');
     expect(last.content).toEqual(parts);
   });
-
-  it('calls toolComposer.compose and uses the effective tool provider', async () => {
-    const composedToolSet = [{ name: 'composedTool', description: 'composed', parameters: { type: 'object', properties: {} } }];
-    const compose = vi.fn(() => ({
-      getToolSet: () => composedToolSet,
-      execute: async () => [],
-      register: () => {},
-      isDangerous: () => false,
-    }));
-
-    const mockDI = {
-      ...createMockContextBase(),
-      toolComposer: { compose },
-      loopStrategy: {
-        run: async (ctx: any) => {
-          expect(ctx.stream).toBeDefined();
-          expect(ctx.generate).toBeDefined();
-          return {
-            content: 'hello back',
-            usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
-          };
-        },
-      },
-    } as unknown as AgentDI;
-
-    const { runAgent } = await import('../src/run-agent.js');
-    const result = runAgent({
-      input: { content: 'hello', timestamp: new Date() },
-      sessionId: 'test-session',
-      di: mockDI, runtimeConfig: stubRuntimeConfig(),
-      agentState: new AgentState(),
-    });
-
-    for await (const _chunk of result.stream.fullStream) {
-      // drain
-    }
-
-    await result.output;
-
-    expect(compose).toHaveBeenCalledWith({
-      toolProvider: mockDI.toolProvider,
-      mcpProviders: mockDI.mcpProviders,
-      skillProvider: mockDI.skillProvider,
     });
   });
 
@@ -176,13 +124,6 @@ describe('runAgent', () => {
     const savedSessions: any[] = [];
     const mockDI = {
       ...createMockContextBase(),
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       loopStrategy: {
         run: async () => ({
@@ -233,13 +174,6 @@ describe('runAgent', () => {
   it('emits error chunk when loopStrategy throws', async () => {
     const mockDI = {
       ...createMockContextBase(),
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       loopStrategy: {
         run: async () => { throw new Error('LLM failed'); },

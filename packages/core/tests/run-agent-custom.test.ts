@@ -47,13 +47,6 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
     titleProvider: { generateTitle: async () => undefined },
     mcpManager: { connectAll: async () => [], closeAll: async () => {} },
     systemPromptAssembler: { assemble: capturedAssemble },
-    toolComposer: {
-      compose: () => ({
-        getToolSet: () => [],
-        execute: async () => [],
-        register: () => {},
-        isDangerous: () => false,
-      }),
     },
     mcpProviders: [],
     storage: {

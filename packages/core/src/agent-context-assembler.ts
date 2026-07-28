@@ -25,7 +25,6 @@ import { LLMSummarizingCompressor } from './plugins/compressor/llm-summary/index
 import { SimpleErrorHandler } from './plugins/error/simple/index.js';
 import { LLMTitleProvider } from './plugins/title/llm/index.js';
 import { ReactLoop } from './plugins/loop/react/index.js';
-import { DefaultToolComposer } from './tool-composer.js';
 import { RuleEngine } from './security/rules/rule-engine.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import { createPermissionEvaluator, type ApprovalRequestFactory } from './security/permissions/factory.js';
@@ -104,7 +103,6 @@ export function assembleAgentContext(options: AssembleAgentContextOptions): Agen
       toolProvider: options.toolProvider ?? new StaticToolProvider(),
       mcpProviders: options.mcpProviders ?? [],
       skillProvider: options.skillProvider ?? new EmptySkillProvider(),
-      toolComposer: new DefaultToolComposer(),
       contextProvider: options.contextProvider ?? new SimpleContextProvider(configProvider),
       budgetPolicy: options.budgetPolicy ?? new FixedBudgetPolicy(configProvider),
       compressor,

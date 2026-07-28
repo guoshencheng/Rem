@@ -38,13 +38,6 @@ describe('delegate_task tool', () => {
       titleProvider: { generateTitle: async () => undefined },
       mcpManager: { connectAll: async () => [], closeAll: async () => {} },
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
       storage: {
@@ -97,13 +90,6 @@ describe('delegate_task tool', () => {
       titleProvider: { generateTitle: async () => undefined },
       mcpManager: { connectAll: async () => [], closeAll: async () => {} },
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
       storage: {
@@ -152,13 +138,6 @@ describe('delegate_task tool', () => {
       titleProvider: { generateTitle: async () => undefined },
       mcpManager: { connectAll: async () => [], closeAll: async () => {} },
       systemPromptAssembler: { assemble: async () => 'mock system prompt' },
-      toolComposer: {
-        compose: () => ({
-          getToolSet: () => [],
-          execute: async () => [],
-          register: () => {},
-          isDangerous: () => false,
-        }),
       },
       ruleEngine: { evaluate: () => 'allow', checkOutsideAllowed: () => false, addRule: () => {} } as any,
       storage: {

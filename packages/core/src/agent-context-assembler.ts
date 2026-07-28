@@ -75,6 +75,16 @@ function buildConfigRules(configProvider: ConfigProvider): Rule[] {
   return [...defaultRules, ...profileRules];
 }
 
+/** 初始化 AgentDI 中的所有异步组件。调用方在创建 AgentService 前必须调用此函数。 */
+export async function initializeAgentDI(di: AgentDI, options?: { skipMcp?: boolean }): Promise<void> {
+  await di.configProvider.init();
+  await di.storage.init();
+  await initRuleEngine(di);
+  if (!options?.skipMcp) {
+    di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig());
+  }
+}
+
 /** init 阶段调用：追加持久化 userRules 与 config sessionRules，保持 [default, profile, user, session] 顺序（evaluate 用 findLast，后规则优先）。 */
 export async function initRuleEngine(di: AgentDI): Promise<void> {
   const userRules = await di.storage.ruleStore.loadAll();

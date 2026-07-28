@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
-import { AgentState, initRuleEngine, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core';
+import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core';
-import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
+import { ServiceError } from './errors.js';
 import type { IAgentService } from './agent-service.interface.js';
 
 export class AgentService implements IAgentService {
@@ -13,7 +13,6 @@ export class AgentService implements IAgentService {
   private _runtimeConfig: AgentRuntimeConfig;
   private agentState: AgentState;
   private sessionManager: AgentSessionManager;
-  private initialized = false;
 
   constructor(di: AgentDI, runtimeConfig: AgentRuntimeConfig) {
     this._di = di;
@@ -21,6 +20,8 @@ export class AgentService implements IAgentService {
     this.agentState = new AgentState();
     this.sessionManager = new AgentSessionManager(di.sessionProvider, this.agentState);
   }
+
+  async init() {}
 
   get di(): AgentDI {
     return this._di;
@@ -34,28 +35,10 @@ export class AgentService implements IAgentService {
     return this.agentState;
   }
 
-  async init(): Promise<void> {
-    if (this.initialized) return;
-
-    await this._di.configProvider.init();
-    await this._di.storage.init();
-    await initRuleEngine(this._di);
-    this._di.mcpProviders = await this._di.mcpManager.connectAll(this._di.configProvider.getMcpConfig());
-
-    this.initialized = true;
-  }
-
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      throw new ServiceError('AgentService not initialized', 503);
-    }
-  }
-
   /* ---- Workspace management ---- */
 
   async listWorkspaces(): Promise<Workspace[]> {
-    this.ensureInitialized();
-    return this._di.storage.workspaceStore.list();
+        return this._di.storage.workspaceStore.list();
   }
 
   async addWorkspace(rawPath: string): Promise<Workspace> {
@@ -63,13 +46,11 @@ export class AgentService implements IAgentService {
   }
 
   private async _addWorkspace(path: string): Promise<Workspace> {
-    this.ensureInitialized();
-    return this._di.storage.workspaceStore.add(path);
+        return this._di.storage.workspaceStore.add(path);
   }
 
   async removeWorkspace(rawPath: string): Promise<void> {
-    this.ensureInitialized();
-    return this._di.storage.workspaceStore.remove(path.resolve(rawPath));
+        return this._di.storage.workspaceStore.remove(path.resolve(rawPath));
   }
 
   private async resolveWorkspaceDir(rawPath: string): Promise<string> {
@@ -89,8 +70,7 @@ export class AgentService implements IAgentService {
   /* ---- Agent lifecycle ---- */
 
   async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
-    this.ensureInitialized();
-    if (this.agentState.isRunning(sessionId)) {
+        if (this.agentState.isRunning(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
 
@@ -156,14 +136,12 @@ export class AgentService implements IAgentService {
   }
 
   async interrupt(_workspace: string, sessionId: string): Promise<void> {
-    this.ensureInitialized();
-    log('agent:lifecycle', 'interrupt requested', { sessionId });
+        log('agent:lifecycle', 'interrupt requested', { sessionId });
     this.agentState.abortRun(sessionId);
   }
 
   async reset(_workspace: string, sessionId: string): Promise<void> {
-    this.ensureInitialized();
-    log('agent:lifecycle', 'reset requested', { sessionId });
+        log('agent:lifecycle', 'reset requested', { sessionId });
     this.agentState.abortRun(sessionId);
     const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
     this.agentState.finishRun(sessionId, ws);
@@ -172,23 +150,19 @@ export class AgentService implements IAgentService {
   /* ---- Message tracking ---- */
 
   async getMessages(_workspace: string, sessionId: string): Promise<UIMessage[]> {
-    this.ensureInitialized();
-    return this.translateNotFound(() => this.sessionManager.getMessages(sessionId));
+        return this.translateNotFound(() => this.sessionManager.getMessages(sessionId));
   }
 
   async getTodos(_workspace: string, sessionId: string): Promise<TodoItem[]> {
-    this.ensureInitialized();
-    return new DefaultTodoService(this._di.storage.todoStore).get(sessionId);
+        return new DefaultTodoService(this._di.storage.todoStore).get(sessionId);
   }
 
   async createSession(workspace: string): Promise<SessionSummary> {
-    this.ensureInitialized();
-    return this.sessionManager.createSession(workspace);
+        return this.sessionManager.createSession(workspace);
   }
 
   async listSessions(workspace: string): Promise<SessionSummary[]> {
-    this.ensureInitialized();
-    const list = await this.sessionManager.listSessions(workspace);
+        const list = await this.sessionManager.listSessions(workspace);
     return list.map((s) => ({
       ...s,
       activity: this.agentState.get(s.sessionId)?.activity ?? 'idle',
@@ -196,18 +170,15 @@ export class AgentService implements IAgentService {
   }
 
   async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
-    this.ensureInitialized();
-    return this.sessionManager.searchSessions(workspace, q);
+        return this.sessionManager.searchSessions(workspace, q);
   }
 
   async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
-    this.ensureInitialized();
-    return this.translateNotFound(() => this.sessionManager.updateSession(sessionId, updates));
+        return this.translateNotFound(() => this.sessionManager.updateSession(sessionId, updates));
   }
 
   async deleteSession(_workspace: string, sessionId: string): Promise<void> {
-    this.ensureInitialized();
-    return this.translateNotFound(() => this.sessionManager.deleteSession(sessionId));
+        return this.translateNotFound(() => this.sessionManager.deleteSession(sessionId));
   }
 
   private async translateNotFound<T>(fn: () => Promise<T>): Promise<T> {
@@ -224,14 +195,12 @@ export class AgentService implements IAgentService {
   /* ---- Approval ---- */
 
   async listPendingApprovals(_workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
-    this.ensureInitialized();
-    const liveState = this.agentState.get(sessionId);
+        const liveState = this.agentState.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 
   async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
-    this.ensureInitialized();
-    if (decision === 'allow-always' && rule) {
+        if (decision === 'allow-always' && rule) {
       await this._di.storage.ruleStore.saveApproved(rule);
       this._di.ruleEngine.addRule({ ...rule, source: 'approved' });
     }
@@ -241,8 +210,7 @@ export class AgentService implements IAgentService {
   /* ---- Broadcast stream ---- */
 
   async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
-    this.ensureInitialized();
-    const streamId = Math.random().toString(36).slice(2, 8);
+        const streamId = Math.random().toString(36).slice(2, 8);
     log('sse', 'stream() called', { streamId });
     const queue: BusEvent[] = [];
     let resolveNext: ((event: BusEvent) => void) | null = null;

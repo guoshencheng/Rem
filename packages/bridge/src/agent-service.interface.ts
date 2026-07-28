@@ -2,8 +2,6 @@ import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputConten
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 
 export interface IAgentService {
-  init(): Promise<void>;
-
   // Workspace management
   listWorkspaces(): Promise<Workspace[]>;
   addWorkspace(path: string): Promise<Workspace>;

@@ -3,55 +3,43 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { createAgentAssembly, createDefaultAgentPaths } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths, initializeAgentDI } from 'rem-agent-core';
 
 const DEFAULT_WORKSPACE = 'default';
 
-const GUARDED_METHODS = [
-  { name: 'run', call: (s: AgentService) => s.run(DEFAULT_WORKSPACE, 's1', 'hi') },
-  { name: 'createSession', call: (s: AgentService) => s.createSession(DEFAULT_WORKSPACE) },
-  { name: 'listSessions', call: (s: AgentService) => s.listSessions(DEFAULT_WORKSPACE) },
-  { name: 'getMessages', call: (s: AgentService) => s.getMessages(DEFAULT_WORKSPACE, 's1') },
-  { name: 'updateSession', call: (s: AgentService) => s.updateSession(DEFAULT_WORKSPACE, 's1', { title: 'X' }) },
-  { name: 'deleteSession', call: (s: AgentService) => s.deleteSession(DEFAULT_WORKSPACE, 's1') },
-  { name: 'listPendingApprovals', call: (s: AgentService) => s.listPendingApprovals(DEFAULT_WORKSPACE, 's1') },
-];
-
-describe('AgentService init', { timeout: 20000 }, () => {
+describe('AgentService 已初始化 DI 构造', { timeout: 20000 }, () => {
   let dir: string;
   let service: AgentService;
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-init-test-'));
-    const { di, runtimeConfig } = createAgentAssembly({ paths: createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir }) });
+    const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
+    const { di, runtimeConfig } = createAgentAssembly({ paths });
+    await initializeAgentDI(di, { skipMcp: true });
     service = new AgentService(di, runtimeConfig);
   });
 
   afterEach(async () => {
+    service.di.storage.close();
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('exposes di and runtimeConfig right after construction, before init', () => {
+  it('exposes di and runtimeConfig after construction', () => {
     expect(service.di).toBeDefined();
     expect(service.di.sessionProvider).toBeDefined();
     expect(service.runtimeConfig.securityMode).toBe('interactive');
   });
 
-  it('builds AgentDI and runtime config on init', async () => {
-    await service.init();
+  it('可以直接调用业务方法无需 init', async () => {
     const summary = await service.createSession(DEFAULT_WORKSPACE);
     expect(summary.sessionId).toBeDefined();
     expect(summary.title).toBe('New Chat');
   });
 
-  it('is idempotent', async () => {
-    await service.init();
-    await service.init();
-    const summary = await service.createSession(DEFAULT_WORKSPACE);
+  it('重复创建 AgentService 不报错（无 init 守卫）', async () => {
+    // 用同一个已初始化的 di 再构造一个 AgentService
+    const service2 = new AgentService(service.di, service.runtimeConfig);
+    const summary = await service2.createSession(DEFAULT_WORKSPACE);
     expect(summary.sessionId).toBeDefined();
-  });
-
-  it.each(GUARDED_METHODS)('throws 503 when $name is called before init', async ({ call }) => {
-    await expect(call(service)).rejects.toThrow(/not initialized/);
   });
 });

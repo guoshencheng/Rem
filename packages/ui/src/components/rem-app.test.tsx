@@ -9,7 +9,6 @@ import type { IAgentService } from 'rem-agent-bridge/client';
 
 function mockService(overrides: Partial<IAgentService> = {}): IAgentService {
   return {
-    init: async () => {},
     listWorkspaces: async () => [{ path: 'default', createdAt: Date.now() }],
     addWorkspace: async (path: string) => ({ path, createdAt: Date.now() }),
     removeWorkspace: async () => {},

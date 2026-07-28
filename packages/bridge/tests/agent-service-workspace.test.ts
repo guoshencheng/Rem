@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { AgentService } from '../src/agent.js';
 import type { IAgentService } from '../src/agent-service.interface.js';
-import { createAgentAssembly } from 'rem-agent-core';
+import { createAgentAssembly, initializeAgentDI } from 'rem-agent-core';
 import { createMockModels, createDefaultAgentPaths } from './agent-service/shared.js';
 
 async function makeService(): Promise<{ service: IAgentService; tmpDir: string }> {
@@ -14,8 +14,8 @@ async function makeService(): Promise<{ service: IAgentService; tmpDir: string }
     paths: createDefaultAgentPaths({ agentDir: tmpDir }),
     models,
   });
+  await initializeAgentDI(di, { skipMcp: true });
   const service = new AgentService(di, runtimeConfig);
-  await service.init();
   return { service, tmpDir };
 }
 

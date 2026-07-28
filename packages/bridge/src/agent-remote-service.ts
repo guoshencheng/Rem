@@ -36,10 +36,6 @@ export class AgentRemoteService implements IAgentService {
     return 'http://localhost:3000';
   }
 
-  async init(): Promise<void> {
-    // Remote client requires no local initialization.
-  }
-
   private static wsQuery(workspace: string): string {
     return `workspace=${encodeURIComponent(workspace)}`;
   }

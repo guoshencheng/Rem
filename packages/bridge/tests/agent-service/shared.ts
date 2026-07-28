@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
 import { StaticConfigProvider, type ConfigProvider } from './mock-config-provider.js';
-import { createAgentAssembly, createDefaultAgentPaths, type AgentState } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths, type AgentState, initializeAgentDI } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';
@@ -202,10 +202,11 @@ export async function createTestService(options: {
     ...options.agentOptions,
   });
 
+  await initializeAgentDI(di, { skipMcp: true });
+
   const service = new AgentService(di, runtimeConfig);
 
-  await service.init();
-  // 将 workspace 写入 db（AgentService.init 只做核心资源初始化）
+  // 将 workspace 写入 db
   await service.di.storage.workspaceStore.add(workspace).catch(() => {});
 
   return {

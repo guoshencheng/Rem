@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AgentService } from '../../src/agent.js';
-import { createAgentAssembly } from 'rem-agent-core';
+import { createAgentAssembly, initializeAgentDI } from 'rem-agent-core';
 import { createTestService } from './shared.js';
 import { DEFAULT_WORKSPACE } from './shared.js';
 
@@ -177,8 +177,8 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       await sessionProvider.save(session);
 
       const { di: newDI, runtimeConfig: newRC } = createAgentAssembly({ paths });
+      await initializeAgentDI(newDI, { skipMcp: true });
       const newService = new AgentService(newDI, newRC);
-      await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);
       expect(list.some((s) => s.sessionId === summary.sessionId && s.title === 'Persisted')).toBe(true);
@@ -186,6 +186,8 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       const messages = await newService.getMessages(DEFAULT_WORKSPACE, summary.sessionId);
       expect(messages).toHaveLength(1);
       expect(messages[0].parts[0]).toEqual({ type: 'text', text: 'hello' });
+
+      newService.di.storage.close();
     } finally {
       await cleanup();
     }

@@ -16,7 +16,7 @@ export { createAgentAssembly, type AgentContextBuildOptions } from './agent-cont
 export type { AgentDI } from './agent-di.js';
 export type { AgentRuntimeConfig, AgentRuntimeInfo } from './agent-runtime-config.js';
 export type { AgentAssembly } from './agent-context-assembler.js';
-export { initRuleEngine } from './agent-context-assembler.js';
+export { initRuleEngine, initializeAgentDI } from './agent-context-assembler.js';
 export * from './run-agent.js';
 export * from './stream/agent-event-stream.js';
 export * from './stream/event-aggregators.js';

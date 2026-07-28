@@ -10,7 +10,7 @@ import { FileSkillProvider } from './plugins/skill/file/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
 import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
-import { assembleAgentContext } from './agent-context-assembler.js';
+import { assembleAgentContext, initRuleEngine } from './agent-context-assembler.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 import {
   DefaultSystemPromptAssembler,
@@ -57,7 +57,7 @@ export interface AgentContextBuildOptions {
   mcpProviders?: ToolProvider[];
 }
 
-export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentAssembly> {
+export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAssembly {
   const models = options?.models ?? createCoreModels({ all: true });
 
   const runtime: AgentRuntimeInfo = options?.runtime ?? {
@@ -72,18 +72,15 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     configureConsoleOutput(true);
   }
 
+  // 注入的 configProvider 必须构造即可读（DefaultConfigProvider 需传 paths）
   const configProvider = options?.configProvider ?? new DefaultConfigProvider({ paths });
-  await configProvider.init();
-
   const storageProvider = options?.storageProvider
     ?? new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
-  await storageProvider.init();
 
   const fileMutationQueue = createFileMutationQueue();
   const skillProvider = options?.skillProvider ?? new FileSkillProvider(configProvider, paths);
 
   const mcpManager = new McpConnectionManager();
-  const mcpProviders = options?.mcpProviders ?? await mcpManager.connectAll(configProvider.getMcpConfig());
 
   const templateSelector = new ProviderAwareTemplateSelector(
     new ClaudeAgentPromptTemplate(),
@@ -112,7 +109,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     runtime,
     mcpManager,
     toolProvider: options?.toolProvider ?? createFileSystemTools(configProvider, fileMutationQueue),
-    mcpProviders,
+    mcpProviders: options?.mcpProviders,
     skillProvider,
     contextProvider: options?.contextProvider,
     compressor: options?.compressor,
@@ -121,4 +118,20 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
     fileMutationQueue,
     securityMode: options?.securityMode,
   });
+}
+
+export async function initAgentAssembly(assembly: AgentAssembly, options?: AgentContextBuildOptions): Promise<void> {
+  const { di } = assembly;
+  await di.configProvider.init();
+  await di.storage.init();
+  await initRuleEngine(di);
+  if (!options?.mcpProviders) {
+    di.mcpProviders = await di.mcpManager.connectAll(di.configProvider.getMcpConfig());
+  }
+}
+
+export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentAssembly> {
+  const assembly = createAgentAssembly(options);
+  await initAgentAssembly(assembly, options);
+  return assembly;
 }

@@ -12,7 +12,7 @@ export * from './bus-events.js';
 export * from './broadcast-bus.js';
 export * from './loop-strategy.js';
 export * from './agent-factory.js';
-export { buildAgentContext, type AgentContextBuildOptions } from './agent-context-builder.js';
+export { buildAgentContext, createAgentAssembly, initAgentAssembly, type AgentContextBuildOptions } from './agent-context-builder.js';
 export type { AgentDI } from './agent-di.js';
 export type { AgentRuntimeConfig, AgentRuntimeInfo } from './agent-runtime-config.js';
 export type { AgentAssembly } from './agent-context-assembler.js';

@@ -10,7 +10,8 @@ import type { SessionProvider } from './sdk/session-provider.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { ToolCall, ToolResult } from './sdk/tool-provider.js';
 import { AgentEventStreamController } from './stream/agent-event-stream.js';
-import type { AgentContext } from './agent-context.js';
+import type { AgentDI } from './agent-di.js';
+import type { AgentRuntimeConfig } from './agent-runtime-config.js';
 import type { ArchiveRecord } from './sdk/storage-provider.js';
 import { resolveContextWindow } from './llm/context-window.js';
 import { generateId } from './shared/generate-id.js';
@@ -33,7 +34,8 @@ export interface RunAgentParams {
   input: UserInput;
   sessionId: string;
   signal?: AbortSignal;
-  ctx: AgentContext;
+  di: AgentDI;
+  runtimeConfig: AgentRuntimeConfig;
   agentState: AgentState;
   workspace?: string;
   workspaceRoot?: string;
@@ -50,16 +52,17 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
   const stream = controller.stream;
 
   const outputPromise = (async (): Promise<AgentOutput> => {
-    const ctx = params.ctx;
+    const di = params.di;
+    const runtimeConfig = params.runtimeConfig;
     const workspace = params.workspace ?? 'default';
-    const configProvider = ctx.configProvider.forWorkspace?.(workspace) ?? ctx.configProvider;
+    const configProvider = di.configProvider.forWorkspace?.(workspace) ?? di.configProvider;
     const behavior = configProvider.getBehaviorConfig();
     const modelConfig = configProvider.getModelConfig();
     const agentRole = configProvider.resolveAgent(params.agent);
     const effectiveModel = agentRole.model ?? modelConfig;
     const workspaceRoot = params.workspaceRoot ?? (params.workspace ? params.workspace : behavior.workspaceRoot);
 
-    const sessionProvider = ctx.sessionProvider;
+    const sessionProvider = di.sessionProvider;
     let session = await sessionProvider.load(params.sessionId);
     if (!session) {
       session = {
@@ -88,7 +91,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       liveState.start({ clearSnapshot: true });
     }
 
-    if (!ctx.budgetPolicy.checkTurn(liveState) || !ctx.budgetPolicy.checkTimeout(Date.now())) {
+    if (!di.budgetPolicy.checkTurn(liveState) || !di.budgetPolicy.checkTimeout(Date.now())) {
       const output: AgentOutput = { content: 'Budget exceeded.', completed: true };
       controller.finish(output);
       return output;
@@ -98,17 +101,17 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     session.conversation.push(userMessage);
     await sessionProvider.save(session);
 
-    forkTitleGeneration(session, ctx.titleProvider, controller, sessionProvider);
+    forkTitleGeneration(session, di.titleProvider, controller, sessionProvider);
 
     try {
-      const contextProvider = ctx.contextProvider;
-      const compressor = ctx.compressor;
-      const loopStrategy = ctx.loopStrategy;
-      const toolProvider = ctx.toolProvider;
-      const mcpProviders = ctx.mcpProviders;
-      const skillProvider = ctx.skillProvider;
-      const toolComposer = ctx.toolComposer;
-      const errorHandler = ctx.errorHandler;
+      const contextProvider = di.contextProvider;
+      const compressor = di.compressor;
+      const loopStrategy = di.loopStrategy;
+      const toolProvider = di.toolProvider;
+      const mcpProviders = di.mcpProviders;
+      const skillProvider = di.skillProvider;
+      const toolComposer = di.toolComposer;
+      const errorHandler = di.errorHandler;
       const addMessage = (role: 'assistant' | 'tool') => sessionProvider.addMessage(session, role);
       const appendContent = (msg: Message, part: any) => sessionProvider.appendContent(session, msg, part);
 
@@ -129,13 +132,13 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           normalizeUsageDetail(entry as TokenUsageDetail),
         );
         const accumulated = history.reduce((sum: number, entry) => sum + entry.totalTokens, 0);
-        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, ctx.runtime.env, ctx.models);
+        const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, runtimeConfig.runtime.env, di.models);
         const compressionCfg = configProvider.getCompressionConfig();
         const threshold = maxTokens * compressionCfg.thresholdRatio;
 
         controller.emit({ type: 'compress-start', sessionId: params.sessionId, estimatedTokens: accumulated, threshold });
 
-        const previousArchive = await ctx.storage.archiveStore.getLatest(params.sessionId);
+        const previousArchive = await di.storage.archiveStore.getLatest(params.sessionId);
         const version = previousArchive ? previousArchive.version + 1 : 1;
         const parentArchiveId = previousArchive?.id;
 
@@ -158,7 +161,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           summary: summaryText,
           tokenUsageBefore: accumulated > 0 ? { totalTokens: accumulated, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } : undefined,
         };
-        await ctx.storage.archiveStore.save(archiveRecord);
+        await di.storage.archiveStore.save(archiveRecord);
 
         session.conversation = compressed;
         session.metadata.compressionTokenOffset = accumulated;
@@ -180,12 +183,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
       const toolProviderWithDelegate = new OverlayToolProvider(effectiveToolProvider);
       const delegateToolDefinition = createDelegateTaskToolDefinition();
-      const delegateToolExecutor = createDelegateTaskToolExecutor(ctx, params.agentState, workspace);
+      const delegateToolExecutor = createDelegateTaskToolExecutor(di, runtimeConfig, params.agentState, workspace);
       toolProviderWithDelegate.register(delegateToolDefinition, delegateToolExecutor);
 
       const todoWriteDefinition = createTodoWriteToolDefinition();
       const todoWriteExecutor = createTodoWriteToolExecutor(
-        new DefaultTodoService(ctx.storage.todoStore),
+        new DefaultTodoService(di.storage.todoStore),
         (event) => params.agentState.publish(event),
         workspace,
       );
@@ -204,14 +207,14 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         skills,
         model: { provider: effectiveModel.provider, model: effectiveModel.model },
         runtime: {
-          platform: ctx.runtime.platform,
-          nodeVersion: ctx.runtime.nodeVersion ?? ctx.runtime.platform,
+          platform: runtimeConfig.runtime.platform,
+          nodeVersion: runtimeConfig.runtime.nodeVersion ?? runtimeConfig.runtime.platform,
           today: new Date().toISOString().split('T')[0],
         },
         agentCorePrompt: agentRole.corePrompt,
       };
 
-      const systemPrompt = await ctx.systemPromptAssembler.assemble(buildCtx);
+      const systemPrompt = await di.systemPromptAssembler.assemble(buildCtx);
       const contextForModel = () => ({
         systemPrompt,
         messages: msgs,
@@ -225,9 +228,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         appendContent,
         system: systemPrompt,
         stream: () => {
-          const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
+          const model = di.models.getModel(effectiveModel.provider, effectiveModel.model);
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
-          return ctx.models.stream(model, contextForModel(), {
+          return di.models.stream(model, contextForModel(), {
             thinkingEnabled: true,
             apiKey: effectiveModel.apiKey || undefined,
             baseURL: effectiveModel.baseURL || undefined,
@@ -236,9 +239,9 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           });
         },
         generate: () => {
-          const model = ctx.models.getModel(effectiveModel.provider, effectiveModel.model);
+          const model = di.models.getModel(effectiveModel.provider, effectiveModel.model);
           if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
-          return ctx.models.complete(model, contextForModel(), {
+          return di.models.complete(model, contextForModel(), {
             thinkingEnabled: true,
             apiKey: effectiveModel.apiKey || undefined,
             baseURL: effectiveModel.baseURL || undefined,
@@ -251,10 +254,10 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           toolProvider: toolProviderWithDelegate,
           messages: msgs,
           agentState: params.agentState,
-          permissionEvaluator: ctx.permissionEvaluator,
-          ruleEngine: ctx.ruleEngine,
-          ruleStore: ctx.storage.ruleStore,
-          securityMode: ctx.securityMode,
+          permissionEvaluator: di.permissionEvaluator,
+          ruleEngine: di.ruleEngine,
+          ruleStore: di.storage.ruleStore,
+          securityMode: runtimeConfig.securityMode,
           workspaceRoot,
           agentName: behavior.name,
           readOnly: behavior.readOnly,

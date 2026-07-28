@@ -1,4 +1,5 @@
-import type { AgentContext } from '../agent-context.js';
+import type { AgentDI } from '../agent-di.js';
+import type { AgentRuntimeConfig } from '../agent-runtime-config.js';
 import type { ConfigProvider, AgentToolConfig, ResolvedModelConfig, ResolvedAgentConfig, AgentBehaviorConfig, CompressionConfig } from '../sdk/config-provider.js';
 import type { ResolvedAgentRole } from '../sdk/agent-role.js';
 import type { McpServerConfig } from '../mcp/types.js';
@@ -60,24 +61,27 @@ class StaticSystemPromptAssembler implements SystemPromptAssembler {
 }
 
 export function buildChildContext(
-  parentCtx: AgentContext,
+  di: AgentDI,
+  runtimeConfig: AgentRuntimeConfig,
   options?: BuildChildContextOptions,
-): AgentContext {
-  const childConfigProvider = new ChildConfigProvider(parentCtx.configProvider, {
+): { di: AgentDI; runtimeConfig: AgentRuntimeConfig } {
+  const childConfigProvider = new ChildConfigProvider(di.configProvider, {
     maxTurns: options?.maxTurns,
   });
   const permissionEvaluator = createPermissionEvaluator(
     'auto' as SecurityMode,
-    parentCtx.ruleEngine,
+    di.ruleEngine,
   );
 
   return {
-    ...parentCtx,
-    configProvider: childConfigProvider,
-    securityMode: 'auto',
-    permissionEvaluator,
-    systemPromptAssembler: options?.systemPrompt
-      ? new StaticSystemPromptAssembler(options.systemPrompt)
-      : parentCtx.systemPromptAssembler,
+    di: {
+      ...di,
+      configProvider: childConfigProvider,
+      permissionEvaluator,
+      systemPromptAssembler: options?.systemPrompt
+        ? new StaticSystemPromptAssembler(options.systemPrompt)
+        : di.systemPromptAssembler,
+    },
+    runtimeConfig: { ...runtimeConfig, securityMode: 'auto' },
   };
 }

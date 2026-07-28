@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AgentContext } from '../src/agent-context.js';
+import type { AgentDI } from '../src/agent-di.js';
+import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
 import { AgentState } from '../src/agent-state.js';
 import type { PromptBuildContext } from '../src/sdk/system-prompt.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
@@ -72,7 +73,6 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
         stopReason: 'stop',
       } as AssistantMessage),
     },
-    runtime: { platform: 'test', cwd: '/tmp', env: {} },
     loopStrategy: {
       run: async (loopCtx: any) => {
         await loopCtx.generate();
@@ -83,8 +83,13 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
       },
     },
     ...overrides,
-  } as unknown as AgentContext;
+  } as unknown as AgentDI;
 }
+
+const stubRuntimeConfig = (): AgentRuntimeConfig => ({
+  securityMode: 'interactive',
+  runtime: { platform: 'test', env: {} },
+});
 
 describe('runAgent custom agent', () => {
   beforeEach(() => {
@@ -94,11 +99,12 @@ describe('runAgent custom agent', () => {
   it('uses custom agent corePrompt and falls back to default model', async () => {
     const { runAgent } = await import('../src/run-agent.js');
 
-    const ctx = createMockContext();
+    const di = createMockContext();
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx,
+      di,
+      runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
       agent: 'coder',
     });
@@ -108,24 +114,25 @@ describe('runAgent custom agent', () => {
     }
     await result.output;
 
-    const assembleCall = (ctx.systemPromptAssembler.assemble as any).mock.calls[0][0];
+    const assembleCall = (di.systemPromptAssembler.assemble as any).mock.calls[0][0];
     expect(assembleCall.agentName).toBe('Code Assistant');
     expect(assembleCall.agentCorePrompt).toBe('Focus on code.');
 
-    const completeCall = (ctx.models.complete as any).mock.calls[0][0];
+    const completeCall = (di.models.complete as any).mock.calls[0][0];
     expect(completeCall.provider).toBe('openai');
     expect(completeCall.id).toBe('gpt-4o-mini');
-    expect((ctx.models.complete as any).mock.calls[0][1].systemPrompt).toBe('mock system prompt');
+    expect((di.models.complete as any).mock.calls[0][1].systemPrompt).toBe('mock system prompt');
   });
 
   it('uses custom agent model override', async () => {
     const { runAgent } = await import('../src/run-agent.js');
 
-    const ctx = createMockContext();
+    const di = createMockContext();
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx,
+      di,
+      runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
       agent: 'coder-with-model',
     });
@@ -135,19 +142,20 @@ describe('runAgent custom agent', () => {
     }
     await result.output;
 
-    const completeCall = (ctx.models.complete as any).mock.calls[0][0];
+    const completeCall = (di.models.complete as any).mock.calls[0][0];
     expect(completeCall.provider).toBe('anthropic');
     expect(completeCall.id).toBe('claude-3-5-sonnet-20241022');
-    expect((ctx.models.complete as any).mock.calls[0][2].apiKey).toBe('sk-anthropic');
+    expect((di.models.complete as any).mock.calls[0][2].apiKey).toBe('sk-anthropic');
   });
 
   it('falls back to default when agent is unknown', async () => {
     const { runAgent } = await import('../src/run-agent.js');
-    const ctx = createMockContext();
+    const di = createMockContext();
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx,
+      di,
+      runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
       agent: 'unknown',
     });
@@ -157,7 +165,7 @@ describe('runAgent custom agent', () => {
     }
     await result.output;
 
-    const assembleCall = (ctx.systemPromptAssembler.assemble as any).mock.calls[0][0];
+    const assembleCall = (di.systemPromptAssembler.assemble as any).mock.calls[0][0];
     expect(assembleCall.agentName).toBe('test');
     expect(assembleCall.agentCorePrompt).toBe('Default prompt.');
   });

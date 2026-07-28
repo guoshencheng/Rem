@@ -6,14 +6,20 @@ import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/
 import {
   createDelegateTaskToolExecutor,
 } from '../src/plugins/tool/builtin/delegate-task.js';
-import type { AgentContext } from '../src/agent-context.js';
+import type { AgentDI } from '../src/agent-di.js';
+import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
+
+const stubRuntimeConfig = (): AgentRuntimeConfig => ({
+  securityMode: 'interactive',
+  runtime: { platform: 'test', env: {} },
+});
 
 describe('delegate_task tool', () => {
   it('creates a child session and returns XML result', async () => {
     const sessionProvider = new InMemorySessionProvider();
 
     const agentState = new AgentState();
-    const mockCtx = {
+    const mockDI = {
       configProvider: {
         getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
@@ -49,17 +55,15 @@ describe('delegate_task tool', () => {
         ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
       } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
-      securityMode: 'interactive' as const,
       loopStrategy: {
         run: async () => ({
           content: 'child result',
           usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
         }),
       },
-      runtime: { platform: 'test', cwd: '/tmp', env: {} },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
-    const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
+    const executor = createDelegateTaskToolExecutor(mockDI, stubRuntimeConfig(), agentState, 'default');
     const result = await executor({ task: 'do sub work' }, { cwd: '/tmp', workspaceRoot: '/tmp', sessionId: 'parent-1' });
 
     expect(result.output).toContain('<task id="');
@@ -75,7 +79,7 @@ describe('delegate_task tool', () => {
     const sessionProvider = new InMemorySessionProvider();
     const agentState = new AgentState();
 
-    const mockCtx = {
+    const mockDI = {
       configProvider: {
         getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
@@ -111,16 +115,14 @@ describe('delegate_task tool', () => {
         ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
       } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
-      securityMode: 'interactive' as const,
       loopStrategy: {
         run: async () => {
           throw new Error('Child agent failure');
         },
       },
-      runtime: { platform: 'test', cwd: '/tmp', env: {} },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
-    const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
+    const executor = createDelegateTaskToolExecutor(mockDI, stubRuntimeConfig(), agentState, 'default');
     const result = await executor({ task: 'do sub work' }, { cwd: '/tmp', workspaceRoot: '/tmp', sessionId: 'parent-1' });
 
     expect(result.output).toContain('state="failed"');
@@ -133,7 +135,7 @@ describe('delegate_task tool', () => {
     const events: BusEvent[] = [];
     agentState.subscribe((event) => events.push(event));
 
-    const mockCtx = {
+    const mockDI = {
       configProvider: {
         getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
@@ -169,7 +171,6 @@ describe('delegate_task tool', () => {
         ruleStore: { saveApproved: async () => {}, loadAll: async () => [], loadBySource: async () => [] },
       } as any,
       permissionEvaluator: { evaluate: async () => ({ action: 'allow' }) } as any,
-      securityMode: 'interactive' as const,
       loopStrategy: {
         run: async (loopCtx: any) => {
           loopCtx.emit({ type: 'message-start', step: 1, messageId: 'child-msg-1' });
@@ -181,10 +182,9 @@ describe('delegate_task tool', () => {
           };
         },
       },
-      runtime: { platform: 'test', cwd: '/tmp', env: {} },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
-    const executor = createDelegateTaskToolExecutor(mockCtx, agentState, 'default');
+    const executor = createDelegateTaskToolExecutor(mockDI, stubRuntimeConfig(), agentState, 'default');
     const result = await executor(
       { task: 'stream sub work' },
       { cwd: '/tmp', workspaceRoot: '/tmp', sessionId: 'parent-1', toolCallId: 'tc-1' },

@@ -1,7 +1,8 @@
 import { Type, type Static } from '@sinclair/typebox';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
-import type { AgentContext } from '../../../agent-context.js';
+import type { AgentDI } from '../../../agent-di.js';
+import type { AgentRuntimeConfig } from '../../../agent-runtime-config.js';
 import type { AgentState } from '../../../agent-state.js';
 import type { BusEvent } from '../../../bus-events.js';
 import { runAgent } from '../../../run-agent.js';
@@ -29,7 +30,8 @@ export function createDelegateTaskToolDefinition(): ToolDefinition<typeof delega
 }
 
 export function createDelegateTaskToolExecutor(
-  parentCtx: AgentContext,
+  di: AgentDI,
+  runtimeConfig: AgentRuntimeConfig,
   agentState: AgentState,
   workspace: string,
 ): ToolExecutor<typeof delegateTaskSchema> {
@@ -39,15 +41,15 @@ export function createDelegateTaskToolExecutor(
       throw new Error('delegate_task requires a sessionId in tool context');
     }
 
-    const childSession = await parentCtx.sessionProvider.create();
+    const childSession = await di.sessionProvider.create();
     const childSessionId = childSession.sessionId;
     childSession.metadata.parentSessionId = parentSessionId;
     childSession.metadata.parentToolCallId = toolCtx.toolCallId;
     childSession.metadata.workspace = workspace;
     childSession.metadata.title = input.task.slice(0, 50);
-    await parentCtx.sessionProvider.save(childSession);
+    await di.sessionProvider.save(childSession);
 
-    const childCtx = buildChildContext(parentCtx, {
+    const child = buildChildContext(di, runtimeConfig, {
       maxTurns: input.maxTurns,
       systemPrompt: input.systemPrompt,
     });
@@ -55,7 +57,8 @@ export function createDelegateTaskToolExecutor(
     const run = runAgent({
       input: { content: input.task, timestamp: new Date() },
       sessionId: childSessionId,
-      ctx: childCtx,
+      di: child.di,
+      runtimeConfig: child.runtimeConfig,
       agentState,
       workspace,
       workspaceRoot: toolCtx.workspaceRoot,

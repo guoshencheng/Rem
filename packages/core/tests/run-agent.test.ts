@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Usage } from '@earendil-works/pi-ai';
-import type { AgentContext } from '../src/agent-context.js';
+import type { AgentDI } from '../src/agent-di.js';
+import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
 import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
 
@@ -51,12 +52,16 @@ const createMockContextBase = () => ({
     stream: vi.fn(),
     complete: vi.fn(),
   },
-  runtime: { platform: 'test', cwd: '/tmp', env: {} },
+});
+
+const stubRuntimeConfig = (): AgentRuntimeConfig => ({
+  securityMode: 'interactive',
+  runtime: { platform: 'test', env: {} },
 });
 
 describe('runAgent', () => {
   it('returns a stream and output promise', async () => {
-    const mockCtx = {
+    const mockDI = {
       ...createMockContextBase(),
       loopStrategy: {
         run: async () => ({
@@ -64,13 +69,13 @@ describe('runAgent', () => {
           usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
         }),
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
     expect(result.stream).toBeDefined();
@@ -88,7 +93,7 @@ describe('runAgent', () => {
   it('passes through multipart user content (text + image) to the session', async () => {
     const saveMock = vi.fn();
     const base = createMockContextBase();
-    const mockCtx = {
+    const mockDI = {
       ...base,
       sessionProvider: { ...base.sessionProvider, save: saveMock },
       loopStrategy: {
@@ -97,7 +102,7 @@ describe('runAgent', () => {
           usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
         }),
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const parts = [
       { type: 'text' as const, text: 'look at this' },
@@ -108,7 +113,7 @@ describe('runAgent', () => {
     const result = runAgent({
       input: { content: parts, timestamp: new Date() },
       sessionId: 'test-session-parts',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
     for await (const _chunk of result.stream.fullStream) {
@@ -132,7 +137,7 @@ describe('runAgent', () => {
       isDangerous: () => false,
     }));
 
-    const mockCtx = {
+    const mockDI = {
       ...createMockContextBase(),
       toolComposer: { compose },
       loopStrategy: {
@@ -145,13 +150,13 @@ describe('runAgent', () => {
           };
         },
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
 
@@ -162,16 +167,16 @@ describe('runAgent', () => {
     await result.output;
 
     expect(compose).toHaveBeenCalledWith({
-      toolProvider: mockCtx.toolProvider,
-      mcpProviders: mockCtx.mcpProviders,
-      skillProvider: mockCtx.skillProvider,
+      toolProvider: mockDI.toolProvider,
+      mcpProviders: mockDI.mcpProviders,
+      skillProvider: mockDI.skillProvider,
     });
   });
 
   it('accumulates usage and writes history', async () => {
     const usage: Usage = { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     const savedSessions: any[] = [];
-    const mockCtx = {
+    const mockDI = {
       ...createMockContextBase(),
       toolComposer: {
         compose: () => ({
@@ -194,7 +199,7 @@ describe('runAgent', () => {
         addMessage: () => ({} as any),
         appendContent: () => {},
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const agentState = new AgentState();
     const listener = vi.fn();
@@ -204,7 +209,7 @@ describe('runAgent', () => {
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState,
       workspace: 'test-workspace',
     });
@@ -228,7 +233,7 @@ describe('runAgent', () => {
   });
 
   it('emits error chunk when loopStrategy throws', async () => {
-    const mockCtx = {
+    const mockDI = {
       ...createMockContextBase(),
       toolComposer: {
         compose: () => ({
@@ -241,13 +246,13 @@ describe('runAgent', () => {
       loopStrategy: {
         run: async () => { throw new Error('LLM failed'); },
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
 
@@ -271,7 +276,7 @@ describe('runAgent', () => {
       yield { type: 'text', contentIndex: 0, text: 'hi', partial: {} };
     });
     const complete = vi.fn();
-    const mockCtx = {
+    const mockDI = {
       ...createMockContextBase(),
       models: {
         getModel: () => ({ id: 'gpt-4o-mini', provider: 'openai', reasoning: true }),
@@ -288,13 +293,13 @@ describe('runAgent', () => {
           return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
         },
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
 
@@ -321,7 +326,7 @@ describe('runAgent', () => {
     });
     const complete = vi.fn();
     const base = createMockContextBase();
-    const mockCtx = {
+    const mockDI = {
       ...base,
       configProvider: {
         ...base.configProvider,
@@ -342,13 +347,13 @@ describe('runAgent', () => {
           return { content: 'hello back', usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 } };
         },
       },
-    } as unknown as AgentContext;
+    } as unknown as AgentDI;
 
     const { runAgent } = await import('../src/run-agent.js');
     const result = runAgent({
       input: { content: 'hello', timestamp: new Date() },
       sessionId: 'test-session',
-      ctx: mockCtx,
+      di: mockDI, runtimeConfig: stubRuntimeConfig(),
       agentState: new AgentState(),
     });
 

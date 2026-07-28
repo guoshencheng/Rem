@@ -4,49 +4,61 @@ import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
-import type { IAgentService } from './agent-service.interface.js';
 
-export interface AgentServiceCoreDeps {
-  di: AgentDI;
-  runtimeConfig: AgentRuntimeConfig;
-  agentState: AgentState;
-}
+/** IAgentService 的平台无关实现。Node AgentService 继承此类并补 init() + workspace 路径解析。 */
+export class AgentServiceCore {
+  protected _di: AgentDI;
+  protected _runtimeConfig: AgentRuntimeConfig;
+  protected agentState: AgentState;
+  protected sessionManager: AgentSessionManager;
+  protected initialized = false;
 
-/** IAgentService 的平台无关实现，AgentService（Node）与 LocalAgentService（浏览器）共用。 */
-export class AgentServiceCore implements IAgentService {
-  private di: AgentDI;
-  private runtimeConfig: AgentRuntimeConfig;
-  private agentState: AgentState;
-  private sessionManager: AgentSessionManager;
-
-  constructor(deps: AgentServiceCoreDeps) {
-    this.di = deps.di;
-    this.runtimeConfig = deps.runtimeConfig;
-    this.agentState = deps.agentState;
-    this.sessionManager = new AgentSessionManager(deps.di.sessionProvider, deps.agentState);
+  constructor(di: AgentDI, runtimeConfig: AgentRuntimeConfig) {
+    this._di = di;
+    this._runtimeConfig = runtimeConfig;
+    this.agentState = new AgentState();
+    this.sessionManager = new AgentSessionManager(di.sessionProvider, this.agentState);
   }
 
-  async init(): Promise<void> {
-    // 初始化由外层服务（AgentService/LocalAgentService）负责
+  get di(): AgentDI {
+    return this._di;
+  }
+
+  get runtimeConfig(): AgentRuntimeConfig {
+    return this._runtimeConfig;
+  }
+
+  get state(): AgentState {
+    return this.agentState;
+  }
+
+  protected ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new ServiceError('AgentService not initialized', 503);
+    }
   }
 
   /* ---- Workspace management ---- */
 
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.di.storage.workspaceStore.list();
+    this.ensureInitialized();
+    return this._di.storage.workspaceStore.list();
   }
 
   async addWorkspace(path: string): Promise<Workspace> {
-    return this.di.storage.workspaceStore.add(path);
+    this.ensureInitialized();
+    return this._di.storage.workspaceStore.add(path);
   }
 
   async removeWorkspace(path: string): Promise<void> {
-    return this.di.storage.workspaceStore.remove(path);
+    this.ensureInitialized();
+    return this._di.storage.workspaceStore.remove(path);
   }
 
   /* ---- Agent lifecycle ---- */
 
   async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    this.ensureInitialized();
     if (this.agentState.isRunning(sessionId)) {
       throw new ServiceError('Session is already running', 409);
     }
@@ -61,7 +73,7 @@ export class AgentServiceCore implements IAgentService {
         sessionId,
         signal: abortController.signal,
         di: this.di,
-        runtimeConfig: this.runtimeConfig,
+        runtimeConfig: this._runtimeConfig,
         agentState: this.agentState,
         workspace,
         workspaceRoot: workspace,
@@ -116,11 +128,13 @@ export class AgentServiceCore implements IAgentService {
   }
 
   async interrupt(_workspace: string, sessionId: string): Promise<void> {
+    this.ensureInitialized();
     log('agent:lifecycle', 'interrupt requested', { sessionId });
     this.agentState.abortRun(sessionId);
   }
 
   async reset(_workspace: string, sessionId: string): Promise<void> {
+    this.ensureInitialized();
     log('agent:lifecycle', 'reset requested', { sessionId });
     this.agentState.abortRun(sessionId);
     const ws = this.agentState.get(sessionId)?.workspace ?? 'default';
@@ -130,18 +144,22 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Message tracking ---- */
 
   async getMessages(_workspace: string, sessionId: string): Promise<UIMessage[]> {
+    this.ensureInitialized();
     return this.translateNotFound(() => this.sessionManager.getMessages(sessionId));
   }
 
   async getTodos(_workspace: string, sessionId: string): Promise<TodoItem[]> {
-    return new DefaultTodoService(this.di.storage.todoStore).get(sessionId);
+    this.ensureInitialized();
+    return new DefaultTodoService(this._di.storage.todoStore).get(sessionId);
   }
 
   async createSession(workspace: string): Promise<SessionSummary> {
+    this.ensureInitialized();
     return this.sessionManager.createSession(workspace);
   }
 
   async listSessions(workspace: string): Promise<SessionSummary[]> {
+    this.ensureInitialized();
     const list = await this.sessionManager.listSessions(workspace);
     return list.map((s) => ({
       ...s,
@@ -150,14 +168,17 @@ export class AgentServiceCore implements IAgentService {
   }
 
   async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+    this.ensureInitialized();
     return this.sessionManager.searchSessions(workspace, q);
   }
 
   async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
+    this.ensureInitialized();
     return this.translateNotFound(() => this.sessionManager.updateSession(sessionId, updates));
   }
 
   async deleteSession(_workspace: string, sessionId: string): Promise<void> {
+    this.ensureInitialized();
     return this.translateNotFound(() => this.sessionManager.deleteSession(sessionId));
   }
 
@@ -175,15 +196,17 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Approval ---- */
 
   async listPendingApprovals(_workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
+    this.ensureInitialized();
     const liveState = this.agentState.get(sessionId);
     return liveState?.pendingApprovals ?? [];
   }
 
   async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
+    this.ensureInitialized();
     // Persist the approved rule before resolving so the engine sees it immediately.
     if (decision === 'allow-always' && rule) {
-      await this.di.storage.ruleStore.saveApproved(rule);
-      this.di.ruleEngine.addRule({ ...rule, source: 'approved' });
+      await this._di.storage.ruleStore.saveApproved(rule);
+      this._di.ruleEngine.addRule({ ...rule, source: 'approved' });
     }
     return this.agentState.resolveApproval(sessionId, approvalId, decision, rule);
   }
@@ -191,6 +214,7 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Broadcast stream ---- */
 
   async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
+    this.ensureInitialized();
     const streamId = Math.random().toString(36).slice(2, 8);
     log('sse', 'stream() called', { streamId });
     const queue: BusEvent[] = [];

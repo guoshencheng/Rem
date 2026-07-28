@@ -1,27 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
-import { initRuleEngine, AgentState } from 'rem-agent-core';
-import { ServiceError } from './errors.js';
-import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
-import type { IAgentService } from './agent-service.interface.js';
+import { initRuleEngine } from 'rem-agent-core';
+import type { AgentDI, AgentRuntimeConfig } from 'rem-agent-core';
 import { AgentServiceCore } from './agent-service-core.js';
+import type { IAgentService } from './agent-service.interface.js';
+import type { Workspace } from './types.js';
 
-export class AgentService implements IAgentService {
-  private _di: AgentDI;
-  private _runtimeConfig: AgentRuntimeConfig;
-  private agentState = new AgentState();
-  private core: AgentServiceCore;
-  private initialized = false;
-
+export class AgentService extends AgentServiceCore implements IAgentService {
   constructor(di: AgentDI, runtimeConfig: AgentRuntimeConfig) {
-    this._di = di;
-    this._runtimeConfig = runtimeConfig;
-    this.core = new AgentServiceCore({
-      di,
-      runtimeConfig,
-      agentState: this.agentState,
-    });
+    super(di, runtimeConfig);
   }
 
   async init(): Promise<void> {
@@ -35,37 +22,12 @@ export class AgentService implements IAgentService {
     this.initialized = true;
   }
 
-  get di(): AgentDI {
-    return this._di;
-  }
-
-  get runtimeConfig(): AgentRuntimeConfig {
-    return this._runtimeConfig;
-  }
-
-  get state(): AgentState {
-    return this.agentState;
-  }
-
-  private ensureCore(): AgentServiceCore {
-    if (!this.initialized) {
-      throw new ServiceError('AgentService not initialized', 503);
-    }
-    return this.core;
-  }
-
-  /* ---- Workspace management ---- */
-
-  async listWorkspaces(): Promise<Workspace[]> {
-    return this.ensureCore().listWorkspaces();
-  }
-
   async addWorkspace(rawPath: string): Promise<Workspace> {
-    return this.ensureCore().addWorkspace(await this.resolveWorkspaceDir(rawPath));
+    return super.addWorkspace(await this.resolveWorkspaceDir(rawPath));
   }
 
   async removeWorkspace(rawPath: string): Promise<void> {
-    return this.ensureCore().removeWorkspace(path.resolve(rawPath));
+    return super.removeWorkspace(path.resolve(rawPath));
   }
 
   private async resolveWorkspaceDir(rawPath: string): Promise<string> {
@@ -80,65 +42,5 @@ export class AgentService implements IAgentService {
       throw new Error(`Workspace path does not exist or is not readable: ${absolutePath} (${message})`);
     }
     return absolutePath;
-  }
-
-  /* ---- Agent lifecycle ---- */
-
-  async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
-    return this.ensureCore().run(workspace, sessionId, input);
-  }
-
-  async interrupt(workspace: string, sessionId: string): Promise<void> {
-    return this.ensureCore().interrupt(workspace, sessionId);
-  }
-
-  async reset(workspace: string, sessionId: string): Promise<void> {
-    return this.ensureCore().reset(workspace, sessionId);
-  }
-
-  /* ---- Message tracking ---- */
-
-  async getMessages(workspace: string, sessionId: string): Promise<UIMessage[]> {
-    return this.ensureCore().getMessages(workspace, sessionId);
-  }
-
-  async getTodos(workspace: string, sessionId: string): Promise<TodoItem[]> {
-    return this.ensureCore().getTodos(workspace, sessionId);
-  }
-
-  async createSession(workspace: string): Promise<SessionSummary> {
-    return this.ensureCore().createSession(workspace);
-  }
-
-  async listSessions(workspace: string): Promise<SessionSummary[]> {
-    return this.ensureCore().listSessions(workspace);
-  }
-
-  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
-    return this.ensureCore().searchSessions(workspace, q);
-  }
-
-  async updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
-    return this.ensureCore().updateSession(workspace, sessionId, updates);
-  }
-
-  async deleteSession(workspace: string, sessionId: string): Promise<void> {
-    return this.ensureCore().deleteSession(workspace, sessionId);
-  }
-
-  /* ---- Approval ---- */
-
-  async listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
-    return this.ensureCore().listPendingApprovals(workspace, sessionId);
-  }
-
-  async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
-    return this.ensureCore().resolveApproval(workspace, sessionId, approvalId, decision, rule);
-  }
-
-  /* ---- Broadcast stream ---- */
-
-  stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
-    return this.ensureCore().stream(signal);
   }
 }

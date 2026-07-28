@@ -4,15 +4,17 @@ import path from 'node:path';
 import os from 'node:os';
 import { AgentService } from '../src/agent.js';
 import type { IAgentService } from '../src/agent-service.interface.js';
+import { createAgentAssembly } from 'rem-agent-core';
 import { createMockModels, createDefaultAgentPaths } from './agent-service/shared.js';
 
 async function makeService(): Promise<{ service: IAgentService; tmpDir: string }> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-svc-'));
   const models = createMockModels({ name: 'mock-workspace' });
-  const service = new AgentService({
+  const { di, runtimeConfig } = createAgentAssembly({
     paths: createDefaultAgentPaths({ agentDir: tmpDir }),
     models,
   });
+  const service = new AgentService(di, runtimeConfig);
   await service.init();
   return { service, tmpDir };
 }

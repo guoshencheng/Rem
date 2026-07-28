@@ -2,9 +2,10 @@ import { afterEach } from 'vitest';
 import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
+import { AgentService } from '../../src/agent.js';
 import { StaticConfigProvider, type ConfigProvider } from './mock-config-provider.js';
-import { createDefaultAgentPaths, type AgentState } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths, type AgentState } from 'rem-agent-core';
+import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';
 import type { BusEvent } from '../../src/types.js';
@@ -179,7 +180,7 @@ export interface TestService {
 export async function createTestService(options: {
   workspace?: string;
   provider?: MockProviderConfig;
-  agentOptions?: Partial<AgentServiceOptions>;
+  agentOptions?: Partial<AgentContextBuildOptions>;
 } = {}): Promise<TestService> {
   const dir = await mkdtemp(join(tmpdir(), 'agent-service-test-'));
   const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
@@ -194,12 +195,14 @@ export async function createTestService(options: {
     name: 'TestAgent',
   });
 
-  const service = new AgentService({
+  const { di, runtimeConfig } = createAgentAssembly({
     paths,
     configProvider,
     models,
     ...options.agentOptions,
   });
+
+  const service = new AgentService(di, runtimeConfig);
 
   await service.init();
   // 将 workspace 写入 db（AgentService.init 只做核心资源初始化）

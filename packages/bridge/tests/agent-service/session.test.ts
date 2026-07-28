@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AgentService } from '../../src/agent.js';
+import { createAgentAssembly } from 'rem-agent-core';
 import { createTestService } from './shared.js';
 import { DEFAULT_WORKSPACE } from './shared.js';
 
@@ -175,7 +176,8 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       } as any);
       await sessionProvider.save(session);
 
-      const newService = new AgentService({ paths });
+      const { di: newDI, runtimeConfig: newRC } = createAgentAssembly({ paths });
+      const newService = new AgentService(newDI, newRC);
       await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);

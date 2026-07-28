@@ -1,27 +1,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent, AgentContextBuildOptions } from 'rem-agent-core';
-import {
-  createAgentAssembly, initRuleEngine, AgentState,
-} from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
+import { initRuleEngine, AgentState } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
 import { AgentServiceCore } from './agent-service-core.js';
 
-export type AgentServiceOptions = AgentContextBuildOptions;
-
 export class AgentService implements IAgentService {
-  private options: AgentServiceOptions;
   private _di: AgentDI;
   private _runtimeConfig: AgentRuntimeConfig;
   private agentState = new AgentState();
   private core: AgentServiceCore;
   private initialized = false;
 
-  constructor(options: AgentServiceOptions) {
-    this.options = options;
-    const { di, runtimeConfig } = createAgentAssembly(options);
+  constructor(di: AgentDI, runtimeConfig: AgentRuntimeConfig) {
     this._di = di;
     this._runtimeConfig = runtimeConfig;
     this.core = new AgentServiceCore({
@@ -37,9 +30,7 @@ export class AgentService implements IAgentService {
     await this._di.configProvider.init();
     await this._di.storage.init();
     await initRuleEngine(this._di);
-    if (!this.options.mcpProviders) {
-      this._di.mcpProviders = await this._di.mcpManager.connectAll(this._di.configProvider.getMcpConfig());
-    }
+    this._di.mcpProviders = await this._di.mcpManager.connectAll(this._di.configProvider.getMcpConfig());
 
     this.initialized = true;
   }

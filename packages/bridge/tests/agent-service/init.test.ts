@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { createDefaultAgentPaths } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths } from 'rem-agent-core';
 
 const DEFAULT_WORKSPACE = 'default';
 
@@ -23,7 +23,8 @@ describe('AgentService init', { timeout: 20000 }, () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-init-test-'));
-    service = new AgentService({ paths: createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir }) });
+    const { di, runtimeConfig } = createAgentAssembly({ paths: createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir }) });
+    service = new AgentService(di, runtimeConfig);
   });
 
   afterEach(async () => {

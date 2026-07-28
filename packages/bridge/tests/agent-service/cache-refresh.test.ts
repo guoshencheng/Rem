@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { createDefaultAgentPaths } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths } from 'rem-agent-core';
 import type { Usage } from 'rem-agent-core';
 
 const DEFAULT_WORKSPACE = 'default';
@@ -22,7 +22,8 @@ describe('AgentService.listSessions preserves usage through JSON', () => {
   it('returns tokenUsage with cacheRead', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'rem-cache-test-'));
     const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
-    const service = new AgentService({ paths });
+    const { di: svcDi, runtimeConfig } = createAgentAssembly({ paths });
+    const service = new AgentService(svcDi, runtimeConfig);
     await service.init();
 
     const di = service.di;

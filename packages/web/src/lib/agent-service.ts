@@ -1,12 +1,12 @@
-import path from 'node:path';
 import { AgentService } from 'rem-agent-bridge';
-import { createDefaultAgentPaths } from 'rem-agent-core';
+import { createAgentAssembly, createDefaultAgentPaths } from 'rem-agent-core';
 
 const GLOBAL_KEY = '__REM_AGENT_SERVICE__';
 
 async function createService(): Promise<AgentService> {
   const paths = createDefaultAgentPaths();
-  const service = new AgentService({ paths });
+  const { di, runtimeConfig } = createAgentAssembly({ paths });
+  const service = new AgentService(di, runtimeConfig);
   await service.init();
   return service;
 }

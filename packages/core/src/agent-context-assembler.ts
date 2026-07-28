@@ -1,5 +1,6 @@
 import type { Models } from '@earendil-works/pi-ai';
-import type { AgentContext, AgentRuntimeInfo } from './agent-context.js';
+import type { AgentDI } from './agent-di.js';
+import type { AgentRuntimeConfig, AgentRuntimeInfo } from './agent-runtime-config.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
@@ -29,6 +30,11 @@ import { DefaultToolComposer } from './tool-composer.js';
 import { RuleEngine } from './security/rules/rule-engine.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import { createPermissionEvaluator, type ApprovalRequestFactory } from './security/permissions/factory.js';
+
+export interface AgentAssembly {
+  di: AgentDI;
+  runtimeConfig: AgentRuntimeConfig;
+}
 
 export interface AssembleAgentContextOptions {
   configProvider: ConfigProvider;
@@ -78,7 +84,7 @@ export async function buildRuleSecurity(
   return { ruleEngine, ruleStore };
 }
 
-export async function assembleAgentContext(options: AssembleAgentContextOptions): Promise<AgentContext> {
+export async function assembleAgentContext(options: AssembleAgentContextOptions): Promise<AgentAssembly> {
   const { configProvider, storageProvider, models, runtime } = options;
 
   const compressor = options.compressor
@@ -91,26 +97,27 @@ export async function assembleAgentContext(options: AssembleAgentContextOptions)
   const permissionEvaluator = createPermissionEvaluator(securityMode, ruleEngine, approvalFactory);
 
   return {
-    configProvider,
-    sessionProvider: options.sessionProvider ?? new DefaultSessionProvider(storageProvider.sessionStore),
-    toolProvider: options.toolProvider ?? new StaticToolProvider(),
-    mcpProviders: options.mcpProviders ?? [],
-    skillProvider: options.skillProvider ?? new EmptySkillProvider(),
-    toolComposer: new DefaultToolComposer(),
-    contextProvider: options.contextProvider ?? new SimpleContextProvider(configProvider),
-    budgetPolicy: options.budgetPolicy ?? new FixedBudgetPolicy(configProvider),
-    compressor,
-    errorHandler: options.errorHandler ?? new SimpleErrorHandler(),
-    titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
-    loopStrategy: options.loopStrategy ?? new ReactLoop(),
-    mcpManager: options.mcpManager ?? ({} as McpConnectionManager),
-    fileMutationQueue: options.fileMutationQueue ?? (new NoopFileMutationQueue() as FileMutationQueue),
-    systemPromptAssembler: options.systemPromptAssembler,
-    ruleEngine,
-    storage: storageProvider,
-    permissionEvaluator,
-    securityMode,
-    models,
-    runtime,
+    di: {
+      configProvider,
+      sessionProvider: options.sessionProvider ?? new DefaultSessionProvider(storageProvider.sessionStore),
+      toolProvider: options.toolProvider ?? new StaticToolProvider(),
+      mcpProviders: options.mcpProviders ?? [],
+      skillProvider: options.skillProvider ?? new EmptySkillProvider(),
+      toolComposer: new DefaultToolComposer(),
+      contextProvider: options.contextProvider ?? new SimpleContextProvider(configProvider),
+      budgetPolicy: options.budgetPolicy ?? new FixedBudgetPolicy(configProvider),
+      compressor,
+      errorHandler: options.errorHandler ?? new SimpleErrorHandler(),
+      titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
+      loopStrategy: options.loopStrategy ?? new ReactLoop(),
+      mcpManager: options.mcpManager ?? ({} as McpConnectionManager),
+      fileMutationQueue: options.fileMutationQueue ?? (new NoopFileMutationQueue() as FileMutationQueue),
+      systemPromptAssembler: options.systemPromptAssembler,
+      ruleEngine,
+      storage: storageProvider,
+      permissionEvaluator,
+      models,
+    },
+    runtimeConfig: { securityMode, runtime },
   };
 }

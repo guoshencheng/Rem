@@ -1,8 +1,8 @@
 import { buildAgentContext, type AgentContextBuildOptions } from './agent-context-builder.js';
-import type { AgentContext } from './agent-context.js';
+import type { AgentAssembly } from './agent-context-assembler.js';
 
 export interface CreateAgentOptions extends AgentContextBuildOptions {}
 
-export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext> {
+export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentAssembly> {
   return buildAgentContext(options);
 }

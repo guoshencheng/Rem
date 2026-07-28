@@ -73,18 +73,18 @@ describe('assembleAgentContext', () => {
     expect(src).not.toMatch(/^import .* from '(node:)?(fs|path|os|crypto|url|child_process)/m);
   });
 
-  it('assembles a full AgentContext with pure defaults', async () => {
-    const ctx = await assembleAgentContext(stubOptions());
-    expect(ctx.configProvider).toBeDefined();
-    expect(ctx.sessionProvider).toBeDefined();
-    expect(ctx.toolProvider.getToolSet()).toEqual([]);
-    expect(await ctx.skillProvider.loadSkills()).toEqual([]);
-    expect(ctx.compressor).toBeDefined();
-    expect(ctx.ruleEngine).toBeDefined();
-    expect(ctx.storage).toBeDefined();
-    expect(ctx.permissionEvaluator).toBeDefined();
-    expect(ctx.securityMode).toBe('interactive');
-    expect(ctx.runtime.platform).toBe('test');
-    await expect(ctx.fileMutationQueue.withQueue('/x', async () => 42)).resolves.toBe(42);
+  it('assembles AgentDI and AgentRuntimeConfig with pure defaults', async () => {
+    const { di, runtimeConfig } = await assembleAgentContext(stubOptions());
+    expect(di.configProvider).toBeDefined();
+    expect(di.sessionProvider).toBeDefined();
+    expect(di.toolProvider.getToolSet()).toEqual([]);
+    expect(await di.skillProvider.loadSkills()).toEqual([]);
+    expect(di.compressor).toBeDefined();
+    expect(di.ruleEngine).toBeDefined();
+    expect(di.storage).toBeDefined();
+    expect(di.permissionEvaluator).toBeDefined();
+    expect(runtimeConfig.securityMode).toBe('interactive');
+    expect(runtimeConfig.runtime.platform).toBe('test');
+    await expect(di.fileMutationQueue.withQueue('/x', async () => 42)).resolves.toBe(42);
   });
 });

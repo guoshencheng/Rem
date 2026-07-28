@@ -26,7 +26,8 @@ import {
   RuntimeSection,
   ProjectAgentsMdLoader,
 } from './system-prompt/index.js';
-import type { AgentContext, AgentRuntimeInfo } from './agent-context.js';
+import type { AgentAssembly } from './agent-context-assembler.js';
+import type { AgentRuntimeInfo } from './agent-runtime-config.js';
 import type { ConfigProvider } from './sdk/config-provider.js';
 import type { SessionProvider } from './sdk/session-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
@@ -56,7 +57,7 @@ export interface AgentContextBuildOptions {
   mcpProviders?: ToolProvider[];
 }
 
-export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentContext> {
+export async function buildAgentContext(options?: AgentContextBuildOptions): Promise<AgentAssembly> {
   const models = options?.models ?? createCoreModels({ all: true });
 
   const runtime: AgentRuntimeInfo = options?.runtime ?? {

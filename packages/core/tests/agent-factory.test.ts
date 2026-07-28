@@ -12,15 +12,15 @@ describe('createAgentFromEnv', () => {
 
     const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
 
-    const ctx = await createAgentFromEnv({ paths });
+    const { di } = await createAgentFromEnv({ paths });
 
-    expect(ctx.toolProvider).toBeDefined();
-    expect(ctx.mcpProviders).toBeDefined();
-    expect(ctx.mcpProviders).toBeInstanceOf(Array);
-    expect(ctx.toolComposer).toBeDefined();
-    expect(typeof ctx.toolComposer.compose).toBe('function');
+    expect(di.toolProvider).toBeDefined();
+    expect(di.mcpProviders).toBeDefined();
+    expect(di.mcpProviders).toBeInstanceOf(Array);
+    expect(di.toolComposer).toBeDefined();
+    expect(typeof di.toolComposer.compose).toBe('function');
 
     // read_skill should NOT be pre-registered on the raw toolProvider
-    expect(ctx.toolProvider.getToolSet().some((t) => t.name === 'read_skill')).toBe(false);
+    expect(di.toolProvider.getToolSet().some((t) => t.name === 'read_skill')).toBe(false);
   });
 });

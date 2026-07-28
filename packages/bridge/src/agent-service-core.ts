@@ -1,7 +1,7 @@
-import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
-import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core/browser';
+import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
+import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
-import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core/browser';
+import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';

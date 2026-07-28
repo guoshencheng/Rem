@@ -20,10 +20,6 @@
     "./client": {
       "import": "./dist/client.js",
       "types": "./dist/client.d.ts"
-    },
-    "./local": {
-      "import": "./dist/local.js",
-      "types": "./dist/local.d.ts"
     }
   },
   "scripts": {

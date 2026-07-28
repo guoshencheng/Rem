@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
-import { StaticConfigProvider } from '../../src/local/static-config-provider.js';
+import { StaticConfigProvider, type ConfigProvider } from './mock-config-provider.js';
 import { createDefaultAgentPaths, type AgentState } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';

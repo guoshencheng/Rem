@@ -12,11 +12,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./local": {
-      "types": "./dist/local.d.ts",
-      "import": "./dist/local.js",
-      "require": "./dist/local.cjs"
-    },
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {

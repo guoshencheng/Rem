@@ -78,7 +78,7 @@ export interface AgentAssembly {
 | `packages/core/src/sub-agent/build-child-context.ts` | MODIFY | `buildChildContext(di, runtimeConfig, options)`，返回 `{ di, runtimeConfig }`；子 agent 覆盖逻辑（ChildConfigProvider、`securityMode: 'auto'`、重建 permissionEvaluator）不变 |
 | `packages/core/src/plugins/tool/builtin/delegate-task.ts` | MODIFY | `createDelegateTaskToolExecutor(parentCtx, ...)` → `(di, runtimeConfig, ...)` |
 | `packages/core/src/index.ts` / `browser.ts` | MODIFY | 导出 `AgentDI` / `AgentRuntimeConfig` / `AgentRuntimeInfo` / `AgentAssembly`，移除 `AgentContext` |
-| `packages/bridge/src/agent.ts` | MODIFY | `AgentService` 持有 `assembly: AgentAssembly`（或 `di` + `runtimeConfig` 两字段）；`context` getter 同步调整 |
+| `packages/bridge/src/agent.ts` | MODIFY | `AgentService` 持有 `di: AgentDI` + `runtimeConfig: AgentRuntimeConfig` 两个字段（替代 `ctx`）；`context` getter 移除，按需暴露 `di` / `runtimeConfig` getter |
 | `packages/bridge/src/agent-service-core.ts` | MODIFY | 构造参数 `ctx: AgentContext` → `di` + `runtimeConfig`；消费点（`sessionProvider`、`storage.*`、`ruleEngine`）改走 `di` |
 | `packages/bridge/src/local/agent-local-service.ts` | MODIFY | `assembleAgentContext` 返回值解构为 `di` + `runtimeConfig` |
 | `packages/core/README.md` | MODIFY | `AgentContext` 相关描述与 API 签名更新 |

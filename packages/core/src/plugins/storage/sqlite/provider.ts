@@ -22,10 +22,11 @@ export class SqliteStorageProvider implements StorageProvider {
   private _archiveStore: SqliteArchiveStore | undefined;
   private _workspaceStore: SqliteWorkspaceStore | undefined;
 
-  constructor(private options: SqliteStorageProviderOptions) {}
+  constructor(private options: SqliteStorageProviderOptions) {
+    this.open();
+  }
 
-  async init(): Promise<void> {
-    if (this.db) return;
+  private open(): void {
     try {
       mkdirSync(dirname(this.options.dbPath), { recursive: true });
       this.db = new Database(this.options.dbPath);
@@ -44,6 +45,11 @@ export class SqliteStorageProvider implements StorageProvider {
         `Failed to open SQLite database at ${this.options.dbPath}`
       );
     }
+  }
+
+  async init(): Promise<void> {
+    if (this.db) return;
+    this.open();
   }
 
   async close(): Promise<void> {

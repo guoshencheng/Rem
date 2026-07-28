@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentDI } from '../src/agent-di.js';
 import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
-import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
 
 const emptyUsage = {
@@ -31,7 +30,6 @@ const createMockContextBase = () => ({
   errorHandler: { classify: () => 'unknown', isRetryable: () => false },
   titleProvider: { generateTitle: async () => undefined },
   mcpManager: { connectAll: async () => [], closeAll: async () => {} },
-  fileMutationQueue: createFileMutationQueue(),
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
   toolComposer: {
     compose: () => ({

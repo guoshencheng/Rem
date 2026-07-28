@@ -3,7 +3,6 @@ import type { AgentDI } from '../src/agent-di.js';
 import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
 import { AgentState } from '../src/agent-state.js';
 import type { PromptBuildContext } from '../src/sdk/system-prompt.js';
-import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 
 const emptyUsage = {
@@ -47,7 +46,6 @@ function createMockContext(overrides: Record<string, unknown> = {}) {
     errorHandler: { classify: () => 'unknown', isRetryable: () => false },
     titleProvider: { generateTitle: async () => undefined },
     mcpManager: { connectAll: async () => [], closeAll: async () => {} },
-    fileMutationQueue: createFileMutationQueue(),
     systemPromptAssembler: { assemble: capturedAssemble },
     toolComposer: {
       compose: () => ({

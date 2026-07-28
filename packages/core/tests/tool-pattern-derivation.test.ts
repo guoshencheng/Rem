@@ -13,7 +13,7 @@ const mockConfig: ConfigProvider = {
 
 describe('tool pattern derivation', () => {
   it('exec derives bash patterns', () => {
-    const registry = createFileSystemTools(mockConfig, { enqueue: async () => {} } as any);
+    const registry = createFileSystemTools(mockConfig);
     const def = registry.getToolDefinition('exec');
     expect(def).toBeDefined();
     expect(def?.derivePatterns).toBeDefined();
@@ -23,7 +23,7 @@ describe('tool pattern derivation', () => {
   });
 
   it('write derives file patterns and always options', () => {
-    const registry = createFileSystemTools(mockConfig, { enqueue: async () => {} } as any);
+    const registry = createFileSystemTools(mockConfig);
     const def = registry.getToolDefinition('write');
     expect(def).toBeDefined();
     const patterns = def?.derivePatterns?.({ path: 'src/foo.ts' } as any);

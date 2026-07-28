@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { AgentDI } from '../src/agent-di.js';
 import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
-import { createFileMutationQueue } from '../src/plugins/tool/file-system/shared/file-mutation-queue.js';
 import { AgentState } from '../src/agent-state.js';
 
 const createMockContextBase = (workspaceRoot = '/tmp') => ({
@@ -21,7 +20,6 @@ const createMockContextBase = (workspaceRoot = '/tmp') => ({
   errorHandler: { classify: () => 'unknown', isRetryable: () => false },
   titleProvider: { generateTitle: async () => undefined },
   mcpManager: { connectAll: async () => [], closeAll: async () => {} },
-  fileMutationQueue: createFileMutationQueue(),
   systemPromptAssembler: { assemble: async () => 'mock system prompt' },
   toolComposer: {
     compose: () => ({

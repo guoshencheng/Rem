@@ -14,7 +14,6 @@ import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
-import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 import type { Rule } from './security/rules/rule.js';
 import { StaticToolProvider } from './plugins/tool/static/index.js';
@@ -55,7 +54,6 @@ export interface AssembleAgentContextOptions {
   errorHandler?: ErrorHandler;
   titleProvider?: TitleProvider;
   loopStrategy?: LoopStrategy;
-  fileMutationQueue?: FileMutationQueue;
   securityMode?: SecurityMode;
 }
 
@@ -114,7 +112,6 @@ export function assembleAgentContext(options: AssembleAgentContextOptions): Agen
       titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
       loopStrategy: options.loopStrategy ?? new ReactLoop(),
       mcpManager: options.mcpManager ?? ({} as McpConnectionManager),
-      fileMutationQueue: options.fileMutationQueue ?? (new NoopFileMutationQueue() as FileMutationQueue),
       systemPromptAssembler: options.systemPromptAssembler,
       ruleEngine,
       storage: storageProvider,

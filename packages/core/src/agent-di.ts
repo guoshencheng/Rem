@@ -12,7 +12,6 @@ import type { TitleProvider } from './sdk/title-provider.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
 import type { ToolComposer } from './sdk/tool-composer.js';
-import type { FileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';
@@ -44,9 +43,6 @@ export interface AgentDI {
 
   // 统一存储入口：session/rule/todo/archive/workspace 全部由其实现
   storage: StorageProvider;
-
-  // TODO： 在文件相关的工具侧自己处理，不用处理
-  fileMutationQueue: FileMutationQueue;
 
   // 工具的规则校验
   ruleEngine: RuleEngine;

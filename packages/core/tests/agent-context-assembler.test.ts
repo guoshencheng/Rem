@@ -90,7 +90,6 @@ describe('assembleAgentContext', () => {
     expect(di.permissionEvaluator).toBeDefined();
     expect(runtimeConfig.securityMode).toBe('interactive');
     expect(runtimeConfig.runtime.platform).toBe('test');
-    await expect(di.fileMutationQueue.withQueue('/x', async () => 42)).resolves.toBe(42);
   });
 
   it('initRuleEngine appends user rules then session rules preserving order', async () => {

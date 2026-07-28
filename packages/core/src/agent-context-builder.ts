@@ -5,7 +5,6 @@ import { configureConsoleOutput } from './shared/debug-log.js';
 import { configureFileDebugLog } from './shared/debug-log-file.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
-import { createFileMutationQueue } from './plugins/tool/file-system/shared/file-mutation-queue.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
 import { McpConnectionManager } from './mcp/connection-manager.js';
 import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
@@ -74,7 +73,6 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
   const configProvider = options?.configProvider ?? new DefaultConfigProvider({ paths });
   const storageProvider = new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });
 
-  const fileMutationQueue = createFileMutationQueue();
   const skillProvider = options?.skillProvider ?? new FileSkillProvider(configProvider, paths);
 
   const mcpManager = new McpConnectionManager();
@@ -105,14 +103,13 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
     models,
     runtime,
     mcpManager,
-    toolProvider: options?.toolProvider ?? createFileSystemTools(configProvider, fileMutationQueue),
+    toolProvider: options?.toolProvider ?? createFileSystemTools(configProvider),
     mcpProviders: options?.mcpProviders,
     skillProvider,
     contextProvider: options?.contextProvider,
     compressor: options?.compressor,
     titleProvider: options?.titleProvider,
     loopStrategy: options?.loopStrategy,
-    fileMutationQueue,
     securityMode: options?.securityMode,
   });
 }

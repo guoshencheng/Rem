@@ -1,7 +1,7 @@
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { FileMutationQueue } from './shared/file-mutation-queue.js';
 import type { Rule } from '../../../security/rules/rule.js';
 import { AgentToolRegistry } from '../../../registry/tool-registry.js';
+import { createFileMutationQueue } from './shared/file-mutation-queue.js';
 import { createReadToolDefinition, createReadToolExecutor } from './read.js';
 import { createWriteToolDefinition, createWriteToolExecutor } from './write.js';
 import { createEditToolDefinition, createEditToolExecutor } from './edit.js';
@@ -57,10 +57,10 @@ function deriveFileAlwaysOptions(input: { path?: string }): Array<{ label: strin
 
 export function createFileSystemTools(
   configProvider: ConfigProvider,
-  fileMutationQueue: FileMutationQueue,
 ): AgentToolRegistry {
   const behavior = configProvider.getBehaviorConfig();
   const toolCfg = configProvider.getToolConfig();
+  const fileMutationQueue = createFileMutationQueue();
   const registry = new AgentToolRegistry({
     workspaceRoot: behavior.workspaceRoot,
     readOnly: behavior.readOnly,

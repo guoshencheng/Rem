@@ -73,7 +73,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   }
 
   const configProvider = options?.configProvider ?? new DefaultConfigProvider({ paths });
-  await (configProvider as { init?: () => Promise<void> }).init?.();
+  await configProvider.init();
 
   const storageProvider = options?.storageProvider
     ?? new SqliteStorageProvider({ dbPath: join(paths.agentDir, 'rem-agent.db') });

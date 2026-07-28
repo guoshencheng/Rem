@@ -17,6 +17,10 @@ class ChildConfigProvider implements ConfigProvider {
     private overrides: { maxTurns?: number },
   ) {}
 
+  async init(): Promise<void> {
+    // 子 agent 的 parent 已初始化；不可委托 parent.init()（DefaultConfigProvider.init 重跑会覆盖 forWorkspace 合并结果）
+  }
+
   getConfig(): ResolvedAgentConfig {
     return { ...this.parent.getConfig(), ...this.getBehaviorConfig() };
   }

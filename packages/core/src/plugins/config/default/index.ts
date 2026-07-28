@@ -40,6 +40,21 @@ export class DefaultConfigProvider implements ConfigProvider {
   constructor(private options: DefaultConfigProviderOptions = {}) {
     this.env = options.env ?? process.env;
     this._paths = options.paths;
+    if (this._paths) {
+      this.loadSync();
+    }
+  }
+
+  private loadSync(): void {
+    const paths = this._paths as AgentPaths;
+    let home: AgentConfig = {};
+    const homePath = resolveConfigPaths(paths.homeConfigCandidates())[0];
+    if (homePath) {
+      home = mergeFileConfig(home, loadConfigFileSync(homePath));
+    }
+    this.rawHome = home;
+    this.raw = mergeEnvConfig(home, this.env);
+    this.initResolver();
   }
 
   private async resolvePaths(): Promise<AgentPaths> {
@@ -50,6 +65,10 @@ export class DefaultConfigProvider implements ConfigProvider {
   }
 
   async init(): Promise<void> {
+    if (this._paths) {
+      this.loadSync();
+      return;
+    }
     let home: AgentConfig = {};
 
     const paths = await this.resolvePaths();

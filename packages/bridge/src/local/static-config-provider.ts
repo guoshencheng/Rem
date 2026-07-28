@@ -17,6 +17,10 @@ export interface StaticConfigOptions {
 export class StaticConfigProvider implements ConfigProvider {
   constructor(private options: StaticConfigOptions) {}
 
+  async init(): Promise<void> {
+    // 配置全部来自构造参数，无需初始化
+  }
+
   getConfig(): ResolvedAgentConfig {
     return { ...this.getBehaviorConfig(), model: this.getModelConfig() };
   }

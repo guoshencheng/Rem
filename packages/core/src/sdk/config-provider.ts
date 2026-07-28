@@ -57,6 +57,8 @@ export interface ResolvedAgentConfig extends Required<AgentBehaviorConfig>, Agen
 }
 
 export interface ConfigProvider {
+  /** 初始化/重新加载配置。实现必须保证幂等。 */
+  init(): Promise<void>;
   getConfig(): ResolvedAgentConfig;
   getModelConfig(modelId?: string): ResolvedModelConfig;
   getToolConfig(): AgentToolConfig;

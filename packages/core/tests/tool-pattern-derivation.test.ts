@@ -3,6 +3,7 @@ import { createFileSystemTools } from '../src/plugins/tool/file-system/index.js'
 import type { ConfigProvider } from '../src/sdk/config-provider.js';
 
 const mockConfig: ConfigProvider = {
+  init: async () => {},
   getConfig: () => ({} as any),
   getModelConfig: () => ({} as any),
   getToolConfig: () => ({}),

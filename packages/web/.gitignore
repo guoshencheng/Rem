@@ -1,6 +1,5 @@
 .env
 .env.local
-.next/
-next-env.d.ts
+dist/
 .rem-agent/
 data/

@@ -1,5 +1,5 @@
-import { AgentService } from 'rem-agent-bridge';
 import { createAgentFromEnv, createDefaultAgentPaths } from 'rem-agent-core';
+import { AgentService } from 'rem-agent-bridge';
 
 const GLOBAL_KEY = '__REM_AGENT_SERVICE__';
 

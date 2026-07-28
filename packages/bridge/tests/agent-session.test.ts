@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AgentSessionManager } from '../src/agent-session.js';
+import { AgentSessionManager } from 'rem-agent-core';
 import type { Usage } from 'rem-agent-core';
 
 const baseUsage = (overrides?: Partial<Usage>): Usage => ({

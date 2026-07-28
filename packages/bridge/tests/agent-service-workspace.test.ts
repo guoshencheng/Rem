@@ -3,26 +3,21 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { AgentService } from '../src/agent.js';
-import { JsonWorkspaceRepository } from '../src/workspace-repository-json.js';
 import type { IAgentService } from '../src/agent-service.interface.js';
 import { createMockModels, createDefaultAgentPaths } from './agent-service/shared.js';
 
 async function makeService(): Promise<{ service: IAgentService; tmpDir: string }> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-svc-'));
   const models = createMockModels({ name: 'mock-workspace' });
-  const repo = new JsonWorkspaceRepository(path.join(tmpDir, 'workspaces.json'));
-  const service = new AgentService(
-    {
-      name: 'TestAgent',
-      provider: 'mock-workspace',
-      model: 'mock-model',
-      workspaceRoot: tmpDir,
-      sessionsDir: path.join(tmpDir, 'sessions'),
-      paths: createDefaultAgentPaths({ agentDir: tmpDir, sessionsDir: path.join(tmpDir, 'sessions') }),
-      models,
-    },
-    repo,
-  );
+  const service = new AgentService({
+    name: 'TestAgent',
+    provider: 'mock-workspace',
+    model: 'mock-model',
+    workspaceRoot: tmpDir,
+    sessionsDir: path.join(tmpDir, 'sessions'),
+    paths: createDefaultAgentPaths({ agentDir: tmpDir, sessionsDir: path.join(tmpDir, 'sessions') }),
+    models,
+  });
   await service.init();
   return { service, tmpDir };
 }

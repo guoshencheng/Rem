@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 
 const DEFAULT_WORKSPACE = 'default';
 
@@ -23,8 +22,7 @@ describe('AgentService init', { timeout: 20000 }, () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-init-test-'));
-    const repo = new JsonWorkspaceRepository(join(dir, 'workspaces.json'));
-    service = new AgentService({ workspaceRoot: dir, sessionsDir: dir }, repo);
+    service = new AgentService({ workspaceRoot: dir, sessionsDir: dir });
   });
 
   afterEach(async () => {

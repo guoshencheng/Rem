@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
-import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 import { SqliteStorageProvider, type AgentState, createDefaultAgentPaths } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';
@@ -184,24 +183,20 @@ export async function createTestService(options: {
   const dir = await mkdtemp(join(tmpdir(), 'agent-service-test-'));
   const models = createMockModels(options.provider);
 
-  const workspaceRepo = new JsonWorkspaceRepository(join(dir, 'workspaces.json'));
-  const workspace = options.workspace ?? DEFAULT_WORKSPACE;
-  await workspaceRepo.add(workspace).catch(() => {});
-
   const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
+  await storageProvider.init();
+  const workspace = options.workspace ?? DEFAULT_WORKSPACE;
+  await storageProvider.workspaceStore.add(workspace).catch(() => {});
 
-  const service = new AgentService(
-    {
-      name: 'TestAgent',
-      provider: options.provider?.name ?? 'mock-default',
-      model: 'mock-model',
-      workspaceRoot: dir,
-      storageProvider,
-      models,
-      ...options.agentOptions,
-    },
-    workspaceRepo,
-  );
+  const service = new AgentService({
+    name: 'TestAgent',
+    provider: options.provider?.name ?? 'mock-default',
+    model: 'mock-model',
+    workspaceRoot: dir,
+    storageProvider,
+    models,
+    ...options.agentOptions,
+  });
 
   await service.init();
 

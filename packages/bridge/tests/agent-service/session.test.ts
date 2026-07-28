@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { AgentService } from '../../src/agent.js';
-import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 import { createTestService } from './shared.js';
 import { DEFAULT_WORKSPACE } from './shared.js';
-import { join } from 'path';
 
 describe('AgentService session management', { timeout: 20000 }, () => {
   it('creates a session', async () => {
@@ -177,9 +175,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       } as any);
       await sessionProvider.save(session);
 
-      const newRepo = new JsonWorkspaceRepository(join(dir, 'workspaces2.json'));
-      await newRepo.add(DEFAULT_WORKSPACE).catch(() => {});
-      const newService = new AgentService({ workspaceRoot: dir, storageProvider }, newRepo);
+      const newService = new AgentService({ workspaceRoot: dir, storageProvider });
       await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);

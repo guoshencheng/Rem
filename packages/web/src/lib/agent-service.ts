@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { AgentService, SqliteWorkspaceRepository } from 'rem-agent-bridge';
+import { AgentService } from 'rem-agent-bridge';
 import { createDefaultAgentPaths, SqliteStorageProvider } from 'rem-agent-core';
 
 const GLOBAL_KEY = '__REM_AGENT_SERVICE__';
@@ -11,10 +11,7 @@ async function createService(): Promise<AgentService> {
   });
   await storageProvider.init();
 
-  const service = new AgentService(
-    { workspaceRoot: process.cwd(), storageProvider },
-    new SqliteWorkspaceRepository(storageProvider.workspaceStore),
-  );
+  const service = new AgentService({ workspaceRoot: process.cwd(), storageProvider });
   await service.init();
   return service;
 }

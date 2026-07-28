@@ -1,23 +1,27 @@
-import type { SessionProvider, AgentState, Usage, Message } from 'rem-agent-core';
-import { addUsage, emptyUsage, normalizeUsage } from 'rem-agent-core/token-usage';
-import type { TextContent } from 'rem-agent-core';
-import type { SessionSummary, SessionUpdate, UIMessage, UiContentBlock, ToolResultBlock } from './types.js';
-import { ServiceError } from './errors.js';
+import type { Usage } from '@earendil-works/pi-ai';
+import type { TextContent } from '@earendil-works/pi-ai';
+import type { SessionProvider } from '../sdk/session-provider.js';
+import { AgentState } from '../agent-state.js';
+import { addUsage, emptyUsage, normalizeUsage } from '../token-usage.js';
+import type { SessionInfo, SessionUpdate, UIMessage, ToolResultBlock } from './types.js';
+import { SessionNotFoundError } from './errors.js';
+import { messageToContentBlocks } from './message-blocks.js';
 
+/** 会话管理的通用内置逻辑：创建/列表/检索/更新/删除 + UIMessage 组装。 */
 export class AgentSessionManager {
   constructor(
     private sessionProvider: SessionProvider,
     private agentState: AgentState,
   ) {}
 
-  async createSession(workspace: string): Promise<SessionSummary> {
+  async createSession(workspace: string): Promise<SessionInfo> {
     const session = await this.sessionProvider.create();
     session.metadata.workspace = workspace;
     await this.sessionProvider.save(session);
-    return this.toSummary(session, workspace);
+    return this.toInfo(session, workspace);
   }
 
-  async listSessions(workspace: string): Promise<SessionSummary[]> {
+  async listSessions(workspace: string): Promise<SessionInfo[]> {
     const summaries = await this.sessionProvider.list();
     const enriched = await Promise.all(
       summaries.map(async (s) => {
@@ -48,23 +52,16 @@ export class AgentSessionManager {
     });
   }
 
-  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+  async searchSessions(workspace: string, q: string): Promise<SessionInfo[]> {
     const all = await this.listSessions(workspace);
     const lower = q.toLowerCase();
     return all.filter((s) => (s.title ?? '').toLowerCase().includes(lower));
   }
 
-  private computeTotalTokenUsage(messageTokenUsage: unknown): Usage | undefined {
-    if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
-    const entries = Object.values(messageTokenUsage).map((entry) => normalizeUsage(entry));
-    if (entries.length === 0) return undefined;
-    return entries.reduce((acc, usage) => addUsage(acc, usage), emptyUsage());
-  }
-
   async getMessages(sessionId: string): Promise<UIMessage[]> {
     const session = await this.sessionProvider.load(sessionId);
     if (!session) {
-      throw new ServiceError('Session not found', 404);
+      throw new SessionNotFoundError(sessionId);
     }
 
     const toolResultsMap = new Map<string, ToolResultBlock>();
@@ -117,7 +114,7 @@ export class AgentSessionManager {
   async updateSession(sessionId: string, updates: SessionUpdate): Promise<void> {
     const session = await this.sessionProvider.load(sessionId);
     if (!session) {
-      throw new ServiceError('Session not found', 404);
+      throw new SessionNotFoundError(sessionId);
     }
     if (updates.title !== undefined) {
       session.metadata.title = updates.title;
@@ -132,7 +129,7 @@ export class AgentSessionManager {
   async deleteSession(sessionId: string): Promise<void> {
     const session = await this.sessionProvider.load(sessionId);
     if (!session) {
-      throw new ServiceError('Session not found', 404);
+      throw new SessionNotFoundError(sessionId);
     }
     this.agentState.abortRun(sessionId);
     this.agentState.removeRun(sessionId);
@@ -142,10 +139,17 @@ export class AgentSessionManager {
     this.agentState.remove(sessionId);
   }
 
-  private toSummary(
+  private computeTotalTokenUsage(messageTokenUsage: unknown): Usage | undefined {
+    if (!messageTokenUsage || typeof messageTokenUsage !== 'object') return undefined;
+    const entries = Object.values(messageTokenUsage).map((entry) => normalizeUsage(entry));
+    if (entries.length === 0) return undefined;
+    return entries.reduce((acc, usage) => addUsage(acc, usage), emptyUsage());
+  }
+
+  private toInfo(
     session: { sessionId: string; metadata?: Record<string, unknown>; updatedAt: Date; conversation?: unknown[] },
     workspace?: string,
-  ): SessionSummary {
+  ): SessionInfo {
     return {
       sessionId: session.sessionId,
       workspace: workspace ?? (session.metadata?.workspace as string | undefined) ?? 'default',
@@ -156,28 +160,4 @@ export class AgentSessionManager {
       messageCount: Array.isArray(session.conversation) ? session.conversation.length : 0,
     };
   }
-}
-
-interface ImageContent { type: 'image'; data: string; mimeType: string; }
-
-function messageToContentBlocks(message: Message): UiContentBlock[] {
-  if (message.role === 'user') {
-    if (typeof message.content === 'string') {
-      return [{ type: 'text', text: message.content }];
-    }
-    return message.content
-      .filter((c): c is TextContent | ImageContent => c.type === 'text' || c.type === 'image')
-      .map((c) => (c.type === 'text' ? { type: 'text' as const, text: c.text } : { type: 'image' as const, data: c.data, mimeType: c.mimeType }));
-  }
-  const parts: UiContentBlock[] = [];
-  for (const block of message.content) {
-    if (block.type === 'text') {
-      parts.push({ type: 'text', text: block.text });
-    } else if (block.type === 'thinking') {
-      parts.push({ type: 'thinking', thinking: block.thinking });
-    } else if (block.type === 'toolCall') {
-      parts.push(block);
-    }
-  }
-  return parts;
 }

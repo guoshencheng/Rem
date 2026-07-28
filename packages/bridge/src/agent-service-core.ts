@@ -1,18 +1,14 @@
 import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, TodoItem, UserInputContent } from 'rem-agent-core/browser';
-import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService } from 'rem-agent-core/browser';
+import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core/browser';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core/browser';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
-import type { AgentSessionManager } from './agent-session.js';
-import type { WorkspaceRepository } from './workspace-repository.js';
 
 export interface AgentServiceCoreDeps {
   ctx: AgentContext;
   agentState: AgentState;
-  sessionManager: AgentSessionManager;
-  workspaceRepository: WorkspaceRepository;
 }
 
 /** IAgentService 的平台无关实现，AgentService（Node）与 LocalAgentService（浏览器）共用。 */
@@ -20,13 +16,11 @@ export class AgentServiceCore implements IAgentService {
   private ctx: AgentContext;
   private agentState: AgentState;
   private sessionManager: AgentSessionManager;
-  private workspaceRepository: WorkspaceRepository;
 
   constructor(deps: AgentServiceCoreDeps) {
     this.ctx = deps.ctx;
     this.agentState = deps.agentState;
-    this.sessionManager = deps.sessionManager;
-    this.workspaceRepository = deps.workspaceRepository;
+    this.sessionManager = new AgentSessionManager(deps.ctx.sessionProvider, deps.agentState);
   }
 
   async init(): Promise<void> {
@@ -36,15 +30,15 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Workspace management ---- */
 
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.workspaceRepository.list();
+    return this.ctx.storage.workspaceStore.list();
   }
 
   async addWorkspace(path: string): Promise<Workspace> {
-    return this.workspaceRepository.add(path);
+    return this.ctx.storage.workspaceStore.add(path);
   }
 
   async removeWorkspace(path: string): Promise<void> {
-    return this.workspaceRepository.remove(path);
+    return this.ctx.storage.workspaceStore.remove(path);
   }
 
   /* ---- Agent lifecycle ---- */
@@ -132,7 +126,7 @@ export class AgentServiceCore implements IAgentService {
   /* ---- Message tracking ---- */
 
   async getMessages(_workspace: string, sessionId: string): Promise<UIMessage[]> {
-    return this.sessionManager.getMessages(sessionId);
+    return this.translateNotFound(() => this.sessionManager.getMessages(sessionId));
   }
 
   async getTodos(_workspace: string, sessionId: string): Promise<TodoItem[]> {
@@ -156,11 +150,22 @@ export class AgentServiceCore implements IAgentService {
   }
 
   async updateSession(_workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
-    return this.sessionManager.updateSession(sessionId, updates);
+    return this.translateNotFound(() => this.sessionManager.updateSession(sessionId, updates));
   }
 
   async deleteSession(_workspace: string, sessionId: string): Promise<void> {
-    return this.sessionManager.deleteSession(sessionId);
+    return this.translateNotFound(() => this.sessionManager.deleteSession(sessionId));
+  }
+
+  private async translateNotFound<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof SessionNotFoundError) {
+        throw new ServiceError(err.message, 404);
+      }
+      throw err;
+    }
   }
 
   /* ---- Approval ---- */

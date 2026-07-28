@@ -32,5 +32,6 @@ export * from './registry/tool-registry.js';
 export * from './todo/types.js';
 export * from './todo/errors.js';
 export * from './todo/service.js';
+export * from './session-manager/index.js';
 export * from './token-usage.js';
 export * from './llm/context-window.js';

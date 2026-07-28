@@ -13,12 +13,10 @@ import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputConten
 import { ServiceError } from '../errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from '../types.js';
 import type { IAgentService } from '../agent-service.interface.js';
-import { AgentSessionManager } from '../agent-session.js';
 import { AgentServiceCore } from '../agent-service-core.js';
 import { IndexedDBStorageProvider } from './idb-storage-provider.js';
 import { StaticConfigProvider } from './static-config-provider.js';
 import { NoopCompressor } from './noop-compressor.js';
-import { IdbWorkspaceRepository } from './idb-workspace-repository.js';
 import { browserCompatibleProviders } from './browser-providers.js';
 import type { ProviderCredential } from './credential-store.js';
 
@@ -91,12 +89,7 @@ export class LocalAgentService implements IAgentService {
     });
 
     const agentState = new AgentState();
-    this.core = new AgentServiceCore({
-      ctx,
-      agentState,
-      sessionManager: new AgentSessionManager(ctx.sessionProvider, agentState),
-      workspaceRepository: new IdbWorkspaceRepository(storageProvider.workspaceStore),
-    });
+    this.core = new AgentServiceCore({ ctx, agentState });
   }
 
   private ensureCore(): AgentServiceCore {

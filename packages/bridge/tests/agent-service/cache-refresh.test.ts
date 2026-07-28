@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService } from '../../src/agent.js';
-import { JsonWorkspaceRepository } from '../../src/workspace-repository-json.js';
 import { SqliteStorageProvider } from 'rem-agent-core';
 import type { Usage } from 'rem-agent-core';
 
@@ -22,12 +21,8 @@ const baseUsage = (overrides?: Partial<Usage>): Usage => ({
 describe('AgentService.listSessions preserves usage through JSON', () => {
   it('returns tokenUsage with cacheRead', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'rem-cache-test-'));
-    const repo = new JsonWorkspaceRepository(join(dir, 'workspaces.json'));
     const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
-    const service = new AgentService(
-      { workspaceRoot: dir, storageProvider },
-      repo
-    );
+    const service = new AgentService({ workspaceRoot: dir, storageProvider });
     await service.init();
 
     const ctx = service.context!;

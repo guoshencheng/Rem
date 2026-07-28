@@ -1,12 +1,12 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { ApprovalDecision, ApprovalRequest, AgentContext, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
 import { buildAgentContext, AgentState } from 'rem-agent-core';
 import type { AgentContextBuildOptions } from 'rem-agent-core';
 import { ServiceError } from './errors.js';
 import type { BusEvent, SessionSummary, SessionUpdate, UIMessage, Workspace } from './types.js';
 import type { IAgentService } from './agent-service.interface.js';
-import { AgentSessionManager } from './agent-session.js';
 import { AgentServiceCore } from './agent-service-core.js';
-import type { WorkspaceRepository } from './workspace-repository.js';
 
 export type AgentServiceOptions = AgentContextBuildOptions;
 
@@ -17,10 +17,7 @@ export class AgentService implements IAgentService {
   private core: AgentServiceCore | undefined;
   private initialized = false;
 
-  constructor(
-    options: AgentServiceOptions,
-    private workspaceRepository: WorkspaceRepository,
-  ) {
+  constructor(options: AgentServiceOptions) {
     this.options = options;
   }
 
@@ -31,8 +28,6 @@ export class AgentService implements IAgentService {
     this.core = new AgentServiceCore({
       ctx: this.ctx,
       agentState: this.agentState,
-      sessionManager: new AgentSessionManager(this.ctx.sessionProvider, this.agentState),
-      workspaceRepository: this.workspaceRepository,
     });
 
     this.initialized = true;
@@ -56,15 +51,29 @@ export class AgentService implements IAgentService {
   /* ---- Workspace management ---- */
 
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.workspaceRepository.list();
+    return this.ensureCore().listWorkspaces();
   }
 
-  async addWorkspace(path: string): Promise<Workspace> {
-    return this.workspaceRepository.add(path);
+  async addWorkspace(rawPath: string): Promise<Workspace> {
+    return this.ensureCore().addWorkspace(await this.resolveWorkspaceDir(rawPath));
   }
 
-  async removeWorkspace(path: string): Promise<void> {
-    return this.workspaceRepository.remove(path);
+  async removeWorkspace(rawPath: string): Promise<void> {
+    return this.ensureCore().removeWorkspace(path.resolve(rawPath));
+  }
+
+  private async resolveWorkspaceDir(rawPath: string): Promise<string> {
+    const absolutePath = path.resolve(rawPath);
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isDirectory()) {
+        throw new Error(`Workspace path is not a directory: ${absolutePath}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Workspace path does not exist or is not readable: ${absolutePath} (${message})`);
+    }
+    return absolutePath;
   }
 
   /* ---- Agent lifecycle ---- */

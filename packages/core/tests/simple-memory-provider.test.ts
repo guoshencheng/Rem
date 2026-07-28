@@ -12,14 +12,13 @@ function mockConfigProvider(name: string): ConfigProvider {
       workspaceRoot: '/tmp',
       readOnly: false,
       autoApproveDangerous: false,
-      sessionsDir: '/tmp/.sessions',
     }),
     getModelConfig: () => ({ provider: 'openai', model: '', apiKey: '' }),
     getToolConfig: () => ({}),
     getMcpConfig: () => ({}),
     getConfig: () => ({
       name, maxTurns: 60, workspaceRoot: '/tmp', readOnly: false,
-      autoApproveDangerous: false, sessionsDir: '/tmp/.sessions',
+      autoApproveDangerous: false,
       model: { provider: 'openai', model: '', apiKey: '' },
     }),
   };

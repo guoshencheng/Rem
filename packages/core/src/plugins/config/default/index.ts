@@ -10,7 +10,7 @@ import type {
 import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.js';
 import type { McpServerConfig } from '../../../mcp/types.js';
 import type { AgentPaths } from '../../../config/paths.js';
-import { resolveConfigPath, loadConfigFile, resolveConfigPaths } from './config-loader.js';
+import { loadConfigFile, loadConfigFileSync, resolveConfigPaths } from './config-loader.js';
 import { resolveTemplate, resolveOptionalTemplate, isThinkingLevel } from './config-parser.js';
 import {
   mergeFileConfig,
@@ -25,16 +25,17 @@ export interface ConfigFileData {
 }
 
 export interface DefaultConfigProviderOptions {
-  configPath?: string;
   env?: NodeJS.ProcessEnv;
   paths?: AgentPaths;
 }
 
 export class DefaultConfigProvider implements ConfigProvider {
   private raw?: AgentConfig;
+  private rawHome?: AgentConfig;
   private env: NodeJS.ProcessEnv;
   private _paths?: AgentPaths;
   private agentResolver?: AgentResolver;
+  private workspaceCache = new Map<string, ConfigProvider>();
 
   constructor(private options: DefaultConfigProviderOptions = {}) {
     this.env = options.env ?? process.env;
@@ -49,31 +50,46 @@ export class DefaultConfigProvider implements ConfigProvider {
   }
 
   async init(): Promise<void> {
-    let config: AgentConfig = {};
+    let home: AgentConfig = {};
 
     const paths = await this.resolvePaths();
 
     const homePath = resolveConfigPaths(paths.homeConfigCandidates())[0];
     if (homePath) {
       const homeFile = await loadConfigFile(homePath);
-      config = mergeFileConfig(config, homeFile);
+      home = mergeFileConfig(home, homeFile);
     }
 
-    const workspacePath = this.options.configPath
-      ? resolveConfigPath(this.options.configPath, paths)
-      : resolveConfigPaths(paths.workspaceConfigCandidates())[0];
+    this.rawHome = home;
+    this.raw = mergeEnvConfig(home, this.env);
+    this.initResolver();
+  }
+
+  forWorkspace(workspace: string): ConfigProvider {
+    const cached = this.workspaceCache.get(workspace);
+    if (cached) return cached;
+
+    const workspacePath = resolveConfigPaths(
+      (this._paths as AgentPaths).workspaceConfigCandidates(workspace),
+    )[0];
+
+    // 合并优先级：home < workspace 配置文件 < env
+    let raw = this.getRawConfig();
     if (workspacePath) {
-      const workspaceFile = await loadConfigFile(workspacePath);
-      config = mergeDeepConfig(config, workspaceFile);
+      raw = mergeEnvConfig(mergeDeepConfig(this.rawHome ?? {}, loadConfigFileSync(workspacePath)), this.env);
     }
 
-    config = mergeEnvConfig(config, this.env);
+    const scoped = new DefaultConfigProvider({ env: this.env, paths: this._paths });
+    scoped.raw = raw;
+    scoped.initResolver();
+    this.workspaceCache.set(workspace, scoped);
+    return scoped;
+  }
 
-    this.raw = config;
-
+  private initResolver(): void {
     this.agentResolver = new DefaultAgentResolver({
       behavior: this.getBehaviorConfig(),
-      agents: this.raw.agents,
+      agents: this.getRawConfig().agents,
       resolveModel: (model) => {
         if (!model || !model.provider || !model.model) return undefined;
         return this.resolveModelConfig(model);
@@ -135,7 +151,7 @@ export class DefaultConfigProvider implements ConfigProvider {
     if (!this._paths) {
       throw new Error('DefaultConfigProvider must be initialized before reading behavior config');
     }
-    return applyBehaviorDefaults(this.getRawConfig(), this._paths.sessionsDir);
+    return applyBehaviorDefaults(this.getRawConfig());
   }
 
   getMcpConfig(): Record<string, McpServerConfig> {

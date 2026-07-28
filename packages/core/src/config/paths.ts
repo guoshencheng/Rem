@@ -7,26 +7,20 @@ export interface AgentPaths {
   /** Agent 数据根目录 */
   readonly agentDir: string;
 
-  /** 工作目录（workspace 根）；项目级配置/技能路径都基于它 */
-  readonly cwd: string;
-
   /** 用户级技能目录，默认 ~/.agents/skills */
   readonly homeSkillsDir: string;
 
-  /** 项目级技能目录，默认 <cwd>/.agents/skills */
+  /** 项目级技能目录，默认 <workspaceRoot>/.agents/skills */
   workspaceSkillsDir(workspaceRoot: string): string;
 
   /** 配置文件候选列表（优先级从高到低） */
-  configCandidates(): string[];
+  configCandidates(workspace: string): string[];
 
   /** home 级配置候选列表（~/.rem-agent/config.*），优先级从高到低 */
   homeConfigCandidates(): string[];
 
-  /** workspace 级配置候选列表（cwd/rem-agent.config.* 与 cwd/.rem-agent/config.*），优先级从高到低 */
-  workspaceConfigCandidates(): string[];
-
-  /** 会话存储目录 */
-  readonly sessionsDir: string;
+  /** workspace 级配置候选列表（workspace/rem-agent.config.* 与 workspace/.rem-agent/config.*），优先级从高到低 */
+  workspaceConfigCandidates(workspace: string): string[];
 
   /** 调试日志路径，null 表示禁用 */
   readonly debugLogFile: string | null;
@@ -36,8 +30,6 @@ export interface CreateAgentPathsOptions {
   agentDir?: string;
   homeAgentDir?: string;
   homeSkillsDir?: string;
-  sessionsDir?: string;
-  cwd?: string;
   env?: Partial<NodeJS.ProcessEnv>;
 }
 
@@ -49,21 +41,18 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
   const agentDir = opts.agentDir ?? resolveAgentDir(env);
   const homeAgentDir = opts.homeAgentDir ?? join(homedir(), '.rem-agent');
   const homeSkillsDir = opts.homeSkillsDir ?? join(homedir(), '.agents', 'skills');
-  const sessionsDir = opts.sessionsDir ?? join(agentDir, 'sessions');
-  const cwd = opts.cwd ?? process.cwd();
   const debugLogFile = resolveDebugLogFile(env, agentDir);
 
   return {
     agentDir,
-    cwd,
     homeSkillsDir,
 
     workspaceSkillsDir(workspaceRoot: string) {
       return join(workspaceRoot, '.agents', 'skills');
     },
 
-    configCandidates() {
-      return [...this.workspaceConfigCandidates(), ...this.homeConfigCandidates()];
+    configCandidates(workspace: string) {
+      return [...this.workspaceConfigCandidates(workspace), ...this.homeConfigCandidates()];
     },
 
     homeConfigCandidates() {
@@ -74,23 +63,20 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
       ];
     },
 
-    workspaceConfigCandidates() {
+    workspaceConfigCandidates(workspace: string) {
       return [
-        join(cwd, 'rem-agent.config.json'),
-        join(cwd, 'rem-agent.config.yaml'),
-        join(cwd, 'rem-agent.config.yml'),
-        join(cwd, '.rem-agent', 'config.json'),
-        join(cwd, '.rem-agent', 'config.yaml'),
-        join(cwd, '.rem-agent', 'config.yml'),
+        join(workspace, 'rem-agent.config.json'),
+        join(workspace, 'rem-agent.config.yaml'),
+        join(workspace, 'rem-agent.config.yml'),
+        join(workspace, '.rem-agent', 'config.json'),
+        join(workspace, '.rem-agent', 'config.yaml'),
+        join(workspace, '.rem-agent', 'config.yml'),
       ];
     },
 
-    sessionsDir,
     debugLogFile,
   };
 }
-
-// ─── 工具函数 ────────────────────────────────────────
 
 /** 展开路径中的 ~ 为 home 目录，供 security 等模块使用 */
 export function resolveTilde(rawPath: string): string {

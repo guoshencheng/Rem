@@ -15,7 +15,7 @@ const emptyUsage = {
 
 const createMockContextBase = () => ({
   configProvider: {
-    getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+    getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
     getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
     getToolConfig: () => ({}),
     getMcpConfig: () => ({}),

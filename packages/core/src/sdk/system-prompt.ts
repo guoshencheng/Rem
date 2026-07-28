@@ -14,7 +14,6 @@ export interface PromptBuildContext {
     platform: string;
     nodeVersion: string;
     today: string;
-    cwd: string;
   };
   agentCorePrompt: string;
 }

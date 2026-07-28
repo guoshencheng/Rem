@@ -61,7 +61,7 @@ function stubOptions(): AssembleAgentContextOptions {
     storageProvider: stubStorageProvider(),
     systemPromptAssembler: { assemble: async () => 'system' },
     models: { getModel: () => undefined, stream: () => { throw new Error('not used'); }, complete: () => { throw new Error('not used'); } } as never,
-    runtime: { platform: 'test', cwd: '/tmp', env: {} },
+    runtime: { platform: 'test', env: {} },
     mcpManager: { connectAll: async () => [], closeAll: async () => {} } as never,
   };
 }

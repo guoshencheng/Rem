@@ -9,28 +9,23 @@ describe('createDefaultAgentPaths', () => {
     const paths = createDefaultAgentPaths();
     expect(paths.agentDir).toContain('.rem-agent');
     expect(paths.homeSkillsDir).toContain('.agents/skills');
-    expect(paths.sessionsDir).toContain('.rem-agent/sessions');
   });
 
   it('should respect REM_AGENT_HOME', () => {
     const paths = createDefaultAgentPaths({ env: { REM_AGENT_HOME: '/custom/home' } });
     expect(paths.agentDir).toBe('/custom/home');
-    expect(paths.sessionsDir).toBe('/custom/home/sessions');
   });
 
   it('should allow overriding agentDir', () => {
     const paths = createDefaultAgentPaths({ agentDir: '/tmp/test-agent' });
     expect(paths.agentDir).toBe('/tmp/test-agent');
-    expect(paths.sessionsDir).toBe('/tmp/test-agent/sessions');
   });
 
-  it('should allow overriding homeSkillsDir and sessionsDir', () => {
+  it('should allow overriding homeSkillsDir', () => {
     const paths = createDefaultAgentPaths({
       homeSkillsDir: '/custom/skills',
-      sessionsDir: '/custom/sessions',
     });
     expect(paths.homeSkillsDir).toBe('/custom/skills');
-    expect(paths.sessionsDir).toBe('/custom/sessions');
   });
 
   it('should resolve ~ in REM_AGENT_HOME', () => {
@@ -45,8 +40,8 @@ describe('createDefaultAgentPaths', () => {
   });
 
   it('configCandidates should return workspace candidates before home candidates', () => {
-    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a', cwd: '/cwd' });
-    const candidates = paths.configCandidates();
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
+    const candidates = paths.configCandidates('/cwd');
     expect(candidates).toHaveLength(9);
     expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
     expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');
@@ -60,8 +55,8 @@ describe('createDefaultAgentPaths', () => {
   });
 
   it('workspaceConfigCandidates should return only workspace-level candidates', () => {
-    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a', cwd: '/cwd' });
-    const candidates = paths.workspaceConfigCandidates();
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
+    const candidates = paths.workspaceConfigCandidates('/cwd');
     expect(candidates).toHaveLength(6);
     expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
     expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');

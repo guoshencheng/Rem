@@ -21,7 +21,6 @@ import type { SecurityMode } from './security/permissions/factory.js';
 export interface AgentRuntimeInfo {
   platform: string;
   nodeVersion?: string;
-  cwd: string;
   env: Record<string, string | undefined>;
 }
 

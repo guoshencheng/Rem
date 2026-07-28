@@ -7,7 +7,6 @@ const baseBehavior = {
   workspaceRoot: '/tmp',
   readOnly: false,
   autoApproveDangerous: false,
-  sessionsDir: '/tmp/sessions',
   profile: 'coding' as const,
   sessionRules: [],
 };

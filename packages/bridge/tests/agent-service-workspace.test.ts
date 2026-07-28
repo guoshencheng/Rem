@@ -10,8 +10,7 @@ async function makeService(): Promise<{ service: IAgentService; tmpDir: string }
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-svc-'));
   const models = createMockModels({ name: 'mock-workspace' });
   const service = new AgentService({
-    sessionsDir: path.join(tmpDir, 'sessions'),
-    paths: createDefaultAgentPaths({ agentDir: tmpDir, sessionsDir: path.join(tmpDir, 'sessions') }),
+    paths: createDefaultAgentPaths({ agentDir: tmpDir }),
     models,
   });
   await service.init();

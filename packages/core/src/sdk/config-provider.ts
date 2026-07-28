@@ -30,7 +30,6 @@ export interface AgentBehaviorConfig {
   workspaceRoot?: string;
   readOnly?: boolean;
   autoApproveDangerous?: boolean;
-  sessionsDir?: string;
   profile?: ToolProfileId;
   sessionRules?: Rule[];
   compression?: CompressionConfig;
@@ -65,4 +64,6 @@ export interface ConfigProvider {
   getCompressionConfig(): Required<CompressionConfig>;
   getMcpConfig(): Record<string, McpServerConfig>;
   resolveAgent(id?: string): ResolvedAgentRole;
+  /** 返回指定 workspace 的配置视图（合并 workspace 级配置文件）；缺省时用自身 */
+  forWorkspace?(workspace: string): ConfigProvider;
 }

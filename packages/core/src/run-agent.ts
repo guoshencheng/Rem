@@ -51,11 +51,12 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
   const outputPromise = (async (): Promise<AgentOutput> => {
     const ctx = params.ctx;
-    const behavior = ctx.configProvider.getBehaviorConfig();
-    const modelConfig = ctx.configProvider.getModelConfig();
-    const agentRole = ctx.configProvider.resolveAgent(params.agent);
-    const effectiveModel = agentRole.model ?? modelConfig;
     const workspace = params.workspace ?? 'default';
+    const configProvider = ctx.configProvider.forWorkspace?.(workspace) ?? ctx.configProvider;
+    const behavior = configProvider.getBehaviorConfig();
+    const modelConfig = configProvider.getModelConfig();
+    const agentRole = configProvider.resolveAgent(params.agent);
+    const effectiveModel = agentRole.model ?? modelConfig;
     const workspaceRoot = params.workspaceRoot ?? (params.workspace ? params.workspace : behavior.workspaceRoot);
 
     const sessionProvider = ctx.sessionProvider;
@@ -129,7 +130,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         );
         const accumulated = history.reduce((sum: number, entry) => sum + entry.totalTokens, 0);
         const maxTokens = resolveContextWindow(effectiveModel.provider, effectiveModel.model, ctx.runtime.env, ctx.models);
-        const compressionCfg = ctx.configProvider.getCompressionConfig();
+        const compressionCfg = configProvider.getCompressionConfig();
         const threshold = maxTokens * compressionCfg.thresholdRatio;
 
         controller.emit({ type: 'compress-start', sessionId: params.sessionId, estimatedTokens: accumulated, threshold });
@@ -206,7 +207,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
           platform: ctx.runtime.platform,
           nodeVersion: ctx.runtime.nodeVersion ?? ctx.runtime.platform,
           today: new Date().toISOString().split('T')[0],
-          cwd: ctx.runtime.cwd,
         },
         agentCorePrompt: agentRole.corePrompt,
       };

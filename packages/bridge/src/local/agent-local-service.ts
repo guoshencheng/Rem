@@ -81,7 +81,7 @@ export class LocalAgentService implements IAgentService {
       storageProvider,
       systemPromptAssembler,
       models,
-      runtime: { platform: 'web', cwd: '/', env: {} },
+      runtime: { platform: 'web', env: {} },
       toolProvider: new StaticToolProvider(this.options.tools ?? []),
       skillProvider,
       compressor: new NoopCompressor(),

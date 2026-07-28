@@ -5,7 +5,7 @@ import { AgentState } from '../src/agent-state.js';
 
 const createMockContextBase = (workspaceRoot = '/tmp') => ({
   configProvider: {
-    getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot, readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+    getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot, readOnly: false, autoApproveDangerous: false }),
     getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
     getToolConfig: () => ({}),
     getMcpConfig: () => ({}),

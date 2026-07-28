@@ -8,11 +8,11 @@ import { createDefaultAgentPaths } from '../src/config/paths.js';
 describe('buildAgentContext', () => {
   it('returns raw providers and a toolComposer without pre-merging tools', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-agent-test-'));
-    writeFileSync(join(dir, 'agent.json'), JSON.stringify({ name: 'test-agent' }));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ name: 'test-agent' }));
 
     const paths = createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir });
 
-    const ctx = await buildAgentContext({ configPath: join(dir, 'agent.json'), paths });
+    const ctx = await buildAgentContext({ paths });
 
     expect(ctx.toolProvider).toBeDefined();
     expect(ctx.mcpProviders).toBeDefined();

@@ -44,6 +44,11 @@ class ChildConfigProvider implements ConfigProvider {
   resolveAgent(id?: string): ResolvedAgentRole {
     return this.parent.resolveAgent(id);
   }
+
+  forWorkspace(workspace: string): ConfigProvider {
+    const scoped = this.parent.forWorkspace?.(workspace) ?? this.parent;
+    return new ChildConfigProvider(scoped, this.overrides);
+  }
 }
 
 class StaticSystemPromptAssembler implements SystemPromptAssembler {

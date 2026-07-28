@@ -15,11 +15,11 @@ describe('delegate_task tool', () => {
     const agentState = new AgentState();
     const mockCtx = {
       configProvider: {
-        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
         getToolConfig: () => ({}),
         getMcpConfig: () => ({}),
-        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
+        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
@@ -77,11 +77,11 @@ describe('delegate_task tool', () => {
 
     const mockCtx = {
       configProvider: {
-        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
         getToolConfig: () => ({}),
         getMcpConfig: () => ({}),
-        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
+        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,
@@ -135,11 +135,11 @@ describe('delegate_task tool', () => {
 
     const mockCtx = {
       configProvider: {
-        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false }),
+        getBehaviorConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
         getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
         getToolConfig: () => ({}),
         getMcpConfig: () => ({}),
-        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, sessionsDir: '/tmp/.sessions', autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
+        getConfig: () => ({ name: 'parent', maxTurns: 10, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false, model: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' } }),
         resolveAgent: () => ({ id: 'default', name: 'parent', corePrompt: 'Default prompt.' }),
       },
       sessionProvider,

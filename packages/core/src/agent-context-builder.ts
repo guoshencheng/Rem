@@ -39,8 +39,6 @@ import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { AgentPaths } from './config/paths.js';
 
 export interface AgentContextBuildOptions {
-  configPath?: string;
-  sessionsDir?: string;
   securityMode?: SecurityMode;
   paths?: AgentPaths;
   storageProvider?: StorageProvider;
@@ -64,20 +62,16 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
   const runtime: AgentRuntimeInfo = options?.runtime ?? {
     platform: process.platform,
     nodeVersion: process.version,
-    cwd: process.cwd(),
     env: process.env,
   };
 
-  const paths = options?.paths ?? createDefaultAgentPaths({ sessionsDir: options?.sessionsDir });
+  const paths = options?.paths ?? createDefaultAgentPaths();
   configureFileDebugLog(paths.debugLogFile);
   if (paths.debugLogFile && process.env.NODE_ENV === 'development') {
     configureConsoleOutput(true);
   }
 
-  const configProvider = options?.configProvider ?? new DefaultConfigProvider({
-    paths,
-    configPath: options?.configPath,
-  });
+  const configProvider = options?.configProvider ?? new DefaultConfigProvider({ paths });
   await (configProvider as { init?: () => Promise<void> }).init?.();
 
   const storageProvider = options?.storageProvider

@@ -1,8 +1,9 @@
 import { afterEach } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
+import { StaticConfigProvider } from '../../src/local/static-config-provider.js';
 import { SqliteStorageProvider, type AgentState, createDefaultAgentPaths } from 'rem-agent-core';
 import { createCoreModels } from 'rem-agent-core';
 import type { Models, Provider, Model, AssistantMessageEventStream, AssistantMessage, Message, AssistantMessageEvent } from '@earendil-works/pi-ai';
@@ -188,14 +189,15 @@ export async function createTestService(options: {
   const workspace = options.workspace ?? DEFAULT_WORKSPACE;
   await storageProvider.workspaceStore.add(workspace).catch(() => {});
 
-  const configPath = join(dir, 'rem-agent.config.json');
-  await writeFile(configPath, JSON.stringify({
+  const configProvider = new StaticConfigProvider({
+    provider: options.provider?.name ?? 'mock-default',
+    model: 'mock-model',
+    apiKey: 'mock-key',
     name: 'TestAgent',
-    models: { default: { provider: options.provider?.name ?? 'mock-default', model: 'mock-model' } },
-  }));
+  });
 
   const service = new AgentService({
-    configPath,
+    configProvider,
     storageProvider,
     models,
     ...options.agentOptions,

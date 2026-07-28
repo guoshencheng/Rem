@@ -41,7 +41,6 @@ export class StaticConfigProvider implements ConfigProvider {
       workspaceRoot: this.options.workspaceRoot ?? '/',
       readOnly: false,
       autoApproveDangerous: true,
-      sessionsDir: '',
       profile: 'coding',
       sessionRules: [],
       compression: this.getCompressionConfig(),

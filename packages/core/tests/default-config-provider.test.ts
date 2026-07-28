@@ -19,7 +19,7 @@ describe('DefaultConfigProvider', () => {
   });
 
   function makePaths(): AgentPaths {
-    const base = createDefaultAgentPaths({ agentDir: tempDir, cwd: tempDir });
+    const base = createDefaultAgentPaths({ agentDir: tempDir });
     return {
       ...base,
       homeConfigCandidates: () => [
@@ -50,9 +50,10 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    expect(provider.getBehaviorConfig().name).toBe('File Agent');
-    expect(provider.getBehaviorConfig().maxTurns).toBe(30);
-    expect(provider.getBehaviorConfig().readOnly).toBe(true);
+    const scoped = provider.forWorkspace(tempDir);
+    expect(scoped.getBehaviorConfig().name).toBe('File Agent');
+    expect(scoped.getBehaviorConfig().maxTurns).toBe(30);
+    expect(scoped.getBehaviorConfig().readOnly).toBe(true);
   });
 
   it('env overrides file', async () => {
@@ -60,10 +61,10 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({
       paths,
-            env: { REM_AGENT_NAME: 'Env Agent' },
+      env: { REM_AGENT_NAME: 'Env Agent' },
     });
     await provider.init();
-    expect(provider.getBehaviorConfig().name).toBe('Env Agent');
+    expect(provider.forWorkspace(tempDir).getBehaviorConfig().name).toBe('Env Agent');
   });
 
   it('parses toolPolicy from file', async () => {
@@ -74,7 +75,7 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    expect(provider.getToolConfig().policy).toEqual({ profile: 'coding', allow: ['read'] });
+    expect(provider.forWorkspace(tempDir).getToolConfig().policy).toEqual({ profile: 'coding', allow: ['read'] });
   });
 
   it('parses mcpServers from JSON config and resolves env vars', async () => {
@@ -95,11 +96,11 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({
       paths,
-            env: { MCP_KEY: 'secret' },
+      env: { MCP_KEY: 'secret' },
     });
     await provider.init();
 
-    const mcp = provider.getMcpConfig();
+    const mcp = provider.forWorkspace(tempDir).getMcpConfig();
     expect(mcp.fs.transport).toBe('stdio');
     expect((mcp.fs as any).command).toBe('npx');
     expect((mcp.fs as any).env.KEY).toBe('secret');
@@ -126,6 +127,19 @@ describe('DefaultConfigProvider', () => {
     expect(provider.getBehaviorConfig().maxTurns).toBe(50);
   });
 
+  it('forWorkspace falls back to base config when no workspace file exists', async () => {
+    await writeFile(
+      join(tempDir, 'home-config.json'),
+      JSON.stringify({ name: 'Home Agent', maxTurns: 50 }),
+    );
+    const paths = makePaths();
+    const provider = new DefaultConfigProvider({ paths, env: {} });
+    await provider.init();
+    const scoped = provider.forWorkspace(join(tempDir, 'no-config-here'));
+    expect(scoped.getBehaviorConfig().name).toBe('Home Agent');
+    expect(scoped.getBehaviorConfig().maxTurns).toBe(50);
+  });
+
   it('workspace config overrides home config properties', async () => {
     await writeFile(
       join(tempDir, 'home-config.json'),
@@ -138,9 +152,10 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    expect(provider.getBehaviorConfig().name).toBe('Workspace Agent');
-    expect(provider.getBehaviorConfig().maxTurns).toBe(50);
-    expect(provider.getBehaviorConfig().readOnly).toBe(true);
+    const scoped = provider.forWorkspace(tempDir);
+    expect(scoped.getBehaviorConfig().name).toBe('Workspace Agent');
+    expect(scoped.getBehaviorConfig().maxTurns).toBe(50);
+    expect(scoped.getBehaviorConfig().readOnly).toBe(true);
   });
 
   it('merges mcpServers by key, keeping home servers not in workspace', async () => {
@@ -165,7 +180,7 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    const mcp = provider.getMcpConfig();
+    const mcp = provider.forWorkspace(tempDir).getMcpConfig();
     expect((mcp.homeServer as any).command).toBe('home-cmd');
     expect((mcp.sharedServer as any).command).toBe('workspace-shared');
     expect((mcp.wsServer as any).url).toBe('http://ws');
@@ -193,9 +208,10 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    expect(provider.getModelConfig('default').model).toBe('gpt-4');
-    expect(provider.getModelConfig('cheap').model).toBe('claude-3-haiku');
-    expect(provider.getModelConfig('premium').model).toBe('claude-3-opus');
+    const scoped = provider.forWorkspace(tempDir);
+    expect(scoped.getModelConfig('default').model).toBe('gpt-4');
+    expect(scoped.getModelConfig('cheap').model).toBe('claude-3-haiku');
+    expect(scoped.getModelConfig('premium').model).toBe('claude-3-opus');
   });
 
   it('workspace config in .rem-agent subdirectory is found and merged', async () => {
@@ -212,7 +228,7 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({ paths, env: {} });
     await provider.init();
-    expect(provider.getBehaviorConfig().name).toBe('Subdir Agent');
+    expect(provider.forWorkspace(tempDir).getBehaviorConfig().name).toBe('Subdir Agent');
   });
 
   it('reads model from env when only provider is set in config', async () => {
@@ -225,10 +241,11 @@ describe('DefaultConfigProvider', () => {
     const paths = makePaths();
     const provider = new DefaultConfigProvider({
       paths,
-            env: { MINIMAX_MODEL: 'MiniMax-M3' },
+      env: { MINIMAX_MODEL: 'MiniMax-M3' },
     });
     await provider.init();
-    expect(provider.getModelConfig().provider).toBe('minimax');
-    expect(provider.getModelConfig().model).toBe('MiniMax-M3');
+    const scoped = provider.forWorkspace(tempDir);
+    expect(scoped.getModelConfig().provider).toBe('minimax');
+    expect(scoped.getModelConfig().model).toBe('MiniMax-M3');
   });
 });

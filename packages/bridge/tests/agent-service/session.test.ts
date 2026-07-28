@@ -159,7 +159,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
     }
   });
 
-  it('persists sessions across AgentService instances using the same sessionsDir', async () => {
+  it('persists sessions across AgentService instances using the same storage', async () => {
     const { service, dir, cleanup, storageProvider } = await createTestService();
     try {
       const summary = await service.createSession(DEFAULT_WORKSPACE);

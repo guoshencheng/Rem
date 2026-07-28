@@ -6,7 +6,7 @@ Core layer of the Rem Agent framework. Provides the foundational primitives for 
 
 ## Architecture Overview
 
-The Core is organized around a stateless execution entry point (`runAgent`) operating over an assembled `AgentContext`.
+The Core is organized around a stateless execution entry point (`runAgent`) operating over an assembled `AgentDI` + `AgentRuntimeConfig`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -15,7 +15,7 @@ The Core is organized around a stateless execution entry point (`runAgent`) oper
 │        │                                │                           │
 │        └──────────────┬─────────────────┘                           │
 │                       ▼                                             │
-│                AgentContext (models, providers, config, storage)    │
+│       AgentDI (models, providers, storage) + AgentRuntimeConfig     │
 │                       │                                             │
 │                       ▼                                             │
 │  ┌──────────────── runAgent() (single execution entry) ──────────┐  │
@@ -50,7 +50,7 @@ Types are reused directly from pi-ai: messages are `pi.Message`, tool sets are `
 
 A single `runAgent()` invocation flows through these phases:
 
-1. **Assemble** — `createAgentFromEnv()` (or `assembleAgentContext()` with injected providers) builds the `AgentContext`. Provider credentials, default model, and baseURL are resolved inside Core.
+1. **Assemble** — `createAgentFromEnv()` (or `assembleAgentContext()` with injected providers) builds the `AgentAssembly` (`{ di, runtimeConfig }`). Provider credentials, default model, and baseURL are resolved inside Core.
 2. **Load** — `runAgent()` loads or creates the `Session` via `SessionProvider` (schema v2).
 3. **Turn Execution** — the `ReactLoop` iterates ReAct cycles:
     - **Prepare** — Builds message list from conversation history + user input.
@@ -73,7 +73,7 @@ A single `runAgent()` invocation flows through these phases:
 | `loop-strategy` | `ReactLoop` / `LoopStrategy` exports (implementation in `plugins/loop/react`) |
 | `reason` / `execute` | `reason()` (streaming), `generate()` (non-streaming), `executeTools()`, `ApprovalEngine` |
 | `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window`, `reasoning-options` |
-| `agent-factory` | `createAgentFromEnv()` — resolves provider config from env and builds `AgentContext` |
+| `agent-factory` | `createAgentFromEnv()` — resolves provider config from env and builds the `AgentAssembly` |
 | `agent-context-assembler` | `assembleAgentContext()` — pure assembly function, all providers injectable |
 | `run-agent` | `runAgent()` — stateless, single execution entry point |
 
@@ -316,7 +316,7 @@ const models = createCoreModels({ all: true });
 
 #### `ReactLoop` / `LoopStrategy`
 
-Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentContext.models`. The `LoopStrategy` interface allows alternative loop implementations (e.g. Plan-and-Solve) in the future.
+Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentDI.models`. The `LoopStrategy` interface allows alternative loop implementations (e.g. Plan-and-Solve) in the future.
 
 ---
 
@@ -325,10 +325,10 @@ Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.comp
 #### `createAgentFromEnv`
 
 ```typescript
-async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentContext>;
+async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentAssembly>;
 ```
 
-Resolves provider credentials, default model, and baseURL from environment variables and assembles a full `AgentContext` (models, session storage, tools, security, budget, ...). This is the only supported way for clients to obtain an agent configuration — clients must not import provider SDKs or read `OPENAI_API_KEY` etc. directly.
+Resolves provider credentials, default model, and baseURL from environment variables and assembles a full `AgentAssembly` (`AgentDI`: models, session storage, tools, security, budget, ...; `AgentRuntimeConfig`: securityMode, runtime). This is the only supported way for clients to obtain an agent configuration — clients must not import provider SDKs or read `OPENAI_API_KEY` etc. directly.
 
 #### `runAgent`
 
@@ -337,7 +337,8 @@ interface RunAgentParams {
   input: UserInput;
   sessionId: string;
   signal?: AbortSignal;
-  ctx: AgentContext;
+  di: AgentDI;
+  runtimeConfig: AgentRuntimeConfig;
   agentState: AgentState;
   workspace?: string;
   workspaceRoot?: string;

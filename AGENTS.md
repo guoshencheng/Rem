@@ -49,7 +49,7 @@ import { createAgentFromEnv } from 'rem-agent-core';
 const agent = await createAgentFromEnv();
 ```
 
-Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentContext`（含 `models`、`provider`、`model` 等）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
+Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentAssembly`（`AgentDI` 含 `models` 与全部 provider；`AgentRuntimeConfig` 含 `securityMode` 与 `runtime`）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
 
 - ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `paths`、`storageProvider` 等装配选项；行为配置走配置文件或自定义 `ConfigProvider`）。
 - ❌ 客户端不直接导入 `openai` 或 `@anthropic-ai/sdk`，不读 `OPENAI_API_KEY`。

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pickAgents, pickCustomAgentConfig } from '../src/plugins/config/default/config-parser.js';
-import { mergeFileConfig, mergeDeepConfig, mergeOverrides } from '../src/plugins/config/default/config-merger.js';
+import { mergeFileConfig, mergeDeepConfig } from '../src/plugins/config/default/config-merger.js';
 
 describe('pickCustomAgentConfig', () => {
   it('returns valid config with optional model', () => {
@@ -53,15 +53,6 @@ describe('mergeDeepConfig agents', () => {
     const base = { agents: { default: { name: 'Home', corePrompt: 'Home default.' } } };
     const merged = mergeDeepConfig(base, { agents: { coder: { name: 'Coder', corePrompt: 'Code.' } } });
     expect(merged.agents?.default.name).toBe('Home');
-    expect(merged.agents?.coder.name).toBe('Coder');
-  });
-});
-
-describe('mergeOverrides agents', () => {
-  it('merges agents from overrides', () => {
-    const base = { agents: { default: { name: 'Base', corePrompt: 'Base default.' } } };
-    const merged = mergeOverrides(base as any, { agents: { coder: { name: 'Coder', corePrompt: 'Code.' } } });
-    expect(merged.agents?.default.name).toBe('Base');
     expect(merged.agents?.coder.name).toBe('Coder');
   });
 });

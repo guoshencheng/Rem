@@ -17,7 +17,6 @@ import {
   mergeEnvConfig,
   applyBehaviorDefaults,
   mergeDeepConfig,
-  mergeOverrides,
 } from './config-merger.js';
 import { DefaultAgentResolver } from '../../../agent-resolver.js';
 
@@ -26,9 +25,7 @@ export interface ConfigFileData {
 }
 
 export interface DefaultConfigProviderOptions {
-  cwd?: string;
   configPath?: string;
-  overrides?: AgentConfig;
   env?: NodeJS.ProcessEnv;
   paths?: AgentPaths;
 }
@@ -52,7 +49,6 @@ export class DefaultConfigProvider implements ConfigProvider {
   }
 
   async init(): Promise<void> {
-    const cwd = this.options.cwd ?? process.cwd();
     let config: AgentConfig = {};
 
     const paths = await this.resolvePaths();
@@ -64,18 +60,14 @@ export class DefaultConfigProvider implements ConfigProvider {
     }
 
     const workspacePath = this.options.configPath
-      ? resolveConfigPath(this.options.configPath, cwd, paths)
-      : resolveConfigPaths(paths.workspaceConfigCandidates(cwd))[0];
+      ? resolveConfigPath(this.options.configPath, paths)
+      : resolveConfigPaths(paths.workspaceConfigCandidates())[0];
     if (workspacePath) {
       const workspaceFile = await loadConfigFile(workspacePath);
       config = mergeDeepConfig(config, workspaceFile);
     }
 
     config = mergeEnvConfig(config, this.env);
-
-    if (this.options.overrides) {
-      config = mergeOverrides(config, this.options.overrides);
-    }
 
     this.raw = config;
 

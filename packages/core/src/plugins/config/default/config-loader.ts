@@ -18,11 +18,10 @@ export async function loadConfigFile(path: string): Promise<ConfigFileData> {
 
 export function resolveConfigPath(
   explicitPath: string | undefined,
-  cwd: string,
   paths: AgentPaths,
 ): string | undefined {
   if (explicitPath) return resolveTilde(explicitPath);
-  const candidates = paths.configCandidates(cwd);
+  const candidates = paths.configCandidates();
   return resolveConfigPaths(candidates)[0];
 }
 

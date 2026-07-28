@@ -22,7 +22,7 @@ describe('AgentService.listSessions preserves usage through JSON', () => {
   it('returns tokenUsage with cacheRead', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'rem-cache-test-'));
     const storageProvider = new SqliteStorageProvider({ dbPath: join(dir, 'rem-agent.db') });
-    const service = new AgentService({ workspaceRoot: dir, storageProvider });
+    const service = new AgentService({ storageProvider });
     await service.init();
 
     const ctx = service.context!;

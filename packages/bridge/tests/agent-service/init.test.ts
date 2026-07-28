@@ -22,7 +22,7 @@ describe('AgentService init', { timeout: 20000 }, () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'agent-service-init-test-'));
-    service = new AgentService({ workspaceRoot: dir, sessionsDir: dir });
+    service = new AgentService({ sessionsDir: dir });
   });
 
   afterEach(async () => {

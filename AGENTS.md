@@ -46,12 +46,12 @@ packages/
 ```typescript
 import { createAgentFromEnv } from 'rem-agent-core';
 
-const agent = await createAgentFromEnv({ name: 'MyAgent', maxTurns: 60 });
+const agent = await createAgentFromEnv();
 ```
 
 Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentContext`（含 `models`、`provider`、`model` 等）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
 
-- ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `name`、`maxTurns`）。
+- ✅ 客户端只处理自身层次的配置（如通过 `createAgentFromEnv` 传入 `configPath`、`storageProvider` 等装配选项；行为配置走配置文件或自定义 `ConfigProvider`）。
 - ❌ 客户端不直接导入 `openai` 或 `@anthropic-ai/sdk`，不读 `OPENAI_API_KEY`。
 
 ### 2. 模块拆分遵循 module-separation-convention

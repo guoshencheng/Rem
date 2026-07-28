@@ -175,7 +175,7 @@ describe('AgentService session management', { timeout: 20000 }, () => {
       } as any);
       await sessionProvider.save(session);
 
-      const newService = new AgentService({ workspaceRoot: dir, storageProvider });
+      const newService = new AgentService({ storageProvider });
       await newService.init();
 
       const list = await newService.listSessions(DEFAULT_WORKSPACE);

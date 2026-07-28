@@ -1,5 +1,5 @@
 import { afterEach } from 'vitest';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AgentService, type AgentServiceOptions } from '../../src/agent.js';
@@ -188,11 +188,14 @@ export async function createTestService(options: {
   const workspace = options.workspace ?? DEFAULT_WORKSPACE;
   await storageProvider.workspaceStore.add(workspace).catch(() => {});
 
-  const service = new AgentService({
+  const configPath = join(dir, 'rem-agent.config.json');
+  await writeFile(configPath, JSON.stringify({
     name: 'TestAgent',
-    provider: options.provider?.name ?? 'mock-default',
-    model: 'mock-model',
-    workspaceRoot: dir,
+    models: { default: { provider: options.provider?.name ?? 'mock-default', model: 'mock-model' } },
+  }));
+
+  const service = new AgentService({
+    configPath,
     storageProvider,
     models,
     ...options.agentOptions,

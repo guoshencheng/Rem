@@ -45,8 +45,8 @@ describe('createDefaultAgentPaths', () => {
   });
 
   it('configCandidates should return workspace candidates before home candidates', () => {
-    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
-    const candidates = paths.configCandidates('/cwd');
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a', cwd: '/cwd' });
+    const candidates = paths.configCandidates();
     expect(candidates).toHaveLength(9);
     expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
     expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');
@@ -60,8 +60,8 @@ describe('createDefaultAgentPaths', () => {
   });
 
   it('workspaceConfigCandidates should return only workspace-level candidates', () => {
-    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a' });
-    const candidates = paths.workspaceConfigCandidates('/cwd');
+    const paths = createDefaultAgentPaths({ agentDir: '/tmp/a', cwd: '/cwd' });
+    const candidates = paths.workspaceConfigCandidates();
     expect(candidates).toHaveLength(6);
     expect(candidates[0]).toBe('/cwd/rem-agent.config.json');
     expect(candidates[1]).toBe('/cwd/rem-agent.config.yaml');

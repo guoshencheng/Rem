@@ -11,7 +11,7 @@ async function createService(): Promise<AgentService> {
   });
   await storageProvider.init();
 
-  const service = new AgentService({ workspaceRoot: process.cwd(), storageProvider });
+  const service = new AgentService({ storageProvider });
   await service.init();
   return service;
 }

@@ -86,27 +86,6 @@ export function mergeDeepConfig(base: AgentConfig, file: Record<string, unknown>
   return merged;
 }
 
-export function mergeOverrides(base: AgentConfig, overrides: AgentConfig): AgentConfig {
-  const merged: AgentConfig = { ...base };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value === undefined) continue;
-    (merged as Record<string, unknown>)[key] = value;
-  }
-  if (overrides.toolPolicy && base.toolPolicy) {
-    merged.toolPolicy = mergeToolPolicy(base.toolPolicy, overrides.toolPolicy);
-  }
-  if (overrides.models && base.models) {
-    merged.models = { ...base.models, ...overrides.models };
-  }
-  if (overrides.mcpServers && base.mcpServers) {
-    merged.mcpServers = { ...base.mcpServers, ...overrides.mcpServers };
-  }
-  if (overrides.agents && base.agents) {
-    merged.agents = { ...base.agents, ...overrides.agents };
-  }
-  return merged;
-}
-
 function mergeToolPolicy(base: ToolPolicyConfig, override: ToolPolicyConfig): ToolPolicyConfig {
   const merged: ToolPolicyConfig = { ...base, ...override };
   if (base.byProvider && override.byProvider) {

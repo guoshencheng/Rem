@@ -7,20 +7,23 @@ export interface AgentPaths {
   /** Agent 数据根目录 */
   readonly agentDir: string;
 
+  /** 工作目录（workspace 根）；项目级配置/技能路径都基于它 */
+  readonly cwd: string;
+
   /** 用户级技能目录，默认 ~/.agents/skills */
   readonly homeSkillsDir: string;
 
-  /** 项目级技能目录，默认 <workspaceRoot>/.agents/skills */
+  /** 项目级技能目录，默认 <cwd>/.agents/skills */
   workspaceSkillsDir(workspaceRoot: string): string;
 
   /** 配置文件候选列表（优先级从高到低） */
-  configCandidates(cwd: string): string[];
+  configCandidates(): string[];
 
   /** home 级配置候选列表（~/.rem-agent/config.*），优先级从高到低 */
   homeConfigCandidates(): string[];
 
   /** workspace 级配置候选列表（cwd/rem-agent.config.* 与 cwd/.rem-agent/config.*），优先级从高到低 */
-  workspaceConfigCandidates(cwd: string): string[];
+  workspaceConfigCandidates(): string[];
 
   /** 会话存储目录 */
   readonly sessionsDir: string;
@@ -34,6 +37,7 @@ export interface CreateAgentPathsOptions {
   homeAgentDir?: string;
   homeSkillsDir?: string;
   sessionsDir?: string;
+  cwd?: string;
   env?: Partial<NodeJS.ProcessEnv>;
 }
 
@@ -46,18 +50,20 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
   const homeAgentDir = opts.homeAgentDir ?? join(homedir(), '.rem-agent');
   const homeSkillsDir = opts.homeSkillsDir ?? join(homedir(), '.agents', 'skills');
   const sessionsDir = opts.sessionsDir ?? join(agentDir, 'sessions');
+  const cwd = opts.cwd ?? process.cwd();
   const debugLogFile = resolveDebugLogFile(env, agentDir);
 
   return {
     agentDir,
+    cwd,
     homeSkillsDir,
 
     workspaceSkillsDir(workspaceRoot: string) {
       return join(workspaceRoot, '.agents', 'skills');
     },
 
-    configCandidates(cwd: string) {
-      return [...this.workspaceConfigCandidates(cwd), ...this.homeConfigCandidates()];
+    configCandidates() {
+      return [...this.workspaceConfigCandidates(), ...this.homeConfigCandidates()];
     },
 
     homeConfigCandidates() {
@@ -68,7 +74,7 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
       ];
     },
 
-    workspaceConfigCandidates(cwd: string) {
+    workspaceConfigCandidates() {
       return [
         join(cwd, 'rem-agent.config.json'),
         join(cwd, 'rem-agent.config.yaml'),

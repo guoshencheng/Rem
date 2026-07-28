@@ -36,22 +36,11 @@ import type { ContextCompressor } from './sdk/compressor.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
-import type { Rule } from './security/rules/rule.js';
-
 import type { AgentPaths } from './config/paths.js';
 
 export interface AgentContextBuildOptions {
-  name?: string;
   configPath?: string;
-  maxTurns?: number;
-  workspaceRoot?: string;
-  readOnly?: boolean;
-  autoApproveDangerous?: boolean;
-  provider?: string;
-  model?: string;
   sessionsDir?: string;
-  profile?: import('./security/rules/profiles.js').ToolProfileId;
-  sessionRules?: Rule[];
   securityMode?: SecurityMode;
   paths?: AgentPaths;
   storageProvider?: StorageProvider;
@@ -87,18 +76,7 @@ export async function buildAgentContext(options?: AgentContextBuildOptions): Pro
 
   const configProvider = options?.configProvider ?? new DefaultConfigProvider({
     paths,
-    cwd: options?.workspaceRoot ?? process.cwd(),
     configPath: options?.configPath,
-    overrides: {
-      name: options?.name,
-      maxTurns: options?.maxTurns,
-      workspaceRoot: options?.workspaceRoot,
-      readOnly: options?.readOnly,
-      autoApproveDangerous: options?.autoApproveDangerous,
-      profile: options?.profile,
-      sessionRules: options?.sessionRules,
-      ...(options?.provider ? { model: { provider: options.provider, model: options.model ?? '' } } : {}),
-    },
   });
   await (configProvider as { init?: () => Promise<void> }).init?.();
 

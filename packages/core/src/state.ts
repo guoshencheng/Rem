@@ -1,5 +1,5 @@
 import type { TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
-import type { Usage } from '@earendil-works/pi-ai';
+import type { Usage, AssistantMessageEvent } from '@earendil-works/pi-ai';
 import type { AgentStatus, AgentStreamEvent } from './types.js';
 import type { EventBus } from './events.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
@@ -180,7 +180,26 @@ export class AgentLiveState {
     if (event.type === 'finish' || event.type === 'error') {
       this.activity = 'idle';
       this.pendingToolCalls.clear();
-    } else if (event.type === 'thinking_delta' || event.type === 'thinking_start') {
+    } else if (event.type === 'turn_start') {
+      this.activity = 'pending';
+    } else if (event.type === 'turn_end') {
+      this.activity = 'idle';
+      this.pendingToolCalls.clear();
+    } else if (event.type === 'tool_execution_start' || event.type === 'tool_execution_end') {
+      this.activity = 'calling-function';
+    } else if (event.type === 'message_update') {
+      this.applyAssistantEvent(event.assistantMessageEvent);
+    }
+
+    if (this.activity !== prev) {
+      log('state', 'activity changed', { prevActivity: prev, activity: this.activity, chunkType: event.type });
+    }
+
+    return this.activity === prev ? undefined : this.activity;
+  }
+
+  private applyAssistantEvent(event: AssistantMessageEvent): void {
+    if (event.type === 'thinking_delta' || event.type === 'thinking_start') {
       this.activity = 'thinking';
     } else if (event.type === 'toolcall_start') {
       this.activity = 'calling-function';
@@ -195,20 +214,9 @@ export class AgentLiveState {
       if (this._isActive() && this.pendingToolCalls.size === 0) {
         this.activity = 'outputting';
       }
-    } else if (event.type === 'step-finish') {
-      this.activity = 'idle';
-      this.pendingToolCalls.clear();
-    } else if (event.type === 'step-start') {
-      this.activity = 'pending';
     } else if (event.type === 'text_end' || event.type === 'thinking_end') {
       this.activity = this.pendingToolCalls.size > 0 ? 'calling-function' : 'idle';
     }
-
-    if (this.activity !== prev) {
-      log('state', 'activity changed', { prevActivity: prev, activity: this.activity, chunkType: event.type });
-    }
-
-    return this.activity === prev ? undefined : this.activity;
   }
 
   private _isActive(): boolean {
@@ -222,8 +230,8 @@ export class AgentLiveState {
   }
 
   appendSnapshotParts(event: AgentStreamEvent): void {
-    if (this.streamingSnapshot && this.isAssistantMessageEvent(event)) {
-      this.streamingSnapshot.parts = reduceStreamEvent(this.streamingSnapshot.parts, event);
+    if (this.streamingSnapshot && event.type === 'message_update') {
+      this.streamingSnapshot.parts = reduceStreamEvent(this.streamingSnapshot.parts, event.assistantMessageEvent);
     }
   }
 
@@ -237,14 +245,5 @@ export class AgentLiveState {
 
   getSnapshotParts(): Array<TextContent | ThinkingContent | ToolCall> {
     return this.streamingSnapshot ? compactContentBlocks(this.streamingSnapshot.parts) : [];
-  }
-
-  private isAssistantMessageEvent(event: AgentStreamEvent): event is import('@earendil-works/pi-ai').AssistantMessageEvent {
-    const assistantTypes = [
-      'start', 'text_start', 'text_delta', 'text_end',
-      'thinking_start', 'thinking_delta', 'thinking_end',
-      'toolcall_start', 'toolcall_delta', 'toolcall_end', 'done', 'error',
-    ];
-    return assistantTypes.includes(event.type);
   }
 }

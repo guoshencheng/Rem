@@ -1,6 +1,7 @@
 export * from './types.js';
 export { createCoreModels, type CreateCoreModelsOptions } from './llm/models.js';
 export type { Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage, AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai';
+export type { AgentEvent } from '@earendil-works/pi-agent-core';
 export * from './config/paths.js';
 export * from './shared/debug-log.js';
 export * from './budget.js';

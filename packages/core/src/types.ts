@@ -1,5 +1,6 @@
 import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
-import type { Message, AssistantMessageEvent, Usage, TextContent, ImageContent } from '@earendil-works/pi-ai';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { Message, Usage, TextContent, ImageContent } from '@earendil-works/pi-ai';
 
 export interface StreamErrorInfo {
   name: string;
@@ -15,20 +16,16 @@ export interface RemMessage {
 }
 
 export type RemMetaEvent =
-  | { type: 'step-start'; step: number }
-  | { type: 'step-finish'; step: number }
-  | { type: 'message-start'; step: number; messageId: string }
   | { type: 'session-title'; title: string }
   | { type: 'approval-request'; sessionId: string; request: ApprovalRequest }
   | { type: 'approval-resolved'; sessionId: string; approvalId: string; decision: ApprovalDecision | null }
   | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
   | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
   | { type: 'compress-error'; sessionId: string; error: string }
-  | { type: 'tool-result'; toolCallId: string; toolName: string; output: string; error?: string }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: StreamErrorInfo };
 
-export type AgentStreamEvent = AssistantMessageEvent | RemMetaEvent;
+export type AgentStreamEvent = AgentEvent | RemMetaEvent;
 
 export type UserInputContent = string | (TextContent | ImageContent)[];
 

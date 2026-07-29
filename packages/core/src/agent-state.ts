@@ -7,6 +7,7 @@ import type { ApprovalDecision } from './sdk/agent-state-provider.js';
 import type { ApprovalResolution } from './execute/approval-engine.js';
 import type { Rule } from './security/rules/rule.js';
 import { addUsage, emptyUsage, normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
+import { generateId } from './shared/generate-id.js';
 
 export class AgentState {
   private liveStates = new Map<string, AgentLiveState>();
@@ -200,9 +201,11 @@ export class AgentState {
     const state = this.get(sessionId);
     if (!state) return;
 
-    // snapshot 维护：message-start 创建快照，其它 chunk 尝试追加到快照
-    if (chunk.type === 'message-start') {
-      state.startSnapshot(chunk.messageId);
+    // snapshot 维护：assistant message_start 创建快照，message_update 追加到快照
+    if (chunk.type === 'message_start') {
+      if ((chunk.message as { role?: string }).role === 'assistant') {
+        state.startSnapshot(generateId());
+      }
     } else {
       try {
         state.appendSnapshotParts(chunk);

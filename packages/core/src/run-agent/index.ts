@@ -28,7 +28,6 @@ import {
   createTodoWriteToolExecutor,
 } from '../plugins/tool/builtin/todo-write.js';
 import { createToolBridge } from './tool-bridge.js';
-import { createEventBridge } from './event-bridge.js';
 import { createSessionWriter } from './session-writer.js';
 import { createContextBridge } from './context-bridge.js';
 import { createPiAgent } from './pi-agent-factory.js';
@@ -160,7 +159,6 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
 
       const systemPrompt = await di.systemPromptAssembler.assemble(buildCtx);
 
-      const eventBridge = createEventBridge({ controller });
       const emit = (event: AgentStreamEvent) => controller.emit(event);
 
       const toolBridge = createToolBridge({
@@ -231,15 +229,15 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         signal: params.signal,
       });
 
-      const writer = createSessionWriter({ sessionProvider, session, idOf: eventBridge.idOf });
-      agent.subscribe(writer);
-      agent.subscribe(eventBridge.listener);
+      const writer = createSessionWriter({ sessionProvider, session });
+      agent.subscribe(writer.listener);
+      agent.subscribe(controller.emit.bind(controller));
 
       agentResolve(agent);
 
       await agent.prompt(toMessage(params.input.content));
 
-      const finalMessage: AssistantMessage | undefined = eventBridge.getLastAssistantMessage();
+      const finalMessage: AssistantMessage | undefined = writer.getLastAssistantMessage();
       if (finalMessage?.stopReason === 'error') {
         const errorMessage = finalMessage.errorMessage ?? 'agent stream error';
         const output: AgentOutput = { content: `Error: ${errorMessage}`, completed: true };
@@ -249,7 +247,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         return output;
       }
 
-      const usage = eventBridge.getTotalUsage();
+      const usage = writer.getTotalUsage();
       liveState.addTokenUsage(usage);
       params.agentState.publishUsageChange(workspace, params.sessionId, liveState.tokenUsage);
 
@@ -262,7 +260,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       });
       session.metadata.tokenUsageHistory = history;
 
-      const currentMessageId = eventBridge.getCurrentMessageId();
+      const currentMessageId = writer.getLastAssistantMessageId();
       if (currentMessageId) {
         const messageTokenUsage: Record<string, Usage> = {};
         for (const [key, value] of Object.entries(session.metadata.messageTokenUsage ?? {})) {

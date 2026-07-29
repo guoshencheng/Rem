@@ -12,7 +12,7 @@ export type SessionActivity =
   | 'compressing';
 
 export type BusEvent =
-  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamEvent }
+  | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamEvent; agentId?: string }
   | { workspace: string; sessionId: string; type: 'session-start' }
   | { workspace: string; sessionId: string; type: 'session-end' }
   | { workspace: string; sessionId: string; type: 'session-error'; error: string }

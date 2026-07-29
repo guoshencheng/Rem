@@ -36,3 +36,22 @@ export * from './todo/service.js';
 export * from './session-manager/index.js';
 export * from './token-usage.js';
 export * from './llm/context-window.js';
+
+// --- core-v2 复用支持（纯新增导出，无行为变化）---
+export { composeToolProviders } from './tool-composer.js';
+export { ToolOverlay, defineOverlayTool, type ToolOverlayEntry } from './tool-overlay.js';
+export { createToolBridge, type ToolBridgeParams, type ToolBridge } from './run-agent/tool-bridge.js';
+export { createContextBridge, type ContextBridgeParams, type ContextBridge } from './run-agent/context-bridge.js';
+export { createPiAgent, type PiAgentFactoryParams } from './run-agent/pi-agent-factory.js';
+export {
+  createDelegateTaskToolDefinition,
+  createDelegateTaskToolExecutor,
+  type DelegateTaskInput,
+} from './plugins/tool/builtin/delegate-task.js';
+export {
+  createTodoWriteToolDefinition,
+  createTodoWriteToolExecutor,
+} from './plugins/tool/builtin/todo-write.js';
+export { buildChildContext, type BuildChildContextOptions } from './sub-agent/build-child-context.js';
+export { formatTaskResult } from './sub-agent/format-task-result.js';
+export { generateId } from './shared/generate-id.js';

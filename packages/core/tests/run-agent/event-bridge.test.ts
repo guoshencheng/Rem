@@ -39,6 +39,7 @@ describe('createEventBridge', () => {
 
   it('maps tool_execution_end to tool-result and accumulates usage on turn_end', () => {
     const { events, bridge } = setup();
+    bridge.listener({ type: 'turn_start' });
     bridge.listener({ type: 'message_start', message: assistant('') });
     bridge.listener({ type: 'tool_execution_end', toolCallId: 'tc1', toolName: 'echo', result: { content: [{ type: 'text', text: 'out' }] }, isError: false });
     bridge.listener({ type: 'turn_end', message: assistant('done'), toolResults: [] });

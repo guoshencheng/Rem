@@ -1,6 +1,6 @@
 import { fauxProvider, type FauxResponseStep } from '@earendil-works/pi-ai/providers/faux';
 import { createCoreModels } from '../../src/llm/models.js';
-import { InMemorySessionProvider } from '../../src/plugins/session/in-memory/index.js';
+import { InMemorySessionProvider } from '../helpers/in-memory-session-provider.js';
 import type { AgentDI } from '../../src/agent-di.js';
 import type { AgentRuntimeConfig } from '../../src/agent-runtime-config.js';
 

@@ -3,7 +3,7 @@ import { fauxProvider, fauxAssistantMessage } from '@earendil-works/pi-ai/provid
 import { runAgent } from '../../src/run-agent.js';
 import { createCoreModels } from '../../src/llm/models.js';
 import { AgentState } from '../../src/agent-state.js';
-import { InMemorySessionProvider } from '../../src/plugins/session/in-memory/index.js';
+import { InMemorySessionProvider } from '../helpers/in-memory-session-provider.js';
 import type { AgentDI } from '../../src/agent-di.js';
 import type { AgentStreamEvent } from '../../src/types.js';
 

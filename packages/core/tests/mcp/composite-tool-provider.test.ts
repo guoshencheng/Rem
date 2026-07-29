@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import { CompositeToolProvider } from '../../src/mcp/composite-tool-provider.js';
-import { InMemoryToolProvider } from '../../src/plugins/tool/in-memory/index.js';
+import { InMemoryToolProvider } from '../helpers/in-memory-tool-provider.js';
 
 describe('CompositeToolProvider', () => {
   it('merges tool sets from all providers', async () => {

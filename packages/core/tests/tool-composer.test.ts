@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import { DefaultToolComposer } from '../src/tool-composer.js';
-import { InMemoryToolProvider } from '../src/plugins/tool/in-memory/index.js';
+import { InMemoryToolProvider } from './helpers/in-memory-tool-provider.js';
 import type { SkillProvider } from '../src/sdk/skill-provider.js';
 
 function createFakeSkillProvider(rawByName: Record<string, string>): SkillProvider {

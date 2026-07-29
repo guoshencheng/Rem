@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -18,6 +18,7 @@ export class SqliteSchemaManager {
         pinned INTEGER NOT NULL DEFAULT 0,
         current_turn INTEGER NOT NULL DEFAULT 0,
         metadata_json TEXT NOT NULL DEFAULT '{}',
+        active_leaf_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -83,6 +84,19 @@ export class SqliteSchemaManager {
         path TEXT PRIMARY KEY,
         created_at INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS session_entries (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        parent_id TEXT,
+        type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_entries_session
+        ON session_entries(session_id);
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
@@ -229,6 +243,39 @@ export class SqliteSchemaManager {
         ALTER TABLE messages ADD COLUMN tool_call_id TEXT;
         ALTER TABLE messages ADD COLUMN tool_name TEXT;
       `);
+    }
+
+    if (version < 9) {
+      const cols = this.db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'active_leaf_id')) {
+        this.db.exec('ALTER TABLE sessions ADD COLUMN active_leaf_id TEXT');
+      }
+      const sessions = this.db.prepare('SELECT id FROM sessions').all() as { id: string }[];
+      for (const { id } of sessions) {
+        const migrateSession = this.db.transaction(() => {
+          const messages = this.db
+            .prepare('SELECT role, content_json, tool_call_id, tool_name FROM messages WHERE session_id = ? ORDER BY sequence')
+            .all(id) as { role: string; content_json: string; tool_call_id: string | null; tool_name: string | null }[];
+          let parentId: string | null = null;
+          let leafId: string | null = null;
+          const insertEntry = this.db.prepare(
+            'INSERT INTO session_entries (id, session_id, parent_id, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+          );
+          for (const row of messages) {
+            const entryId = crypto.randomUUID();
+            const message = row.role === 'toolResult'
+              ? { role: 'toolResult', toolCallId: row.tool_call_id ?? '', toolName: row.tool_name ?? '', content: JSON.parse(row.content_json), isError: false, timestamp: Date.now() }
+              : { role: row.role, content: JSON.parse(row.content_json), timestamp: Date.now() };
+            insertEntry.run(entryId, id, parentId, 'message', JSON.stringify({ message, messageId: entryId }), Date.now());
+            parentId = entryId;
+            leafId = entryId;
+          }
+          if (leafId) {
+            this.db.prepare('UPDATE sessions SET active_leaf_id = ? WHERE id = ?').run(leafId, id);
+          }
+        });
+        migrateSession();
+      }
     }
   }
 }

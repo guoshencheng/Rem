@@ -111,7 +111,7 @@ export function createMockProvider(config: MockProviderConfig): Provider {
     id: config.name,
     name: config.name,
     auth: {
-      apiKey: { resolve: () => ({ type: 'apiKey', apiKey: 'fake-key', source: 'env' }) },
+      apiKey: { resolve: () => ({ auth: { apiKey: 'fake-key' }, source: 'env' }) },
       oauth: undefined as any,
     },
     getModels: () => [model],

@@ -107,6 +107,40 @@ export function createMockProvider(config: MockProviderConfig): Provider {
     errorMessage: message,
   });
 
+  const streamImpl = (_model: Model<any>, _context: { messages: Message[] }, _options?: any): AssistantMessageEventStream => {
+    const eventStream = new MockEventStream();
+
+    if (config.error) {
+      const errorMessage = createErrorMessage(config.error.message);
+      eventStream.push({ type: 'error', reason: 'error', error: errorMessage });
+      eventStream.end(errorMessage);
+    } else if (config.stream) {
+      (async () => {
+        try {
+          for await (const event of config.stream!()) {
+            eventStream.push(event);
+          }
+          const message = config.complete ? await config.complete() : defaultAssistantMessage();
+          eventStream.push({ type: 'done', reason: 'stop', message });
+          eventStream.end(message);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const errorMessage = createErrorMessage(message);
+          eventStream.push({ type: 'error', reason: 'error', error: errorMessage });
+          eventStream.end(errorMessage);
+        }
+      })();
+    } else {
+      const message = config.complete ? config.complete() : defaultAssistantMessage();
+      Promise.resolve(message).then((msg) => {
+        eventStream.push({ type: 'done', reason: 'stop', message: msg });
+        eventStream.end(msg);
+      });
+    }
+
+    return eventStream as unknown as AssistantMessageEventStream;
+  };
+
   return {
     id: config.name,
     name: config.name,
@@ -115,47 +149,13 @@ export function createMockProvider(config: MockProviderConfig): Provider {
       oauth: undefined as any,
     },
     getModels: () => [model],
-    stream: (_model: Model<any>, _context: { messages: Message[] }, _options?: any): AssistantMessageEventStream => {
-      const eventStream = new MockEventStream();
-
-      if (config.error) {
-        const errorMessage = createErrorMessage(config.error.message);
-        eventStream.push({ type: 'error', reason: 'error', error: errorMessage });
-        eventStream.end(errorMessage);
-      } else if (config.stream) {
-        (async () => {
-          try {
-            for await (const event of config.stream!()) {
-              eventStream.push(event);
-            }
-            const message = config.complete ? await config.complete() : defaultAssistantMessage();
-            eventStream.push({ type: 'done', reason: 'stop', message });
-            eventStream.end(message);
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            const errorMessage = createErrorMessage(message);
-            eventStream.push({ type: 'error', reason: 'error', error: errorMessage });
-            eventStream.end(errorMessage);
-          }
-        })();
-      } else {
-        const message = config.complete ? config.complete() : defaultAssistantMessage();
-        Promise.resolve(message).then((msg) => {
-          eventStream.push({ type: 'done', reason: 'stop', message: msg });
-          eventStream.end(msg);
-        });
-      }
-
-      return eventStream as unknown as AssistantMessageEventStream;
-    },
+    stream: streamImpl,
     complete: async (_model: Model<any>, _context: { messages: Message[] }, _options?: any): Promise<AssistantMessage> => {
       return config.complete ? config.complete() : defaultAssistantMessage();
     },
-    streamSimple: (_model: Model<any>, _context: any, _options?: any) => {
-      throw new Error('not implemented');
-    },
+    streamSimple: streamImpl as Provider['streamSimple'],
     completeSimple: async (_model: Model<any>, _context: any, _options?: any) => {
-      throw new Error('not implemented');
+      return config.complete ? config.complete() : defaultAssistantMessage();
     },
   } as Provider;
 }
@@ -270,6 +270,7 @@ export const simpleTextStream = (): AsyncGenerator<AssistantMessageEvent> => {
     timestamp: Date.now(),
   };
   return buildStreamFromChunks([
+    { type: 'start', partial },
     { type: 'text_delta', contentIndex: 0, delta: 'Hello', partial },
     { type: 'done', reason: 'stop', message: partial },
   ]);

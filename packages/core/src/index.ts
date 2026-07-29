@@ -10,7 +10,6 @@ export * from './agent-state.js';
 export * from './events.js';
 export * from './bus-events.js';
 export * from './broadcast-bus.js';
-export * from './loop-strategy.js';
 export * from './agent-factory.js';
 export { createAgentAssembly, type AgentContextBuildOptions } from './agent-context-builder.js';
 export type { AgentDI } from './agent-di.js';
@@ -20,8 +19,6 @@ export { initRuleEngine, initializeAgentDI } from './agent-context-assembler.js'
 export * from './run-agent.js';
 export * from './stream/agent-event-stream.js';
 export * from './stream/event-aggregators.js';
-export { reason } from './reason/reason.js';
-export { executeTools } from './execute/execute-tools.js';
 export type { Rule, RuleAction, RuleSource } from './security/rules/rule.js';
 export type { ToolProfileId } from './security/rules/profiles.js';
 export { RuleEngine } from './security/rules/rule-engine.js';

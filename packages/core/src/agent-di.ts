@@ -9,7 +9,6 @@ import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
-import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
@@ -28,7 +27,6 @@ export interface AgentDI {
   compressor: ContextCompressor;
   errorHandler: ErrorHandler;
   titleProvider: TitleProvider;
-  loopStrategy: LoopStrategy;
 
   // 基础但是可有可无
   mcpManager: McpConnectionManager;

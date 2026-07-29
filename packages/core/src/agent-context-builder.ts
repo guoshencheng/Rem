@@ -33,7 +33,6 @@ import type { ContextProvider } from './sdk/context-provider.js';
 import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { TitleProvider } from './sdk/title-provider.js';
-import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { AgentPaths } from './config/paths.js';
 
@@ -49,7 +48,6 @@ export interface AgentContextBuildOptions {
   contextProvider?: ContextProvider;
   compressor?: ContextCompressor;
   titleProvider?: TitleProvider;
-  loopStrategy?: LoopStrategy;
   systemPromptAssembler?: SystemPromptAssembler;
   mcpProviders?: ToolProvider[];
 }
@@ -109,7 +107,6 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
     contextProvider: options?.contextProvider,
     compressor: options?.compressor,
     titleProvider: options?.titleProvider,
-    loopStrategy: options?.loopStrategy,
     securityMode: options?.securityMode,
   });
 }

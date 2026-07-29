@@ -22,27 +22,6 @@ export class DefaultSessionProvider implements SessionProvider {
     return session;
   }
 
-  addMessage(session: Session, role: 'assistant' | 'tool'): RemMessage {
-    const messageId = generateId();
-    let message: Message;
-    if (role === 'assistant') {
-      message = { role: 'assistant', content: [], timestamp: Date.now() } as unknown as Message;
-    } else {
-      message = { role: 'toolResult', toolCallId: '', toolName: '', content: [], isError: false, timestamp: Date.now() } as unknown as Message;
-    }
-    session.conversation.push(message);
-    const messageMeta = (session.metadata.messageMeta ?? {}) as Record<string, string>;
-    messageMeta[messageId] = messageId;
-    session.metadata = { ...session.metadata, messageMeta };
-    void this.save(session).catch(() => {});
-    return { messageId, message };
-  }
-
-  appendContent(session: Session, message: Message, block: TextContent | ThinkingContent | ToolCall): void {
-    (message.content as unknown[]).push(block);
-    void this.save(session).catch(() => {});
-  }
-
   async appendMessage(session: Session, message: Message, messageId: string): Promise<void> {
     const parentId = await this.store.getActiveLeafId(session.sessionId);
     await this.store.appendEntry({

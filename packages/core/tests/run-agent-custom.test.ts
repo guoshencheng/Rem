@@ -1,163 +1,95 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AgentDI } from '../src/agent-di.js';
-import type { AgentRuntimeConfig } from '../src/agent-runtime-config.js';
+import { describe, it, expect, vi } from 'vitest';
+import { fauxAssistantMessage } from '@earendil-works/pi-ai/providers/faux';
+import { runAgent } from '../src/run-agent.js';
 import { AgentState } from '../src/agent-state.js';
+import { createFauxDi, stubRuntimeConfig } from './run-agent/faux-di.js';
 import type { PromptBuildContext } from '../src/sdk/system-prompt.js';
-import type { AssistantMessage } from '@earendil-works/pi-ai';
-
-const emptyUsage = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-};
-
-function createMockContext(overrides: Record<string, unknown> = {}) {
-  const capturedAssemble = vi.fn(async (_ctx: PromptBuildContext) => 'mock system prompt');
-  return {
-    configProvider: {
-      getBehaviorConfig: () => ({ name: 'test', maxTurns: 1, workspaceRoot: '/tmp', readOnly: false, autoApproveDangerous: false }),
-      getModelConfig: () => ({ provider: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test', baseURL: undefined }),
-      getToolConfig: () => ({}),
-      getMcpConfig: () => ({}),
-      resolveAgent: (id?: string) => {
-        if (id === 'coder') {
-          return { id: 'coder', name: 'Code Assistant', corePrompt: 'Focus on code.' };
-        }
-        if (id === 'coder-with-model') {
-          return {
-            id: 'coder-with-model',
-            name: 'Code Assistant',
-            corePrompt: 'Focus on code.',
-            model: { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', apiKey: 'sk-anthropic', baseURL: undefined },
-          };
-        }
-        return { id: 'default', name: 'test', corePrompt: 'Default prompt.' };
-      },
-    },
-    sessionProvider: { load: async () => null, save: async () => {}, addMessage: () => ({} as any), appendContent: () => {} },
-    toolProvider: { getToolSet: () => [], register: () => {} },
-    contextProvider: { build: async () => ({ system: 'You are test.', messages: [] }) },
-    skillProvider: { loadSkills: async () => [], formatCatalog: () => '' },
-    budgetPolicy: { checkTurn: () => true, checkTimeout: () => true, shouldCircuitBreak: () => false, getStatus: () => ({ turnsRemaining: 1, consecutiveErrors: 0, atRisk: false }) },
-    compressor: { shouldCompress: () => false, compress: async (msgs: unknown[]) => msgs },
-    errorHandler: { classify: () => 'unknown', isRetryable: () => false },
-    titleProvider: { generateTitle: async () => undefined },
-    mcpManager: { connectAll: async () => [], closeAll: async () => {} },
-    systemPromptAssembler: { assemble: capturedAssemble },
-    },
-    mcpProviders: [],
-    storage: {
-      todoStore: { getBySession: async () => [], replaceForSession: async (_s: string, todos: unknown[]) => todos },
-      archiveStore: { save: async () => {}, get: async () => null, listBySession: async () => [], getLatest: async () => null },
-      ruleStore: { loadAll: async () => [], loadBySource: async () => [], saveApproved: async () => {} },
-    },
-    models: {
-      getModel: vi.fn((provider: string, model: string) => ({ id: model, provider })),
-      stream: vi.fn(),
-      complete: vi.fn().mockResolvedValue({
-        role: 'assistant',
-        content: [],
-        usage: { ...emptyUsage },
-        stopReason: 'stop',
-      } as AssistantMessage),
-    },
-    loopStrategy: {
-      run: async (loopCtx: any) => {
-        await loopCtx.generate();
-        return {
-          content: 'hello back',
-          usage: { ...emptyUsage, input: 1, output: 1, totalTokens: 2 },
-        };
-      },
-    },
-    ...overrides,
-  } as unknown as AgentDI;
-}
-
-const stubRuntimeConfig = (): AgentRuntimeConfig => ({
-  securityMode: 'interactive',
-  runtime: { platform: 'test', env: {} },
-});
 
 describe('runAgent custom agent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('uses custom agent corePrompt and falls back to default model', async () => {
-    const { runAgent } = await import('../src/run-agent.js');
-
-    const di = createMockContext();
-    const result = runAgent({
-      input: { content: 'hello', timestamp: new Date() },
-      sessionId: 'test-session',
-      di,
-      runtimeConfig: stubRuntimeConfig(),
-      agentState: new AgentState(),
-      agent: 'coder',
+    const contexts: PromptBuildContext[] = [];
+    const { di } = createFauxDi({
+      responses: [fauxAssistantMessage('done')],
+      configOverrides: {
+        resolveAgent: () => ({ id: 'custom', name: 'custom-agent', corePrompt: 'CUSTOM PROMPT' }),
+      },
+      diOverrides: {
+        systemPromptAssembler: { assemble: vi.fn(async (ctx: PromptBuildContext) => { contexts.push(ctx); return 'sys'; }) },
+      },
     });
 
+    const result = runAgent({
+      input: { content: 'hi' },
+      sessionId: 'custom-session',
+      di, runtimeConfig: stubRuntimeConfig(),
+      agentState: new AgentState(),
+      agent: 'custom',
+    });
     for await (const _chunk of result.stream.fullStream) {
       // drain
     }
-    await result.output;
+    const output = await result.output;
 
-    const assembleCall = (di.systemPromptAssembler.assemble as any).mock.calls[0][0];
-    expect(assembleCall.agentName).toBe('Code Assistant');
-    expect(assembleCall.agentCorePrompt).toBe('Focus on code.');
-
-    const completeCall = (di.models.complete as any).mock.calls[0][0];
-    expect(completeCall.provider).toBe('openai');
-    expect(completeCall.id).toBe('gpt-4o-mini');
-    expect((di.models.complete as any).mock.calls[0][1].systemPrompt).toBe('mock system prompt');
+    expect(output.content).toBe('done');
+    expect(contexts[0].agentName).toBe('custom-agent');
+    expect(contexts[0].agentCorePrompt).toBe('CUSTOM PROMPT');
+    expect(contexts[0].model).toEqual({ provider: 'faux', model: 'faux-1' });
   });
 
   it('uses custom agent model override', async () => {
-    const { runAgent } = await import('../src/run-agent.js');
-
-    const di = createMockContext();
-    const result = runAgent({
-      input: { content: 'hello', timestamp: new Date() },
-      sessionId: 'test-session',
-      di,
-      runtimeConfig: stubRuntimeConfig(),
-      agentState: new AgentState(),
-      agent: 'coder-with-model',
+    const contexts: PromptBuildContext[] = [];
+    const { di } = createFauxDi({
+      responses: [fauxAssistantMessage('done')],
+      configOverrides: {
+        getModelConfig: () => ({ provider: 'nonexistent', model: 'nope', apiKey: '', baseURL: undefined }),
+        resolveAgent: () => ({
+          id: 'custom', name: 'custom-agent', corePrompt: 'p',
+          model: { provider: 'faux', model: 'faux-1', apiKey: '', baseURL: undefined },
+        }),
+      },
+      diOverrides: {
+        systemPromptAssembler: { assemble: vi.fn(async (ctx: PromptBuildContext) => { contexts.push(ctx); return 'sys'; }) },
+      },
     });
 
+    const result = runAgent({
+      input: { content: 'hi' },
+      sessionId: 'custom-model-session',
+      di, runtimeConfig: stubRuntimeConfig(),
+      agentState: new AgentState(),
+      agent: 'custom',
+    });
     for await (const _chunk of result.stream.fullStream) {
       // drain
     }
-    await result.output;
+    const output = await result.output;
 
-    const completeCall = (di.models.complete as any).mock.calls[0][0];
-    expect(completeCall.provider).toBe('anthropic');
-    expect(completeCall.id).toBe('claude-3-5-sonnet-20241022');
-    expect((di.models.complete as any).mock.calls[0][2].apiKey).toBe('sk-anthropic');
+    expect(output.content).toBe('done');
+    expect(contexts[0].model).toEqual({ provider: 'faux', model: 'faux-1' });
   });
 
   it('falls back to default when agent is unknown', async () => {
-    const { runAgent } = await import('../src/run-agent.js');
-    const di = createMockContext();
-    const result = runAgent({
-      input: { content: 'hello', timestamp: new Date() },
-      sessionId: 'test-session',
-      di,
-      runtimeConfig: stubRuntimeConfig(),
-      agentState: new AgentState(),
-      agent: 'unknown',
+    const contexts: PromptBuildContext[] = [];
+    const { di } = createFauxDi({
+      responses: [fauxAssistantMessage('done')],
+      diOverrides: {
+        systemPromptAssembler: { assemble: vi.fn(async (ctx: PromptBuildContext) => { contexts.push(ctx); return 'sys'; }) },
+      },
     });
 
+    const result = runAgent({
+      input: { content: 'hi' },
+      sessionId: 'unknown-agent-session',
+      di, runtimeConfig: stubRuntimeConfig(),
+      agentState: new AgentState(),
+      agent: 'does-not-exist',
+    });
     for await (const _chunk of result.stream.fullStream) {
       // drain
     }
-    await result.output;
+    const output = await result.output;
 
-    const assembleCall = (di.systemPromptAssembler.assemble as any).mock.calls[0][0];
-    expect(assembleCall.agentName).toBe('test');
-    expect(assembleCall.agentCorePrompt).toBe('Default prompt.');
+    expect(output.content).toBe('done');
+    expect(contexts[0].agentName).toBe('test');
   });
 });

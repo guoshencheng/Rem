@@ -10,7 +10,6 @@ import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
-import type { LoopStrategy } from './sdk/loop-strategy.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
 import type { McpConnectionManager } from './mcp/connection-manager.js';
@@ -24,7 +23,6 @@ import { FixedBudgetPolicy } from './plugins/budget/fixed/index.js';
 import { LLMSummarizingCompressor } from './plugins/compressor/llm-summary/index.js';
 import { SimpleErrorHandler } from './plugins/error/simple/index.js';
 import { LLMTitleProvider } from './plugins/title/llm/index.js';
-import { ReactLoop } from './plugins/loop/react/index.js';
 import { RuleEngine } from './security/rules/rule-engine.js';
 import { getProfileRules } from './security/rules/profiles.js';
 import { createPermissionEvaluator, type ApprovalRequestFactory } from './security/permissions/factory.js';
@@ -52,7 +50,6 @@ export interface AssembleAgentContextOptions {
   compressor?: ContextCompressor;
   errorHandler?: ErrorHandler;
   titleProvider?: TitleProvider;
-  loopStrategy?: LoopStrategy;
   securityMode?: SecurityMode;
 }
 
@@ -118,7 +115,6 @@ export function assembleAgentContext(options: AssembleAgentContextOptions): Agen
       compressor,
       errorHandler: options.errorHandler ?? new SimpleErrorHandler(),
       titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
-      loopStrategy: options.loopStrategy ?? new ReactLoop(),
       mcpManager: options.mcpManager ?? ({} as McpConnectionManager),
       systemPromptAssembler: options.systemPromptAssembler,
       ruleEngine,

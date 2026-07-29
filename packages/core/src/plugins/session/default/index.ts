@@ -43,6 +43,19 @@ export class DefaultSessionProvider implements SessionProvider {
     void this.save(session).catch(() => {});
   }
 
+  async appendMessage(session: Session, message: Message, messageId: string): Promise<void> {
+    const parentId = await this.store.getActiveLeafId(session.sessionId);
+    await this.store.appendEntry({
+      id: generateId(),
+      sessionId: session.sessionId,
+      parentId,
+      type: 'message',
+      payload: { message, messageId },
+      timestamp: Date.now(),
+    });
+    session.conversation.push(message);
+  }
+
   async save(session: Session): Promise<void> {
     await this.store.save(session);
   }

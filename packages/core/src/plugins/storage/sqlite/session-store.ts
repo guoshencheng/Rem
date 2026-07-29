@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import { generateId } from '../../../shared/generate-id.js';
 import type { Session, SessionSummary } from '../../../session.js';
 import type { SessionStore } from '../../../sdk/storage-provider.js';
+import type { SessionTreeEntry } from '../../../session-tree/types.js';
+import { buildConversationFromEntries } from '../../../session-tree/context-builder.js';
 import { wrapSqliteError } from './errors.js';
 import { toSession, toSessionSummary } from './session-converter.js';
 
@@ -39,11 +41,9 @@ export class SqliteSessionStore implements SessionStore {
         | undefined;
       if (!row) return null;
 
-      const messages = this.db
-        .prepare(
-          'SELECT id, role, content_json, tool_call_id, tool_name, created_at FROM messages WHERE session_id = ? ORDER BY sequence'
-        )
-        .all(sessionId) as import('./session-converter.js').MessageRow[];
+      const entries = await this.listEntries(sessionId);
+      const leafId = await this.getActiveLeafId(sessionId);
+      const messages = buildConversationFromEntries(entries, leafId);
 
       return toSession(row, messages);
     } catch (err) {
@@ -65,8 +65,15 @@ export class SqliteSessionStore implements SessionStore {
     const transaction = this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT OR REPLACE INTO sessions (id, workspace, title, pinned, current_turn, metadata_json, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO sessions (id, workspace, title, pinned, current_turn, metadata_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             workspace = excluded.workspace,
+             title = excluded.title,
+             pinned = excluded.pinned,
+             current_turn = excluded.current_turn,
+             metadata_json = excluded.metadata_json,
+             updated_at = excluded.updated_at`
         )
         .run(
           session.sessionId,
@@ -78,34 +85,6 @@ export class SqliteSessionStore implements SessionStore {
           session.createdAt.toISOString(),
           new Date().toISOString()
         );
-
-      const messageIds = session.conversation.map(() => generateId());
-      if (messageIds.length > 0) {
-        const placeholders = messageIds.map(() => '?').join(',');
-        this.db
-          .prepare(`DELETE FROM messages WHERE session_id = ? AND id NOT IN (${placeholders})`)
-          .run(session.sessionId, ...messageIds);
-      } else {
-        this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(session.sessionId);
-      }
-
-      const insert = this.db.prepare(
-        `INSERT OR REPLACE INTO messages (id, session_id, role, content_json, tool_call_id, tool_name, sequence, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      );
-      for (let i = 0; i < session.conversation.length; i++) {
-        const msg = session.conversation[i];
-        insert.run(
-          messageIds[i],
-          session.sessionId,
-          msg.role,
-          JSON.stringify(msg.content),
-          msg.role === 'toolResult' ? (msg as any).toolCallId ?? null : null,
-          msg.role === 'toolResult' ? (msg as any).toolName ?? null : null,
-          i,
-          new Date().toISOString()
-        );
-      }
     });
 
     try {
@@ -113,6 +92,43 @@ export class SqliteSessionStore implements SessionStore {
     } catch (err) {
       throw wrapSqliteError(err, 'DB_QUERY', `Failed to save session ${session.sessionId}`);
     }
+
+    // 过渡期 reconcile：旧流程（ReactLoop，将被 pi Agent 替换）通过 save() 持久化消息。
+    // 新流程经 appendEntry 增量写入，此处对比 leaf 链后自然成为 no-op。
+    const entries = await this.listEntries(session.sessionId);
+    const leafId = await this.getActiveLeafId(session.sessionId);
+    const persisted = buildConversationFromEntries(entries, leafId);
+
+    if (session.conversation.length > persisted.length) {
+      for (let i = persisted.length; i < session.conversation.length; i++) {
+        const message = session.conversation[i];
+        const entryId = generateId();
+        await this.appendEntry({
+          id: entryId,
+          sessionId: session.sessionId,
+          parentId: await this.getActiveLeafId(session.sessionId),
+          type: 'message',
+          payload: { message, messageId: entryId },
+          timestamp: Date.now(),
+        });
+      }
+    } else if (session.conversation.length > 0 && session.conversation.length === persisted.length) {
+      const lastMessage = session.conversation[session.conversation.length - 1];
+      const lastPersisted = persisted[persisted.length - 1];
+      if (JSON.stringify(lastMessage) !== JSON.stringify(lastPersisted)) {
+        const leafEntry = entries.find((e) => e.id === leafId);
+        if (leafEntry) {
+          const messageId = (leafEntry.payload as { messageId?: string }).messageId ?? leafEntry.id;
+          this.updateEntry({ ...leafEntry, payload: { message: lastMessage, messageId } });
+        }
+      }
+    }
+  }
+
+  updateEntry(entry: SessionTreeEntry): void {
+    this.db
+      .prepare('UPDATE session_entries SET payload = ? WHERE id = ?')
+      .run(JSON.stringify(entry.payload), entry.id);
   }
 
   async delete(sessionId: string): Promise<void> {
@@ -123,6 +139,43 @@ export class SqliteSessionStore implements SessionStore {
     } catch (err) {
       throw wrapSqliteError(err, 'DB_QUERY', `Failed to delete session ${sessionId}`);
     }
+  }
+
+  async appendEntry(entry: SessionTreeEntry): Promise<void> {
+    try {
+      const tx = this.db.transaction(() => {
+        this.db
+          .prepare(
+            'INSERT INTO session_entries (id, session_id, parent_id, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+          )
+          .run(entry.id, entry.sessionId, entry.parentId, entry.type, JSON.stringify(entry.payload), entry.timestamp);
+        this.db.prepare('UPDATE sessions SET active_leaf_id = ? WHERE id = ?').run(entry.id, entry.sessionId);
+      });
+      tx();
+    } catch (err) {
+      throw wrapSqliteError(err, 'DB_QUERY', `Failed to append entry ${entry.id}`);
+    }
+  }
+
+  async getActiveLeafId(sessionId: string): Promise<string | null> {
+    const row = this.db.prepare('SELECT active_leaf_id FROM sessions WHERE id = ?').get(sessionId) as
+      | { active_leaf_id: string | null }
+      | undefined;
+    return row?.active_leaf_id ?? null;
+  }
+
+  async listEntries(sessionId: string): Promise<SessionTreeEntry[]> {
+    const rows = this.db
+      .prepare('SELECT id, session_id, parent_id, type, payload, created_at FROM session_entries WHERE session_id = ? ORDER BY rowid')
+      .all(sessionId) as { id: string; session_id: string; parent_id: string | null; type: string; payload: string; created_at: number }[];
+    return rows.map((r) => ({
+      id: r.id,
+      sessionId: r.session_id,
+      parentId: r.parent_id,
+      type: r.type as SessionTreeEntry['type'],
+      payload: JSON.parse(r.payload),
+      timestamp: r.created_at,
+    }));
   }
 
   async listByWorkspace(workspace: string): Promise<SessionSummary[]> {
@@ -141,7 +194,7 @@ export class SqliteSessionStore implements SessionStore {
       const rows = this.db
         .prepare(
           `SELECT id, title, pinned, updated_at,
-            (SELECT COUNT(*) FROM messages WHERE session_id = sessions.id) AS message_count
+            (SELECT COUNT(*) FROM session_entries WHERE session_id = sessions.id AND type = 'message') AS message_count
            FROM sessions
            WHERE ${whereClause}
            ORDER BY updated_at DESC`

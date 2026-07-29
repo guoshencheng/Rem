@@ -12,42 +12,15 @@ export interface SessionRow {
   updated_at: string;
 }
 
-export interface MessageRow {
-  id: string;
-  role: string;
-  content_json: string;
-  tool_call_id: string | null;
-  tool_name: string | null;
-  created_at: string;
-}
-
-export function toSession(row: SessionRow, messages: MessageRow[]): Session {
+export function toSession(row: SessionRow, messages: Message[]): Session {
   return {
     sessionId: row.id,
-    conversation: messages.map((m) => toMessage(m)),
+    conversation: messages,
     currentTurn: row.current_turn,
     metadata: parseMetadata(row),
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
-}
-
-function toMessage(row: MessageRow): Message {
-  const content = JSON.parse(row.content_json);
-  if (row.role === 'user') {
-    return { role: 'user', content, timestamp: Date.parse(row.created_at) } as Message;
-  }
-  if (row.role === 'assistant') {
-    return { role: 'assistant', content, timestamp: Date.parse(row.created_at) } as Message;
-  }
-  return {
-    role: 'toolResult',
-    toolCallId: row.tool_call_id ?? '',
-    toolName: row.tool_name ?? '',
-    content,
-    isError: false,
-    timestamp: Date.parse(row.created_at),
-  } as Message;
 }
 
 export function toSessionSummary(row: {

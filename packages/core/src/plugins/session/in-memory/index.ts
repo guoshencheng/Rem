@@ -54,6 +54,11 @@ export class InMemorySessionProvider implements SessionProvider {
     void this.save(session).catch(() => {});
   }
 
+  async appendMessage(session: Session, message: Message, _messageId: string): Promise<void> {
+    session.conversation.push(message);
+    await this.save(session);
+  }
+
   async save(session: Session): Promise<void> {
     const updated: Session = {
       ...session,

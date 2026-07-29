@@ -1,6 +1,7 @@
 import type { Message } from '@earendil-works/pi-ai';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session.js';
+import type { SessionTreeEntry } from '../session-tree/types.js';
 import type { Rule, RuleSource } from '../security/rules/rule.js';
 import type { TodoItem } from '../todo/types.js';
 
@@ -57,6 +58,10 @@ export interface SessionStore {
   delete(sessionId: string): Promise<void>;
   listByWorkspace(workspace: string): Promise<SessionSummary[]>;
   listAll(): Promise<SessionSummary[]>;
+
+  appendEntry(entry: SessionTreeEntry): Promise<void>;
+  getActiveLeafId(sessionId: string): Promise<string | null>;
+  listEntries(sessionId: string): Promise<SessionTreeEntry[]>;
 }
 
 export interface RuleStorage {

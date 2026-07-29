@@ -14,6 +14,7 @@ export function createSessionWriter(params: SessionWriterParams): (event: AgentE
   const { sessionProvider, session, idOf } = params;
   return async (event: AgentEvent) => {
     if (event.type !== 'message_end') return;
-    await sessionProvider.appendMessage(session, event.message, idOf(event.message) ?? generateId());
+    const message = event.message as Message;
+    await sessionProvider.appendMessage(session, message, idOf(message) ?? generateId());
   };
 }

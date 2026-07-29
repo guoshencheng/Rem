@@ -18,15 +18,14 @@ export interface PiAgentFactoryParams {
 
 export function createPiAgent(params: PiAgentFactoryParams): Agent {
   const { di, effectiveModel } = params;
-  const model = di.models.getModel(effectiveModel.provider, effectiveModel.model);
-  if (!model) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
+  const resolved = di.models.getModel(effectiveModel.provider, effectiveModel.model);
+  if (!resolved) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
+  const model = effectiveModel.baseURL ? { ...resolved, baseUrl: effectiveModel.baseURL } : resolved;
 
   const streamFn: StreamFn = (m, context, options) =>
     di.models.streamSimple(m, context, {
       ...options,
-      thinkingEnabled: true,
       apiKey: effectiveModel.apiKey || undefined,
-      baseURL: effectiveModel.baseURL || undefined,
     });
 
   const agent = new Agent({

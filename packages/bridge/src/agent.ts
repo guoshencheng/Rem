@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
+import type { ApprovalDecision, ApprovalRequest, AgentDI, AgentRuntimeConfig, Rule, TodoItem, UserInputContent, RunAgentHandle } from 'rem-agent-core';
 import { AgentState, runAgent as coreRunAgent, log, DefaultTodoService, AgentSessionManager, SessionNotFoundError } from 'rem-agent-core';
 import { compactContentBlocks } from 'rem-agent-core/stream/event-aggregators';
 import type { TextContent, ThinkingContent, ToolCall } from 'rem-agent-core';
@@ -13,6 +13,7 @@ export class AgentService implements IAgentService {
   private _runtimeConfig: AgentRuntimeConfig;
   private agentState: AgentState;
   private sessionManager: AgentSessionManager;
+  private activeRuns = new Map<string, RunAgentHandle>();
 
   constructor(di: AgentDI, runtimeConfig: AgentRuntimeConfig) {
     this._di = di;
@@ -97,6 +98,7 @@ export class AgentService implements IAgentService {
     }
 
     void this.drive(sessionId, workspace, abortController.signal, result);
+    this.activeRuns.set(sessionId, result.handle);
   }
 
   private async drive(sessionId: string, workspace: string, signal: AbortSignal, result: ReturnType<typeof coreRunAgent>): Promise<void> {
@@ -133,6 +135,19 @@ export class AgentService implements IAgentService {
     if (this.agentState.isRunning(sessionId)) {
       this.agentState.finishRun(sessionId, workspace);
     }
+    this.activeRuns.delete(sessionId);
+  }
+
+  async steer(_workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const handle = this.activeRuns.get(sessionId);
+    if (!handle) throw new ServiceError('Session is not running', 409);
+    handle.steer(input);
+  }
+
+  async followUp(_workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const handle = this.activeRuns.get(sessionId);
+    if (!handle) throw new ServiceError('Session is not running', 409);
+    handle.followUp(input);
   }
 
   async interrupt(_workspace: string, sessionId: string): Promise<void> {

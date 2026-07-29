@@ -52,9 +52,39 @@ async function resetAgent({ req, getAgentService }: HandlerContext): Promise<Res
   return Response.json({ sessionId: body.sessionId, reset: true });
 }
 
+const isEmptyContent = (content: unknown): boolean =>
+  content === undefined ||
+  content === null ||
+  (typeof content === 'string' && !content) ||
+  (Array.isArray(content) && content.length === 0);
+
+async function steerAgent({ req, getAgentService }: HandlerContext): Promise<Response> {
+  const body = (await req.json()) as { sessionId?: string; content?: UserInputContent };
+  if (!body.sessionId || isEmptyContent(body.content)) {
+    return Response.json({ error: 'sessionId and content are required' }, { status: 400 });
+  }
+  const workspace = getWorkspace(req);
+  const service = await getAgentService();
+  await service.steer(workspace, body.sessionId, body.content!);
+  return Response.json({ sessionId: body.sessionId, steered: true });
+}
+
+async function followUpAgent({ req, getAgentService }: HandlerContext): Promise<Response> {
+  const body = (await req.json()) as { sessionId?: string; content?: UserInputContent };
+  if (!body.sessionId || isEmptyContent(body.content)) {
+    return Response.json({ error: 'sessionId and content are required' }, { status: 400 });
+  }
+  const workspace = getWorkspace(req);
+  const service = await getAgentService();
+  await service.followUp(workspace, body.sessionId, body.content!);
+  return Response.json({ sessionId: body.sessionId, queued: true });
+}
+
 export const agentRoutes: RouteDefinition[] = [
   { pattern: 'agent/run', method: 'POST', handler: runAgent },
   { pattern: 'agent/stream', method: 'GET', handler: streamAgent },
   { pattern: 'agent/interrupt', method: 'POST', handler: interruptAgent },
   { pattern: 'agent/reset', method: 'POST', handler: resetAgent },
+  { pattern: 'agent/steer', method: 'POST', handler: steerAgent },
+  { pattern: 'agent/follow-up', method: 'POST', handler: followUpAgent },
 ];

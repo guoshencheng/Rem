@@ -52,6 +52,28 @@ export class AgentRemoteService implements IAgentService {
     }
   }
 
+  async steer(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/steer?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to steer: ${response.status}`);
+    }
+  }
+
+  async followUp(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/follow-up?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to follow up: ${response.status}`);
+    }
+  }
+
   async interrupt(workspace: string, sessionId: string): Promise<void> {
     const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/interrupt?${AgentRemoteService.wsQuery(workspace)}`, {
       method: 'POST',

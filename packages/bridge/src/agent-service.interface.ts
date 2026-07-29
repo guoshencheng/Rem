@@ -9,6 +9,8 @@ export interface IAgentService {
 
   // Session operations now require workspace
   run(workspace: string, sessionId: string, input: UserInputContent): Promise<void>;
+  steer(workspace: string, sessionId: string, input: UserInputContent): Promise<void>;
+  followUp(workspace: string, sessionId: string, input: UserInputContent): Promise<void>;
   interrupt(workspace: string, sessionId: string): Promise<void>;
   reset(workspace: string, sessionId: string): Promise<void>;
   createSession(workspace: string): Promise<SessionSummary>;

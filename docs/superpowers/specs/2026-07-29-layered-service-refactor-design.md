@@ -139,7 +139,8 @@ class AgentService {
 class SessionService {
   create(workspace?): Promise<Session>;
   load(sessionId): Promise<Session | null>;
-  list(workspace?): Promise<SessionSummary[]>;   // workspace 过滤落 SQL
+  list(): Promise<SessionSummary[]>;
+  listByWorkspace(workspace): Promise<SessionSummary[]>;  // 走 SessionStore SQL 过滤
   search(workspace?, query): Promise<SessionSummary[]>;
   update(sessionId, updates): Promise<void>;
   delete(sessionId): Promise<void>;
@@ -153,7 +154,7 @@ class WorkspaceService {
   add(path: string): Promise<void>;
   remove(path: string): Promise<void>;
   resolveConfig(workspace): WorkspaceConfig;      // forWorkspace 收敛到这里
-  listSessions(workspace): Promise<SessionSummary[]>;
+  listSessions(workspace): Promise<SessionSummary[]>;  // 委托 SessionService.listByWorkspace
 }
 
 class AgentsUniService {   // 对外门面，对齐现有 IAgentService 接口面（允许调整）

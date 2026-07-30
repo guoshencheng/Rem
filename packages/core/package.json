@@ -24,7 +24,8 @@
   },
   "scripts": {
     "build": "node scripts/generate-templates.mjs && tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-structure": "node scripts/check-structure.mjs"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

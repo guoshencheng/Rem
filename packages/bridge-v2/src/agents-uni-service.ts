@@ -9,7 +9,7 @@ import {
   type ThinkingContent, type TokenUsageDetail, type ToolCall, type ToolContext,
   type UIMessage, type WorkspaceRecord,
 } from 'rem-agent-core';
-import { createREMAgent, type REMAgent, type DelegateTaskInputV2 } from 'rem-agent-core-v2';
+import { REMAgent, type DelegateTaskInputV2 } from 'rem-agent-core-v2';
 import type { IAgentService } from 'rem-agent-bridge';
 import { REMSessions } from './rem-sessions.js';
 import type { REMSession } from './rem-session.js';
@@ -68,7 +68,7 @@ export class AgentsUniService implements IAgentService {
     }
 
     try {
-      const remAgent = await createREMAgent({
+      const remAgent = new REMAgent({
         di: this.di,
         runtimeConfig: this.runtimeConfig,
         session,
@@ -101,7 +101,7 @@ export class AgentsUniService implements IAgentService {
       systemPrompt: input.systemPrompt,
     });
     const childAgentId = `${parentAgentId}.delegate-${remSession.agents.length}`;
-    const remAgent = await createREMAgent({
+    const remAgent = new REMAgent({
       di: child.di,
       runtimeConfig: child.runtimeConfig,
       session: childSession,

@@ -35,6 +35,7 @@ export class REMAgent {
 
   private readonly agent: PiAgentLike;
   private queue?: EventQueue<REMAgentEvent>;
+  private pendingMeta: RemMetaEvent[] = [];
   private totalUsage: Usage = emptyUsage();
   private lastAssistant?: AssistantMessage;
   private lastAssistantMessageId?: string;
@@ -65,6 +66,8 @@ export class REMAgent {
     this.status = 'running';
     const queue = new EventQueue<REMAgentEvent>();
     this.queue = queue;
+    for (const event of this.pendingMeta) queue.push(event);
+    this.pendingMeta = [];
     this.outputPromise = new Promise<AgentOutput>((resolve) => {
       this.outputResolve = resolve;
     });
@@ -138,6 +141,11 @@ export class REMAgent {
 
   /** 内部：装配工厂注入的 meta 事件出口（tool-bridge / context-bridge / 标题） */
   emitMeta(event: RemMetaEvent): void {
-    this.queue?.push(event);
+    // run 前的 meta（如标题生成异步先完成）先缓冲，run 时按序 flush
+    if (this.queue) {
+      this.queue.push(event);
+    } else {
+      this.pendingMeta.push(event);
+    }
   }
 }

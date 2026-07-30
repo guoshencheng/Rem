@@ -55,3 +55,4 @@ export {
 export { buildChildContext, type BuildChildContextOptions } from './sub-agent/build-child-context.js';
 export { formatTaskResult } from './sub-agent/format-task-result.js';
 export { generateId } from './shared/generate-id.js';
+export type { PromptBuildContext } from './sdk/system-prompt.js';

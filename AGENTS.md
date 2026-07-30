@@ -62,7 +62,7 @@ Core 在 `assembly/agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境
 
 ### 3. 不依赖 Vercel AI SDK，Agent 控制自有
 
-`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行。Agent 推理循环复用 `@earendil-works/pi-agent-core` 导出的**无状态** `runAgentLoop` / `runAgentLoopContinue`；**不使用**其 `Agent` 类——transcript / steering / follow-up / abort / maxTurns 由 `REMAgent` 自己持有（`agent/rem-agent.ts` 直调 loop 函数，loop 入参（`AgentContext`/`AgentLoopConfig`/`streamFn`）在每次 run 前逐项重新组装（无缓存）），为多 Agent 扩展保留完全控制权。不交给 Vercel AI SDK 或外部 Agent 类管理。
+`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行。Agent 推理循环复用 `@earendil-works/pi-agent-core` 导出的**无状态** `runAgentLoop` / `runAgentLoopContinue`；**不使用**其 `Agent` 类——transcript / steering / follow-up / abort / maxTurns 由 `REMAgent` 自己持有（`agent/rem-agent.ts` 直调 loop 函数，loop 入参（`AgentContext`/`AgentLoopConfig`/`streamFn`）在首次 run 时惰性组装（幂等可重入）），为多 Agent 扩展保留完全控制权。不交给 Vercel AI SDK 或外部 Agent 类管理。
 
 ### 4. 直接复用 pi-ai 类型
 
@@ -75,7 +75,7 @@ Core 在 `assembly/agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境
 | 文件 | 用途 |
 |---|---|
 | `packages/core/src/assembly/agent-factory.ts` | `createAgentFromEnv` |
-| `packages/core/src/agent/rem-agent.ts` | `REMAgent`：new（同步）后直用；loop 入参（`AgentContext`/`AgentLoopConfig`/`streamFn`/`maxTurns`）在每次 `run`/`continue` 前逐项重新组装（无缓存）；持有 transcript / 队列 / abort，直调 pi-agent-core 的 `runAgentLoop` / `runAgentLoopContinue` |
+| `packages/core/src/agent/rem-agent.ts` | `REMAgent`：new（同步）后直用；loop 入参（`AgentContext`/`AgentLoopConfig`/`streamFn`/`maxTurns`）在每次 `run`/`continue` 时惰性组装（幂等可重入）；持有 transcript / 队列 / abort，直调 pi-agent-core 的 `runAgentLoop` / `runAgentLoopContinue` |
 | `packages/core/src/runtime/generation/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成（标题/压缩摘要） |
 | `packages/core/src/infrastructure/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
 | `packages/core/src/infrastructure/llm/context-window.ts` | 上下文窗口大小解析 |

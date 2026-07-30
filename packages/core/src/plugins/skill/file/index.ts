@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import type { AgentPaths } from '../../../config/paths.js';
+import type { AgentPaths } from '../../../infrastructure/config/paths.js';
 import { DefaultSkillCatalog } from '../default-catalog.js';
 import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
 

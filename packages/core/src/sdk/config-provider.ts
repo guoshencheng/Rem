@@ -1,5 +1,5 @@
 import type { ToolPolicyConfig } from './tool-policy.js';
-import type { McpServerConfig } from '../mcp/types.js';
+import type { McpServerConfig } from '../infrastructure/mcp/types.js';
 import type { ToolProfileId } from '../security/rules/profiles.js';
 import type { Rule } from '../security/rules/rule.js';
 import type { CustomAgentConfig, ResolvedAgentRole } from './agent-role.js';

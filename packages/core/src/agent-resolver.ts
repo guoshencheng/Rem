@@ -1,6 +1,6 @@
 import type { AgentResolver, CustomAgentConfig, ResolvedAgentRole } from './sdk/agent-role.js';
 import type { AgentBehaviorConfig, ResolvedModelConfig } from './sdk/config-provider.js';
-import { log } from './shared/debug-log.js';
+import { log } from './infrastructure/observability/debug-log.js';
 
 export interface AgentResolverOptions {
   behavior: Required<AgentBehaviorConfig>;

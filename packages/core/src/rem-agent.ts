@@ -8,7 +8,7 @@ import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 import type { ApprovalEngine } from './execute/approval-engine.js';
 import { addUsage, emptyUsage } from './token-usage.js';
 import { generateId } from './shared/generate-id.js';
-import { log } from './shared/debug-log.js';
+import { log } from './infrastructure/observability/debug-log.js';
 import { EventQueue } from './event-queue.js';
 import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentEvent } from './rem-agent-event.js';

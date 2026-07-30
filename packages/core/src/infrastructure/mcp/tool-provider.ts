@@ -8,8 +8,8 @@ import type {
   ToolExecutor,
   ToolProvider,
   ToolResult,
-} from '../sdk/tool-provider.js';
-import type { ToolSet } from '../sdk/tool-provider.js';
+} from '../../sdk/tool-provider.js';
+import type { ToolSet } from '../../sdk/tool-provider.js';
 import type { McpClient } from './client.js';
 import type { McpToolInfo } from './types.js';
 import { convertJsonSchemaToTypeBoxObject } from './schema-converter.js';

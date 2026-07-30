@@ -1,12 +1,12 @@
 import { join } from 'node:path';
-import { createCoreModels } from './llm/models.js';
-import { createDefaultAgentPaths } from './config/paths.js';
-import { configureConsoleOutput } from './shared/debug-log.js';
-import { configureFileDebugLog } from './shared/debug-log-file.js';
+import { createCoreModels } from './infrastructure/llm/models.js';
+import { createDefaultAgentPaths } from './infrastructure/config/paths.js';
+import { configureConsoleOutput } from './infrastructure/observability/debug-log.js';
+import { configureFileDebugLog } from './infrastructure/observability/debug-log-file.js';
 import { DefaultConfigProvider } from './plugins/config/default/index.js';
 import { createFileSystemTools } from './plugins/tool/file-system/index.js';
 import { FileSkillProvider } from './plugins/skill/file/index.js';
-import { McpConnectionManager } from './mcp/connection-manager.js';
+import { McpConnectionManager } from './infrastructure/mcp/connection-manager.js';
 import { SqliteStorageProvider } from './plugins/storage/sqlite/index.js';
 import { assembleAgentContext } from './agent-context-assembler.js';
 import type { AgentAssembly } from './agent-context-assembler.js';
@@ -34,7 +34,7 @@ import type { SkillProvider } from './sdk/skill-provider.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
-import type { AgentPaths } from './config/paths.js';
+import type { AgentPaths } from './infrastructure/config/paths.js';
 
 export interface AgentContextBuildOptions {
   securityMode?: SecurityMode;

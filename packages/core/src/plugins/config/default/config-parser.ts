@@ -1,7 +1,7 @@
 import type { AgentModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
-import type { McpServerConfig } from '../../../mcp/types.js';
+import type { McpServerConfig } from '../../../infrastructure/mcp/types.js';
 import type { ThinkingLevel } from '@earendil-works/pi-ai';
 
 export function isObject(value: unknown): value is Record<string, unknown> {

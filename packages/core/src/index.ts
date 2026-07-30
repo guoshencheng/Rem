@@ -1,9 +1,9 @@
 export * from './types.js';
-export { createCoreModels, type CreateCoreModelsOptions } from './llm/models.js';
+export { createCoreModels, type CreateCoreModelsOptions } from './infrastructure/llm/models.js';
 export type { Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage, AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai';
 export type { AgentEvent } from '@earendil-works/pi-agent-core';
-export * from './config/paths.js';
-export * from './shared/debug-log.js';
+export * from './infrastructure/config/paths.js';
+export * from './infrastructure/observability/debug-log.js';
 export * from './budget.js';
 export * from './session.js';
 export * from './bus-events.js';
@@ -30,7 +30,7 @@ export * from './todo/errors.js';
 export * from './todo/service.js';
 export * from './session-manager/index.js';
 export * from './token-usage.js';
-export * from './llm/context-window.js';
+export * from './infrastructure/llm/context-window.js';
 
 // --- v2 复用支持 ---
 export { composeToolProviders } from './tool-composer.js';

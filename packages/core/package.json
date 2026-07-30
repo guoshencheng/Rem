@@ -18,8 +18,8 @@
       "types": "./dist/token-usage.d.ts"
     },
     "./llm/context-window": {
-      "import": "./dist/llm/context-window.js",
-      "types": "./dist/llm/context-window.d.ts"
+      "import": "./dist/infrastructure/llm/context-window.js",
+      "types": "./dist/infrastructure/llm/context-window.d.ts"
     }
   },
   "scripts": {

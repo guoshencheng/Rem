@@ -1,8 +1,8 @@
 import type { Message, Models, Context, AssistantMessage, ThinkingLevel } from '@earendil-works/pi-ai';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
-import { buildReasoningOptions } from '../llm/reasoning-options.js';
-import { log } from '../shared/debug-log.js';
+import { buildReasoningOptions } from '../infrastructure/llm/reasoning-options.js';
+import { log } from '../infrastructure/observability/debug-log.js';
 
 export interface GenerateParams {
   models: Models;

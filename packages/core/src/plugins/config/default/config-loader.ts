@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import type { ConfigFileData } from './index.js';
-import { resolveTilde } from '../../../config/paths.js';
+import { resolveTilde } from '../../../infrastructure/config/paths.js';
 
 export async function loadConfigFile(path: string): Promise<ConfigFileData> {
   const resolved = resolveTilde(path);

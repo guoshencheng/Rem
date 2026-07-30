@@ -2,9 +2,9 @@ import type { Tool } from '@earendil-works/pi-ai';
 import type { TObject } from '@sinclair/typebox';
 import type {
   ToolCall, ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolResult,
-} from '../sdk/tool-provider.js';
-import type { ToolSet } from '../sdk/tool-provider.js';
-import { log } from '../shared/debug-log.js';
+} from '../../sdk/tool-provider.js';
+import type { ToolSet } from '../../sdk/tool-provider.js';
+import { log } from '../observability/debug-log.js';
 
 export class CompositeToolProvider implements ToolProvider {
   private ownership = new Map<string, ToolProvider>();

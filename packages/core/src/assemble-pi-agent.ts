@@ -7,7 +7,7 @@ import type { ArchiveRecord } from './sdk/storage-provider.js';
 import type { ToolProvider } from './sdk/tool-provider.js';
 import { normalizeUsageDetail, type TokenUsageDetail } from './token-usage.js';
 import { generateId } from './shared/generate-id.js';
-import { resolveContextWindow } from './llm/context-window.js';
+import { resolveContextWindow } from './infrastructure/llm/context-window.js';
 import { composeToolProviders } from './tool-composer.js';
 import { ToolOverlay, defineOverlayTool } from './tool-overlay.js';
 import { createToolBridge } from './run-agent/tool-bridge.js';

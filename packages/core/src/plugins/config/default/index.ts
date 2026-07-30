@@ -8,8 +8,8 @@ import type {
   ResolvedModelConfig,
 } from '../../../sdk/config-provider.js';
 import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.js';
-import type { McpServerConfig } from '../../../mcp/types.js';
-import type { AgentPaths } from '../../../config/paths.js';
+import type { McpServerConfig } from '../../../infrastructure/mcp/types.js';
+import type { AgentPaths } from '../../../infrastructure/config/paths.js';
 import { loadConfigFile, loadConfigFileSync, resolveConfigPaths } from './config-loader.js';
 import { resolveTemplate, resolveOptionalTemplate, isThinkingLevel } from './config-parser.js';
 import {
@@ -59,7 +59,7 @@ export class DefaultConfigProvider implements ConfigProvider {
 
   private async resolvePaths(): Promise<AgentPaths> {
     if (this._paths) return this._paths;
-    const { createDefaultAgentPaths } = await import('../../../config/paths.js');
+    const { createDefaultAgentPaths } = await import('../../../infrastructure/config/paths.js');
     this._paths = createDefaultAgentPaths({ env: this.env });
     return this._paths;
   }

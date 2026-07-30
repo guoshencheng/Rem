@@ -3,7 +3,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { McpServerConfig, McpConnectionState } from './types.js';
 import { McpClient } from './client.js';
 import { McpToolProvider } from './tool-provider.js';
-import { log } from '../shared/debug-log.js';
+import { log } from '../observability/debug-log.js';
 
 export class McpConnectionManager {
   private states = new Map<string, McpConnectionState>();

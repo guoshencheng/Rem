@@ -12,7 +12,7 @@ import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
 import type { SystemPromptAssembler } from './sdk/system-prompt.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
-import type { McpConnectionManager } from './mcp/connection-manager.js';
+import type { McpConnectionManager } from './infrastructure/mcp/connection-manager.js';
 import type { SecurityMode } from './security/permissions/factory.js';
 import type { Rule } from './security/rules/rule.js';
 import { StaticToolProvider } from './plugins/tool/static/index.js';

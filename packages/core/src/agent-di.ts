@@ -9,7 +9,7 @@ import type { BudgetPolicy } from './sdk/budget-policy.js';
 import type { ContextCompressor } from './sdk/compressor.js';
 import type { ErrorHandler } from './sdk/error-handler.js';
 import type { TitleProvider } from './sdk/title-provider.js';
-import type { McpConnectionManager } from './mcp/connection-manager.js';
+import type { McpConnectionManager } from './infrastructure/mcp/connection-manager.js';
 import type { RuleEngine } from './security/rules/rule-engine.js';
 import type { StorageProvider } from './sdk/storage-provider.js';
 import type { ToolPermissionEvaluator } from './security/permissions/types.js';

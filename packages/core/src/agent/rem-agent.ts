@@ -141,7 +141,9 @@ export class REMAgent {
       agentRoleId: this.agentRoleId,
       workspaceRoot: this.workspaceRoot,
     });
-    const systemPrompt = await resolveSystemPrompt({ di: this.di, runtimeConfig: this.runtimeConfig, resolution });
+    // 子 Agent 覆盖：静态 system prompt 优先于 assembler 产物，短路整个 prompt 构建
+    const systemPrompt = this.systemPromptOverride
+      ?? await resolveSystemPrompt({ di: this.di, runtimeConfig: this.runtimeConfig, resolution });
     const sessionId = this.sessionId ?? this.session.sessionId;
     const { effectiveModel, behavior, configProvider } = resolution;
 
@@ -185,8 +187,7 @@ export class REMAgent {
     if (!resolved) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
 
     this.agentContext = {
-      // 子 Agent 覆盖：静态 system prompt 优先于 assembler 产物
-      systemPrompt: this.systemPromptOverride ?? systemPrompt,
+      systemPrompt,
       messages: this.messages,
       tools: agentTools.tools,
     };

@@ -1,11 +1,11 @@
 import type { AgentDI } from '../agent-di.js';
 import type { AgentRuntimeConfig } from '../agent-runtime-config.js';
-import type { BusEvent } from '../bus-events.js';
+import type { BusEvent } from '../agent/bus-events.js';
 import type { Session } from '../session/model.js';
-import type { AgentStreamEvent, RemMetaEvent } from '../types.js';
+import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';
 import type { ArchiveRecord } from '../sdk/storage-provider.js';
 import type { ToolProvider } from '../sdk/tool-provider.js';
-import { normalizeUsageDetail, type TokenUsageDetail } from '../token-usage.js';
+import { normalizeUsageDetail, type TokenUsageDetail } from '../agent/token-usage.js';
 import { generateId } from '../shared/generate-id.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
 import { composeToolProviders } from '../tools/composer.js';

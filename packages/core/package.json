@@ -10,12 +10,12 @@
       "types": "./dist/index.d.ts"
     },
     "./stream/event-aggregators": {
-      "import": "./dist/stream/event-aggregators.js",
-      "types": "./dist/stream/event-aggregators.d.ts"
+      "import": "./dist/agent/event-aggregators.js",
+      "types": "./dist/agent/event-aggregators.d.ts"
     },
     "./token-usage": {
-      "import": "./dist/token-usage.js",
-      "types": "./dist/token-usage.d.ts"
+      "import": "./dist/agent/token-usage.js",
+      "types": "./dist/agent/token-usage.d.ts"
     },
     "./llm/context-window": {
       "import": "./dist/infrastructure/llm/context-window.js",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventQueue } from '../src/event-queue.js';
+import { EventQueue } from '../src/agent/event-queue.js';
 
 async function collect<T>(iter: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = [];

@@ -1,4 +1,4 @@
-import type { BudgetStatus } from './sdk/budget-policy.js';
+import type { BudgetStatus } from '../sdk/budget-policy.js';
 
 export interface BudgetConfig {
   maxTurns: number;
@@ -6,7 +6,7 @@ export interface BudgetConfig {
   maxSameToolFailures: number;
 }
 
-export { type BudgetStatus } from './sdk/budget-policy.js';
+export { type BudgetStatus } from '../sdk/budget-policy.js';
 
 export class IterationBudget {
   private config: BudgetConfig;

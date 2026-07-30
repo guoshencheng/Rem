@@ -1,4 +1,4 @@
-import type { AgentStreamEvent } from '../../types.js';
+import type { AgentStreamEvent } from '../../agent/types.js';
 import type { ApprovalRequest } from '../../sdk/agent-state-provider.js';
 import type { CreateApprovalInput, ApprovalResolution } from './approval-engine.js';
 import type { ApprovalEngine } from './approval-engine.js';

@@ -1,7 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Message } from '@earendil-works/pi-ai';
 import type { ContextCompressor } from '../sdk/compressor.js';
-import type { AgentStreamEvent } from '../types.js';
+import type { AgentStreamEvent } from '../agent/types.js';
 
 export interface ContextBridgeParams {
   compressor: ContextCompressor;

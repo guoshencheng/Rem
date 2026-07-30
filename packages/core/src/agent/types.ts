@@ -1,4 +1,4 @@
-import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
+import type { ApprovalRequest, ApprovalDecision } from '../sdk/agent-state-provider.js';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { Message, Usage, TextContent, ImageContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 

@@ -1,20 +1,20 @@
-export * from './types.js';
+export * from './agent/types.js';
 export { createCoreModels, type CreateCoreModelsOptions } from './infrastructure/llm/models.js';
 export type { Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage, AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai';
 export type { AgentEvent } from '@earendil-works/pi-agent-core';
 export * from './infrastructure/config/paths.js';
 export * from './infrastructure/observability/debug-log.js';
-export * from './budget.js';
+export * from './agent/budget.js';
 export * from './session/model.js';
-export * from './bus-events.js';
-export * from './broadcast-bus.js';
+export * from './agent/bus-events.js';
+export * from './agent/broadcast-bus.js';
 export * from './agent-factory.js';
 export { createAgentAssembly, type AgentContextBuildOptions } from './agent-context-builder.js';
 export type { AgentDI } from './agent-di.js';
 export type { AgentRuntimeConfig, AgentRuntimeInfo } from './agent-runtime-config.js';
 export type { AgentAssembly } from './agent-context-assembler.js';
 export { initRuleEngine, initializeAgentDI } from './agent-context-assembler.js';
-export * from './stream/event-aggregators.js';
+export * from './agent/event-aggregators.js';
 export type { Rule, RuleAction, RuleSource } from './security/rules/rule.js';
 export type { ToolProfileId } from './security/rules/profiles.js';
 export { RuleEngine } from './security/rules/rule-engine.js';
@@ -29,7 +29,7 @@ export * from './capabilities/todo/types.js';
 export * from './capabilities/todo/errors.js';
 export * from './capabilities/todo/service.js';
 export * from './session/manager/index.js';
-export * from './token-usage.js';
+export * from './agent/token-usage.js';
 export * from './infrastructure/llm/context-window.js';
 
 // --- v2 复用支持 ---
@@ -48,9 +48,9 @@ export { generateId } from './shared/generate-id.js';
 export type { PromptBuildContext } from './sdk/system-prompt.js';
 
 // --- v2 执行单元 ---
-export { EventQueue } from './event-queue.js';
+export { EventQueue } from './agent/event-queue.js';
 export type { PiAgentLike } from './runtime/pi-agent-like.js';
-export type { REMAgentEvent } from './rem-agent-event.js';
+export type { REMAgentEvent } from './agent/agent-event.js';
 export { REMAgent, type REMAgentStatus, type REMAgentParams, type ApprovalStateLike } from './rem-agent.js';
 export {
   resolveREMAgentContext,

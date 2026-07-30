@@ -1,5 +1,5 @@
 import type { AgentTool, BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core';
-import type { AgentStreamEvent } from '../types.js';
+import type { AgentStreamEvent } from '../agent/types.js';
 import type { ToolProvider, ToolContext, ToolCall, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';

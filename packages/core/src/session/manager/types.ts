@@ -1,5 +1,5 @@
 import type { TextContent, ThinkingContent, ToolCall, ImageContent, Usage } from '@earendil-works/pi-ai';
-import type { SessionActivity } from '../../bus-events.js';
+import type { SessionActivity } from '../../agent/bus-events.js';
 
 export type UiContentBlock = TextContent | ThinkingContent | ToolCall | ImageContent;
 

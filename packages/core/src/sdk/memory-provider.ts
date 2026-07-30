@@ -1,5 +1,5 @@
 import type { Message } from '@earendil-works/pi-ai';
-import type { Session } from '../session.js';
+import type { Session } from '../session/model.js';
 import type { ContextProvider } from './context-provider.js';
 
 /** @deprecated Use ContextProvider instead */

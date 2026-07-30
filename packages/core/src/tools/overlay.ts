@@ -8,9 +8,9 @@ import type {
   ToolExecutor,
   ToolProvider,
   ToolResult,
-} from './sdk/tool-provider.js';
-import type { ToolSet } from './sdk/tool-provider.js';
-import { log } from './infrastructure/observability/debug-log.js';
+} from '../sdk/tool-provider.js';
+import type { ToolSet } from '../sdk/tool-provider.js';
+import { log } from '../infrastructure/observability/debug-log.js';
 
 export interface ToolOverlayEntry {
   def: ToolDefinition;

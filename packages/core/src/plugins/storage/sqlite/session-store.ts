@@ -1,9 +1,9 @@
 import Database from 'better-sqlite3';
 import { generateId } from '../../../shared/generate-id.js';
-import type { Session, SessionSummary } from '../../../session.js';
+import type { Session, SessionSummary } from '../../../session/model.js';
 import type { SessionStore } from '../../../sdk/storage-provider.js';
-import type { SessionTreeEntry } from '../../../session-tree/types.js';
-import { buildConversationFromEntries } from '../../../session-tree/context-builder.js';
+import type { SessionTreeEntry } from '../../../session/tree/types.js';
+import { buildConversationFromEntries } from '../../../session/tree/context-builder.js';
 import { wrapSqliteError } from './errors.js';
 import { toSession, toSessionSummary } from './session-converter.js';
 

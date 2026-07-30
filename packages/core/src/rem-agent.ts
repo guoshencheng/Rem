@@ -2,7 +2,7 @@ import type { AssistantMessage, Message, Usage } from '@earendil-works/pi-ai';
 import type { AgentDI } from './agent-di.js';
 import type { AgentRuntimeConfig } from './agent-runtime-config.js';
 import type { BusEvent } from './bus-events.js';
-import type { Session } from './session.js';
+import type { Session } from './session/model.js';
 import type { AgentOutput, RemMetaEvent, UserInput, UserInputContent } from './types.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
 import type { ApprovalEngine } from './execute/approval-engine.js';

@@ -1,5 +1,5 @@
 import type { Message } from '@earendil-works/pi-ai';
-import type { Session, SessionSummary } from '../session.js';
+import type { Session, SessionSummary } from '../session/model.js';
 
 export type { Session, SessionSummary };
 

@@ -1,6 +1,6 @@
 import type { Message, Models, ToolCall, TextContent } from '@earendil-works/pi-ai';
 import type { ContextCompressor } from '../../../sdk/compressor.js';
-import type { Session } from '../../../session.js';
+import type { Session } from '../../../session/model.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { TokenUsageDetail } from '../../../token-usage.js';
 import { resolveContextWindow } from '../../../infrastructure/llm/context-window.js';

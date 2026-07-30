@@ -1,7 +1,7 @@
 import type { Message } from '@earendil-works/pi-ai';
 import type { Usage } from '@earendil-works/pi-ai';
-import type { Session, SessionSummary } from '../session.js';
-import type { SessionTreeEntry } from '../session-tree/types.js';
+import type { Session, SessionSummary } from '../session/model.js';
+import type { SessionTreeEntry } from '../session/tree/types.js';
 import type { Rule, RuleSource } from '../security/rules/rule.js';
 import type { TodoItem } from '../todo/types.js';
 

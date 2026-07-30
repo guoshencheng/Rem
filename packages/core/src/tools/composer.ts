@@ -1,8 +1,8 @@
-import { CompositeToolProvider } from './infrastructure/mcp/composite-tool-provider.js';
-import { ToolOverlay, defineOverlayTool } from './tool-overlay.js';
-import { createReadSkillTool } from './plugins/tool/builtin/skill-read.js';
-import type { ToolProvider } from './sdk/tool-provider.js';
-import type { SkillProvider } from './sdk/skill-provider.js';
+import { CompositeToolProvider } from '../infrastructure/mcp/composite-tool-provider.js';
+import { ToolOverlay, defineOverlayTool } from './overlay.js';
+import { createReadSkillTool } from '../plugins/tool/builtin/skill-read.js';
+import type { ToolProvider } from '../sdk/tool-provider.js';
+import type { SkillProvider } from '../sdk/skill-provider.js';
 
 export function composeToolProviders({ toolProvider, mcpProviders, skillProvider }: {
   toolProvider: ToolProvider;

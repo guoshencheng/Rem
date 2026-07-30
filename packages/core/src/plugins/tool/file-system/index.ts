@@ -1,6 +1,6 @@
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
 import type { Rule } from '../../../security/rules/rule.js';
-import { AgentToolRegistry } from '../../../registry/tool-registry.js';
+import { AgentToolRegistry } from '../../../tools/registry.js';
 import { createFileMutationQueue } from './shared/file-mutation-queue.js';
 import { createReadToolDefinition, createReadToolExecutor } from './read.js';
 import { createWriteToolDefinition, createWriteToolExecutor } from './write.js';

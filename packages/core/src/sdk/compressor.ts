@@ -1,5 +1,5 @@
 import type { Message } from '@earendil-works/pi-ai';
-import type { Session } from '../session.js';
+import type { Session } from '../session/model.js';
 
 export interface ContextCompressor {
   shouldCompress(session: Session): boolean;

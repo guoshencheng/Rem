@@ -16,8 +16,8 @@ import { createPiAgent } from './pi-agent-factory.js';
 import { DefaultTodoService } from '../capabilities/todo/service.js';
 import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from '../plugins/tool/builtin/todo-write.js';
 import type { PiAgentLike } from './pi-agent-like.js';
-import type { REMAgentContext } from '../agent-context.js';
-import type { ApprovalStateLike, REMAgent } from '../rem-agent.js';
+import type { REMAgentContext } from '../agent/context/resolve.js';
+import type { ApprovalStateLike, REMAgent } from '../agent/rem-agent.js';
 import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
 
 export interface AssemblePiAgentParams {

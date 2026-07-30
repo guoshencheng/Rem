@@ -1,0 +1,4 @@
+{
+  "rem-agent.ts": "agent/rem-agent.ts",
+  "agent-context.ts": "agent/context/resolve.ts"
+}

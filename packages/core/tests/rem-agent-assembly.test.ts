@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REMAgent } from '../src/rem-agent.js';
-import { resolveREMAgentContext } from '../src/agent-context.js';
+import { REMAgent } from '../src/agent/rem-agent.js';
+import { resolveREMAgentContext } from '../src/agent/context/resolve.js';
 import { createFakeAssembly, fakeSession } from './helpers/fake-di.js';
 
 describe('REMAgent 装配（构造即创建 pi agent）', () => {

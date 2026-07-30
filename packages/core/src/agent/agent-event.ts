@@ -1,7 +1,7 @@
 import type { Message, Usage } from '@earendil-works/pi-ai';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { RemMetaEvent } from './types.js';
-import type { REMAgent } from '../rem-agent.js';
+import type { REMAgent } from './rem-agent.js';
 
 /**
  * REMAgent 向上抛出的事件。

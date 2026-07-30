@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type { ToolContext } from 'rem-agent-core';
-import { REMAgent } from '../src/rem-agent.js';
+import { REMAgent } from '../src/agent/rem-agent.js';
 import { createDelegateTaskExecutor, type DelegateTaskInput } from '../src/capabilities/sub-agent/delegate-task.js';
 import type { PiAgentLike } from '../src/runtime/pi-agent-like.js';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
-import { REMAgent } from '../src/rem-agent.js';
+import { REMAgent } from '../src/agent/rem-agent.js';
 import type { REMAgentEvent } from '../src/agent/agent-event.js';
 import type { PiAgentLike } from '../src/runtime/pi-agent-like.js';
 

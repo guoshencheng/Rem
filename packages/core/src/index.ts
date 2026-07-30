@@ -51,12 +51,12 @@ export type { PromptBuildContext } from './sdk/system-prompt.js';
 export { EventQueue } from './agent/event-queue.js';
 export type { PiAgentLike } from './runtime/pi-agent-like.js';
 export type { REMAgentEvent } from './agent/agent-event.js';
-export { REMAgent, type REMAgentStatus, type REMAgentParams, type ApprovalStateLike } from './rem-agent.js';
+export { REMAgent, type REMAgentStatus, type REMAgentParams, type ApprovalStateLike } from './agent/rem-agent.js';
 export {
   resolveREMAgentContext,
   type REMAgentContext,
   type ResolveREMAgentContextParams,
-} from './agent-context.js';
+} from './agent/context/resolve.js';
 export {
   createDelegateTaskExecutor,
   createDelegateTaskToolDefinition,

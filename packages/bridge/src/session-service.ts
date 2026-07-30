@@ -1,5 +1,5 @@
 import type { AgentDI, Session, SessionInfo, SessionSummary, SessionUpdate, UIMessage, Usage } from 'rem-agent-core';
-import { AgentSessionManager, AgentState, SessionNotFoundError, addUsage, emptyUsage, log, normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from 'rem-agent-core';
+import { AgentSessionManager, SessionNotFoundError, addUsage, emptyUsage, log, normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from 'rem-agent-core';
 import type { REMAgentEvent } from 'rem-agent-core';
 
 /**
@@ -14,9 +14,7 @@ export class SessionService {
 
   constructor(di: AgentDI) {
     this.di = di;
-    // AgentSessionManager 仅在 deleteSession 用到 AgentState（我们不委托 delete），
-    // 传一个隔离实例即可。
-    this.manager = new AgentSessionManager(di.sessionProvider, new AgentState());
+    this.manager = new AgentSessionManager(di.sessionProvider);
   }
 
   // ---- 加载/创建 ----

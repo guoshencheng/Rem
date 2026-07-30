@@ -1,6 +1,11 @@
 import type { ApprovalRequest, ApprovalDecision } from './sdk/agent-state-provider.js';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { Message, Usage, TextContent, ImageContent } from '@earendil-works/pi-ai';
+import type { Message, Usage, TextContent, ImageContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
+
+export interface StreamingSnapshot {
+  messageId: string;
+  parts: Array<TextContent | ThinkingContent | ToolCall | undefined>;
+}
 
 export interface StreamErrorInfo {
   name: string;

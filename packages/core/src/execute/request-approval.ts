@@ -1,10 +1,21 @@
-import type { AgentState } from '../agent-state.js';
 import type { AgentStreamEvent } from '../types.js';
+import type { ApprovalRequest } from '../sdk/agent-state-provider.js';
 import type { CreateApprovalInput, ApprovalResolution } from './approval-engine.js';
+import type { ApprovalEngine } from './approval-engine.js';
 import { log } from '../shared/debug-log.js';
 
+/** 审批链路需要的最小 live state 面（由 bridge 的 REMSession 满足） */
+export interface ApprovalLiveState {
+  approvalEngine: ApprovalEngine;
+  pendingApprovals: ApprovalRequest[];
+}
+
+export interface ApprovalStateHost {
+  getOrCreate(sessionId: string): ApprovalLiveState;
+}
+
 export interface RequestApprovalParams {
-  agentState: AgentState;
+  agentState: ApprovalStateHost;
   sessionId: string;
   input: CreateApprovalInput;
   emit: (event: AgentStreamEvent) => void;

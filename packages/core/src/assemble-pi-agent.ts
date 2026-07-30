@@ -83,7 +83,7 @@ export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
   const toolBridge = createToolBridge({
     toolProvider: toolProviderWithOverlay,
     permissionEvaluator: di.permissionEvaluator,
-    agentState: params.approvalState as never, // 结构适配：仅用 getOrCreate → approvalEngine/pendingApprovals
+    agentState: params.approvalState,
     ruleEngine: di.ruleEngine,
     ruleStore: di.storage.ruleStore,
     securityMode: runtimeConfig.securityMode,

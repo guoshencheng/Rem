@@ -1,17 +1,15 @@
 import type { Usage } from '@earendil-works/pi-ai';
 import type { TextContent } from '@earendil-works/pi-ai';
 import type { SessionProvider } from '../sdk/session-provider.js';
-import { AgentState } from '../agent-state.js';
 import { addUsage, emptyUsage, normalizeUsage } from '../token-usage.js';
 import type { SessionInfo, SessionUpdate, UIMessage, ToolResultBlock } from './types.js';
 import { SessionNotFoundError } from './errors.js';
 import { messageToContentBlocks } from './message-blocks.js';
 
-/** 会话管理的通用内置逻辑：创建/列表/检索/更新/删除 + UIMessage 组装。 */
+/** 会话管理的通用内置逻辑：创建/列表/检索/更新 + UIMessage 组装。 */
 export class AgentSessionManager {
   constructor(
     private sessionProvider: SessionProvider,
-    private agentState: AgentState,
   ) {}
 
   async createSession(workspace: string): Promise<SessionInfo> {
@@ -124,19 +122,6 @@ export class AgentSessionManager {
     }
     session.updatedAt = new Date();
     await this.sessionProvider.save(session);
-  }
-
-  async deleteSession(sessionId: string): Promise<void> {
-    const session = await this.sessionProvider.load(sessionId);
-    if (!session) {
-      throw new SessionNotFoundError(sessionId);
-    }
-    this.agentState.abortRun(sessionId);
-    this.agentState.removeRun(sessionId);
-    await this.sessionProvider.delete(sessionId);
-    // 删除后清理内存中的 live state，避免后续 stream 重连时把已删除会话的
-    // snapshot 推给前端。
-    this.agentState.remove(sessionId);
   }
 
   private computeTotalTokenUsage(messageTokenUsage: unknown): Usage | undefined {

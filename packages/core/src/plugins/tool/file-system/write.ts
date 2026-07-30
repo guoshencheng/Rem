@@ -7,7 +7,7 @@ import {
 } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { FileMutationQueue } from './shared/file-mutation-queue.js';
-import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
+import { resolveWorkspacePath } from '../../../security/workspace/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 
 const writeSchema = Type.Object(

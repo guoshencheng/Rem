@@ -1,5 +1,5 @@
 import { expandToolGroups } from './tool-policy-shared.js';
-import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
+import type { ToolPolicyConfig } from '../../sdk/tool-policy.js';
 
 const PROFILE_TOOLS: Record<string, string[] | undefined> = {
   minimal: ['session_status'],

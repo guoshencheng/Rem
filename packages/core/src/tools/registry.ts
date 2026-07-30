@@ -4,8 +4,8 @@ import type { TObject } from '@sinclair/typebox';
 import type { ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall, ToolResult } from '../sdk/tool-provider.js';
 import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
 import type { ToolSet } from '../sdk/tool-provider.js';
-import { applyToolPolicyPipeline } from '../security/tool-policy-pipeline.js';
-import { WorkspaceOutsideError } from '../security/workspace-outside-error.js';
+import { applyToolPolicyPipeline } from '../security/tool-policy/tool-policy-pipeline.js';
+import { WorkspaceOutsideError } from '../security/workspace/workspace-outside-error.js';
 
 export interface AgentToolRegistryOptions {
   workspaceRoot: string;

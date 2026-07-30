@@ -5,7 +5,7 @@ import type { BusEvent } from './bus-events.js';
 import type { Session } from './session/model.js';
 import type { AgentOutput, RemMetaEvent, UserInput, UserInputContent } from './types.js';
 import type { ApprovalRequest } from './sdk/agent-state-provider.js';
-import type { ApprovalEngine } from './execute/approval-engine.js';
+import type { ApprovalEngine } from './security/approval/approval-engine.js';
 import { addUsage, emptyUsage } from './token-usage.js';
 import { generateId } from './shared/generate-id.js';
 import { log } from './infrastructure/observability/debug-log.js';

@@ -9,7 +9,7 @@ import {
   stripBom,
 } from './edit-diff.js';
 import type { FileMutationQueue } from './shared/file-mutation-queue.js';
-import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
+import { resolveWorkspacePath } from '../../../security/workspace/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 import { type EditToolInput, editSchema } from './edit-schemas.js';
 import {

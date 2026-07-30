@@ -1,6 +1,6 @@
-import type { Rule } from '../security/rules/rule.js';
-import type { ApprovalDecision, ApprovalRequest } from '../sdk/agent-state-provider.js';
-import { generateId } from '../shared/generate-id.js';
+import type { Rule } from '../rules/rule.js';
+import type { ApprovalDecision, ApprovalRequest } from '../../sdk/agent-state-provider.js';
+import { generateId } from '../../shared/generate-id.js';
 
 export type { ApprovalDecision };
 

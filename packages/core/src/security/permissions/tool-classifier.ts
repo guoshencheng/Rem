@@ -1,6 +1,6 @@
 import { matchPattern } from '../rules/matcher.js';
 import { BUILT_IN_SENSITIVE_READ_PATTERNS } from './sensitive-patterns.js';
-import { classifyCommand } from '../exec-classifier.js';
+import { classifyCommand } from './exec-classifier.js';
 import type { ToolDefinition } from '../../sdk/tool-provider.js';
 
 export type ToolCategory = 'write' | 'sensitive-read' | 'read';

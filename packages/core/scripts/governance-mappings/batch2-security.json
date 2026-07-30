@@ -1,0 +1,11 @@
+{
+  "execute/approval-engine.ts": "security/approval/approval-engine.ts",
+  "execute/request-approval.ts": "security/approval/request-approval.ts",
+  "security/workspace-outside-error.ts": "security/workspace/workspace-outside-error.ts",
+  "security/workspace-root-guard.ts": "security/workspace/workspace-root-guard.ts",
+  "security/tool-policy-pipeline.ts": "security/tool-policy/tool-policy-pipeline.ts",
+  "security/tool-policy-profile.ts": "security/tool-policy/tool-policy-profile.ts",
+  "security/tool-policy-shared.ts": "security/tool-policy/tool-policy-shared.ts",
+  "security/exec-classifier.ts": "security/permissions/exec-classifier.ts",
+  "types/bash-parser.d.ts": "security/permissions/bash-parser.d.ts"
+}

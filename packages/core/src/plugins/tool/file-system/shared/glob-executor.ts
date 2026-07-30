@@ -1,7 +1,7 @@
 import { glob } from 'glob';
 import { relative } from 'node:path';
 import { realpath } from 'node:fs/promises';
-import { resolveWorkspacePath } from '../../../../security/workspace-root-guard.js';
+import { resolveWorkspacePath } from '../../../../security/workspace/workspace-root-guard.js';
 
 export interface GlobExecutorOptions {
   pattern: string;

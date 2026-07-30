@@ -4,11 +4,11 @@ import type { ToolProvider, ToolContext, ToolCall, ToolResult } from '../sdk/too
 import type { ToolPermissionEvaluator } from '../security/permissions/types.js';
 import type { SecurityMode } from '../security/permissions/factory.js';
 import type { RuleStorage } from '../sdk/storage-provider.js';
-import type { ApprovalStateHost } from '../execute/request-approval.js';
+import type { ApprovalStateHost } from '../security/approval/request-approval.js';
 import type { RuleEngine } from '../security/rules/rule-engine.js';
-import { WorkspaceOutsideError } from '../security/workspace-outside-error.js';
+import { WorkspaceOutsideError } from '../security/workspace/workspace-outside-error.js';
 import { classifyTool } from '../security/permissions/tool-classifier.js';
-import { requestApproval } from '../execute/request-approval.js';
+import { requestApproval } from '../security/approval/request-approval.js';
 
 export interface ToolBridgeParams {
   toolProvider: ToolProvider;

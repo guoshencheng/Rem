@@ -1,5 +1,5 @@
-import type { ToolDefinition } from '../sdk/tool-provider.js';
-import type { ToolPolicyConfig } from '../sdk/tool-policy.js';
+import type { ToolDefinition } from '../../sdk/tool-provider.js';
+import type { ToolPolicyConfig } from '../../sdk/tool-policy.js';
 import { expandToolGroups, normalizeToolName } from './tool-policy-shared.js';
 import { resolveProfilePolicy } from './tool-policy-profile.js';
 

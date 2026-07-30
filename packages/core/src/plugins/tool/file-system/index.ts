@@ -31,7 +31,7 @@ import {
   deriveApplyPatchPatterns,
   deriveApplyPatchAlwaysOptions,
 } from './apply-patch.js';
-import { classifyCommand } from '../../../security/exec-classifier.js';
+import { classifyCommand } from '../../../security/permissions/exec-classifier.js';
 
 function deriveFilePatterns(input: { path?: string }): string[] {
   const p = input.path ?? '';

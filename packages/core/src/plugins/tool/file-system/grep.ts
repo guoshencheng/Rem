@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { resolveWorkspacePath } from '../../../security/workspace-root-guard.js';
+import { resolveWorkspacePath } from '../../../security/workspace/workspace-root-guard.js';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 import type { Rule } from '../../../security/rules/rule.js';
 import { executeGlob } from './shared/glob-executor.js';

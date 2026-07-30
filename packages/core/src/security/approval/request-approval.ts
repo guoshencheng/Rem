@@ -1,8 +1,8 @@
-import type { AgentStreamEvent } from '../types.js';
-import type { ApprovalRequest } from '../sdk/agent-state-provider.js';
+import type { AgentStreamEvent } from '../../types.js';
+import type { ApprovalRequest } from '../../sdk/agent-state-provider.js';
 import type { CreateApprovalInput, ApprovalResolution } from './approval-engine.js';
 import type { ApprovalEngine } from './approval-engine.js';
-import { log } from '../infrastructure/observability/debug-log.js';
+import { log } from '../../infrastructure/observability/debug-log.js';
 
 /** 审批链路需要的最小 live state 面（由 bridge 的 REMSession 满足） */
 export interface ApprovalLiveState {

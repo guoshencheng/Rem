@@ -1,5 +1,6 @@
 import type { ApprovalRequest, ApprovalDecision } from '../sdk/agent-state-provider.js';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { TodoItem } from '../capabilities/todo/types.js';
 import type { Message, Usage, TextContent, ImageContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 
 export interface StreamingSnapshot {
@@ -27,6 +28,7 @@ export type RemMetaEvent =
   | { type: 'compress-start'; sessionId: string; estimatedTokens: number; threshold: number }
   | { type: 'compress-end'; sessionId: string; archiveId: string; removedMessageCount: number }
   | { type: 'compress-error'; sessionId: string; error: string }
+  | { type: 'todo-updated'; sessionId: string; todos: TodoItem[] }
   | { type: 'finish'; output: AgentOutput }
   | { type: 'error'; error: StreamErrorInfo };
 

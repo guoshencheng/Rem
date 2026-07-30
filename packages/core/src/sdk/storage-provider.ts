@@ -2,7 +2,6 @@ import type { Message } from '@earendil-works/pi-ai';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session/model.js';
 import type { SessionTreeEntry } from '../session/tree/types.js';
-import type { Rule, RuleSource } from '../security/rules/rule.js';
 import type { TodoItem } from '../capabilities/todo/types.js';
 
 export interface ArchiveRecord {
@@ -40,7 +39,6 @@ export interface StorageProvider {
   init(): Promise<void>;
   close(): Promise<void>;
   readonly sessionStore: SessionStore;
-  readonly ruleStore: RuleStorage;
   readonly todoStore: TodoStore;
   readonly archiveStore: ArchiveStore;
   readonly workspaceStore: WorkspaceStore;
@@ -62,10 +60,4 @@ export interface SessionStore {
   appendEntry(entry: SessionTreeEntry): Promise<void>;
   getActiveLeafId(sessionId: string): Promise<string | null>;
   listEntries(sessionId: string): Promise<SessionTreeEntry[]>;
-}
-
-export interface RuleStorage {
-  loadAll(): Promise<Rule[]>;
-  loadBySource(source: RuleSource): Promise<Rule[]>;
-  saveApproved(rule: Omit<Rule, 'source'>): Promise<void>;
 }

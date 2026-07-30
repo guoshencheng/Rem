@@ -6,6 +6,6 @@ export interface CreateAgentOptions extends AgentContextBuildOptions {}
 
 export async function createAgentFromEnv(options?: CreateAgentOptions): Promise<AgentAssembly> {
   const assembly = createAgentAssembly(options);
-  await initializeAgentDI(assembly.di, { skipMcp: !!options?.mcpProviders });
+  await initializeAgentDI(assembly.di);
   return assembly;
 }

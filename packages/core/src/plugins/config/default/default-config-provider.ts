@@ -7,13 +7,11 @@ import type {
   ResolvedModelConfig,
 } from '../../../sdk/config-provider.js';
 import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.js';
-import type { McpServerConfig } from '../../../infrastructure/mcp/types.js';
 import type { AgentPaths } from '../../../infrastructure/config/paths.js';
 import { loadConfigFile, loadConfigFileSync, resolveConfigPaths } from './config-loader.js';
 import { mergeFileConfig, mergeEnvConfig, applyBehaviorDefaults, mergeDeepConfig } from './config-merger.js';
 import { DefaultAgentResolver } from './agent-resolver.js';
 import { resolveModelConfig } from './model-config-resolver.js';
-import { resolveMcpConfig } from './mcp-config-resolver.js';
 
 export interface DefaultConfigProviderOptions {
   env?: NodeJS.ProcessEnv;
@@ -141,11 +139,6 @@ export class DefaultConfigProvider implements ConfigProvider {
       throw new Error('DefaultConfigProvider must be initialized before reading behavior config');
     }
     return applyBehaviorDefaults(this.getRawConfig());
-  }
-
-  getMcpConfig(): Record<string, McpServerConfig> {
-    const cfg = this.getRawConfig();
-    return resolveMcpConfig(cfg.mcpServers ?? {}, this.env);
   }
 
   getCompressionConfig(): Required<import('../../../sdk/config-provider.js').CompressionConfig> {

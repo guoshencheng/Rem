@@ -4,7 +4,6 @@ import { dirname } from 'node:path';
 import type { StorageProvider } from '../../../sdk/storage-provider.js';
 import { SqliteSchemaManager } from './schema.js';
 import { SqliteSessionStore } from './session-store.js';
-import { SqliteRuleStore } from './rule-store.js';
 import { SqliteTodoStore } from './todo-store.js';
 import { SqliteArchiveStore } from './archive-store.js';
 import { SqliteWorkspaceStore } from './workspace-store.js';
@@ -17,7 +16,6 @@ export interface SqliteStorageProviderOptions {
 export class SqliteStorageProvider implements StorageProvider {
   private db: Database.Database | undefined;
   private _sessionStore: SqliteSessionStore | undefined;
-  private _ruleStore: SqliteRuleStore | undefined;
   private _todoStore: SqliteTodoStore | undefined;
   private _archiveStore: SqliteArchiveStore | undefined;
   private _workspaceStore: SqliteWorkspaceStore | undefined;
@@ -33,7 +31,6 @@ export class SqliteStorageProvider implements StorageProvider {
       this.db.pragma('journal_mode = WAL');
       new SqliteSchemaManager(this.db).migrate();
       this._sessionStore = new SqliteSessionStore(this.db);
-      this._ruleStore = new SqliteRuleStore(this.db);
       this._todoStore = new SqliteTodoStore(this.db);
       this._archiveStore = new SqliteArchiveStore(this.db);
       this._workspaceStore = new SqliteWorkspaceStore(this.db);
@@ -56,7 +53,6 @@ export class SqliteStorageProvider implements StorageProvider {
     this.db?.close();
     this.db = undefined;
     this._sessionStore = undefined;
-    this._ruleStore = undefined;
     this._todoStore = undefined;
     this._archiveStore = undefined;
     this._workspaceStore = undefined;
@@ -65,11 +61,6 @@ export class SqliteStorageProvider implements StorageProvider {
   get sessionStore(): SqliteSessionStore {
     if (!this._sessionStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
     return this._sessionStore;
-  }
-
-  get ruleStore(): SqliteRuleStore {
-    if (!this._ruleStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
-    return this._ruleStore;
   }
 
   get todoStore(): SqliteTodoStore {

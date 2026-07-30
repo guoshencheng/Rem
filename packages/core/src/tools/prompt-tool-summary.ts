@@ -8,7 +8,6 @@ import { createDelegateTaskToolDefinition } from '../capabilities/sub-agent/dele
 /** systemPrompt 的工具清单：composed providers + delegate_task/todo_write 两个内建工具（无需真建 overlay） */
 export function listPromptToolSummaries(params: {
   toolProvider: ToolProvider;
-  mcpProviders: ToolProvider[];
   skillProvider: SkillProvider;
 }): ToolInfo[] {
   const composed = composeToolProviders(params);

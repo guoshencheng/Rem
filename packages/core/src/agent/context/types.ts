@@ -1,20 +1,9 @@
-import type { Message } from '@earendil-works/pi-ai';
 import type { AgentDI } from '../../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../../assembly/runtime-config.js';
 import type { Session } from '../../session/model.js';
-import type { AgentBehaviorConfig, ConfigProvider, ResolvedModelConfig } from '../../sdk/config-provider.js';
 
-/** REMAgent 构造所需的全部预解析产物（异步部分在此收敛，构造函数保持同步） */
-export interface REMAgentContext {
-  messages: Message[];
-  systemPrompt: string;
-  effectiveModel: ResolvedModelConfig;
-  behavior: Required<AgentBehaviorConfig>;
-  configProvider: ConfigProvider;
-  workspaceRoot: string;
-}
-
-export interface ResolveREMAgentContextParams {
+/** resolveAgentConfig 的输入 */
+export interface ResolveAgentConfigParams {
   di: AgentDI;
   runtimeConfig: AgentRuntimeConfig;
   /** 已由 SessionService 加载/创建的 session */

@@ -33,7 +33,7 @@ export async function createTestService(options: {
   });
 
   const { di, runtimeConfig } = createAgentAssembly({ paths, configProvider, models, ...options.agentOptions });
-  await initializeAgentDI(di, { skipMcp: true });
+  await initializeAgentDI(di);
 
   const service = new AgentsUniService(di, runtimeConfig);
   await di.storage.workspaceStore.add(workspace).catch(() => {});

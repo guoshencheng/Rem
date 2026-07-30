@@ -8,7 +8,7 @@ export interface MockProviderConfig {
   error?: Error;
 }
 
-class MockEventStream implements AsyncIterable<AssistantMessageEvent> {
+export class MockEventStream implements AsyncIterable<AssistantMessageEvent> {
   private events: AssistantMessageEvent[] = [];
   private pending: Array<(event: AssistantMessageEvent | null) => void> = [];
   private resultPromise: Promise<AssistantMessage>;

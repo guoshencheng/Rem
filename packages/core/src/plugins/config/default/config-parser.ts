@@ -1,7 +1,6 @@
 import type { AgentModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
-import type { McpServerConfig } from '../../../infrastructure/mcp/types.js';
 import type { ThinkingLevel } from '@earendil-works/pi-ai';
 
 export function isObject(value: unknown): value is Record<string, unknown> {
@@ -104,29 +103,3 @@ export function pickCompressionConfig(raw: unknown): CompressionConfig | undefin
   return Object.keys(cfg).length > 0 ? cfg : undefined;
 }
 
-export function pickMcpConfig(raw: unknown): Record<string, McpServerConfig> | undefined {
-  if (!isObject(raw)) return undefined;
-  const result: Record<string, McpServerConfig> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (!isObject(value)) continue;
-    const transport = value.transport;
-    if (transport !== 'stdio' && transport !== 'sse') continue;
-
-    let base: McpServerConfig;
-    if (transport === 'stdio') {
-      base = { transport: 'stdio', command: '' };
-      if (typeof value.command === 'string') base.command = value.command;
-    } else {
-      base = { transport: 'sse', url: '' };
-      if (typeof value.url === 'string') base.url = value.url;
-    }
-
-    if (Array.isArray(value.args)) (base as any).args = value.args;
-    if (isObject(value.env)) (base as any).env = value.env as Record<string, string>;
-    if (typeof value.prefix === 'string') (base as any).prefix = value.prefix;
-    if (typeof value.disabled === 'boolean') (base as any).disabled = value.disabled;
-    if (typeof value.timeoutMs === 'number') (base as any).timeoutMs = value.timeoutMs;
-    result[key] = base;
-  }
-  return Object.keys(result).length > 0 ? result : undefined;
-}

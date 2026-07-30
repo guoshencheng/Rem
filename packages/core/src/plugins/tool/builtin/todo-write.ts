@@ -1,7 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
 import type { TodoService } from '../../../capabilities/todo/service.js';
-import type { BusEvent } from '../../../agent/bus-events.js';
+import type { RemMetaEvent } from '../../../agent/types.js';
 
 const TodoStatusSchema = Type.Union(
   [
@@ -69,8 +69,7 @@ The list is ordered: position 0 is the current/next task. Always send the full u
 
 export function createTodoWriteToolExecutor(
   todoService: TodoService,
-  publish: (event: BusEvent) => void,
-  workspace: string,
+  emit: (event: RemMetaEvent) => void,
 ): ToolExecutor<typeof TodoWriteSchema> {
   return async (input, ctx) => {
     if (!ctx.sessionId) {
@@ -79,10 +78,9 @@ export function createTodoWriteToolExecutor(
 
     const updatedTodos = await todoService.update(ctx.sessionId, input.todos);
 
-    publish({
-      workspace,
-      sessionId: ctx.sessionId,
+    emit({
       type: 'todo-updated',
+      sessionId: ctx.sessionId,
       todos: updatedTodos,
     });
 

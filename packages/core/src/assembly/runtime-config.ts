@@ -1,5 +1,3 @@
-import type { SecurityMode } from '../security/permissions/factory.js';
-
 export interface AgentRuntimeInfo {
   platform: string;
   nodeVersion?: string;
@@ -8,6 +6,5 @@ export interface AgentRuntimeInfo {
 }
 
 export interface AgentRuntimeConfig {
-  securityMode: SecurityMode;
   runtime: AgentRuntimeInfo;
 }

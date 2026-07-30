@@ -3,13 +3,13 @@ import type {
   TodoItem, UserInputContent,
 } from 'rem-agent-core';
 import {
-  BroadcastBus, DefaultTodoService, SessionNotFoundError, buildChildContext,
+  BroadcastBus, DefaultTodoService, SessionNotFoundError,
   compactContentBlocks, log,
   type BusEvent, type SessionInfo, type SessionUpdate, type TextContent,
   type ThinkingContent, type TokenUsageDetail, type ToolCall, type ToolContext,
   type UIMessage, type WorkspaceRecord,
 } from 'rem-agent-core';
-import { REMAgent, resolveREMAgentContext, type DelegateTaskInputV2 } from 'rem-agent-core';
+import { REMAgent, type DelegateTaskInputV2 } from 'rem-agent-core';
 import type { IAgentService } from './agent-service.interface.js';
 import { REMSessions } from './rem-sessions.js';
 import type { REMSession } from './rem-session.js';
@@ -46,13 +46,11 @@ export class AgentsUniService implements IAgentService {
   /* ---- 运行控制 ---- */
 
   async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
-    const existing = this.sessions.get(sessionId);
-    if (existing?.status === 'running') {
-      throw new ServiceError('Session is already running', 409);
-    }
-
     const session = await this.sessionService.loadOrCreate(sessionId, workspace);
     const remSession = this.sessions.getOrCreate(sessionId, workspace);
+    if (remSession?.status === 'running') {
+      throw new ServiceError('Session is already running', 409);
+    }
     const controller = remSession.startRun();
     log('uni', 'run started', { sessionId, workspace });
 
@@ -68,24 +66,15 @@ export class AgentsUniService implements IAgentService {
     }
 
     try {
-      const context = await resolveREMAgentContext({
+      const remAgent = new REMAgent({
         di: this.di,
         runtimeConfig: this.runtimeConfig,
         session,
         workspace,
         workspaceRoot: workspace,
-      });
-      const remAgent = new REMAgent({
-        context,
-        di: this.di,
-        runtimeConfig: this.runtimeConfig,
-        session,
-        workspace,
         agentId: 'root',
         sessionId,
         signal: controller.signal,
-        approvalState: { getOrCreate: () => remSession },
-        publishBus: (e) => this.bus.publish(e),
         spawnChild: (childInput, toolCtx) => this.spawnChild(remSession, 'root', childInput, toolCtx),
       });
       remSession.agents.push(remAgent);
@@ -103,30 +92,19 @@ export class AgentsUniService implements IAgentService {
       workspace: remSession.workspace,
       title: input.task.slice(0, 50),
     });
-    const child = buildChildContext(this.di, this.runtimeConfig, {
-      maxTurns: input.maxTurns,
-      systemPrompt: input.systemPrompt,
-    });
     const childAgentId = `${parentAgentId}.delegate-${remSession.agents.length}`;
-    const context = await resolveREMAgentContext({
-      di: child.di,
-      runtimeConfig: child.runtimeConfig,
+    const remAgent = new REMAgent({
+      di: this.di,
+      runtimeConfig: this.runtimeConfig,
       session: childSession,
       workspace: remSession.workspace,
       workspaceRoot: toolCtx.workspaceRoot,
-    });
-    const remAgent = new REMAgent({
-      context,
-      di: child.di,
-      runtimeConfig: child.runtimeConfig,
-      session: childSession,
-      workspace: remSession.workspace,
+      maxTurns: input.maxTurns,
+      systemPrompt: input.systemPrompt,
       agentId: childAgentId,
       sessionId: childSession.sessionId,
       summary: input.task,
       signal: toolCtx.signal,
-      approvalState: { getOrCreate: () => remSession },
-      publishBus: (e) => this.bus.publish(e),
       spawnChild: (grandInput, grandCtx) => this.spawnChild(remSession, childAgentId, grandInput, grandCtx),
     });
     remSession.agents.push(remAgent);
@@ -217,10 +195,6 @@ export class AgentsUniService implements IAgentService {
   }
 
   async resolveApproval(_workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
-    if (decision === 'allow-always' && rule) {
-      await this.di.storage.ruleStore.saveApproved(rule);
-      this.di.ruleEngine.addRule({ ...rule, source: 'approved' });
-    }
     return this.sessions.get(sessionId)?.approvalEngine.resolve(approvalId, decision, rule) ?? false;
   }
 

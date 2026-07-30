@@ -54,6 +54,11 @@ export class AgentService {
           });
           continue;
         }
+        // todo_write 工具经 agent 事件流抛出的 meta 事件 → 转 BusEvent（不作为 chunk 上总线）
+        if (event.type === 'todo-updated') {
+          publish({ workspace: ws, sessionId: event.sessionId ?? sid, type: 'todo-updated', todos: event.todos });
+          continue;
+        }
 
         // ② 内存状态 + ③ 总线 chunk
         for (const e of session.applyEvent(agent.agentId, event)) publish(e);

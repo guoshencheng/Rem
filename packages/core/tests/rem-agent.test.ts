@@ -1,46 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
+import type { Message } from '@earendil-works/pi-ai';
 import { REMAgent } from '../src/agent/rem-agent.js';
 import type { REMAgentEvent } from '../src/agent/agent-event.js';
-import type { PiAgentLike } from '../src/runtime/pi-agent-like.js';
+import { fauxAssistantMessage, fauxToolCall, type ScriptedStep } from './helpers/scripted-models.js';
+import { createTestAgent } from './helpers/test-agent.js';
 
-function assistantMessage(stopReason: 'stop' | 'error' = 'stop'): AssistantMessage {
-  return {
-    role: 'assistant',
-    api: 'openai-completions',
-    provider: 'mock',
-    model: 'mock-model',
-    content: [{ type: 'text', text: 'Hello' }],
-    usage: { input: 3, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 6, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-    stopReason,
-    errorMessage: stopReason === 'error' ? 'boom' : undefined,
-    timestamp: Date.now(),
-  } as AssistantMessage;
-}
-
-/** 手写 PiAgentLike：prompt 时回放脚本化事件 */
-class FakePiAgent implements PiAgentLike {
-  steered: Message[] = [];
-  followedUp: Message[] = [];
-  aborted = false;
-  private listeners: Array<(e: AgentEvent) => void> = [];
-
-  constructor(private script: (emit: (e: AgentEvent) => void) => void) {}
-
-  subscribe(listener: (e: AgentEvent) => void): () => void {
-    this.listeners.push(listener);
-    return () => {};
-  }
-
-  async prompt(_message: Message): Promise<void> {
-    this.script((e) => this.listeners.forEach((l) => void l(e)));
-  }
-
-  steer(m: Message): void { this.steered.push(m); }
-  followUp(m: Message): void { this.followedUp.push(m); }
-  abort(): void { this.aborted = true; }
-}
+const userMessage = (text: string): Message =>
+  ({ role: 'user', content: text, timestamp: Date.now() }) as Message;
 
 async function collect(iter: AsyncIterable<REMAgentEvent>): Promise<REMAgentEvent[]> {
   const out: REMAgentEvent[] = [];
@@ -50,26 +16,21 @@ async function collect(iter: AsyncIterable<REMAgentEvent>): Promise<REMAgentEven
 
 describe('REMAgent', () => {
   it('run 产出 message-persist / usage / finish，output 解析为文本', async () => {
-    const assistant = assistantMessage();
-    const pi = new FakePiAgent((emit) => {
-      emit({ type: 'message_end', message: { role: 'user', content: 'hi', timestamp: Date.now() } as Message } as AgentEvent);
-      emit({ type: 'message_end', message: assistant } as AgentEvent);
-      emit({ type: 'turn_end', message: assistant } as AgentEvent);
-    });
-    const agent = new REMAgent({ agentId: 'root', agent: pi });
+    const { agent } = await createTestAgent({ steps: [fauxAssistantMessage('Hello')] });
 
     const events = await collect(agent.run({ content: 'hi' }));
 
     const types = events.map((e) => e.type);
-    expect(types).toContain('message-persist');
-    expect(types).toContain('usage');
-    expect(types).toContain('finish');
+    expect(types[0]).toBe('agent_start');
+    expect(types).toContain('turn_start');
+    expect(types).toContain('turn_end');
+    expect(types[types.length - 1]).toBe('finish');
 
     const persists = events.filter((e) => e.type === 'message-persist');
     expect(persists).toHaveLength(2);
 
     const usage = events.find((e) => e.type === 'usage');
-    expect(usage).toMatchObject({ usage: { totalTokens: 6 } });
+    expect(usage).toBeTruthy();
     expect((usage as { assistantMessageId?: string }).assistantMessageId).toBeTruthy();
 
     await expect(agent.output).resolves.toEqual({ content: 'Hello', completed: true });
@@ -77,12 +38,9 @@ describe('REMAgent', () => {
   });
 
   it('assistant stopReason=error 时发 error 事件，output 带 Error: 前缀', async () => {
-    const bad = assistantMessage('error');
-    const pi = new FakePiAgent((emit) => {
-      emit({ type: 'message_end', message: bad } as AgentEvent);
-      emit({ type: 'turn_end', message: bad } as AgentEvent);
+    const { agent } = await createTestAgent({
+      steps: [fauxAssistantMessage('boom', { stopReason: 'error', errorMessage: 'boom' })],
     });
-    const agent = new REMAgent({ agentId: 'root', agent: pi });
 
     const events = await collect(agent.run({ content: 'hi' }));
 
@@ -92,25 +50,159 @@ describe('REMAgent', () => {
     expect(agent.status).toBe('error');
   });
 
-  it('steer / followUp / interrupt 透传到 pi agent', async () => {
-    const pi = new FakePiAgent(() => {});
-    const agent = new REMAgent({ agentId: 'root', agent: pi });
-    agent.steer('s');
-    agent.followUp('f');
-    agent.interrupt();
-    expect(pi.steered).toHaveLength(1);
-    expect(pi.followedUp).toHaveLength(1);
-    expect(pi.aborted).toBe(true);
+  it('tool call 循环：执行工具 → toolResult 落盘事件 → 第二轮文本', async () => {
+    const executed: string[] = [];
+    const { agent, state } = await createTestAgent({
+      steps: [fauxAssistantMessage([fauxToolCall('echo', {})]), fauxAssistantMessage('done')],
+      tools: [{
+        name: 'echo',
+        run: async () => {
+          executed.push('echo');
+          return 'echoed';
+        },
+      }],
+    });
+
+    const events = await collect(agent.run({ content: 'go' }));
+
+    expect(executed).toEqual(['echo']);
+    expect(state.callCount).toBe(2);
+    const types = events.map((e) => e.type);
+    expect(types).toContain('tool_execution_start');
+    expect(types).toContain('tool_execution_end');
+    const toolResults = events.filter(
+      (e) => e.type === 'message_end' && (e.message as Message).role === 'toolResult',
+    );
+    expect(toolResults).toHaveLength(1);
+  });
+
+  it('steer 消息在下一轮注入到 LLM 上下文', async () => {
+    const seen: string[][] = [];
+    let agent!: REMAgent;
+    const steps: ScriptedStep[] = [
+      ({ context }) => {
+        seen.push(context.messages.map((m) => m.role));
+        agent.steer('steered');
+        return fauxAssistantMessage([fauxToolCall('noop', {})]);
+      },
+      ({ context }) => {
+        seen.push(context.messages.map((m) => m.role));
+        return fauxAssistantMessage('ok');
+      },
+    ];
+    const created = await createTestAgent({
+      steps,
+      tools: [{ name: 'noop', run: async () => '' }],
+    });
+    agent = created.agent;
+
+    await collect(agent.run({ content: 'go' }));
+
+    // 第二轮上下文：user / assistant(toolCall) / toolResult / user(steered)
+    expect(seen[1]).toEqual(['user', 'assistant', 'toolResult', 'user']);
+  });
+
+  it('followUp 在 agent 即将停止时注入并续跑', async () => {
+    const seen: string[][] = [];
+    let agent!: REMAgent;
+    const steps: ScriptedStep[] = [
+      ({ context }) => {
+        seen.push(context.messages.map((m) => m.role));
+        agent.followUp('later');
+        return fauxAssistantMessage('one');
+      },
+      ({ context }) => {
+        seen.push(context.messages.map((m) => m.role));
+        return fauxAssistantMessage('two');
+      },
+    ];
+    const created = await createTestAgent({ steps });
+    agent = created.agent;
+
+    await collect(agent.run({ content: 'go' }));
+
+    expect(created.state.callCount).toBe(2);
+    expect(seen[1]).toEqual(['user', 'assistant', 'user']);
+  });
+
+  it('interrupt 中断当前 run，最终 turn stopReason=aborted', async () => {
+    let agent!: REMAgent;
+    const steps: ScriptedStep[] = [
+      () => {
+        agent.interrupt();
+        return fauxAssistantMessage('never');
+      },
+    ];
+    const created = await createTestAgent({ steps });
+    agent = created.agent;
+
+    const events = await collect(agent.run({ content: 'go' }));
+
+    const lastTurnEnd = [...events].reverse().find((e) => e.type === 'turn_end');
+    expect(lastTurnEnd).toMatchObject({ message: { stopReason: 'aborted' } });
+  });
+
+  it('maxTurns 达到上限后 abort，下一轮响应 stopReason=aborted', async () => {
+    const { agent } = await createTestAgent({
+      steps: [fauxAssistantMessage([fauxToolCall('noop', {})]), fauxAssistantMessage('never reached')],
+      tools: [{ name: 'noop', run: async () => '' }],
+      maxTurns: 1,
+    });
+
+    const events = await collect(agent.run({ content: 'go' }));
+
+    const lastTurnEnd = [...events].reverse().find((e) => e.type === 'turn_end');
+    expect(lastTurnEnd).toMatchObject({ message: { stopReason: 'aborted' } });
+  });
+
+  it('todowrite 工具经 agent 事件流抛出 todo-updated meta 事件', async () => {
+    const todos = [{ content: 'task a', status: 'in_progress', priority: 'high' }];
+    const { agent } = await createTestAgent({
+      steps: [
+        fauxAssistantMessage([fauxToolCall('todowrite', { todos })]),
+        fauxAssistantMessage('done'),
+      ],
+    });
+
+    const events = await collect(agent.run({ content: 'go' }));
+
+    const todoEvent = events.find((e) => e.type === 'todo-updated');
+    expect(todoEvent).toMatchObject({ sessionId: 's-1', todos });
+  });
+
+  it('子 Agent 覆盖：systemPrompt / maxTurns 经 REMAgentParams 直接生效', async () => {
+    const seenSystemPrompts: string[] = [];
+    const { agent } = await createTestAgent({
+      steps: [
+        ({ context }) => {
+          seenSystemPrompts.push(context.systemPrompt);
+          return fauxAssistantMessage([fauxToolCall('noop', {})]);
+        },
+        fauxAssistantMessage('never reached'),
+      ],
+      tools: [{ name: 'noop', run: async () => '' }],
+      systemPrompt: 'child static prompt',
+      maxTurns: 1,
+    });
+
+    const events = await collect(agent.run({ content: 'go' }));
+
+    expect(seenSystemPrompts).toEqual(['child static prompt']);
+    const lastTurnEnd = [...events].reverse().find((e) => e.type === 'turn_end');
+    expect(lastTurnEnd).toMatchObject({ message: { stopReason: 'aborted' } });
   });
 
   it('attachChild 挂树并在活跃队列中发 child-spawned', async () => {
-    const pi = new FakePiAgent((emit) => {
-      const childPi = new FakePiAgent(() => {});
-      const child = new REMAgent({ agentId: 'root.delegate-0', agent: childPi });
-      parent.attachChild(child, 'tc-1');
-      emit({ type: 'turn_end', message: assistantMessage() } as AgentEvent);
-    });
-    const parent = new REMAgent({ agentId: 'root', agent: pi });
+    const { agent: child } = await createTestAgent({ steps: [], agentId: 'root.delegate-0' });
+    let parent!: REMAgent;
+    const steps: ScriptedStep[] = [
+      () => {
+        parent.attachChild(child, 'tc-1');
+        return fauxAssistantMessage('ok');
+      },
+    ];
+    const created = await createTestAgent({ steps });
+    parent = created.agent;
 
     const events = await collect(parent.run({ content: 'hi' }));
 
@@ -121,11 +213,45 @@ describe('REMAgent', () => {
   });
 
   it('running 中重复 run 抛错', async () => {
-    const pi = new FakePiAgent(() => {});
-    const agent = new REMAgent({ agentId: 'root', agent: pi });
-    // prompt 永不 resolve → 保持 running
-    pi.prompt = () => new Promise(() => {});
+    const { agent } = await createTestAgent({ steps: [() => new Promise(() => {})] });
     agent.run({ content: 'hi' });
     expect(() => agent.run({ content: 'again' })).toThrow('already running');
+  });
+
+  it('continue：toolResult 结尾的 transcript 可直接续跑', async () => {
+    const { agent, state } = await createTestAgent({
+      steps: [fauxAssistantMessage('continued')],
+      conversation: [
+        userMessage('hi'),
+        {
+          role: 'toolResult',
+          toolCallId: 'tc-1',
+          toolName: 'echo',
+          content: [{ type: 'text', text: 'result' }],
+          details: {},
+          isError: false,
+          timestamp: Date.now(),
+        } as Message,
+      ],
+    });
+
+    const events = await collect(agent.continue());
+
+    expect(events.map((e) => e.type)[0]).toBe('agent_start');
+    await expect(agent.output).resolves.toEqual({ content: 'continued', completed: true });
+    expect(state.callCount).toBe(1);
+  });
+
+  it('continue：assistant 结尾且无 steering 时抛错；有 steering 时以 steering 续跑', async () => {
+    const { agent, scripted } = await createTestAgent({ steps: [fauxAssistantMessage('seed reply')] });
+    await collect(agent.run({ content: 'seed' }));
+
+    expect(() => agent.continue()).toThrow('assistant');
+
+    scripted.setResponses([fauxAssistantMessage('after steering')]);
+    agent.steer('again');
+    const events = await collect(agent.continue());
+    expect(events.map((e) => e.type)[0]).toBe('agent_start');
+    await expect(agent.output).resolves.toEqual({ content: 'after steering', completed: true });
   });
 });

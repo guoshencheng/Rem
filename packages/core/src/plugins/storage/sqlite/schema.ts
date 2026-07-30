@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import { SESSION_DDL } from './schema/session-ddl.js';
-import { RULE_DDL } from './schema/rule-ddl.js';
 import { TODO_DDL } from './schema/todo-ddl.js';
 import { ARCHIVE_DDL } from './schema/archive-ddl.js';
 import { WORKSPACE_DDL } from './schema/workspace-ddl.js';
@@ -18,7 +17,6 @@ export class SqliteSchemaManager {
       );
     `);
     this.db.exec(SESSION_DDL);
-    this.db.exec(RULE_DDL);
     this.db.exec(TODO_DDL);
     this.db.exec(ARCHIVE_DDL);
     this.db.exec(WORKSPACE_DDL);

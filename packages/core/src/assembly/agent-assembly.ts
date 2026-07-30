@@ -6,50 +6,26 @@ import { configureFileDebugLog } from '../infrastructure/observability/debug-log
 import { DefaultConfigProvider } from '../plugins/config/default/index.js';
 import { createFileSystemTools } from '../plugins/tool/file-system/index.js';
 import { FileSkillProvider } from '../plugins/skill/file/index.js';
-import { McpConnectionManager } from '../infrastructure/mcp/connection-manager.js';
 import { SqliteStorageProvider } from '../plugins/storage/sqlite/index.js';
 import { assembleAgentContext } from './agent-context-assembler.js';
 import type { AgentAssembly } from './agent-context-assembler.js';
-import type { SecurityMode } from '../security/permissions/factory.js';
-import {
-  DefaultSystemPromptAssembler,
-  ProviderAwareTemplateSelector,
-  ClaudeAgentPromptTemplate,
-  OpenAiAgentPromptTemplate,
-  ToolingSection,
-  ExecutionBiasSection,
-  SafetySection,
-  AgentsMdSection,
-  SkillsSection,
-  WorkspaceSection,
-  RuntimeSection,
-  ProjectAgentsMdLoader,
-} from '../system-prompt/index.js';
 import type { AgentRuntimeInfo } from './runtime-config.js';
 import type { ConfigProvider } from '../sdk/config-provider.js';
-import type { SessionProvider } from '../sdk/session-provider.js';
 import type { ToolProvider } from '../sdk/tool-provider.js';
-import type { ContextProvider } from '../sdk/context-provider.js';
 import type { SkillProvider } from '../sdk/skill-provider.js';
 import type { ContextCompressor } from '../sdk/compressor.js';
 import type { TitleProvider } from '../sdk/title-provider.js';
-import type { SystemPromptAssembler } from '../sdk/system-prompt.js';
 import type { AgentPaths } from '../infrastructure/config/paths.js';
 
 export interface AgentContextBuildOptions {
-  securityMode?: SecurityMode;
   paths?: AgentPaths;
   models?: import('@earendil-works/pi-ai').Models;
   runtime?: AgentRuntimeInfo;
   configProvider?: ConfigProvider;
-  sessionProvider?: SessionProvider;
   toolProvider?: ToolProvider;
   skillProvider?: SkillProvider;
-  contextProvider?: ContextProvider;
   compressor?: ContextCompressor;
   titleProvider?: TitleProvider;
-  systemPromptAssembler?: SystemPromptAssembler;
-  mcpProviders?: ToolProvider[];
 }
 
 export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAssembly {
@@ -73,40 +49,14 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
 
   const skillProvider = options?.skillProvider ?? new FileSkillProvider(configProvider, paths);
 
-  const mcpManager = new McpConnectionManager();
-
-  const templateSelector = new ProviderAwareTemplateSelector(
-    new ClaudeAgentPromptTemplate(),
-    { openai: new OpenAiAgentPromptTemplate() },
-  );
-
-  const defaultAssembler = new DefaultSystemPromptAssembler(
-    templateSelector,
-    [
-      new ToolingSection(),
-      new ExecutionBiasSection(),
-      new SafetySection(),
-      new AgentsMdSection(new ProjectAgentsMdLoader()),
-      new SkillsSection(skillProvider),
-      new WorkspaceSection(),
-      new RuntimeSection(),
-    ],
-  );
-
   return assembleAgentContext({
     configProvider,
-    sessionProvider: options?.sessionProvider,
     storageProvider,
-    systemPromptAssembler: options?.systemPromptAssembler ?? defaultAssembler,
     models,
     runtime,
-    mcpManager,
     toolProvider: options?.toolProvider ?? createFileSystemTools(configProvider),
-    mcpProviders: options?.mcpProviders,
     skillProvider,
-    contextProvider: options?.contextProvider,
     compressor: options?.compressor,
     titleProvider: options?.titleProvider,
-    securityMode: options?.securityMode,
   });
 }

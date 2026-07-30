@@ -24,7 +24,7 @@ export interface ToolDefinition<T extends TObject = TObject> {
   name: string;
   description: string;
   parameters: T;
-  category?: 'filesystem' | 'shell' | 'search' | 'mcp';
+  category?: 'filesystem' | 'shell' | 'search';
   dangerous?: boolean;
   readOnly?: boolean;
   /** Derive rule patterns from a tool call input. */

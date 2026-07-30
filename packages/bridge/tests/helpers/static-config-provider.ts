@@ -42,18 +42,12 @@ export class StaticConfigProvider implements ConfigProvider {
       workspaceRoot: this.options.workspaceRoot ?? '/',
       readOnly: false,
       autoApproveDangerous: true,
-      profile: 'coding',
-      sessionRules: [],
       compression: this.getCompressionConfig(),
     };
   }
 
   getCompressionConfig(): Required<CompressionConfig> {
     return { enabled: false, thresholdRatio: 0.8, protectHead: 4, protectTail: 8 };
-  }
-
-  getMcpConfig(): Record<string, never> {
-    return {};
   }
 
   resolveAgent(): ResolvedAgentRole {

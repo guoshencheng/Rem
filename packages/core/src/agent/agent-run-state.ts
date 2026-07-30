@@ -24,10 +24,11 @@ export class AgentRunState {
     });
   }
 
-  /** pi Agent 事件归并：透传原事件，message_end 追加 message-persist，turn_end 累计 usage */
+  /** loop 事件归并：透传原事件，message_end 追加 message-persist，turn_end 累计 usage */
   ingest(event: AgentEvent): void {
     this.queue.push(event);
     if (event.type === 'message_end') {
+      // pi AgentMessage 含 harness 自定义消息；我们的 loop 只产生 pi.Message
       const message = event.message as Message;
       const messageId = generateId();
       if (message.role === 'assistant') {

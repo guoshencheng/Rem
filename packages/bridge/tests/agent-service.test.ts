@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
 import type { BusEvent } from 'rem-agent-core';
-import { REMAgent, type PiAgentLike } from 'rem-agent-core';
 import { AgentService } from '../src/agent-service.js';
 import { REMSession } from '../src/rem-session.js';
 import type { SessionService } from '../src/session-service.js';
+import { createBridgeTestAgent } from './helpers/test-agent.js';
 
 function doneAssistant(text: string): AssistantMessage {
   return {
@@ -16,14 +15,16 @@ function doneAssistant(text: string): AssistantMessage {
   } as AssistantMessage;
 }
 
-class FakePiAgent implements PiAgentLike {
-  private listeners: Array<(e: AgentEvent) => void> = [];
-  constructor(private script: (emit: (e: AgentEvent) => void) => void) {}
-  subscribe(l: (e: AgentEvent) => void): () => void { this.listeners.push(l); return () => {}; }
-  async prompt(_m: Message): Promise<void> { this.script((e) => this.listeners.forEach((l) => void l(e))); }
-  steer(): void {}
-  followUp(): void {}
-  abort(): void {}
+function todoWriteAssistant(): AssistantMessage {
+  return {
+    role: 'assistant', api: 'openai-completions', provider: 'mock', model: 'm',
+    content: [{
+      type: 'toolCall', id: 'tc-todo', name: 'todowrite',
+      arguments: { todos: [{ content: 'task a', status: 'in_progress', priority: 'high' }] },
+    }],
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: 'toolUse', timestamp: Date.now(),
+  } as unknown as AssistantMessage;
 }
 
 function setup() {
@@ -41,13 +42,9 @@ describe('AgentService', () => {
   it('run：三路分发（状态/落盘/总线），root finish 结束 run', async () => {
     const { busEvents, persisted, remSession, service } = setup();
     remSession.startRun();
-    const agent = new REMAgent({
+    const agent = await createBridgeTestAgent({
       agentId: 'root', sessionId: 's-1',
-      agent: new FakePiAgent((emit) => {
-        const a = doneAssistant('hi');
-        emit({ type: 'message_end', message: a } as AgentEvent);
-        emit({ type: 'turn_end', message: a } as AgentEvent);
-      }),
+      script: [todoWriteAssistant(), doneAssistant('hi')],
     });
 
     service.run(remSession, agent, { content: 'hi' });
@@ -58,10 +55,14 @@ describe('AgentService', () => {
     expect(persisted).toContain('message-persist');
     expect(persisted).toContain('usage');
     expect(persisted).toContain('finish');
-    // message-persist / usage 是内部事件，不作为 chunk 上总线
+    // message-persist / usage / todo-updated 是内部事件，不作为 chunk 上总线
     const chunkTypes = busEvents.filter((e) => e.type === 'chunk').map((e) => e.chunk.type);
     expect(chunkTypes).not.toContain('message-persist');
     expect(chunkTypes).not.toContain('usage');
+    expect(chunkTypes).not.toContain('todo-updated');
+    // todo_write 的 meta 事件转成 todo-updated BusEvent
+    const todoEvent = busEvents.find((e) => e.type === 'todo-updated');
+    expect(todoEvent).toMatchObject({ sessionId: 's-1', todos: [{ content: 'task a' }] });
     expect(busEvents.some((e) => e.type === 'usage-change')).toBe(true);
     expect(busEvents.some((e) => e.type === 'session-end')).toBe(true);
     expect(remSession.status).toBe('idle');
@@ -71,13 +72,9 @@ describe('AgentService', () => {
   it('listen：子 Agent 结束后发 child-agent-update', async () => {
     const { busEvents, remSession, service } = setup();
     remSession.startRun();
-    const child = new REMAgent({
+    const child = await createBridgeTestAgent({
       agentId: 'root.delegate-0', sessionId: 'child-s', summary: 'task x',
-      agent: new FakePiAgent((emit) => {
-        const a = doneAssistant('child done');
-        emit({ type: 'message_end', message: a } as AgentEvent);
-        emit({ type: 'turn_end', message: a } as AgentEvent);
-      }),
+      script: [doneAssistant('child done')],
     });
     child.parentToolCallId = 'tc-1';
 

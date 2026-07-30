@@ -5,7 +5,7 @@ import type { Session } from '../session/model.js';
 import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';
 import type { ArchiveRecord } from '../sdk/storage-provider.js';
 import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
-import { normalizeUsageDetail, type TokenUsageDetail } from '../agent/token-usage.js';
+import { normalizeUsageDetail, type TokenUsageDetail } from '../agent/token-usage/index.js';
 import { generateId } from '../shared/generate-id.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
 import { createPiAgentTools } from './pi-agent-tools.js';

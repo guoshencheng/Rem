@@ -1,7 +1,7 @@
 'use client';
 
 import type { Usage } from 'rem-agent-core';
-import { formatUsage, formatCost, computeCacheRatio } from 'rem-agent-core/token-usage';
+import { formatUsage, formatCost, computeCacheRatio } from '../../../../core/dist/agent/token-usage/token-usage.js';
 import { computeWindowRatio } from 'rem-agent-core/llm/context-window';
 
 interface TokenStatsBadgeProps {

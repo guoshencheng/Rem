@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import type { Message, Usage } from '@earendil-works/pi-ai';
 import type { ArchiveRecord, ArchiveStore } from '../../../sdk/storage-provider.js';
 import { wrapSqliteError } from './errors.js';
-import { normalizeUsage } from '../../../agent/token-usage.js';
+import { normalizeUsage } from '../../../agent/token-usage/index.js';
 
 interface ArchiveRow {
   id: string;

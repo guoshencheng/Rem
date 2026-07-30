@@ -1,7 +1,7 @@
 import type { Usage } from '@earendil-works/pi-ai';
 import type { TextContent } from '@earendil-works/pi-ai';
 import type { SessionProvider } from '../../sdk/session-provider.js';
-import { addUsage, emptyUsage, normalizeUsage } from '../../agent/token-usage.js';
+import { addUsage, emptyUsage, normalizeUsage } from '../../agent/token-usage/index.js';
 import type { SessionInfo, SessionUpdate, UIMessage, ToolResultBlock } from './types.js';
 import { SessionNotFoundError } from './errors.js';
 import { messageToContentBlocks } from './message-blocks.js';

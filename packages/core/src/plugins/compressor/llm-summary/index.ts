@@ -2,7 +2,7 @@ import type { Message, Models, ToolCall, TextContent } from '@earendil-works/pi-
 import type { ContextCompressor } from '../../../sdk/compressor.js';
 import type { Session } from '../../../session/model.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
-import type { TokenUsageDetail } from '../../../agent/token-usage.js';
+import type { TokenUsageDetail } from '../../../agent/token-usage/index.js';
 import { resolveContextWindow } from '../../../infrastructure/llm/context-window.js';
 import { generate } from '../../../runtime/generation/generate.js';
 import { splitHeadTail } from './split.js';

@@ -18,7 +18,7 @@ export type { REMAgentContext, ResolveREMAgentContextParams } from './agent/cont
 export * from './agent/bus-events.js'
 export * from './agent/broadcast-bus.js'
 export * from './agent/budget.js'
-export * from './agent/token-usage.js'
+export * from './agent/token-usage/index.js'
 export * from './agent/event-aggregators.js'
 export * from './session/manager/index.js'
 export * from './capabilities/todo/types.js'

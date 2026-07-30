@@ -1,7 +1,7 @@
 import type { AssistantMessage, Message, Usage } from '@earendil-works/pi-ai';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { AgentOutput, RemMetaEvent } from './types.js';
-import { addUsage, emptyUsage } from './token-usage.js';
+import { addUsage, emptyUsage } from './token-usage/index.js';
 import { generateId } from '../shared/generate-id.js';
 import { EventQueue } from './event-queue.js';
 import type { REMAgentEvent } from './agent-event.js';

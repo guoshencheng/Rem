@@ -7,6 +7,7 @@ import { addUsage, emptyUsage, generateId, log } from 'rem-agent-core';
 import { EventQueue } from './event-queue.js';
 import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentEvent } from './rem-agent-event.js';
+import type { REMAgentContext } from './agent-context.js';
 import { assemblePiAgent } from './assemble-pi-agent.js';
 import type { SpawnChild } from './delegate-task-v2.js';
 
@@ -29,13 +30,12 @@ export interface REMAgentParams {
   summary?: string;
   /** 测试注入：跳过内部装配直接使用该 pi agent */
   agent?: PiAgentLike;
-  /** 以下装配参数在 agent 缺省时必填（pi agent 在首次 run 时内部创建） */
+  /** 以下参数在 agent 缺省时必填；context 由 resolveREMAgentContext 预解析 */
+  context?: REMAgentContext;
   di?: AgentDI;
   runtimeConfig?: AgentRuntimeConfig;
   session?: Session;
   workspace?: string;
-  agentRoleId?: string;
-  workspaceRoot?: string;
   signal?: AbortSignal;
   approvalState?: { getOrCreate(sessionId: string): ApprovalStateLike };
   publishBus?: (event: BusEvent) => void;
@@ -56,8 +56,7 @@ export class REMAgent {
   /** 由父 Agent attachChild 时回填 */
   parentToolCallId?: string;
 
-  private agent?: PiAgentLike;
-  private readonly params: REMAgentParams;
+  private readonly agent: PiAgentLike;
   private queue?: EventQueue<REMAgentEvent>;
   private pendingMeta: RemMetaEvent[] = [];
   private totalUsage: Usage = emptyUsage();
@@ -65,23 +64,33 @@ export class REMAgent {
   private lastAssistantMessageId?: string;
   private outputResolve?: (output: AgentOutput) => void;
   private outputPromise?: Promise<AgentOutput>;
-  private pendingSteer: UserInputContent[] = [];
-  private pendingFollowUp: UserInputContent[] = [];
-  private abortRequested = false;
 
   constructor(params: REMAgentParams) {
-    this.params = params;
     this.agentId = params.agentId;
     this.sessionId = params.sessionId;
     this.summary = params.summary;
     if (params.agent) {
       this.agent = params.agent;
     } else {
-      if (!params.di || !params.runtimeConfig || !params.session || !params.workspace ||
-          !params.approvalState || !params.publishBus) {
-        throw new Error('REMAgent requires either an injected agent or full assembly params (di/runtimeConfig/session/workspace/approvalState/publishBus)');
+      if (!params.context || !params.di || !params.runtimeConfig || !params.session ||
+          !params.workspace || !params.approvalState || !params.publishBus) {
+        throw new Error('REMAgent requires either an injected agent or full assembly params (context/di/runtimeConfig/session/workspace/approvalState/publishBus)');
       }
-      this.forkTitleGeneration();
+      this.agent = assemblePiAgent({
+        di: params.di,
+        runtimeConfig: params.runtimeConfig,
+        context: params.context,
+        session: params.session,
+        sessionId: params.sessionId ?? params.session.sessionId,
+        workspace: params.workspace,
+        signal: params.signal,
+        approvalState: params.approvalState,
+        publishBus: params.publishBus,
+        spawnChild: params.spawnChild,
+        parent: this,
+        emitMeta: (event) => this.emitMeta(event),
+      });
+      this.forkTitleGeneration(params.di, params.session);
     }
   }
 
@@ -108,25 +117,24 @@ export class REMAgent {
       this.outputResolve = resolve;
     });
 
+    this.agent.subscribe((event) => {
+      queue.push(event);
+      if (event.type === 'message_end') {
+        const message = event.message as Message;
+        const messageId = generateId();
+        if (message.role === 'assistant') {
+          this.lastAssistantMessageId = messageId;
+        }
+        queue.push({ type: 'message-persist', message, messageId });
+      } else if (event.type === 'turn_end' && (event.message as Message).role === 'assistant') {
+        this.lastAssistant = event.message as AssistantMessage;
+        this.totalUsage = addUsage(this.totalUsage, this.lastAssistant.usage);
+      }
+    });
+
     void (async () => {
       try {
-        const agent = await this.ensureAgent();
-        agent.subscribe((event) => {
-          queue.push(event);
-          if (event.type === 'message_end') {
-            const message = event.message as Message;
-            const messageId = generateId();
-            if (message.role === 'assistant') {
-              this.lastAssistantMessageId = messageId;
-            }
-            queue.push({ type: 'message-persist', message, messageId });
-          } else if (event.type === 'turn_end' && (event.message as Message).role === 'assistant') {
-            this.lastAssistant = event.message as AssistantMessage;
-            this.totalUsage = addUsage(this.totalUsage, this.lastAssistant.usage);
-          }
-        });
-
-        await agent.prompt(toMessage(input.content));
+        await this.agent.prompt(toMessage(input.content));
         queue.push({ type: 'usage', usage: this.totalUsage, assistantMessageId: this.lastAssistantMessageId });
 
         if (this.lastAssistant?.stopReason === 'error') {
@@ -158,27 +166,15 @@ export class REMAgent {
   }
 
   steer(content: UserInputContent): void {
-    if (this.agent) {
-      this.agent.steer(toMessage(content));
-    } else {
-      this.pendingSteer.push(content);
-    }
+    this.agent.steer(toMessage(content));
   }
 
   followUp(content: UserInputContent): void {
-    if (this.agent) {
-      this.agent.followUp(toMessage(content));
-    } else {
-      this.pendingFollowUp.push(content);
-    }
+    this.agent.followUp(toMessage(content));
   }
 
   interrupt(): void {
-    if (this.agent) {
-      this.agent.abort();
-    } else {
-      this.abortRequested = true;
-    }
+    this.agent.abort();
   }
 
   /** 内部：delegate_task executor 调用，把子 Agent 挂树并广播 child-spawned */
@@ -198,41 +194,12 @@ export class REMAgent {
     }
   }
 
-  /** 懒装配 pi agent（首次 run 时），并回放装配期缓冲的 steer/followUp/interrupt */
-  private async ensureAgent(): Promise<PiAgentLike> {
-    if (this.agent) return this.agent;
-    const p = this.params;
-    const agent = await assemblePiAgent({
-      di: p.di!,
-      runtimeConfig: p.runtimeConfig!,
-      session: p.session!,
-      workspace: p.workspace!,
-      sessionId: p.sessionId ?? p.session!.sessionId,
-      agentRoleId: p.agentRoleId,
-      workspaceRoot: p.workspaceRoot,
-      signal: p.signal,
-      approvalState: p.approvalState!,
-      publishBus: p.publishBus!,
-      spawnChild: p.spawnChild,
-      parent: this,
-      emitMeta: (event) => this.emitMeta(event),
-    });
-    this.agent = agent;
-    for (const content of this.pendingSteer) agent.steer(toMessage(content));
-    for (const content of this.pendingFollowUp) agent.followUp(toMessage(content));
-    this.pendingSteer = [];
-    this.pendingFollowUp = [];
-    if (this.abortRequested) agent.abort();
-    return agent;
-  }
-
   /** 标题生成（原 forkTitleGeneration）：发事件，由 SessionService 落盘 */
-  private forkTitleGeneration(): void {
-    const session = this.params.session!;
+  private forkTitleGeneration(di: AgentDI, session: Session): void {
     if (session.metadata.title) return;
     void (async () => {
       try {
-        const title = await this.params.di!.titleProvider.generateTitle(session.conversation);
+        const title = await di.titleProvider.generateTitle(session.conversation);
         if (title) {
           log('title', 'generated', { sessionId: session.sessionId, title });
           this.emitMeta({ type: 'session-title', title });

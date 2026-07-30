@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { REMAgent } from '../src/rem-agent.js';
+import { resolveREMAgentContext } from '../src/agent-context.js';
 import { createFakeAssembly, fakeSession } from './helpers/fake-di.js';
 
-describe('REMAgent 装配（内部创建 pi agent）', () => {
-  it('new REMAgent 直接装配（root，含 delegate_task/todo_write 工具）', async () => {
+describe('REMAgent 装配（构造即创建 pi agent）', () => {
+  it('resolveREMAgentContext + new REMAgent 直接装配（root，含 delegate_task/todo_write 工具）', async () => {
     const { di, runtimeConfig } = await createFakeAssembly();
     const session = fakeSession();
+    const context = await resolveREMAgentContext({ di, runtimeConfig, session, workspace: 'default' });
 
     const agent = new REMAgent({
+      context,
       di,
       runtimeConfig,
       session,
@@ -32,8 +35,10 @@ describe('REMAgent 装配（内部创建 pi agent）', () => {
     const { di, runtimeConfig } = await createFakeAssembly();
     di.titleProvider = { generateTitle: async () => 'Mock Title' };
     const session = fakeSession('s-2');
+    const context = await resolveREMAgentContext({ di, runtimeConfig, session, workspace: 'default' });
 
     const agent = new REMAgent({
+      context,
       di, runtimeConfig, session,
       workspace: 'default', agentId: 'root', sessionId: 's-2',
       approvalState: { getOrCreate: () => { throw new Error('not used'); } },

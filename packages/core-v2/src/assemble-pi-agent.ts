@@ -1,7 +1,6 @@
-import type { Message } from '@earendil-works/pi-ai';
 import type {
-  AgentDI, AgentRuntimeConfig, AgentStreamEvent, ArchiveRecord, BusEvent, Session,
-  PromptBuildContext, RemMetaEvent, Skill, TokenUsageDetail, ToolProvider,
+  AgentDI, AgentRuntimeConfig, AgentStreamEvent, ArchiveRecord, BusEvent,
+  RemMetaEvent, Session, TokenUsageDetail, ToolProvider,
 } from 'rem-agent-core';
 import {
   DefaultTodoService, ToolOverlay, composeToolProviders,
@@ -10,18 +9,17 @@ import {
   normalizeUsageDetail, resolveContextWindow,
 } from 'rem-agent-core';
 import type { PiAgentLike } from './pi-agent-like.js';
+import type { REMAgentContext } from './agent-context.js';
 import type { ApprovalStateLike, REMAgent } from './rem-agent.js';
 import { createDelegateTaskExecutorV2, createDelegateTaskToolDefinitionV2, type SpawnChild } from './delegate-task-v2.js';
 
 export interface AssemblePiAgentParams {
   di: AgentDI;
   runtimeConfig: AgentRuntimeConfig;
-  /** 已由 SessionService 加载/创建的 session（本函数不做任何持久化） */
-  session: Session;
-  workspace: string;
+  /** 预解析产物（resolveREMAgentContext） */
+  context: REMAgentContext;
   sessionId: string;
-  agentRoleId?: string;
-  workspaceRoot?: string;
+  workspace: string;
   signal?: AbortSignal;
   /** 审批状态（REMSession 适配） */
   approvalState: { getOrCreate(sessionId: string): ApprovalStateLike };
@@ -33,19 +31,14 @@ export interface AssemblePiAgentParams {
   parent: REMAgent;
   /** meta 事件出口（tool-bridge / context-bridge） */
   emitMeta: (event: RemMetaEvent) => void;
+  /** 压缩判定用的 session（本函数不做任何持久化） */
+  session: Session;
 }
 
-/** REMAgent 内部装配：配置解析 → context build → 工具组合 → bridges → createPiAgent */
-export async function assemblePiAgent(params: AssemblePiAgentParams): Promise<PiAgentLike> {
-  const { di, runtimeConfig, session, workspace } = params;
-  const configProvider = di.configProvider.forWorkspace?.(workspace) ?? di.configProvider;
-  const behavior = configProvider.getBehaviorConfig();
-  const modelConfig = configProvider.getModelConfig();
-  const agentRole = configProvider.resolveAgent(params.agentRoleId);
-  const effectiveModel = agentRole.model ?? modelConfig;
-  const workspaceRoot = params.workspaceRoot ?? workspace ?? behavior.workspaceRoot;
-
-  const { messages } = await di.contextProvider.build(session, behavior.name);
+/** REMAgent 内部装配（全同步）：工具组合 → bridges → createPiAgent */
+export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
+  const { di, runtimeConfig, context, workspace, session } = params;
+  const { behavior, configProvider, effectiveModel, workspaceRoot } = context;
 
   const effectiveToolProvider = composeToolProviders({
     toolProvider: di.toolProvider,
@@ -76,26 +69,6 @@ export async function assemblePiAgent(params: AssemblePiAgentParams): Promise<Pi
       ),
     ),
   ]);
-
-  const skills = await di.skillProvider.loadSkills().catch(() => [] as Skill[]);
-  const tools = toolProviderWithOverlay.getToolSet().map((t) => ({ name: t.name, description: t.description }));
-
-  const buildCtx: PromptBuildContext = {
-    agentName: agentRole.name,
-    workspaceRoot,
-    readOnly: behavior.readOnly,
-    tools,
-    skills,
-    model: { provider: effectiveModel.provider, model: effectiveModel.model },
-    runtime: {
-      platform: runtimeConfig.runtime.platform,
-      nodeVersion: runtimeConfig.runtime.nodeVersion ?? runtimeConfig.runtime.platform,
-      today: new Date().toISOString().split('T')[0],
-    },
-    agentCorePrompt: agentRole.corePrompt,
-  };
-
-  const systemPrompt = await di.systemPromptAssembler.assemble(buildCtx);
 
   // tool-bridge / context-bridge 只发 RemMetaEvent；签名按 AgentStreamEvent 收窄到 emitMeta
   const emit = (event: AgentStreamEvent) => params.emitMeta(event as RemMetaEvent);
@@ -151,8 +124,8 @@ export async function assemblePiAgent(params: AssemblePiAgentParams): Promise<Pi
   return createPiAgent({
     di,
     effectiveModel,
-    systemPrompt,
-    messages: messages as Message[],
+    systemPrompt: context.systemPrompt,
+    messages: context.messages,
     tools: toolBridge.tools,
     beforeToolCall: (ctx) => toolBridge.beforeToolCall(ctx),
     transformContext: contextBridge.transformContext,

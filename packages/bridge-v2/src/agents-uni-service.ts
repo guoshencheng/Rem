@@ -9,7 +9,7 @@ import {
   type ThinkingContent, type TokenUsageDetail, type ToolCall, type ToolContext,
   type UIMessage, type WorkspaceRecord,
 } from 'rem-agent-core';
-import { REMAgent, type DelegateTaskInputV2 } from 'rem-agent-core-v2';
+import { REMAgent, resolveREMAgentContext, type DelegateTaskInputV2 } from 'rem-agent-core-v2';
 import type { IAgentService } from 'rem-agent-bridge';
 import { REMSessions } from './rem-sessions.js';
 import type { REMSession } from './rem-session.js';
@@ -68,12 +68,19 @@ export class AgentsUniService implements IAgentService {
     }
 
     try {
-      const remAgent = new REMAgent({
+      const context = await resolveREMAgentContext({
         di: this.di,
         runtimeConfig: this.runtimeConfig,
         session,
         workspace,
         workspaceRoot: workspace,
+      });
+      const remAgent = new REMAgent({
+        context,
+        di: this.di,
+        runtimeConfig: this.runtimeConfig,
+        session,
+        workspace,
         agentId: 'root',
         sessionId,
         signal: controller.signal,
@@ -101,12 +108,19 @@ export class AgentsUniService implements IAgentService {
       systemPrompt: input.systemPrompt,
     });
     const childAgentId = `${parentAgentId}.delegate-${remSession.agents.length}`;
-    const remAgent = new REMAgent({
+    const context = await resolveREMAgentContext({
       di: child.di,
       runtimeConfig: child.runtimeConfig,
       session: childSession,
       workspace: remSession.workspace,
       workspaceRoot: toolCtx.workspaceRoot,
+    });
+    const remAgent = new REMAgent({
+      context,
+      di: child.di,
+      runtimeConfig: child.runtimeConfig,
+      session: childSession,
+      workspace: remSession.workspace,
       agentId: childAgentId,
       sessionId: childSession.sessionId,
       summary: input.task,

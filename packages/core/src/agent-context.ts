@@ -7,7 +7,7 @@ import type { PromptBuildContext } from './sdk/system-prompt.js';
 import type { Skill } from './sdk/skill-provider.js';
 import { composeToolProviders } from './tools/composer.js';
 import { createTodoWriteToolDefinition } from './plugins/tool/builtin/todo-write.js';
-import { createDelegateTaskToolDefinitionV2 } from './delegate-task-v2.js';
+import { createDelegateTaskToolDefinition } from './capabilities/sub-agent/delegate-task.js';
 
 /** REMAgent 构造所需的全部预解析产物（异步部分在此收敛，构造函数保持同步） */
 export interface REMAgentContext {
@@ -49,7 +49,7 @@ export async function resolveREMAgentContext(params: ResolveREMAgentContextParam
     mcpProviders: di.mcpProviders,
     skillProvider: di.skillProvider,
   });
-  const delegateDef = createDelegateTaskToolDefinitionV2();
+  const delegateDef = createDelegateTaskToolDefinition();
   const todoDef = createTodoWriteToolDefinition();
   const tools = [
     ...composed.getToolSet().map((t) => ({ name: t.name, description: t.description })),

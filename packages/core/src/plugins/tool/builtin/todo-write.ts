@@ -1,6 +1,6 @@
 import { Type, type Static } from '@sinclair/typebox';
 import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
-import type { TodoService } from '../../../todo/service.js';
+import type { TodoService } from '../../../capabilities/todo/service.js';
 import type { BusEvent } from '../../../bus-events.js';
 
 const TodoStatusSchema = Type.Union(

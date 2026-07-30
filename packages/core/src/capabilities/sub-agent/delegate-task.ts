@@ -1,7 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox';
-import type { ToolContext, ToolDefinition, ToolExecutor } from './sdk/tool-provider.js';
-import { formatTaskResult } from './sub-agent/format-task-result.js';
-import type { REMAgent } from './rem-agent.js';
+import type { ToolContext, ToolDefinition, ToolExecutor } from '../../sdk/tool-provider.js';
+import { formatTaskResult } from './format-task-result.js';
+import type { REMAgent } from '../../rem-agent.js';
 
 const delegateTaskSchema = Type.Object(
   {
@@ -12,12 +12,12 @@ const delegateTaskSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export type DelegateTaskInputV2 = Static<typeof delegateTaskSchema>;
+export type DelegateTaskInput = Static<typeof delegateTaskSchema>;
 
 /** bridge 注入：创建 child session + 装配 child REMAgent */
-export type SpawnChild = (input: DelegateTaskInputV2, toolCtx: ToolContext) => Promise<REMAgent>;
+export type SpawnChild = (input: DelegateTaskInput, toolCtx: ToolContext) => Promise<REMAgent>;
 
-export function createDelegateTaskToolDefinitionV2(): ToolDefinition<typeof delegateTaskSchema> {
+export function createDelegateTaskToolDefinition(): ToolDefinition<typeof delegateTaskSchema> {
   return {
     name: 'delegate_task',
     description: 'Delegate an independent task to a sub-agent. The sub-agent runs in its own session, inherits the current model and tools, and returns the result when completed.',
@@ -26,23 +26,20 @@ export function createDelegateTaskToolDefinitionV2(): ToolDefinition<typeof dele
   };
 }
 
-export interface DelegateTaskExecutorV2Params {
+export interface DelegateTaskExecutorParams {
   /** 对象或延迟取值函数（装配期 parent 尚未构造时用后者） */
   parentAgent: REMAgent | (() => REMAgent);
   spawnChild: SpawnChild;
 }
 
-/**
- * v2 delegate_task executor：spawnChild 拿 child REMAgent 挂树（触发 child-spawned），
- * drain 子事件流，等待 output 组装工具结果。子 Agent 出错不传染父 Agent。
- */
-export function createDelegateTaskExecutorV2(
-  params: DelegateTaskExecutorV2Params,
+/** delegate_task executor：spawnChild 拿 child REMAgent 挂树（触发 child-spawned），drain 子事件流，等待 output 组装工具结果。子 Agent 出错不传染父 Agent。 */
+export function createDelegateTaskExecutor(
+  params: DelegateTaskExecutorParams,
 ): ToolExecutor<typeof delegateTaskSchema> {
   const resolveParent = (): REMAgent =>
     typeof params.parentAgent === 'function' ? params.parentAgent() : params.parentAgent;
 
-  return async (input: DelegateTaskInputV2, toolCtx: ToolContext) => {
+  return async (input: DelegateTaskInput, toolCtx: ToolContext) => {
     const toolCallId = toolCtx.toolCallId ?? 'unknown';
     try {
       const child = await params.spawnChild(input, toolCtx);

@@ -25,9 +25,9 @@ export { ApprovalEngine, type ApprovalResolution } from './security/approval/app
 export * from './sdk/index.js';
 export * from './plugins/index.js';
 export * from './tools/registry.js';
-export * from './todo/types.js';
-export * from './todo/errors.js';
-export * from './todo/service.js';
+export * from './capabilities/todo/types.js';
+export * from './capabilities/todo/errors.js';
+export * from './capabilities/todo/service.js';
 export * from './session/manager/index.js';
 export * from './token-usage.js';
 export * from './infrastructure/llm/context-window.js';
@@ -42,8 +42,8 @@ export {
   createTodoWriteToolDefinition,
   createTodoWriteToolExecutor,
 } from './plugins/tool/builtin/todo-write.js';
-export { buildChildContext, type BuildChildContextOptions } from './sub-agent/build-child-context.js';
-export { formatTaskResult } from './sub-agent/format-task-result.js';
+export { buildChildContext, type BuildChildContextOptions } from './capabilities/sub-agent/build-child-context.js';
+export { formatTaskResult } from './capabilities/sub-agent/format-task-result.js';
 export { generateId } from './shared/generate-id.js';
 export type { PromptBuildContext } from './sdk/system-prompt.js';
 
@@ -58,9 +58,10 @@ export {
   type ResolveREMAgentContextParams,
 } from './agent-context.js';
 export {
-  createDelegateTaskExecutorV2,
-  createDelegateTaskToolDefinitionV2,
-  type DelegateTaskExecutorV2Params,
-  type DelegateTaskInputV2,
+  createDelegateTaskExecutor,
+  createDelegateTaskToolDefinition,
+  type DelegateTaskExecutorParams,
+  type DelegateTaskInput,
   type SpawnChild,
-} from './delegate-task-v2.js';
+} from './capabilities/sub-agent/delegate-task.js';
+export * from './compat.js';

@@ -1,7 +1,7 @@
 import type { TextContent, ThinkingContent, ToolCall } from '@earendil-works/pi-ai';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentStreamEvent } from './types.js';
-import type { TodoItem } from './todo/types.js';
+import type { TodoItem } from './capabilities/todo/types.js';
 
 export type SessionActivity =
   | 'idle'

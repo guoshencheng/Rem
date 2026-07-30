@@ -3,7 +3,7 @@ import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type { ToolContext } from 'rem-agent-core';
 import { REMAgent } from '../src/rem-agent.js';
-import { createDelegateTaskExecutorV2, type DelegateTaskInputV2 } from '../src/delegate-task-v2.js';
+import { createDelegateTaskExecutor, type DelegateTaskInput } from '../src/capabilities/sub-agent/delegate-task.js';
 import type { PiAgentLike } from '../src/pi-agent-like.js';
 
 class FakePiAgent implements PiAgentLike {
@@ -27,7 +27,7 @@ function doneAssistant(text: string): AssistantMessage {
 
 const toolCtx = { sessionId: 'parent-session', toolCallId: 'tc-1', workspaceRoot: '/ws' } as ToolContext;
 
-describe('createDelegateTaskExecutorV2', () => {
+describe('createDelegateTaskExecutor', () => {
   it('spawn child → 挂树 → 驱动子 Agent → 返回格式化结果', async () => {
     const parent = new REMAgent({ agentId: 'root', agent: new FakePiAgent(() => {}) });
     const child = new REMAgent({
@@ -39,12 +39,12 @@ describe('createDelegateTaskExecutorV2', () => {
         emit({ type: 'turn_end', message: a } as AgentEvent);
       }),
     });
-    const executor = createDelegateTaskExecutorV2({
+    const executor = createDelegateTaskExecutor({
       parentAgent: parent,
       spawnChild: async () => child,
     });
 
-    const result = await executor({ task: 'do thing' } as DelegateTaskInputV2, toolCtx);
+    const result = await executor({ task: 'do thing' } as DelegateTaskInput, toolCtx);
 
     expect(parent.children).toHaveLength(1);
     expect(parent.children[0]).toBe(child);
@@ -55,12 +55,12 @@ describe('createDelegateTaskExecutorV2', () => {
 
   it('spawnChild 抛错时返回 failed 结果，不抛出', async () => {
     const parent = new REMAgent({ agentId: 'root', agent: new FakePiAgent(() => {}) });
-    const executor = createDelegateTaskExecutorV2({
+    const executor = createDelegateTaskExecutor({
       parentAgent: parent,
       spawnChild: async () => { throw new Error('no session'); },
     });
 
-    const result = await executor({ task: 'do thing' } as DelegateTaskInputV2, toolCtx);
+    const result = await executor({ task: 'do thing' } as DelegateTaskInput, toolCtx);
 
     expect(parent.children).toHaveLength(0);
     expect(result.output).toContain('no session');

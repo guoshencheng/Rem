@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { TodoItem } from '../../../todo/types.js';
+import type { TodoItem } from '../../../capabilities/todo/types.js';
 import type { TodoStore } from '../../../sdk/storage-provider.js';
 import { wrapSqliteError } from './errors.js';
 

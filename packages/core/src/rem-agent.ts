@@ -14,7 +14,7 @@ import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentEvent } from './rem-agent-event.js';
 import type { REMAgentContext } from './agent-context.js';
 import { assemblePiAgent } from './assemble-pi-agent.js';
-import type { SpawnChild } from './delegate-task-v2.js';
+import type { SpawnChild } from './capabilities/sub-agent/delegate-task.js';
 
 export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';
 

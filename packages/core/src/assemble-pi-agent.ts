@@ -13,12 +13,12 @@ import { ToolOverlay, defineOverlayTool } from './tools/overlay.js';
 import { createToolBridge } from './run-agent/tool-bridge.js';
 import { createContextBridge } from './run-agent/context-bridge.js';
 import { createPiAgent } from './run-agent/pi-agent-factory.js';
-import { DefaultTodoService } from './todo/service.js';
+import { DefaultTodoService } from './capabilities/todo/service.js';
 import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from './plugins/tool/builtin/todo-write.js';
 import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentContext } from './agent-context.js';
 import type { ApprovalStateLike, REMAgent } from './rem-agent.js';
-import { createDelegateTaskExecutorV2, createDelegateTaskToolDefinitionV2, type SpawnChild } from './delegate-task-v2.js';
+import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from './capabilities/sub-agent/delegate-task.js';
 
 export interface AssemblePiAgentParams {
   di: AgentDI;
@@ -61,8 +61,8 @@ export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
 
   const toolProviderWithOverlay: ToolProvider = new ToolOverlay(effectiveToolProvider, [
     defineOverlayTool(
-      createDelegateTaskToolDefinitionV2(),
-      createDelegateTaskExecutorV2({
+      createDelegateTaskToolDefinition(),
+      createDelegateTaskExecutor({
         parentAgent: () => params.parent,
         spawnChild,
       }),

@@ -35,9 +35,9 @@ export * from './infrastructure/llm/context-window.js';
 // --- v2 复用支持 ---
 export { composeToolProviders } from './tools/composer.js';
 export { ToolOverlay, defineOverlayTool, type ToolOverlayEntry } from './tools/overlay.js';
-export { createToolBridge, type ToolBridgeParams, type ToolBridge } from './run-agent/tool-bridge.js';
-export { createContextBridge, type ContextBridgeParams, type ContextBridge } from './run-agent/context-bridge.js';
-export { createPiAgent, type PiAgentFactoryParams } from './run-agent/pi-agent-factory.js';
+export { createToolBridge, type ToolBridgeParams, type ToolBridge } from './runtime/tool-bridge.js';
+export { createContextBridge, type ContextBridgeParams, type ContextBridge } from './runtime/context-bridge.js';
+export { createPiAgent, type PiAgentFactoryParams } from './runtime/pi-agent-factory.js';
 export {
   createTodoWriteToolDefinition,
   createTodoWriteToolExecutor,
@@ -49,7 +49,7 @@ export type { PromptBuildContext } from './sdk/system-prompt.js';
 
 // --- v2 执行单元 ---
 export { EventQueue } from './event-queue.js';
-export type { PiAgentLike } from './pi-agent-like.js';
+export type { PiAgentLike } from './runtime/pi-agent-like.js';
 export type { REMAgentEvent } from './rem-agent-event.js';
 export { REMAgent, type REMAgentStatus, type REMAgentParams, type ApprovalStateLike } from './rem-agent.js';
 export {

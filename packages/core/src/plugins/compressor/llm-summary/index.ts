@@ -4,7 +4,7 @@ import type { Session } from '../../../session/model.js';
 import type { ResolvedModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
 import type { TokenUsageDetail } from '../../../token-usage.js';
 import { resolveContextWindow } from '../../../infrastructure/llm/context-window.js';
-import { generate } from '../../../reason/generate.js';
+import { generate } from '../../../runtime/generation/generate.js';
 import { splitHeadTail } from './split.js';
 import {
   buildSummaryPrompt,

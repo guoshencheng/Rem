@@ -1,7 +1,7 @@
 import type { Message, Models, Tool, ToolCall } from '@earendil-works/pi-ai';
 import type { TitleProvider } from '../../../sdk/title-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
-import { generate } from '../../../reason/generate.js';
+import { generate } from '../../../runtime/generation/generate.js';
 
 const TITLE_SYSTEM_PROMPT = `You are a title generator. Generate a brief title for this conversation by calling the set_title function.
 

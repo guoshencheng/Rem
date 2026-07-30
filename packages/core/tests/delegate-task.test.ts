@@ -4,7 +4,7 @@ import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type { ToolContext } from 'rem-agent-core';
 import { REMAgent } from '../src/rem-agent.js';
 import { createDelegateTaskExecutor, type DelegateTaskInput } from '../src/capabilities/sub-agent/delegate-task.js';
-import type { PiAgentLike } from '../src/pi-agent-like.js';
+import type { PiAgentLike } from '../src/runtime/pi-agent-like.js';
 
 class FakePiAgent implements PiAgentLike {
   private listeners: Array<(e: AgentEvent) => void> = [];

@@ -1,0 +1,8 @@
+{
+  "assemble-pi-agent.ts": "runtime/assemble-pi-agent.ts",
+  "run-agent/context-bridge.ts": "runtime/context-bridge.ts",
+  "run-agent/pi-agent-factory.ts": "runtime/pi-agent-factory.ts",
+  "run-agent/tool-bridge.ts": "runtime/tool-bridge.ts",
+  "pi-agent-like.ts": "runtime/pi-agent-like.ts",
+  "reason/generate.ts": "runtime/generation/generate.ts"
+}

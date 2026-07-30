@@ -10,10 +10,10 @@ import { addUsage, emptyUsage } from './token-usage.js';
 import { generateId } from './shared/generate-id.js';
 import { log } from './infrastructure/observability/debug-log.js';
 import { EventQueue } from './event-queue.js';
-import type { PiAgentLike } from './pi-agent-like.js';
+import type { PiAgentLike } from './runtime/pi-agent-like.js';
 import type { REMAgentEvent } from './rem-agent-event.js';
 import type { REMAgentContext } from './agent-context.js';
-import { assemblePiAgent } from './assemble-pi-agent.js';
+import { assemblePiAgent } from './runtime/assemble-pi-agent.js';
 import type { SpawnChild } from './capabilities/sub-agent/delegate-task.js';
 
 export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';

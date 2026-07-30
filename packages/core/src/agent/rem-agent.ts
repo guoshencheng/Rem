@@ -19,7 +19,7 @@ export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';
 const toMessage = (content: UserInputContent): Message =>
   ({ role: 'user', content, timestamp: Date.now() }) as Message;
 
-/** tool-bridge 审批链路需要的最小 live state 面（由 bridge 的 REMSession 满足） */
+/** pi-agent-tools 审批链路需要的最小 live state 面（由 bridge 的 REMSession 满足） */
 export interface ApprovalStateLike {
   approvalEngine: ApprovalEngine;
   pendingApprovals: ApprovalRequest[];
@@ -151,7 +151,7 @@ export class REMAgent {
     this.runState?.queue.push({ type: 'child-spawned', child, parentToolCallId });
   }
 
-  /** 内部：装配注入的 meta 事件出口（tool-bridge / context-bridge / 标题） */
+  /** 内部：装配注入的 meta 事件出口（pi-agent-tools / context-bridge / 标题） */
   emitMeta(event: RemMetaEvent): void {
     // run 前的 meta（如标题生成异步先完成）先缓冲，run 时按序 flush
     if (this.runState) {

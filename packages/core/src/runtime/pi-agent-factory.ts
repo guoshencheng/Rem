@@ -10,7 +10,7 @@ export interface PiAgentFactoryParams {
   systemPrompt: string;
   messages: Message[];
   tools: AgentTool[];
-  beforeToolCall: NonNullable<AgentOptions['beforeToolCall']>;
+  beforeToolCall?: NonNullable<AgentOptions['beforeToolCall']>;
   transformContext: NonNullable<AgentOptions['transformContext']>;
   maxTurns: number;
   signal?: AbortSignal;
@@ -38,7 +38,7 @@ export function createPiAgent(params: PiAgentFactoryParams): Agent {
     },
     streamFn,
     getApiKey: () => effectiveModel.apiKey || undefined,
-    beforeToolCall: params.beforeToolCall,
+    // beforeToolCall: params.beforeToolCall,
     transformContext: params.transformContext,
     toolExecution: 'sequential',
     steeringMode: 'all',

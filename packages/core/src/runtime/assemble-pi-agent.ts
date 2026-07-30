@@ -4,21 +4,19 @@ import type { BusEvent } from '../agent/bus-events.js';
 import type { Session } from '../session/model.js';
 import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';
 import type { ArchiveRecord } from '../sdk/storage-provider.js';
-import type { ToolProvider } from '../sdk/tool-provider.js';
+import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
 import { normalizeUsageDetail, type TokenUsageDetail } from '../agent/token-usage.js';
 import { generateId } from '../shared/generate-id.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
-import { composeToolProviders } from '../tools/composer.js';
-import { ToolOverlay, defineOverlayTool } from '../tools/overlay.js';
-import { createToolBridge } from './tool-bridge.js';
+import { createPiAgentTools } from './pi-agent-tools.js';
 import { createContextBridge } from './context-bridge.js';
 import { createPiAgent } from './pi-agent-factory.js';
-import { DefaultTodoService } from '../capabilities/todo/service.js';
-import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from '../plugins/tool/builtin/todo-write.js';
 import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentContext } from '../agent/context/resolve.js';
 import type { ApprovalStateLike, REMAgent } from '../agent/rem-agent.js';
-import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
+import { defineOverlayTool } from '../tools/overlay.js';
+import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from '../plugins/tool/builtin/todo-write.js';
+import { DefaultTodoService } from '../capabilities/todo/service.js';
 
 export interface AssemblePiAgentParams {
   di: AgentDI;
@@ -36,38 +34,37 @@ export interface AssemblePiAgentParams {
   spawnChild?: SpawnChild;
   /** delegate_task 挂树的父 Agent */
   parent: REMAgent;
-  /** meta 事件出口（tool-bridge / context-bridge） */
+  /** meta 事件出口（pi-agent-tools / context-bridge） */
   emitMeta: (event: RemMetaEvent) => void;
   /** 压缩判定用的 session（本函数不做任何持久化） */
   session: Session;
 }
 
-/** REMAgent 内部装配（全同步）：工具组合 → bridges → createPiAgent */
+/** REMAgent 内部装配（全同步）：pi 工具 → bridges → createPiAgent */
 export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
   const { di, runtimeConfig, context, workspace, session } = params;
   const { behavior, configProvider, effectiveModel, workspaceRoot } = context;
 
-  const effectiveToolProvider = composeToolProviders({
-    toolProvider: di.toolProvider,
-    mcpProviders: di.mcpProviders,
-    skillProvider: di.skillProvider,
-  });
+  // pi-agent-tools / context-bridge 只发 RemMetaEvent；签名按 AgentStreamEvent 收窄到 emitMeta
+  const emit = (event: AgentStreamEvent) => params.emitMeta(event as RemMetaEvent);
 
   const spawnChild: SpawnChild =
     params.spawnChild ??
     (async () => {
       throw new Error('delegate_task is not available for this agent');
     });
-
-  const toolProviderWithOverlay: ToolProvider = new ToolOverlay(effectiveToolProvider, [
-    defineOverlayTool(
+  const piTools = createPiAgentTools({
+    toolProvider: di.toolProvider,
+    mcpProviders: di.mcpProviders,
+    skillProvider: di.skillProvider,
+    delegateToolProviderEntry: defineOverlayTool(
       createDelegateTaskToolDefinition(),
       createDelegateTaskExecutor({
         parentAgent: () => params.parent,
         spawnChild,
       }),
     ),
-    defineOverlayTool(
+    todoToolProviderEntry: defineOverlayTool(
       createTodoWriteToolDefinition(),
       createTodoWriteToolExecutor(
         new DefaultTodoService(di.storage.todoStore),
@@ -75,24 +72,9 @@ export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
         workspace,
       ),
     ),
-  ]);
-
-  // tool-bridge / context-bridge 只发 RemMetaEvent；签名按 AgentStreamEvent 收窄到 emitMeta
-  const emit = (event: AgentStreamEvent) => params.emitMeta(event as RemMetaEvent);
-
-  const toolBridge = createToolBridge({
-    toolProvider: toolProviderWithOverlay,
-    permissionEvaluator: di.permissionEvaluator,
-    agentState: params.approvalState,
-    ruleEngine: di.ruleEngine,
-    ruleStore: di.storage.ruleStore,
-    securityMode: runtimeConfig.securityMode,
     workspaceRoot,
     agentName: behavior.name,
-    readOnly: behavior.readOnly,
     sessionId: params.sessionId,
-    signal: params.signal,
-    emit,
   });
 
   const historyForTokens = ((session.metadata.tokenUsageHistory as unknown[]) ?? []).map((entry) =>
@@ -133,8 +115,8 @@ export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
     effectiveModel,
     systemPrompt: context.systemPrompt,
     messages: context.messages,
-    tools: toolBridge.tools,
-    beforeToolCall: (ctx) => toolBridge.beforeToolCall(ctx),
+    tools: piTools.tools,
+    // beforeToolCall: (ctx) => piTools.beforeToolCall(ctx),
     transformContext: contextBridge.transformContext,
     maxTurns: behavior.maxTurns,
     signal: params.signal,

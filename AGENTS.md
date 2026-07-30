@@ -62,7 +62,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 
 ### 3. 不依赖 Vercel AI SDK
 
-`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行，由 `reason()` 和 `generate()` 直接消费 `AssistantMessageEvent` 流。循环逻辑由 `ReactLoop` / `LoopStrategy` 自己实现，不交给 Vercel AI SDK 管理。
+`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行。Agent 推理循环由 `@earendil-works/pi-agent-core` 的 `Agent` 执行（core 在 `run-agent/pi-agent-factory.ts` 装配，经 tool-bridge / context-bridge / session-writer 桥接），core 不自建循环，也不交给 Vercel AI SDK 管理。
 
 ### 4. 直接复用 pi-ai 类型
 
@@ -75,13 +75,11 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 | 文件 | 用途 |
 |---|---|
 | `packages/core/src/agent-factory.ts` | `createAgentFromEnv` |
-| `packages/core/src/loop-strategy.ts` | `ReactLoop` / `LoopStrategy` 导出 |
-| `packages/core/src/plugins/loop/react/index.ts` | `ReactLoop` 实现 |
-| `packages/core/src/reason/reason.ts` | `reason()`：使用 `models.stream` 执行 ReAct reason |
-| `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成 |
+| `packages/core/src/run-agent/index.ts` | `runAgent`：唯一执行入口（装配 pi-agent-core `Agent`） |
+| `packages/core/src/run-agent/pi-agent-factory.ts` | `createPiAgent`：pi-agent-core `Agent` 装配 |
+| `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成（标题/压缩摘要） |
 | `packages/core/src/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
 | `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
-| `packages/core/src/browser.ts` | `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用） |
 | `packages/core/src/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
 | `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配） |
 | `packages/bridge/src/local/agent-local-service.ts` | `LocalAgentService`：浏览器内 AgentService（`rem-agent-bridge/local`） |
@@ -105,7 +103,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 
 ## 测试
 
-- 单元测试放在 `packages/core/tests/`。
+- 单元测试放在 `packages/core/tests/`；测试专用 in-memory fake（`InMemoryToolProvider` / `InMemorySessionProvider`）在 `packages/core/tests/helpers/`。
 - 运行测试前确保类型检查通过：`pnpm typecheck && pnpm test`。
 
 ## 语言

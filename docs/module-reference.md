@@ -1,6 +1,6 @@
 # Rem Agent — 模块级参考手册
 
-> 状态：✅ 与代码同步（2026-07-27）
+> 状态：✅ 与代码同步（2026-07-29）
 >
 > 本文档记录每个包的关键模块职责、导出和依赖关系。不记录行数（会腐烂），以目录与关键模块为粒度。
 
@@ -19,7 +19,7 @@
 
 ## 1. rem-agent-core
 
-**包名：** `rem-agent-core` | **入口：** `./dist/index.js`，浏览器子集 `./dist/browser.js`（`rem-agent-core/browser`）
+**包名：** `rem-agent-core` | **入口：** `./dist/index.js`（另有 `./stream/event-aggregators`、`./token-usage`、`./llm/context-window` 子路径导出）
 **关键依赖：** `@earendil-works/pi-ai`、`@sinclair/typebox`、`yaml`
 
 ### 1.1 顶层模块（`src/`）
@@ -28,10 +28,9 @@
 |------|------|
 | `agent-factory.ts` | `createAgentFromEnv()` — 从环境变量解析 provider/model 并构造 AgentContext（**配置由 Core 拥有的唯一入口**） |
 | `agent-context-assembler.ts` | `assembleAgentContext()` — 纯装配函数，全部 provider 可注入（浏览器侧复用） |
-| `agent-context-builder.ts` | `buildAgentContext()` — Node 侧默认装配（Sqlite 存储、文件系统工具、MCP 连接） |
-| `agent-context.ts` | `AgentContext` / `AgentRuntimeInfo` 类型 |
-| `run-agent.ts` | `runAgent()` — 无状态 Agent 运行，**唯一执行入口**，含并发标题生成 |
-| `loop-strategy.ts` | `ReactLoop` / `LoopStrategy` 导出（实现位于 `plugins/loop/react`） |
+| `agent-context-builder.ts` | `createAgentAssembly()` — 同步装配（Sqlite 存储、文件系统工具、MCP 连接） |
+| `agent-di.ts` / `agent-runtime-config.ts` | `AgentDI` / `AgentRuntimeConfig` / `AgentRuntimeInfo` 类型 |
+| `run-agent.ts` + `run-agent/` | `runAgent()` — 无状态 Agent 运行，**唯一执行入口**；`run-agent/` 内含 pi-agent-factory（装配 pi-agent-core `Agent`）、tool-bridge（工具执行+审批管线）、context-bridge（上下文压缩）、session-writer（消息持久化），含并发标题生成 |
 | `state.ts` / `agent-state.ts` | Agent 运行时状态（Session、budget、status） |
 | `events.ts` | `EventBus` + `AgentEvent`（生命周期/阶段/工具/审批/压缩事件） |
 | `bus-events.ts` | `BusEvent` — 面向 UI 的广播事件类型（`todo-updated`、`usage-change`、`activity-change`、`child-agent-update` 等） |
@@ -43,15 +42,14 @@
 | `tool-composer.ts` | `DefaultToolComposer` — 组合基础工具 + MCP 工具 + skill-read 工具 |
 | `overlay-tool-provider.ts` | `OverlayToolProvider` — 在已有 ToolProvider 上叠加工具定义 |
 | `agent-resolver.ts` | `DefaultAgentResolver` — 多角色 agent 配置解析 |
-| `browser.ts` | 平台无关入口（浏览器/edge 可用，不含 Node 内置实现） |
 | `index.ts` | 主 barrel 导出 |
 
 ### 1.2 推理与执行
 
 | 目录 | 职责 |
 |------|------|
-| `reason/` | `reason.ts`（`models.stream` 流式 ReAct 推理）、`generate.ts`（`models.complete` 非流式生成） |
-| `execute/` | `execute-tools.ts`（工具执行）、`approval-engine.ts`（审批引擎） |
+| `reason/` | `generate.ts`（`models.complete` 非流式生成：标题生成、压缩摘要）；流式推理由 pi-agent-core `Agent` 驱动 |
+| `execute/` | `approval-engine.ts`（审批引擎）、`request-approval.ts`（审批请求） |
 
 ### 1.3 LLM 层（`src/llm/`）
 
@@ -64,13 +62,13 @@
 
 类型直接复用 pi-ai：`pi.Message`、`pi.Tool[]`、`pi.Usage`、`AssistantMessageEvent`。无 adapter 转换层。
 
-### 1.4 SDK 接口（`src/sdk/`）— 19 个接口文件
+### 1.4 SDK 接口（`src/sdk/`）— 16 个接口文件
 
-`agent-role`、`agent-state-provider`、`budget-policy`、`compressor`、`config-provider`、`context-provider`、`error-handler`、`loop-strategy`、`memory-provider`、`session-provider`、`skill-provider`、`storage-provider`、`system-prompt`、`title-provider`、`tool-composer`、`tool-hook`、`tool-policy`、`tool-provider`（`ToolSet = pi.Tool[]`）。
+`agent-role`、`agent-state-provider`、`budget-policy`、`compressor`、`config-provider`、`context-provider`、`error-handler`、`memory-provider`、`session-provider`、`skill-provider`、`storage-provider`、`system-prompt`、`title-provider`、`tool-composer`、`tool-policy`、`tool-provider`（`ToolSet = pi.Tool[]`）。
 
 ### 1.5 安全层（`src/security/`）
 
-`exec-classifier`（命令分类）、`permissions/`、`rules/`（RuleEngine / RuleStore / profiles）、`tool-hooks/`、`tool-policy-pipeline`、`workspace-root-guard`。
+`exec-classifier`（命令分类）、`permissions/`、`rules/`（RuleEngine / RuleStore / profiles）、`tool-policy-pipeline`、`workspace-root-guard`。
 
 ### 1.6 能力目录
 
@@ -83,12 +81,14 @@
 | `stream/` | `agent-event-stream.ts`（AgentEventStreamController 队列流）、`event-aggregators.ts` |
 | `registry/` | `AgentToolRegistry` |
 | `config/` | `paths.ts` 路径解析 |
-| `shared/` | id 生成、debug-log（console + file）、text 工具 |
+| `shared/` | id 生成、debug-log（console + file） |
 | `utils/` | `skill-parser.ts` SKILL.md 解析 |
 
-### 1.7 内置插件（`src/plugins/`）— 14 类
+### 1.7 内置插件（`src/plugins/`）— 10 类
 
-`budget`、`compressor`、`config`、`error`、`execute`、`loop`（react）、`memory`、`reason`、`session`、`skill`、`state`、`storage`（sqlite）、`title`、`tool`。
+`budget`、`compressor`（llm-summary）、`config`、`error`、`memory`、`session`、`skill`、`storage`（sqlite）、`title`（llm）、`tool`（builtin / file-system / static）。
+
+> 测试专用的 in-memory fake（`InMemoryToolProvider` / `InMemorySessionProvider`）位于 `packages/core/tests/helpers/`，非生产代码。
 
 ---
 
@@ -214,4 +214,4 @@
 
 ---
 
-*最后更新：2026-07-27*
+*最后更新：2026-07-29*

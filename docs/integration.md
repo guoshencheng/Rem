@@ -200,7 +200,6 @@ npm run dev
 | 换 session 存储（内存/文件/自实现） | `AgentService` 构造参数 `storageProvider`，实现 core 的 `StorageProvider` 接口 |
 | 加自定义工具 | `AgentServiceOptions`（即 `AgentContextBuildOptions`）注入 `toolProviders`；或走 MCP（配置文件 `mcpServers` 字段） |
 | 定制审批策略 | 配置文件 `toolPolicy` / `sessionRules`，或实现 core 的审批相关 provider |
-| 换循环策略 | core 的 `LoopStrategy` 接口 |
 | 定制系统提示 | core 的 system-prompt 装配器（sections 可增删） |
 
 深入阅读：`docs/architecture.md`、`docs/core-design.md`、`packages/core/README.md`。

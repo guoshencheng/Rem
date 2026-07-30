@@ -83,12 +83,13 @@
 │  │ agent-factory.ts       │  │ assembleAgentContext() 纯装配函数       │  │
 │  └────────────────────────┘  └────────────────────────────────────────┘  │
 │                                                                          │
-│  ReactLoop（plugins/loop/react）:                                        │
+│  Agent 循环（@earendil-works/pi-agent-core 的 Agent 类）:                │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  prepare → reason → execute → observe → reflect                   │   │
-│  │  reason:  reason/reason.ts   → models.stream（流式 ReAct 推理）   │   │
-│  │          reason/generate.ts  → models.complete（非流式生成）      │   │
-│  │  execute: execute/execute-tools.ts + approval-engine.ts          │   │
+│  │  run-agent/pi-agent-factory.ts 装配 Agent；                        │   │
+│  │  run-agent/tool-bridge.ts     → 工具执行 + 审批管线                │   │
+│  │  run-agent/context-bridge.ts  → 上下文压缩（transformContext）     │   │
+│  │  run-agent/session-writer.ts  → 消息持久化                         │   │
+│  │  reason/generate.ts → models.complete（标题/压缩等非流式生成）     │   │
 │  │  事件:    AgentStreamEvent = pi.AssistantMessageEvent             │   │
 │  │           | RemMetaEvent                                          │   │
 │  └──────────────────────────────┬───────────────────────────────────┘   │
@@ -110,12 +111,10 @@
 │  └────────────┘ └───────────┘ └─────────────────┘ └──────────────────┘  │
 │                                                                          │
 │  能力目录:                                                               │
-│  sdk/（19 个接口文件）· security/（审批/策略/工作区守卫）· mcp/（MCP 客户端）│
+│  sdk/（16 个接口文件）· security/（审批/策略/工作区守卫）· mcp/（MCP 客户端）│
 │  todo/（session 级 TodoList）· sub-agent/（子 Agent 上下文）              │
-│  system-prompt/（模板化系统提示装配）· plugins/（14 类内置 Provider 实现， │
-│  含 loop/react 与 storage/sqlite）                                        │
-│                                                                          │
-│  browser.ts — `rem-agent-core/browser`：平台无关入口（浏览器/edge 可用）   │
+│  system-prompt/（模板化系统提示装配）· plugins/（10 类内置 Provider 实现， │
+│  含 storage/sqlite）                                                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,11 +169,11 @@
   │
   ▼
 [core] runAgent()
-  │  加载 Session → ReactLoop 迭代：
+  │  加载 Session → pi-agent-core Agent 循环：
   │  ① 系统提示装配 + 记忆注入
-  │  ② ContextCompressor      → 按需压缩上下文
-  │  ③ reason() → models.stream(...) → LLM 流式调用
-  │  ④ execute-tools → 工具执行（含审批管线）
+  │  ② context-bridge            → 按需压缩上下文
+  │  ③ models.stream(...) → LLM 流式调用（pi-agent-core Agent 驱动）
+  │  ④ tool-bridge → 工具执行（含审批管线）
   │  ⑤ AgentEventStreamController.emit → AgentStreamEvent
   │
   ▼
@@ -204,7 +203,7 @@ React 重新渲染 MessageList → 用户看到流式响应
   │  customProviders passthrough（自定义 OpenAI 兼容端点）
   │
   ▼
-[core/browser] runAgent() — 直接在浏览器内执行 ReAct 循环
+[core] runAgent() — 直接在浏览器内执行 Agent 循环
   │  事件经 BroadcastBus 回到 useAgents，渲染链路同流程 A
 ```
 
@@ -218,7 +217,7 @@ createAgentFromEnv({name, maxTurns})
   ▼
 runAgent({context, sessionId, input, signal})
   │  加载/创建 Session（schema v2，旧 v1 抛 UnsupportedSessionSchemaError）
-  │  进入 ReactLoop 迭代，每步受 IterationBudget 护栏约束
+  │  进入 pi-agent-core Agent 循环，每步受 IterationBudget 护栏约束
   │  EventBus 发出 turn:before/after、phase:*、tool:* 等事件
   │  循环直到完成 / 中断 / 预算耗尽
   │
@@ -238,7 +237,7 @@ runAgent({context, sessionId, input, signal})
 | **直接复用 pi-ai 类型** | 消息为 `pi.Message`、工具集为 `pi.Tool[]`，无自建表示层/adapter |
 | **SSE 流** | `AgentStreamEvent` 标准化事件类型，通过 HTTP SSE 传输 |
 | **预算护栏** | `IterationBudget` 强制执行最大轮次、连续错误、相同工具故障限制 |
-| **可扩展循环** | `LoopStrategy` 接口支持未来 Plan-and-Solve 等替代循环 |
+| **循环委托 pi-agent-core** | Agent 推理由 `@earendil-works/pi-agent-core` 的 `Agent` 执行，core 只做装配与桥接 |
 
 ### 红线
 
@@ -316,15 +315,14 @@ rem/
 │   │   └── src/
 │   │       ├── agent-factory.ts     createAgentFromEnv()
 │   │       ├── agent-context-assembler.ts  assembleAgentContext() 纯装配
-│   │       ├── run-agent.ts         无状态 runAgent()（唯一执行入口）
-│   │       ├── loop-strategy.ts     ReactLoop / LoopStrategy 导出
-│   │       ├── reason/              reason()（流式）/ generate()（非流式）
-│   │       ├── execute/             工具执行 + 审批引擎
+│   │       ├── run-agent.ts         无状态 runAgent()（唯一执行入口，facade）
+│   │       ├── run-agent/           pi-agent-factory, tool-bridge, context-bridge, session-writer
+│   │       ├── reason/              generate()（非流式生成：标题/压缩摘要）
+│   │       ├── execute/             审批引擎 + 审批请求
 │   │       ├── state.ts / agent-state.ts / budget.ts / session.ts / events.ts
 │   │       ├── bus-events.ts        BusEvent（UI 广播事件类型）
-│   │       ├── browser.ts           rem-agent-core/browser 平台无关入口
 │   │       ├── llm/                 models, context-window, reasoning-options
-│   │       ├── sdk/                 19 个 SDK 接口文件
+│   │       ├── sdk/                 16 个 SDK 接口文件
 │   │       ├── security/            审批管理, 工具策略, 工作区守卫
 │   │       ├── mcp/                 MCP 客户端与工具桥接
 │   │       ├── todo/                session 级 TodoList 服务
@@ -332,8 +330,8 @@ rem/
 │   │       ├── system-prompt/       模板化系统提示装配
 │   │       ├── stream/              AgentEventStreamController, 事件聚合
 │   │       ├── registry/            AgentToolRegistry
-│   │       ├── shared/              id 生成, debug-log, text 工具
-│   │       └── plugins/             14 类内置 Provider（loop/react, storage/sqlite, ...）
+│   │       ├── shared/              id 生成, debug-log
+│   │       └── plugins/             10 类内置 Provider（storage/sqlite, ...）
 │   ├── bridge/                  rem-agent-bridge — 桥接层
 │   │   └── src/
 │   │       ├── agent-service.interface.ts  IAgentService 统一接口

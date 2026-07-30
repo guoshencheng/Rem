@@ -85,11 +85,11 @@
 │                                                                          │
 │  Agent 循环（@earendil-works/pi-agent-core 的 Agent 类）:                │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  run-agent/pi-agent-factory.ts 装配 Agent；                        │   │
-│  │  run-agent/tool-bridge.ts     → 工具执行 + 审批管线                │   │
-│  │  run-agent/context-bridge.ts  → 上下文压缩（transformContext）     │   │
-│  │  run-agent/session-writer.ts  → 消息持久化                         │   │
-│  │  reason/generate.ts → models.complete（标题/压缩等非流式生成）     │   │
+│  │  runtime/pi-agent-factory.ts 装配 Agent；                          │   │
+│  │  runtime/tool-bridge.ts       → 工具执行 + 审批管线                │   │
+│  │  runtime/context-bridge.ts    → 上下文压缩（transformContext）     │   │
+│  │  消息持久化经 message-persist 事件由上层 SessionService 落盘        │   │
+│  │  runtime/generation/generate.ts → models.complete（非流式生成）    │   │
 │  │  事件:    AgentStreamEvent = pi.AssistantMessageEvent             │   │
 │  │           | RemMetaEvent                                          │   │
 │  └──────────────────────────────┬───────────────────────────────────┘   │
@@ -313,25 +313,20 @@ rem/
 ├── packages/
 │   ├── core/                    rem-agent-core — 核心引擎
 │   │   └── src/
-│   │       ├── agent-factory.ts     createAgentFromEnv()
-│   │       ├── agent-context-assembler.ts  assembleAgentContext() 纯装配
-│   │       ├── run-agent.ts         无状态 runAgent()（唯一执行入口，facade）
-│   │       ├── run-agent/           pi-agent-factory, tool-bridge, context-bridge, session-writer
-│   │       ├── reason/              generate()（非流式生成：标题/压缩摘要）
-│   │       ├── execute/             审批引擎 + 审批请求
-│   │       ├── state.ts / agent-state.ts / budget.ts / session.ts / events.ts
-│   │       ├── bus-events.ts        BusEvent（UI 广播事件类型）
-│   │       ├── llm/                 models, context-window, reasoning-options
+│   │       ├── agent/               REMAgent 生命周期、运行状态、输出、事件、预算、usage、bus
+│   │       ├── assembly/            agent-factory / agent-assembly / agent-context-assembler / agent-di
+│   │       ├── runtime/             assemble-pi-agent, pi-agent-factory, tool-bridge, context-bridge, generation/
+│   │       ├── session/             model / manager / tree
+│   │       ├── tools/               registry, composer, overlay, prompt-tool-summary
+│   │       ├── security/            approval, permissions, rules, workspace, tool-policy
+│   │       ├── capabilities/        todo, sub-agent（delegate_task）
 │   │       ├── sdk/                 16 个 SDK 接口文件
-│   │       ├── security/            审批管理, 工具策略, 工作区守卫
-│   │       ├── mcp/                 MCP 客户端与工具桥接
-│   │       ├── todo/                session 级 TodoList 服务
-│   │       ├── sub-agent/           子 Agent 上下文构建
+│   │       ├── infrastructure/      llm, mcp, config, observability
 │   │       ├── system-prompt/       模板化系统提示装配
-│   │       ├── stream/              AgentEventStreamController, 事件聚合
-│   │       ├── registry/            AgentToolRegistry
-│   │       ├── shared/              id 生成, debug-log
-│   │       └── plugins/             10 类内置 Provider（storage/sqlite, ...）
+│   │       ├── shared/              generate-id
+│   │       ├── plugins/             10 类内置 Provider（storage/sqlite, ...）
+│   │       ├── compat.ts            临时兼容出口（V2 别名）
+│   │       └── index.ts             稳定/高级/兼容 三段式公共出口
 │   ├── bridge/                  rem-agent-bridge — 桥接层
 │   │   └── src/
 │   │       ├── agent-service.interface.ts  IAgentService 统一接口

@@ -26,32 +26,30 @@
 
 | 模块 | 职责 |
 |------|------|
-| `agent-factory.ts` | `createAgentFromEnv()` — 从环境变量解析 provider/model 并构造 AgentContext（**配置由 Core 拥有的唯一入口**） |
-| `agent-context-assembler.ts` | `assembleAgentContext()` — 纯装配函数，全部 provider 可注入（浏览器侧复用） |
-| `agent-context-builder.ts` | `createAgentAssembly()` — 同步装配（Sqlite 存储、文件系统工具、MCP 连接） |
-| `agent-di.ts` / `agent-runtime-config.ts` | `AgentDI` / `AgentRuntimeConfig` / `AgentRuntimeInfo` 类型 |
-| `run-agent.ts` + `run-agent/` | `runAgent()` — 无状态 Agent 运行，**唯一执行入口**；`run-agent/` 内含 pi-agent-factory（装配 pi-agent-core `Agent`）、tool-bridge（工具执行+审批管线）、context-bridge（上下文压缩）、session-writer（消息持久化），含并发标题生成 |
-| `state.ts` / `agent-state.ts` | Agent 运行时状态（Session、budget、status） |
-| `events.ts` | `EventBus` + `AgentEvent`（生命周期/阶段/工具/审批/压缩事件） |
-| `bus-events.ts` | `BusEvent` — 面向 UI 的广播事件类型（`todo-updated`、`usage-change`、`activity-change`、`child-agent-update` 等） |
-| `broadcast-bus.ts` | `BroadcastBus` — BusEvent 发布/订阅总线 |
-| `budget.ts` | `IterationBudget` — 轮次/连续错误/相同工具故障护栏 |
-| `session.ts` | `Session` / `SessionSummary` 接口（conversation 为 `pi.Message[]`，schema v2） |
-| `types.ts` | 核心类型：`AgentStreamEvent`、`AgentStream`、`UserInput`、`AgentOutput`、`Usage` 等 |
-| `token-usage.ts` | `TokenUsageDetail` 与 usage 聚合工具 |
-| `tool-composer.ts` | `DefaultToolComposer` — 组合基础工具 + MCP 工具 + skill-read 工具 |
-| `overlay-tool-provider.ts` | `OverlayToolProvider` — 在已有 ToolProvider 上叠加工具定义 |
-| `agent-resolver.ts` | `DefaultAgentResolver` — 多角色 agent 配置解析 |
-| `index.ts` | 主 barrel 导出 |
+| `assembly/agent-factory.ts` | `createAgentFromEnv()` — 从环境变量解析 provider/model 并构造 AgentContext（**配置由 Core 拥有的唯一入口**） |
+| `assembly/agent-context-assembler.ts` | `assembleAgentContext()` — 纯装配函数，全部 provider 可注入（浏览器侧复用） |
+| `assembly/agent-assembly.ts` | `createAgentAssembly()` — 同步装配（Sqlite 存储、文件系统工具、MCP 连接） |
+| `assembly/agent-di.ts` / `assembly/runtime-config.ts` | `AgentDI` / `AgentRuntimeConfig` / `AgentRuntimeInfo` 类型 |
+| `runtime/` | pi-agent 适配边界：assemble-pi-agent（REMAgent 内部装配入口）、pi-agent-factory（装配 pi-agent-core `Agent`）、tool-bridge（工具执行+审批管线）、context-bridge（上下文压缩）、generation/（`models.complete` 非流式生成）；消息持久化经 `message-persist` 事件交给上层 SessionService |
+| `agent/bus-events.ts` | `BusEvent` — 面向 UI 的广播事件类型（`todo-updated`、`usage-change`、`activity-change`、`child-agent-update` 等） |
+| `agent/broadcast-bus.ts` | `BroadcastBus` — BusEvent 发布/订阅总线 |
+| `agent/budget.ts` | `IterationBudget` — 轮次/连续错误/相同工具故障护栏 |
+| `session/model.ts` | `Session` / `SessionSummary` 接口（conversation 为 `pi.Message[]`，schema v2） |
+| `agent/types.ts` | 核心类型：`AgentStreamEvent`、`AgentStream`、`UserInput`、`AgentOutput`、`Usage` 等 |
+| `agent/token-usage.ts` | `TokenUsageDetail` 与 usage 聚合工具 |
+| `tools/composer.ts` | `composeToolProviders()` — 组合基础工具 + MCP 工具 + skill-read 工具 |
+| `tools/overlay.ts` | `ToolOverlay` — 在已有 ToolProvider 上叠加工具定义 |
+| `plugins/config/default/agent-resolver.ts` | `DefaultAgentResolver` — 多角色 agent 配置解析 |
+| `index.ts` | 主 barrel 导出（稳定/高级/兼容三段式；临时兼容导出集中在 `compat.ts`） |
 
 ### 1.2 推理与执行
 
 | 目录 | 职责 |
 |------|------|
-| `reason/` | `generate.ts`（`models.complete` 非流式生成：标题生成、压缩摘要）；流式推理由 pi-agent-core `Agent` 驱动 |
-| `execute/` | `approval-engine.ts`（审批引擎）、`request-approval.ts`（审批请求） |
+| `runtime/generation/` | `generate.ts`（`models.complete` 非流式生成：标题生成、压缩摘要）；流式推理由 pi-agent-core `Agent` 驱动 |
+| `security/approval/` | `approval-engine.ts`（审批引擎）、`request-approval.ts`（审批请求） |
 
-### 1.3 LLM 层（`src/llm/`）
+### 1.3 LLM 层（`src/infrastructure/llm/`）
 
 | 模块 | 职责 |
 |------|------|
@@ -64,31 +62,31 @@
 
 ### 1.4 SDK 接口（`src/sdk/`）— 16 个接口文件
 
-`agent-role`、`agent-state-provider`、`budget-policy`、`compressor`、`config-provider`、`context-provider`、`error-handler`、`memory-provider`、`session-provider`、`skill-provider`、`storage-provider`、`system-prompt`、`title-provider`、`tool-composer`、`tool-policy`、`tool-provider`（`ToolSet = pi.Tool[]`）。
+`agent-role`、`agent-state-provider`、`budget-policy`、`compressor`、`config-provider`、`context-provider`、`error-handler`、`memory-provider`、`session-provider`、`skill-provider`、`storage-provider`、`system-prompt`、`title-provider`、`tool-policy`、`tool-provider`（`ToolSet = pi.Tool[]`）。
 
 ### 1.5 安全层（`src/security/`）
 
-`exec-classifier`（命令分类）、`permissions/`、`rules/`（RuleEngine / RuleStore / profiles）、`tool-policy-pipeline`、`workspace-root-guard`。
+`permissions/`（含 exec-classifier 命令分类）、`rules/`（RuleEngine / RuleStore / profiles）、`tool-policy/`（管线与 profile）、`workspace/`（工作区根守卫）、`approval/`（审批引擎与请求）。
 
 ### 1.6 能力目录
 
 | 目录 | 职责 |
 |------|------|
-| `mcp/` | MCP 客户端：connection-manager、tool-provider、composite-tool-provider、schema-converter |
-| `todo/` | session 级 TodoList：`TodoService` / `DefaultTodoService` / `TodoItem` 类型 |
-| `sub-agent/` | 子 Agent 上下文构建与任务结果格式化 |
+| `infrastructure/mcp/` | MCP 客户端：connection-manager、tool-provider、composite-tool-provider、schema-converter |
+| `capabilities/todo/` | session 级 TodoList：`TodoService` / `DefaultTodoService` / `TodoItem` 类型 |
+| `capabilities/sub-agent/` | delegate_task 委派工具、子 Agent 上下文构建与任务结果格式化 |
 | `system-prompt/` | 模板化系统提示装配：assembler、template-selector、sections/、templates/、loaders/ |
-| `stream/` | `agent-event-stream.ts`（AgentEventStreamController 队列流）、`event-aggregators.ts` |
-| `registry/` | `AgentToolRegistry` |
-| `config/` | `paths.ts` 路径解析 |
-| `shared/` | id 生成、debug-log（console + file） |
-| `utils/` | `skill-parser.ts` SKILL.md 解析 |
+| `agent/event-aggregators.ts` | 流事件归并：`reduceStreamEvent` / `compactContentBlocks` |
+| `tools/registry.ts` | `AgentToolRegistry` |
+| `infrastructure/config/` | `paths.ts` 路径解析 |
+| `infrastructure/observability/` | debug-log（console + file） |
+| `shared/` | `generate-id.ts` id 生成 |
 
 ### 1.7 内置插件（`src/plugins/`）— 10 类
 
 `budget`、`compressor`（llm-summary）、`config`、`error`、`memory`、`session`、`skill`、`storage`（sqlite）、`title`（llm）、`tool`（builtin / file-system / static）。
 
-> 测试专用的 in-memory fake（`InMemoryToolProvider` / `InMemorySessionProvider`）位于 `packages/core/tests/helpers/`，非生产代码。
+> 测试专用的 fake（`createFakeAssembly` / mock Models）位于 `packages/core/tests/helpers/`，非生产代码。
 
 ---
 

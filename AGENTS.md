@@ -49,7 +49,7 @@ import { createAgentFromEnv } from 'rem-agent-core';
 const agent = await createAgentFromEnv();
 ```
 
-Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentAssembly`（`AgentDI` 含 `models` 与全部 provider；`AgentRuntimeConfig` 含 `securityMode` 与 `runtime`）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
+Core 在 `assembly/agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，并构造 `AgentAssembly`（`AgentDI` 含 `models` 与全部 provider；`AgentRuntimeConfig` 含 `securityMode` 与 `runtime`）。实际的 LLM 调用由 `@earendil-works/pi-ai` 的 `Models` 集合统一处理。
 
 服务宿主（如 bridge `AgentService`）需要构造/init 分离时，改用 `createAgentAssembly` 同步装配 + 内联异步初始化（`configProvider.init` / `storage.init` / `initRuleEngine` / MCP connectAll）。
 
@@ -62,7 +62,7 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 
 ### 3. 不依赖 Vercel AI SDK
 
-`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行。Agent 推理循环由 `@earendil-works/pi-agent-core` 的 `Agent` 执行（core 在 `run-agent/pi-agent-factory.ts` 装配，经 tool-bridge / context-bridge / session-writer 桥接），core 不自建循环，也不交给 Vercel AI SDK 管理。
+`packages/core` **不依赖** `ai` 包。所有 LLM 调用通过 `@earendil-works/pi-ai` 的 `Models` 集合进行。Agent 推理循环由 `@earendil-works/pi-agent-core` 的 `Agent` 执行（core 在 `runtime/pi-agent-factory.ts` 装配，经 tool-bridge / context-bridge 桥接），core 不自建循环，也不交给 Vercel AI SDK 管理。
 
 ### 4. 直接复用 pi-ai 类型
 
@@ -74,14 +74,14 @@ Core 在 `agent-factory.ts` 中通过 `createAgentFromEnv` 读取环境变量，
 
 | 文件 | 用途 |
 |---|---|
-| `packages/core/src/agent-factory.ts` | `createAgentFromEnv` |
-| `packages/core/src/run-agent/index.ts` | `runAgent`：唯一执行入口（装配 pi-agent-core `Agent`） |
-| `packages/core/src/run-agent/pi-agent-factory.ts` | `createPiAgent`：pi-agent-core `Agent` 装配 |
-| `packages/core/src/reason/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成（标题/压缩摘要） |
-| `packages/core/src/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
-| `packages/core/src/llm/context-window.ts` | 上下文窗口大小解析 |
-| `packages/core/src/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
-| `packages/core/src/agent-context-builder.ts` | `createAgentAssembly`（同步装配） |
+| `packages/core/src/assembly/agent-factory.ts` | `createAgentFromEnv` |
+| `packages/core/src/runtime/assemble-pi-agent.ts` | `assemblePiAgent`：装配 pi-agent-core `Agent`（REMAgent 内部执行入口） |
+| `packages/core/src/runtime/pi-agent-factory.ts` | `createPiAgent`：pi-agent-core `Agent` 装配 |
+| `packages/core/src/runtime/generation/generate.ts` | `generate()`：使用 `models.complete` 执行非流式生成（标题/压缩摘要） |
+| `packages/core/src/infrastructure/llm/models.ts` | `createCoreModels`：pi-ai `Models` 集合初始化 |
+| `packages/core/src/infrastructure/llm/context-window.ts` | 上下文窗口大小解析 |
+| `packages/core/src/assembly/agent-context-assembler.ts` | `assembleAgentContext`：纯装配函数，全部 provider 可注入 |
+| `packages/core/src/assembly/agent-assembly.ts` | `createAgentAssembly`（同步装配） |
 | `packages/bridge/src/local/agent-local-service.ts` | `LocalAgentService`：浏览器内 AgentService（`rem-agent-bridge/local`） |
 | `packages/routes/src/router.ts` | `createRemHandler`：REM API 路由分发 |
 | `packages/routes/src/cli.ts` | `rem-routes init`：生成宿主薄壳路由 |

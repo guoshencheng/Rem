@@ -20,7 +20,6 @@ export default defineConfig({
       { find: 'rem-agent-bridge/client', replacement: resolve(__dirname, 'packages/bridge/src/client.ts') },
       { find: 'rem-agent-bridge', replacement: resolve(__dirname, 'packages/bridge/src/index.ts') },
       { find: 'rem-agent-ui', replacement: resolve(__dirname, 'packages/ui/src/index.ts') },
-      { find: 'rem-agent-tui', replacement: resolve(__dirname, 'packages/tui/src/index.ts') },
       { find: '@/', replacement: resolve(__dirname, 'packages/web/src') + '/' },
     ],
   },

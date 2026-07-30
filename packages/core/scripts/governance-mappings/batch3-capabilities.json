@@ -1,8 +1,0 @@
-{
-  "todo/errors.ts": "capabilities/todo/errors.ts",
-  "todo/service.ts": "capabilities/todo/service.ts",
-  "todo/types.ts": "capabilities/todo/types.ts",
-  "sub-agent/build-child-context.ts": "capabilities/sub-agent/build-child-context.ts",
-  "sub-agent/format-task-result.ts": "capabilities/sub-agent/format-task-result.ts",
-  "delegate-task-v2.ts": "capabilities/sub-agent/delegate-task.ts"
-}

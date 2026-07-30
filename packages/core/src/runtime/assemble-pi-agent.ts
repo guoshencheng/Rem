@@ -5,7 +5,7 @@ import type { Session } from '../session/model.js';
 import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';
 import type { ArchiveRecord } from '../sdk/storage-provider.js';
 import { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
-import { normalizeUsageDetail, type TokenUsageDetail } from '../agent/token-usage/index.js';
+import { normalizeUsageDetail, reduceTokenUsage, type TokenUsageDetail } from '../agent/token-usage/index.js';
 import { generateId } from '../shared/generate-id.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
 import { createPiAgentTools } from './pi-agent-tools.js';
@@ -77,9 +77,7 @@ export function assemblePiAgent(params: AssemblePiAgentParams): PiAgentLike {
     sessionId: params.sessionId,
   });
 
-  const historyForTokens = ((session.metadata.tokenUsageHistory as unknown[]) ?? []).map((entry) =>
-    normalizeUsageDetail(entry as TokenUsageDetail));
-  const accumulated = historyForTokens.reduce((sum, entry) => sum + entry.totalTokens, 0);
+  const accumulated = reduceTokenUsage(session.metadata.tokenUsageHistory as unknown[] ?? []) ?? 0;
 
   const contextBridge = createContextBridge({
     compressor: di.compressor,

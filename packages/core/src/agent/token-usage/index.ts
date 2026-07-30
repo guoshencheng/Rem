@@ -101,3 +101,8 @@ export function normalizeUsageDetail(detail: unknown): TokenUsageDetail {
     : [base];
   return { ...base, runAt, turns };
 }
+
+export function reduceTokenUsage(details: Array<unknown>): number {
+  return details.map((entry) =>
+    normalizeUsageDetail(entry as TokenUsageDetail)).reduce((sum, entry) => sum + entry.totalTokens, 0);
+}

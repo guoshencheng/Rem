@@ -1,6 +1,6 @@
 # rem-agent-core
 
-Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents with a ReAct-style turn loop, state management, event-driven observability, and budget control. LLM calls are delegated to the `@earendil-works/pi-ai` `Models` collection, which provides a unified provider abstraction over OpenAI, Anthropic, and other providers.
+Core layer of the Rem Agent framework. Provides the foundational primitives for running AI agents: agent loop orchestration, state management, event-driven observability, and budget control. The agent reasoning loop is executed by the `Agent` class from `@earendil-works/pi-agent-core` (assembled in `run-agent/pi-agent-factory.ts`); LLM calls go through the `@earendil-works/pi-ai` `Models` collection, which provides a unified provider abstraction over OpenAI, Anthropic, and other providers.
 
 ---
 
@@ -19,12 +19,13 @@ The Core is organized around a stateless execution entry point (`runAgent`) oper
 │                       │                                             │
 │                       ▼                                             │
 │  ┌──────────────── runAgent() (single execution entry) ──────────┐  │
-│  │                         ReactLoop                              │  │
-│  │   prepare → reason → execute → observe → reflect               │  │
+│  │              Agent loop: @earendil-works/pi-agent-core         │  │
 │  │                                                                │  │
-│  │   reason:   reason/reason.ts    → models.stream()              │  │
-│  │             reason/generate.ts  → models.complete()            │  │
-│  │   execute:  execute/execute-tools.ts + approval-engine.ts      │  │
+│  │   pi-agent-factory.ts  → assembles the pi-agent-core Agent     │  │
+│  │   tool-bridge.ts       → tool execution + approval pipeline    │  │
+│  │   context-bridge.ts    → context compression (transformContext)│  │
+│  │   session-writer.ts    → message persistence                   │  │
+│  │   reason/generate.ts   → models.complete() (title/summary)     │  │
 │  │                                                                │  │
 │  │   events:   AgentStreamEvent = pi.AssistantMessageEvent        │  │
 │  │             | RemMetaEvent                                     │  │
@@ -53,10 +54,10 @@ A single `runAgent()` invocation flows through these phases:
 1. **Assemble** — `createAgentFromEnv()` (or `assembleAgentContext()` with injected providers) builds the `AgentAssembly` (`{ di, runtimeConfig }`). Provider credentials, default model, and baseURL are resolved inside Core.
 Assembly is two-phase: `createAgentAssembly()` synchronously builds the full `AgentDI` + `AgentRuntimeConfig` (config loaded in constructor, SQLite opened in constructor); the caller then performs async initialization inline (`configProvider.init()`, `storage.init()`, `initRuleEngine()`, MCP connections).
 2. **Load** — `runAgent()` loads or creates the `Session` via `SessionProvider` (schema v2).
-3. **Turn Execution** — the `ReactLoop` iterates ReAct cycles:
+3. **Turn Execution** — the pi-agent-core `Agent` runs the agent loop:
     - **Prepare** — Builds message list from conversation history + user input.
-    - **Reason** — `reason()` calls `models.stream()` (streaming) with the configured model.
-    - **Execute** — Tool calls run through the approval pipeline and `execute-tools`.
+    - **Reason** — streaming LLM calls via `di.models.streamSimple()`.
+    - **Execute** — Tool calls run through the tool-bridge approval pipeline.
     - **Complete** — If the model returns text without tool calls, the turn completes.
 4. **Budget Check** — Before each turn, `IterationBudget.checkTurn()` verifies remaining budget (max turns, consecutive errors, same-tool failures).
 5. **Emit** — `AgentEventStreamController` enqueues `AgentStreamEvent`s; `AgentState` publishes UI-level `BusEvent`s (chunks, session lifecycle, todos, usage) on the `BroadcastBus`.
@@ -71,8 +72,8 @@ Assembly is two-phase: `createAgentAssembly()` synchronously builds the full `Ag
 | `state` / `agent-state` | `AgentLiveState` (per-session runtime state) and `AgentState` (session-keyed registry + `BroadcastBus` publisher) |
 | `events` | `EventBus` — typed, priority-ordered event system for observability and extension |
 | `bus-events` / `broadcast-bus` | UI-level `BusEvent` types and pub/sub bus |
-| `loop-strategy` | `ReactLoop` / `LoopStrategy` exports (implementation in `plugins/loop/react`) |
-| `reason` / `execute` | `reason()` (streaming), `generate()` (non-streaming), `executeTools()`, `ApprovalEngine` |
+| `run-agent` | `runAgent()` + pi-agent-core `Agent` assembly (`pi-agent-factory`, `tool-bridge`, `context-bridge`, `session-writer`) |
+| `reason` / `execute` | `generate()` (non-streaming generation), `ApprovalEngine` |
 | `llm` | `createCoreModels` (pi-ai Models 初始化), `context-window`, `reasoning-options` |
 | `agent-factory` | `createAgentFromEnv()` — resolves provider config from env and builds the `AgentAssembly` |
 | `agent-context-assembler` | `assembleAgentContext()` — pure assembly function, all providers injectable |
@@ -105,7 +106,7 @@ console.log((await output).content);
 
 Provider and model are resolved from environment variables (`OPENAI_API_KEY`, `OPENAI_MODEL`, etc.) by `createAgentFromEnv`. Clients must not read provider credentials directly — configuration is owned by Core.
 
-For browser/edge environments, use the platform-agnostic entry `rem-agent-core/browser` together with `assembleAgentContext()` and injected providers.
+For browser/edge environments, use `assembleAgentContext()` (or `createAgentAssembly()`) with injected browser-compatible providers — see `rem-agent-bridge/local` for a reference implementation.
 
 ---
 
@@ -314,14 +315,6 @@ const models = createCoreModels({ all: true });
 
 ---
 
-### `loop`
-
-#### `ReactLoop` / `LoopStrategy`
-
-Executes a single ReAct turn by calling `pi-ai` `Models.stream()` / `Models.complete()` through the configured `AgentDI.models`. The `LoopStrategy` interface allows alternative loop implementations (e.g. Plan-and-Solve) in the future.
-
----
-
 ### `agent-factory` / `run-agent`
 
 #### `createAgentFromEnv`
@@ -355,7 +348,7 @@ interface RunAgentResult {
 function runAgent(params: RunAgentParams): RunAgentResult;
 ```
 
-Stateless execution entry point. Loads/creates the session, runs the `ReactLoop` until completion, abort, or budget exhaustion, and returns a stream of `AgentStreamEvent` plus an output promise. Concurrent title generation is handled internally.
+Stateless execution entry point. Loads/creates the session, assembles and runs a pi-agent-core `Agent` until completion, abort, or budget exhaustion, and returns a stream of `AgentStreamEvent` plus an output promise. Concurrent title generation is handled internally.
 
 ---
 

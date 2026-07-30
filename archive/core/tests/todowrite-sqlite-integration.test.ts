@@ -4,7 +4,7 @@ import { SqliteSchemaManager } from '../src/plugins/storage/sqlite/schema.js';
 import { SqliteTodoStore } from '../src/plugins/storage/sqlite/todo-store.js';
 import { SqliteSessionStore } from '../src/plugins/storage/sqlite/session-store.js';
 import { DefaultTodoService } from '../src/todo/service.js';
-import { OverlayToolProvider } from '../src/overlay-tool-provider.js';
+import { ToolOverlay } from '../src/tool-overlay.js';
 import {
   createTodoWriteToolDefinition,
   createTodoWriteToolExecutor,
@@ -31,7 +31,7 @@ describe('todowrite → sqlite integration', () => {
       isDangerous: () => false,
     } as any;
 
-    const overlay = new OverlayToolProvider(baseProvider);
+    const overlay = new ToolOverlay(baseProvider);
     const published: any[] = [];
     overlay.register(
       createTodoWriteToolDefinition(),

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Message } from '@earendil-works/pi-ai';
-import { createSessionWriter } from '../../src/run-agent/session-writer.js';
+import { createSessionHelper } from '../../src/utils/session-writer.js';
 import type { Session } from '../../src/session.js';
 
 const session: Session = {
@@ -11,7 +11,7 @@ const session: Session = {
 describe('createSessionWriter', () => {
   it('persists messages on message_end with the bridged messageId', async () => {
     const appendMessage = vi.fn(async () => {});
-    const writer = createSessionWriter({
+    const writer = createSessionHelper({
       sessionProvider: { appendMessage } as never,
       session,
       idOf: () => 'mid-1',
@@ -23,7 +23,7 @@ describe('createSessionWriter', () => {
 
   it('generates an id when the message is unknown to the event bridge', async () => {
     const appendMessage = vi.fn(async () => {});
-    const writer = createSessionWriter({
+    const writer = createSessionHelper({
       sessionProvider: { appendMessage } as never,
       session,
       idOf: () => undefined,
@@ -34,7 +34,7 @@ describe('createSessionWriter', () => {
 
   it('ignores non message_end events', async () => {
     const appendMessage = vi.fn(async () => {});
-    const writer = createSessionWriter({ sessionProvider: { appendMessage } as never, session, idOf: () => undefined });
+    const writer = createSessionHelper({ sessionProvider: { appendMessage } as never, session, idOf: () => undefined });
     await writer({ type: 'turn_start' });
     expect(appendMessage).not.toHaveBeenCalled();
   });

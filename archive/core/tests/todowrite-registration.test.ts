@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OverlayToolProvider } from '../src/overlay-tool-provider.js';
+import { ToolOverlay } from '../src/tool-overlay.js';
 import {
   createTodoWriteToolDefinition,
   createTodoWriteToolExecutor,
@@ -8,7 +8,7 @@ import { DefaultTodoService } from '../src/todo/service.js';
 import type { ToolCall } from '../src/sdk/tool-provider.js';
 
 describe('todowrite tool registration', () => {
-  it('is registered on OverlayToolProvider and executable', async () => {
+  it('is registered on ToolOverlay and executable', async () => {
     const stored: Record<string, any[]> = {};
     const todoStore = {
       async getBySession(sessionId: string) {
@@ -28,7 +28,7 @@ describe('todowrite tool registration', () => {
       isDangerous: () => false,
     } as any;
 
-    const overlay = new OverlayToolProvider(baseProvider);
+    const overlay = new ToolOverlay(baseProvider);
     const def = createTodoWriteToolDefinition();
     const exec = createTodoWriteToolExecutor(todoService, () => {}, '/tmp');
     overlay.register(def, exec);
@@ -52,7 +52,7 @@ describe('todowrite tool registration', () => {
 });
 
 describe('todowrite tool registration (end-to-end)', () => {
-  it('is registered, appears in toolSet, and executes via OverlayToolProvider.execute', async () => {
+  it('is registered, appears in toolSet, and executes via ToolOverlay.execute', async () => {
     // 1. in-memory todo store
     const stored: Record<string, any[]> = {};
     const todoStore = {
@@ -77,7 +77,7 @@ describe('todowrite tool registration (end-to-end)', () => {
     } as any;
 
     // 3. replicate run-agent.ts:177-188
-    const overlay = new OverlayToolProvider(baseProvider);
+    const overlay = new ToolOverlay(baseProvider);
     const def = createTodoWriteToolDefinition();
     const publishedEvents: any[] = [];
     const exec = createTodoWriteToolExecutor(
@@ -96,7 +96,7 @@ describe('todowrite tool registration (end-to-end)', () => {
     const tools = toolSet.map((t) => ({ name: t.name, description: t.description }));
     expect(tools.find((t) => t.name === 'todowrite')).toBeDefined();
 
-    // 6. execute via the same path the loop uses (OverlayToolProvider.execute)
+    // 6. execute via the same path the loop uses (ToolOverlay.execute)
     const call: ToolCall = {
       toolCallId: 'call-1',
       toolName: 'todowrite',
@@ -133,7 +133,7 @@ describe('todowrite tool registration (end-to-end)', () => {
       execute: async () => [],
       isDangerous: () => false,
     } as any;
-    const overlay = new OverlayToolProvider(baseProvider);
+    const overlay = new ToolOverlay(baseProvider);
     overlay.register(
       createTodoWriteToolDefinition(),
       createTodoWriteToolExecutor(todoService, () => {}, '/tmp'),

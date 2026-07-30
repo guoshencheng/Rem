@@ -1,0 +1,49 @@
+{
+  "name": "rem-agent-core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./stream/event-aggregators": {
+      "import": "./dist/stream/event-aggregators.js",
+      "types": "./dist/stream/event-aggregators.d.ts"
+    },
+    "./token-usage": {
+      "import": "./dist/token-usage.js",
+      "types": "./dist/token-usage.d.ts"
+    },
+    "./llm/context-window": {
+      "import": "./dist/llm/context-window.js",
+      "types": "./dist/llm/context-window.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/generate-templates.mjs && tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
+    "@earendil-works/pi-agent-core": "^0.82.1",
+    "@earendil-works/pi-ai": "^0.82.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sinclair/typebox": "^0.27.0",
+    "bash-parser": "^0.5.0",
+    "better-sqlite3": "^12.0.0",
+    "glob": "^13.0.6",
+    "openai": "^6.42.0",
+    "yaml": "^2.7.0"
+  },
+  "sideEffects": false
+}

@@ -5,19 +5,19 @@ import type { Session } from '../session.js';
 import { generateId } from '../shared/generate-id.js';
 import { addUsage, emptyUsage } from '../token-usage.js';
 
-export interface SessionWriterParams {
+export interface SessionHelperParams {
   sessionProvider: SessionProvider;
   session: Session;
 }
 
-export interface SessionWriter {
+export interface SessionHelper {
   listener: (event: AgentEvent) => Promise<void>;
   getTotalUsage: () => Usage;
   getLastAssistantMessage: () => AssistantMessage | undefined;
   getLastAssistantMessageId: () => string | undefined;
 }
 
-export function createSessionWriter(params: SessionWriterParams): SessionWriter {
+export function createSessionHelper(params: SessionHelperParams): SessionHelper {
   const { sessionProvider, session } = params;
   let totalUsage = emptyUsage();
   let lastAssistant: AssistantMessage | undefined;

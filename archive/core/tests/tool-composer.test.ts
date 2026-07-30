@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { DefaultToolComposer } from '../src/tool-composer.js';
+import { composeToolProviders } from '../src/tool-composer.js';
 import { InMemoryToolProvider } from './helpers/in-memory-tool-provider.js';
 import type { SkillProvider } from '../src/sdk/skill-provider.js';
 
@@ -12,13 +12,12 @@ function createFakeSkillProvider(rawByName: Record<string, string>): SkillProvid
   };
 }
 
-describe('DefaultToolComposer', () => {
+describe('composeToolProviders', () => {
   it('registers read_skill when no mcp providers are given', () => {
     const toolProvider = new InMemoryToolProvider();
     const skillProvider = createFakeSkillProvider({ foo: 'bar' });
-    const composer = new DefaultToolComposer();
 
-    const result = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
+    const result = composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
 
     const tools = result.getToolSet();
     expect(tools.some((t) => t.name === 'read_skill')).toBe(true);
@@ -32,9 +31,8 @@ describe('DefaultToolComposer', () => {
     );
 
     const skillProvider = createFakeSkillProvider({});
-    const composer = new DefaultToolComposer();
 
-    const result = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
+    const result = composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
 
     const tools = result.getToolSet();
     expect(tools.some((t) => t.name === 'localTool')).toBe(true);
@@ -44,9 +42,8 @@ describe('DefaultToolComposer', () => {
   it('does not mutate the original toolProvider when composing', () => {
     const toolProvider = new InMemoryToolProvider();
     const skillProvider = createFakeSkillProvider({ foo: 'bar' });
-    const composer = new DefaultToolComposer();
 
-    composer.compose({ toolProvider, mcpProviders: [], skillProvider });
+    composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
 
     expect(toolProvider.getToolSet().some((t) => t.name === 'read_skill')).toBe(false);
   });
@@ -54,10 +51,9 @@ describe('DefaultToolComposer', () => {
   it('returns a new instance on each compose call', () => {
     const toolProvider = new InMemoryToolProvider();
     const skillProvider = createFakeSkillProvider({ foo: 'bar' });
-    const composer = new DefaultToolComposer();
 
-    const a = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
-    const b = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
+    const a = composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
+    const b = composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
 
     expect(a).not.toBe(b);
   });
@@ -71,9 +67,8 @@ describe('DefaultToolComposer', () => {
     );
 
     const skillProvider = createFakeSkillProvider({});
-    const composer = new DefaultToolComposer();
 
-    const result = composer.compose({ toolProvider, mcpProviders: [mcpProvider], skillProvider });
+    const result = composeToolProviders({ toolProvider, mcpProviders: [mcpProvider], skillProvider });
 
     const tools = result.getToolSet();
     expect(tools.some((t) => t.name === 'mcp__tool')).toBe(true);
@@ -83,9 +78,8 @@ describe('DefaultToolComposer', () => {
   it('read_skill executor can read skill raw content', async () => {
     const toolProvider = new InMemoryToolProvider();
     const skillProvider = createFakeSkillProvider({ foo: '---\nname: foo\n---\ncontent' });
-    const composer = new DefaultToolComposer();
 
-    const result = composer.compose({ toolProvider, mcpProviders: [], skillProvider });
+    const result = composeToolProviders({ toolProvider, mcpProviders: [], skillProvider });
     const execResults = await result.execute(
       [{ toolCallId: '1', toolName: 'read_skill', input: { name: 'foo' } }],
       { cwd: '/', workspaceRoot: '/' },

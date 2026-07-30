@@ -6,10 +6,11 @@ import type { Skill } from '../sdk/skill-provider.js';
 import { EventBus } from '../events.js';
 import type { Session } from '../session.js';
 import type { SessionProvider } from '../sdk/session-provider.js';
+import type { ToolProvider } from '../sdk/tool-provider.js';
 import type { TitleProvider } from '../sdk/title-provider.js';
 import { AgentEventStreamController } from '../stream/agent-event-stream.js';
 import type { AgentDI } from '../agent-di.js';
-import { DefaultToolComposer } from '../tool-composer.js';
+import { composeToolProviders } from '../tool-composer.js';
 import type { AgentRuntimeConfig } from '../agent-runtime-config.js';
 import type { ArchiveRecord } from '../sdk/storage-provider.js';
 import { resolveContextWindow } from '../llm/context-window.js';
@@ -17,7 +18,7 @@ import { generateId } from '../shared/generate-id.js';
 import type { AgentState } from '../agent-state.js';
 import { normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from '../token-usage.js';
 import { log } from '../shared/debug-log.js';
-import { OverlayToolProvider } from '../overlay-tool-provider.js';
+import { ToolOverlay, defineOverlayTool } from '../tool-overlay.js';
 import { DefaultTodoService } from '../todo/service.js';
 import {
   createDelegateTaskToolDefinition,
@@ -28,7 +29,7 @@ import {
   createTodoWriteToolExecutor,
 } from '../plugins/tool/builtin/todo-write.js';
 import { createToolBridge } from './tool-bridge.js';
-import { createSessionWriter } from './session-writer.js';
+import { createSessionHelper } from '../utils/session-writer.js';
 import { createContextBridge } from './context-bridge.js';
 import { createPiAgent } from './pi-agent-factory.js';
 
@@ -52,22 +53,13 @@ export interface RunAgentHandle {
 export interface RunAgentResult {
   stream: AgentStream;
   output: Promise<AgentOutput>;
-  handle: RunAgentHandle;
 }
 
 export function runAgent(params: RunAgentParams): RunAgentResult {
   const controller = new AgentEventStreamController();
   const stream = controller.stream;
 
-  let agentResolve!: (agent: Agent) => void;
-  const agentReady = new Promise<Agent>((resolve) => { agentResolve = resolve; });
   const toMessage = (content: UserInputContent): Message => ({ role: 'user', content, timestamp: Date.now() }) as Message;
-
-  const handle: RunAgentHandle = {
-    steer: (content) => { void agentReady.then((a) => a.steer(toMessage(content))).catch(() => {}); },
-    followUp: (content) => { void agentReady.then((a) => a.followUp(toMessage(content))).catch(() => {}); },
-  };
-
   const outputPromise = (async (): Promise<AgentOutput> => {
     const di = params.di;
     const runtimeConfig = params.runtimeConfig;
@@ -119,25 +111,26 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     try {
       const { messages } = await di.contextProvider.build(session, behavior.name);
 
-      const effectiveToolProvider = new DefaultToolComposer().compose({
+      const effectiveToolProvider = composeToolProviders({
         toolProvider: di.toolProvider,
         mcpProviders: di.mcpProviders,
         skillProvider: di.skillProvider,
       });
 
-      const toolProviderWithDelegate = new OverlayToolProvider(effectiveToolProvider);
-      toolProviderWithDelegate.register(
-        createDelegateTaskToolDefinition(),
-        createDelegateTaskToolExecutor(di, runtimeConfig, params.agentState, workspace),
-      );
-      toolProviderWithDelegate.register(
-        createTodoWriteToolDefinition(),
-        createTodoWriteToolExecutor(
-          new DefaultTodoService(di.storage.todoStore),
-          (event) => params.agentState.publish(event),
-          workspace,
+      const toolProviderWithDelegate: ToolProvider = new ToolOverlay(effectiveToolProvider, [
+        defineOverlayTool(
+          createDelegateTaskToolDefinition(),
+          createDelegateTaskToolExecutor(di, runtimeConfig, params.agentState, workspace),
         ),
-      );
+        defineOverlayTool(
+          createTodoWriteToolDefinition(),
+          createTodoWriteToolExecutor(
+            new DefaultTodoService(di.storage.todoStore),
+            (event) => params.agentState.publish(event),
+            workspace,
+          ),
+        ),
+      ]);
 
       const skills = await di.skillProvider.loadSkills().catch(() => [] as Skill[]);
       const tools = toolProviderWithDelegate.getToolSet().map((t) => ({ name: t.name, description: t.description }));
@@ -229,15 +222,13 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         signal: params.signal,
       });
 
-      const writer = createSessionWriter({ sessionProvider, session });
-      agent.subscribe(writer.listener);
+      const sessionHelper = createSessionHelper({ sessionProvider, session });
+      agent.subscribe(sessionHelper.listener);
       agent.subscribe(controller.emit.bind(controller));
-
-      agentResolve(agent);
 
       await agent.prompt(toMessage(params.input.content));
 
-      const finalMessage: AssistantMessage | undefined = writer.getLastAssistantMessage();
+      const finalMessage: AssistantMessage | undefined = sessionHelper.getLastAssistantMessage();
       if (finalMessage?.stopReason === 'error') {
         const errorMessage = finalMessage.errorMessage ?? 'agent stream error';
         const output: AgentOutput = { content: `Error: ${errorMessage}`, completed: true };
@@ -247,7 +238,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
         return output;
       }
 
-      const usage = writer.getTotalUsage();
+      const usage = sessionHelper.getTotalUsage();
       liveState.addTokenUsage(usage);
       params.agentState.publishUsageChange(workspace, params.sessionId, liveState.tokenUsage);
 
@@ -260,7 +251,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
       });
       session.metadata.tokenUsageHistory = history;
 
-      const currentMessageId = writer.getLastAssistantMessageId();
+      const currentMessageId = sessionHelper.getLastAssistantMessageId();
       if (currentMessageId) {
         const messageTokenUsage: Record<string, Usage> = {};
         for (const [key, value] of Object.entries(session.metadata.messageTokenUsage ?? {})) {
@@ -293,7 +284,7 @@ export function runAgent(params: RunAgentParams): RunAgentResult {
     }
   })();
 
-  return { stream, output: outputPromise, handle };
+  return { stream, output: outputPromise };
 }
 
 function forkTitleGeneration(

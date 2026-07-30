@@ -1,6 +1,6 @@
 import type { AgentDI, Session, SessionInfo, SessionSummary, SessionUpdate, UIMessage, Usage } from 'rem-agent-core';
 import { AgentSessionManager, AgentState, SessionNotFoundError, addUsage, emptyUsage, log, normalizeUsage, normalizeUsageDetail, type TokenUsageDetail } from 'rem-agent-core';
-import type { REMAgentEvent } from 'rem-agent-core-v2';
+import type { REMAgentEvent } from 'rem-agent-core';
 
 /**
  * 会话持久化唯一写入方。

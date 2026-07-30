@@ -9,8 +9,8 @@ import {
   type ThinkingContent, type TokenUsageDetail, type ToolCall, type ToolContext,
   type UIMessage, type WorkspaceRecord,
 } from 'rem-agent-core';
-import { REMAgent, resolveREMAgentContext, type DelegateTaskInputV2 } from 'rem-agent-core-v2';
-import type { IAgentService } from 'rem-agent-bridge';
+import { REMAgent, resolveREMAgentContext, type DelegateTaskInputV2 } from 'rem-agent-core';
+import type { IAgentService } from './agent-service.interface.js';
 import { REMSessions } from './rem-sessions.js';
 import type { REMSession } from './rem-session.js';
 import { SessionService } from './session-service.js';

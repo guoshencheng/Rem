@@ -1,6 +1,6 @@
 import { Type, type Static } from '@sinclair/typebox';
-import type { ToolContext, ToolDefinition, ToolExecutor } from 'rem-agent-core';
-import { formatTaskResult } from 'rem-agent-core';
+import type { ToolContext, ToolDefinition, ToolExecutor } from './sdk/tool-provider.js';
+import { formatTaskResult } from './sub-agent/format-task-result.js';
 import type { REMAgent } from './rem-agent.js';
 
 const delegateTaskSchema = Type.Object(

@@ -1,9 +1,14 @@
 import type { AssistantMessage, Message, Usage } from '@earendil-works/pi-ai';
-import type {
-  AgentDI, AgentOutput, AgentRuntimeConfig, BusEvent, RemMetaEvent,
-  Session, UserInput, UserInputContent, ApprovalEngine, ApprovalRequest,
-} from 'rem-agent-core';
-import { addUsage, emptyUsage, generateId, log } from 'rem-agent-core';
+import type { AgentDI } from './agent-di.js';
+import type { AgentRuntimeConfig } from './agent-runtime-config.js';
+import type { BusEvent } from './bus-events.js';
+import type { Session } from './session.js';
+import type { AgentOutput, RemMetaEvent, UserInput, UserInputContent } from './types.js';
+import type { ApprovalRequest } from './sdk/agent-state-provider.js';
+import type { ApprovalEngine } from './execute/approval-engine.js';
+import { addUsage, emptyUsage } from './token-usage.js';
+import { generateId } from './shared/generate-id.js';
+import { log } from './shared/debug-log.js';
 import { EventQueue } from './event-queue.js';
 import type { PiAgentLike } from './pi-agent-like.js';
 import type { REMAgentEvent } from './rem-agent-event.js';

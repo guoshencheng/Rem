@@ -1,5 +1,5 @@
 {
-  "name": "rem-agent-bridge-v2",
+  "name": "rem-agent-bridge",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,11 +8,24 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./sse": {
+      "import": "./dist/sse.js",
+      "types": "./dist/sse.d.ts"
+    },
+    "./stream-reducer": {
+      "import": "./dist/stream-reducer.js",
+      "types": "./dist/stream-reducer.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
     }
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../.. && vitest run packages/bridge/tests"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -22,9 +35,7 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.82.1",
     "@earendil-works/pi-ai": "^0.82.1",
-    "rem-agent-core": "workspace:*",
-    "rem-agent-core-v2": "workspace:*",
-    "rem-agent-bridge": "workspace:*"
+    "rem-agent-core": "workspace:*"
   },
   "sideEffects": false
 }

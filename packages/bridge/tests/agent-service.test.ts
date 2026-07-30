@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type { BusEvent } from 'rem-agent-core';
-import { REMAgent, type PiAgentLike } from 'rem-agent-core-v2';
+import { REMAgent, type PiAgentLike } from 'rem-agent-core';
 import { AgentService } from '../src/agent-service.js';
 import { REMSession } from '../src/rem-session.js';
 import type { SessionService } from '../src/session-service.js';

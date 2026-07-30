@@ -5,7 +5,7 @@ import {
   ApprovalEngine, IterationBudget, addUsage, compactContentBlocks, emptyUsage,
   generateId, normalizeUsageDetail, reduceStreamEvent, type TokenUsageDetail,
 } from 'rem-agent-core';
-import type { REMAgent, REMAgentEvent } from 'rem-agent-core-v2';
+import type { REMAgent, REMAgentEvent } from 'rem-agent-core';
 
 export type REMSessionStatus = 'idle' | 'running' | 'error';
 

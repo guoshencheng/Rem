@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BusEvent } from 'rem-agent-core';
-import type { REMAgentEvent } from 'rem-agent-core-v2';
+import type { REMAgentEvent } from 'rem-agent-core';
 import { REMSession } from '../src/rem-session.js';
 
 function createSession(): { s: REMSession; events: BusEvent[] } {

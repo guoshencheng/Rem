@@ -1,0 +1,239 @@
+import type { ApprovalDecision, ApprovalRequest, Rule, TodoItem, UserInputContent } from 'rem-agent-core';
+import type { BusEvent } from './types.js';
+import type { IAgentService } from './agent-service.interface.js';
+import type {
+  SessionSummary,
+  SessionUpdate,
+  InterruptRequest,
+  ResetRequest,
+  RunRequest,
+  UIMessage,
+  Workspace,
+} from './types.js';
+import { parseSSEStream } from './sse.js';
+
+export interface AgentRemoteServiceOptions {
+  /** API 路由前缀，默认 '/api'；rem-agent-routes 默认挂载为 '/api/rem' */
+  apiPrefix?: string;
+}
+
+export class AgentRemoteService implements IAgentService {
+  private resolvedBaseUrl: string;
+  private apiPrefix: string;
+
+  constructor(private baseUrl: string, options: AgentRemoteServiceOptions = {}) {
+    this.resolvedBaseUrl = this.resolveBaseUrl(baseUrl);
+    this.apiPrefix = (options.apiPrefix ?? '/api').replace(/\/$/, '');
+  }
+
+  private resolveBaseUrl(url: string): string {
+    if (url) return url.replace(/\/$/, '');
+    // Browser: use current origin
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    // Node.js (SSR, tests, scripts): default to localhost:3000
+    return 'http://localhost:3000';
+  }
+
+  private static wsQuery(workspace: string): string {
+    return `workspace=${encodeURIComponent(workspace)}`;
+  }
+
+  async run(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/run?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Agent run failed: ${response.status}`);
+    }
+  }
+
+  async steer(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/steer?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to steer: ${response.status}`);
+    }
+  }
+
+  async followUp(workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/follow-up?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, content: input } satisfies RunRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to follow up: ${response.status}`);
+    }
+  }
+
+  async interrupt(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/interrupt?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId } satisfies InterruptRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to interrupt: ${response.status}`);
+    }
+  }
+
+  async reset(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/reset?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId } satisfies ResetRequest),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to reset: ${response.status}`);
+    }
+  }
+
+  async createSession(workspace: string): Promise<SessionSummary> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions?${AgentRemoteService.wsQuery(workspace)}`, { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as SessionSummary;
+  }
+
+  async listSessions(workspace: string): Promise<SessionSummary[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions?${AgentRemoteService.wsQuery(workspace)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to list sessions: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as SessionSummary[];
+  }
+
+  async searchSessions(workspace: string, q: string): Promise<SessionSummary[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions?${AgentRemoteService.wsQuery(workspace)}&q=${encodeURIComponent(q)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to search sessions: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as SessionSummary[];
+  }
+
+  async getMessages(workspace: string, sessionId: string): Promise<UIMessage[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get messages: ${response.status} ${response.statusText}`);
+    }
+    const data = (await response.json()) as { messages?: UIMessage[] };
+    return data.messages ?? [];
+  }
+
+  async updateSession(workspace: string, sessionId: string, updates: SessionUpdate): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update session: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  async deleteSession(workspace: string, sessionId: string): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/sessions/${encodeURIComponent(sessionId)}?${AgentRemoteService.wsQuery(workspace)}`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error(`Failed to delete session: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  async listPendingApprovals(workspace: string, sessionId: string): Promise<ApprovalRequest[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/approvals?${AgentRemoteService.wsQuery(workspace)}&sessionId=${encodeURIComponent(sessionId)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to list pending approvals: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as ApprovalRequest[];
+  }
+
+  async resolveApproval(workspace: string, sessionId: string, approvalId: string, decision: ApprovalDecision, rule?: Omit<Rule, 'source'>): Promise<boolean> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/approvals/${encodeURIComponent(approvalId)}/resolve?${AgentRemoteService.wsQuery(workspace)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, decision, rule }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to resolve approval: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as boolean;
+  }
+
+  async getTodos(workspace: string, sessionId: string): Promise<TodoItem[]> {
+    const response = await fetch(
+      `${this.resolvedBaseUrl}${this.apiPrefix}/sessions/${encodeURIComponent(sessionId)}/todos?${AgentRemoteService.wsQuery(workspace)}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get todos: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as TodoItem[];
+  }
+
+  async *stream(signal?: AbortSignal): AsyncIterable<BusEvent> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/agent/stream`, { signal });
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to connect stream: ${response.status} ${response.statusText}`);
+    }
+
+    const reader = response.body.getReader();
+    const events = parseSSEStream(reader);
+
+    for await (const event of events) {
+      if (signal?.aborted) break;
+      if (event.event === 'bus' && event.data) {
+        try {
+          const parsed = JSON.parse(event.data) as BusEvent;
+          yield parsed;
+        } catch {
+          // skip malformed events
+        }
+      }
+    }
+  }
+
+  async listWorkspaces(): Promise<Workspace[]> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/workspaces`);
+    if (!response.ok) {
+      throw new Error(`Failed to list workspaces: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as Workspace[];
+  }
+
+  async addWorkspace(path: string): Promise<Workspace> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/workspaces`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok) {
+      let message = `Failed to add workspace: ${response.status} ${response.statusText}`;
+      try {
+        const data = (await response.json()) as { error?: string };
+        if (data.error) message = data.error;
+      } catch {
+        // ignore JSON parse failure
+      }
+      throw new Error(message);
+    }
+    return (await response.json()) as Workspace;
+  }
+
+  async removeWorkspace(path: string): Promise<void> {
+    const response = await fetch(`${this.resolvedBaseUrl}${this.apiPrefix}/workspaces`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to remove workspace: ${response.status} ${response.statusText}`);
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import type { BusEvent } from 'rem-agent-core';
 import { log, type UserInput } from 'rem-agent-core';
-import type { REMAgent, REMAgentEvent } from 'rem-agent-core-v2';
+import type { REMAgent, REMAgentEvent } from 'rem-agent-core';
 import type { REMSession } from './rem-session.js';
 import type { SessionService } from './session-service.js';
 

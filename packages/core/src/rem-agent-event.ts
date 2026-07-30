@@ -1,6 +1,6 @@
 import type { Message, Usage } from '@earendil-works/pi-ai';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { RemMetaEvent } from 'rem-agent-core';
+import type { RemMetaEvent } from './types.js';
 import type { REMAgent } from './rem-agent.js';
 
 /**

@@ -1,5 +1,5 @@
 import { parse } from 'yaml';
-import type { Skill } from '../sdk/skill-provider.js';
+import type { Skill } from '../../sdk/skill-provider.js';
 
 export interface SkillParseResult {
   skill: Skill | null;

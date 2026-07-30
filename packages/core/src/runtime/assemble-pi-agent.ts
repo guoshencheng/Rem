@@ -1,5 +1,5 @@
-import type { AgentDI } from '../agent-di.js';
-import type { AgentRuntimeConfig } from '../agent-runtime-config.js';
+import type { AgentDI } from '../assembly/agent-di.js';
+import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import type { BusEvent } from '../agent/bus-events.js';
 import type { Session } from '../session/model.js';
 import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';

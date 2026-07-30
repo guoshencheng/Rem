@@ -1,7 +1,7 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentOptions, AgentTool, StreamFn } from '@earendil-works/pi-agent-core';
 import type { Message } from '@earendil-works/pi-ai';
-import type { AgentDI } from '../agent-di.js';
+import type { AgentDI } from '../assembly/agent-di.js';
 import type { ResolvedModelConfig } from '../sdk/config-provider.js';
 
 export interface PiAgentFactoryParams {

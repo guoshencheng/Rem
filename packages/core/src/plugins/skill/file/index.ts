@@ -4,7 +4,7 @@ import type { Skill, SkillProvider } from '../../../sdk/skill-provider.js';
 import type { ConfigProvider } from '../../../sdk/config-provider.js';
 import type { AgentPaths } from '../../../infrastructure/config/paths.js';
 import { DefaultSkillCatalog } from '../default-catalog.js';
-import { parseSkillMarkdown } from '../../../utils/skill-parser.js';
+import { parseSkillMarkdown } from '../skill-parser.js';
 
 const SKILLS_DIR_NAME = 'skills';
 

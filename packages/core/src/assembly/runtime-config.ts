@@ -1,4 +1,4 @@
-import type { SecurityMode } from './security/permissions/factory.js';
+import type { SecurityMode } from '../security/permissions/factory.js';
 
 export interface AgentRuntimeInfo {
   platform: string;

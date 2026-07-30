@@ -1,4 +1,4 @@
-import { createAgentAssembly, type AgentContextBuildOptions } from './agent-context-builder.js';
+import { createAgentAssembly, type AgentContextBuildOptions } from './agent-assembly.js';
 import { initializeAgentDI } from './agent-context-assembler.js';
 import type { AgentAssembly } from './agent-context-assembler.js';
 

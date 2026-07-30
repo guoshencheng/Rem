@@ -1,6 +1,6 @@
 import type { Message } from '@earendil-works/pi-ai';
-import type { AgentDI } from '../../agent-di.js';
-import type { AgentRuntimeConfig } from '../../agent-runtime-config.js';
+import type { AgentDI } from '../../assembly/agent-di.js';
+import type { AgentRuntimeConfig } from '../../assembly/runtime-config.js';
 import type { Session } from '../../session/model.js';
 import type { AgentBehaviorConfig, ConfigProvider, ResolvedModelConfig } from '../../sdk/config-provider.js';
 

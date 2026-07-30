@@ -1,0 +1,9 @@
+{
+  "agent-factory.ts": "assembly/agent-factory.ts",
+  "agent-context-builder.ts": "assembly/agent-assembly.ts",
+  "agent-context-assembler.ts": "assembly/agent-context-assembler.ts",
+  "agent-di.ts": "assembly/agent-di.ts",
+  "agent-runtime-config.ts": "assembly/runtime-config.ts",
+  "agent-resolver.ts": "plugins/config/default/agent-resolver.ts",
+  "utils/skill-parser.ts": "plugins/skill/skill-parser.ts"
+}

@@ -1,4 +1,4 @@
-import type { AgentDI } from '../agent-di.js';
+import type { AgentDI } from '../assembly/agent-di.js';
 import type { Session } from '../session/model.js';
 import type { RemMetaEvent } from './types.js';
 import { log } from '../infrastructure/observability/debug-log.js';

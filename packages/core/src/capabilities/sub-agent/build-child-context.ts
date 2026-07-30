@@ -1,5 +1,5 @@
-import type { AgentDI } from '../../agent-di.js';
-import type { AgentRuntimeConfig } from '../../agent-runtime-config.js';
+import type { AgentDI } from '../../assembly/agent-di.js';
+import type { AgentRuntimeConfig } from '../../assembly/runtime-config.js';
 import type { ConfigProvider, AgentToolConfig, ResolvedModelConfig, ResolvedAgentConfig, AgentBehaviorConfig, CompressionConfig } from '../../sdk/config-provider.js';
 import type { ResolvedAgentRole } from '../../sdk/agent-role.js';
 import type { McpServerConfig } from '../../infrastructure/mcp/types.js';

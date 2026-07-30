@@ -269,6 +269,9 @@ importers:
       rem-agent-bridge:
         specifier: workspace:*
         version: link:../bridge
+      rem-agent-bridge-v2:
+        specifier: workspace:*
+        version: link:../bridge-v2
       rem-agent-core:
         specifier: workspace:*
         version: link:../core

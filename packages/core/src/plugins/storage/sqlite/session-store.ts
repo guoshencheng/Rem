@@ -6,6 +6,8 @@ import type { SessionTreeEntry } from '../../../session/tree/types.js';
 import { buildConversationFromEntries } from '../../../session/tree/context-builder.js';
 import { wrapSqliteError } from './errors.js';
 import { toSession, toSessionSummary } from './session-converter.js';
+import { toSessionTreeEntry, type SessionEntryRow } from './session-entry-rows.js';
+import { reconcileSessionEntries } from './session-reconcile.js';
 
 export class SqliteSessionStore implements SessionStore {
   constructor(private db: Database.Database) {}
@@ -93,36 +95,7 @@ export class SqliteSessionStore implements SessionStore {
       throw wrapSqliteError(err, 'DB_QUERY', `Failed to save session ${session.sessionId}`);
     }
 
-    // 过渡期 reconcile：旧流程（ReactLoop，将被 pi Agent 替换）通过 save() 持久化消息。
-    // 新流程经 appendEntry 增量写入，此处对比 leaf 链后自然成为 no-op。
-    const entries = await this.listEntries(session.sessionId);
-    const leafId = await this.getActiveLeafId(session.sessionId);
-    const persisted = buildConversationFromEntries(entries, leafId);
-
-    if (session.conversation.length > persisted.length) {
-      for (let i = persisted.length; i < session.conversation.length; i++) {
-        const message = session.conversation[i];
-        const entryId = generateId();
-        await this.appendEntry({
-          id: entryId,
-          sessionId: session.sessionId,
-          parentId: await this.getActiveLeafId(session.sessionId),
-          type: 'message',
-          payload: { message, messageId: entryId },
-          timestamp: Date.now(),
-        });
-      }
-    } else if (session.conversation.length > 0 && session.conversation.length === persisted.length) {
-      const lastMessage = session.conversation[session.conversation.length - 1];
-      const lastPersisted = persisted[persisted.length - 1];
-      if (JSON.stringify(lastMessage) !== JSON.stringify(lastPersisted)) {
-        const leafEntry = entries.find((e) => e.id === leafId);
-        if (leafEntry) {
-          const messageId = (leafEntry.payload as { messageId?: string }).messageId ?? leafEntry.id;
-          this.updateEntry({ ...leafEntry, payload: { message: lastMessage, messageId } });
-        }
-      }
-    }
+    await reconcileSessionEntries(this, session);
   }
 
   updateEntry(entry: SessionTreeEntry): void {
@@ -167,15 +140,8 @@ export class SqliteSessionStore implements SessionStore {
   async listEntries(sessionId: string): Promise<SessionTreeEntry[]> {
     const rows = this.db
       .prepare('SELECT id, session_id, parent_id, type, payload, created_at FROM session_entries WHERE session_id = ? ORDER BY rowid')
-      .all(sessionId) as { id: string; session_id: string; parent_id: string | null; type: string; payload: string; created_at: number }[];
-    return rows.map((r) => ({
-      id: r.id,
-      sessionId: r.session_id,
-      parentId: r.parent_id,
-      type: r.type as SessionTreeEntry['type'],
-      payload: JSON.parse(r.payload),
-      timestamp: r.created_at,
-    }));
+      .all(sessionId) as SessionEntryRow[];
+    return rows.map(toSessionTreeEntry);
   }
 
   async listByWorkspace(workspace: string): Promise<SessionSummary[]> {

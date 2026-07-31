@@ -36,7 +36,9 @@ export function createAgentTools(params: AgentToolsParams): AgentTools {
     todoToolProviderEntry,
   ]);
 
-  const executeOne = async (toolCallId: string, toolName: string, input: unknown): Promise<ToolResult> => {
+  const executeOne = async (
+    toolCallId: string, toolName: string, input: unknown, signal?: AbortSignal,
+  ): Promise<ToolResult> => {
     const def = finalToolProvider.getToolDefinition(toolName);
     if (!def) throw new Error(`unknown tool: ${toolName}`);
 
@@ -49,6 +51,7 @@ export function createAgentTools(params: AgentToolsParams): AgentTools {
       agentName: params.agentName,
       sessionId,
       toolCallId,
+      signal,
     };
 
     const call: ToolCall = { toolCallId, toolName, input };
@@ -61,8 +64,8 @@ export function createAgentTools(params: AgentToolsParams): AgentTools {
     description: piTool.description,
     parameters: piTool.parameters,
     label: piTool.name,
-    execute: async (toolCallId, input) => {
-      const result = await executeOne(toolCallId, piTool.name, input);
+    execute: async (toolCallId, input, signal) => {
+      const result = await executeOne(toolCallId, piTool.name, input, signal);
       if (result.error) throw new Error(result.error);
       return {
         content: [{ type: 'text' as const, text: result.output ?? '' }],

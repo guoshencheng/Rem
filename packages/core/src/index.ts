@@ -26,6 +26,7 @@ export { SessionService } from './session/service.js'
 export { AgentRunDriver, type AgentRunDriverDeps } from './agent/agent-run-driver.js'
 export type { AgentSystemEvent } from './agent/bus-events.js'
 export * from './system/index.js'
+export * from './delegation/index.js'
 export * from './capabilities/todo/types.js'
 export * from './capabilities/todo/errors.js'
 export * from './capabilities/todo/service.js'
@@ -48,7 +49,7 @@ export type { AgentContext, AgentLoopConfig, AgentTool, AgentToolResult, StreamF
 export { EventQueue } from './agent/event-queue.js'
 export { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from './capabilities/todo/tool.js'
 export { formatTaskResult } from './capabilities/sub-agent/format-task-result.js'
-export { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type DelegateTaskExecutorParams, type DelegateTaskInput, type SpawnChild } from './capabilities/sub-agent/delegate-task.js'
+export { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type DelegateTaskInput } from './capabilities/sub-agent/delegate-task.js'
 export type { PromptBuildContext } from './sdk/system-prompt.js'
 
 // ═══ 临时兼容 API：见 compat.ts 的删除条件 ═══

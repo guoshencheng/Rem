@@ -20,9 +20,7 @@ export class REMAgent {
   readonly agentId: string;
   readonly sessionId?: string;
   readonly summary?: string;
-  readonly children: REMAgent[] = [];
   status: REMAgentStatus = 'idle';
-  parentToolCallId?: string;
 
   private readonly params: REMAgentParams;
   private messages: Message[];
@@ -97,12 +95,6 @@ export class REMAgent {
     this.activeAbort?.abort();
   }
 
-  attachChild(child: REMAgent, parentToolCallId: string): void {
-    child.parentToolCallId = parentToolCallId;
-    this.children.push(child);
-    this.runState?.queue.push({ type: 'child-spawned', child, parentToolCallId });
-  }
-
   emitMeta(event: RemMetaEvent): void {
     if (this.runState) this.runState.queue.push(event);
     else this.pendingMeta.push(event);
@@ -111,7 +103,6 @@ export class REMAgent {
   private ensureInitialized(): Promise<AssembledAgentLoop> {
     return (this.initPromise ??= assembleAgentLoop({
       ...this.params,
-      parentAgent: () => this,
       messages: () => this.messages,
       drainSteering: () => this.steeringQueue.drain(),
       drainFollowUp: () => this.followUpQueue.drain(),

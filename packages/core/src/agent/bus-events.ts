@@ -26,7 +26,7 @@ export type AgentSystemEvent =
       childSessionId: string;
       toolCallId?: string;
       summary: string;
-      status: 'running' | 'completed' | 'failed';
+      status: 'running' | 'completed' | 'failed' | 'interrupted';
       tokenUsage?: Usage;
     }
   | {

@@ -16,6 +16,7 @@ export type RootAgentFactory = (params: REMAgentParams) => REMAgent;
 
 export interface CreateAgentSystemOptions {
   createRootAgent?: RootAgentFactory;
+  delegation?: { maxDepth?: number };
 }
 
 export interface AgentSystem {

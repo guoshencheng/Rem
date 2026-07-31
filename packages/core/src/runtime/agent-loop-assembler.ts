@@ -1,6 +1,5 @@
 import type { Message } from '@earendil-works/pi-ai';
 import type { AgentContext, AgentLoopConfig, StreamFn } from '@earendil-works/pi-agent-core';
-import type { REMAgent } from '../agent/rem-agent.js';
 import { resolveAgentConfig } from '../agent/context/resolve-config.js';
 import { resolveSystemPrompt } from '../agent/context/resolve-system-prompt.js';
 import type { AgentStreamEvent, RemMetaEvent } from '../agent/types.js';
@@ -8,7 +7,7 @@ import { reduceTokenUsage } from '../agent/token-usage/index.js';
 import type { AgentDI } from '../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import { createDelegateTaskExecutor, createDelegateTaskToolDefinition } from '../capabilities/sub-agent/delegate-task.js';
-import type { SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
+import type { RunDelegation } from '../delegation/types.js';
 import { DefaultTodoService } from '../capabilities/todo/service.js';
 import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from '../capabilities/todo/tool.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
@@ -28,8 +27,7 @@ export interface AgentLoopAssemblyInput {
   workspaceRoot?: string;
   systemPrompt?: string;
   maxTurns?: number;
-  spawnChild?: SpawnChild;
-  parentAgent: () => REMAgent;
+  runDelegation?: RunDelegation;
   messages: () => Message[];
   drainSteering: () => Message[];
   drainFollowUp: () => Message[];
@@ -53,7 +51,7 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     ?? await resolveSystemPrompt({ di, runtimeConfig, resolution });
   const sessionId = input.sessionId ?? session.sessionId;
   const { effectiveModel, behavior, configProvider } = resolution;
-  const spawnChild: SpawnChild = input.spawnChild ?? (async () => {
+  const runDelegation: RunDelegation = input.runDelegation ?? (async () => {
     throw new Error('delegate_task is not available for this agent');
   });
   const agentTools = createAgentTools({
@@ -61,7 +59,7 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     skillProvider: di.skillProvider,
     delegateToolProviderEntry: defineOverlayTool(
       createDelegateTaskToolDefinition(),
-      createDelegateTaskExecutor({ parentAgent: input.parentAgent, spawnChild }),
+      createDelegateTaskExecutor(runDelegation),
     ),
     todoToolProviderEntry: defineOverlayTool(
       createTodoWriteToolDefinition(),

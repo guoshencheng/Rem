@@ -205,26 +205,6 @@ describe('REMAgent', () => {
     expect(lastTurnEnd).toMatchObject({ message: { stopReason: 'aborted' } });
   });
 
-  it('attachChild 挂树并在活跃队列中发 child-spawned', async () => {
-    const { agent: child } = await createTestAgent({ steps: [], agentId: 'root.delegate-0' });
-    let parent!: REMAgent;
-    const steps: ScriptedStep[] = [
-      () => {
-        parent.attachChild(child, 'tc-1');
-        return fauxAssistantMessage('ok');
-      },
-    ];
-    const created = await createTestAgent({ steps });
-    parent = created.agent;
-
-    const events = await collect(parent.run({ content: 'hi' }));
-
-    expect(parent.children).toHaveLength(1);
-    expect(parent.children[0].parentToolCallId).toBe('tc-1');
-    const spawned = events.find((e) => e.type === 'child-spawned');
-    expect(spawned).toMatchObject({ parentToolCallId: 'tc-1' });
-  });
-
   it('running 中重复 run 抛错', async () => {
     const { agent } = await createTestAgent({ steps: [() => new Promise(() => {})] });
     agent.run({ content: 'hi' });

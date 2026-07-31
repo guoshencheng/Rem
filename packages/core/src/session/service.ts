@@ -7,6 +7,7 @@ import type { Session } from './model.js';
 import { AgentSessionManager } from './manager/agent-session-manager.js';
 import { SessionNotFoundError } from './manager/errors.js';
 import type { SessionInfo } from './manager/types.js';
+import type { DelegationStatus } from '../delegation/types.js';
 
 /** Session 查询与 Agent 事件持久化的唯一业务写入方。 */
 export class SessionService {
@@ -16,7 +17,6 @@ export class SessionService {
   constructor(private readonly di: AgentDI) {
     this.manager = new AgentSessionManager(di.sessionProvider);
   }
-
   async create(workspace: string): Promise<SessionInfo> {
     const session = await this.di.sessionProvider.create();
     session.metadata.workspace = workspace;
@@ -24,13 +24,52 @@ export class SessionService {
     this.loaded.set(session.sessionId, session);
     return this.toInfo(session);
   }
-
   async get(sessionId: string): Promise<SessionInfo> {
     return this.toInfo(await this.requireSession(sessionId));
   }
-
   list(workspace: string): Promise<SessionInfo[]> {
     return this.manager.listSessions(workspace);
+  }
+
+  async createDelegationSession(input: {
+    parentSessionId: string;
+    parentToolCallId: string;
+    workspace: string;
+    task: string;
+    depth: number;
+  }): Promise<Session> {
+    const session = await this.di.sessionProvider.create();
+    Object.assign(session.metadata, {
+      type: 'delegation',
+      parentSessionId: input.parentSessionId,
+      parentToolCallId: input.parentToolCallId,
+      delegationStatus: 'running',
+      delegationDepth: input.depth,
+      workspace: input.workspace,
+      title: input.task.trim().slice(0, 50),
+    });
+    await this.di.sessionProvider.save(session);
+    this.loaded.set(session.sessionId, session);
+    return session;
+  }
+
+  async setDelegationStatus(sessionId: string, status: DelegationStatus): Promise<void> {
+    const session = await this.requireSession(sessionId);
+    session.metadata.delegationStatus = status;
+    session.updatedAt = new Date();
+    await this.di.sessionProvider.save(session);
+  }
+
+  async recoverInterruptedDelegations(): Promise<number> {
+    const summaries = await this.di.sessionProvider.list();
+    let recovered = 0;
+    for (const summary of summaries) {
+      const session = await this.requireSession(summary.sessionId);
+      if (session.metadata.type !== 'delegation' || session.metadata.delegationStatus !== 'running') continue;
+      await this.setDelegationStatus(session.sessionId, 'interrupted');
+      recovered += 1;
+    }
+    return recovered;
   }
 
   async requireSession(sessionId: string): Promise<Session> {
@@ -105,6 +144,7 @@ export class SessionService {
       updatedAt: session.updatedAt.getTime(),
       messageCount: session.conversation.length,
       parentSessionId: session.metadata.parentSessionId as string | undefined,
+      parentToolCallId: session.metadata.parentToolCallId as string | undefined,
     };
   }
 }

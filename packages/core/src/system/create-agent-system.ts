@@ -6,6 +6,9 @@ import { BroadcastBus } from '../agent/broadcast-bus.js';
 import { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import { SessionService } from '../session/service.js';
 import { CoreAgentSystem } from './agent-system.js';
+import { DelegationEventDriver } from '../delegation/event-driver.js';
+import { DelegationRunner } from '../delegation/runner.js';
+import { resolveDelegationMaxDepth } from '../delegation/depth.js';
 
 export function createAgentSystem(
   assembly: AgentAssembly,
@@ -18,12 +21,23 @@ export function createAgentSystem(
     sessionService,
     publish: (event) => bus.publish(event),
   });
+  const createAgent = options.createRootAgent ?? ((params) => new REMAgent(params));
+  const delegationRunner = new DelegationRunner({
+    di: assembly.di,
+    runtimeConfig: assembly.runtimeConfig,
+    sessionService,
+    eventDriver: new DelegationEventDriver(sessionService),
+    createAgent,
+    publish: (event) => bus.publish(event),
+    maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
+  });
   return new CoreAgentSystem({
     bus,
     driver,
     registry,
     sessionService,
-    createRootAgent: options.createRootAgent ?? ((params) => new REMAgent(params)),
+    createRootAgent: createAgent,
+    delegationRunner,
     agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
   });
 }

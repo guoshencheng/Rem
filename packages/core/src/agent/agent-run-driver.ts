@@ -39,7 +39,6 @@ export class AgentRunDriver {
           this.publish(runtime, { type: 'todo-updated', todos: event.todos });
           continue;
         }
-        if (event.type === 'child-spawned') continue;
         if (event.type === 'session-title' || event.type === 'compress-end') {
           await this.deps.sessionService.persistAgentEvent(runtime.sessionId, event);
         }

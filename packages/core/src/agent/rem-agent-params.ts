@@ -1,6 +1,6 @@
 import type { AgentDI } from '../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
-import type { SpawnChild } from '../capabilities/sub-agent/delegate-task.js';
+import type { RunDelegation } from '../delegation/types.js';
 import type { Session } from '../session/model.js';
 
 export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';
@@ -23,5 +23,5 @@ export interface REMAgentParams {
   /** 子 Agent 覆盖：缺省使用 behavior.maxTurns */
   maxTurns?: number;
   signal?: AbortSignal;
-  spawnChild?: SpawnChild;
+  runDelegation?: RunDelegation;
 }

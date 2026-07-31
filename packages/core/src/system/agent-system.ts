@@ -4,6 +4,7 @@ import type { AgentRunDriver } from '../agent/agent-run-driver.js';
 import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import type { SessionService } from '../session/service.js';
+import type { DelegationRunner } from '../delegation/runner.js';
 import type {
   AgentSystem, CreateSessionInput, RootAgentFactory, SendMessageInput,
 } from './types.js';
@@ -16,26 +17,33 @@ export interface CoreAgentSystemDeps {
   registry: SessionRuntimeRegistry;
   sessionService: SessionService;
   createRootAgent: RootAgentFactory;
+  delegationRunner: DelegationRunner;
   agentParams: Pick<Parameters<RootAgentFactory>[0], 'di' | 'runtimeConfig'>;
 }
 
 /** Core 单 Agent 用例门面。 */
 export class CoreAgentSystem implements AgentSystem {
+  private recovery?: Promise<number>;
+
   constructor(private readonly deps: CoreAgentSystemDeps) {}
 
-  createSession(input: CreateSessionInput): Promise<SessionInfo> {
+  async createSession(input: CreateSessionInput): Promise<SessionInfo> {
+    await this.ensureRecovery();
     return this.deps.sessionService.create(input.workspace);
   }
 
-  getSession(sessionId: string): Promise<SessionInfo> {
+  async getSession(sessionId: string): Promise<SessionInfo> {
+    await this.ensureRecovery();
     return this.deps.sessionService.get(sessionId);
   }
 
-  listSessions(workspace: string): Promise<SessionInfo[]> {
+  async listSessions(workspace: string): Promise<SessionInfo[]> {
+    await this.ensureRecovery();
     return this.deps.sessionService.list(workspace);
   }
 
   async send(input: SendMessageInput): Promise<void> {
+    await this.ensureRecovery();
     const session = await this.deps.sessionService.requireSession(input.sessionId);
     const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
     const runtime = await this.deps.registry.getOrCreate(input.sessionId, async () =>
@@ -49,6 +57,14 @@ export class CoreAgentSystem implements AgentSystem {
         workspaceRoot: workspace,
         agentId: 'root',
         sessionId: input.sessionId,
+        runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {
+          parentSessionId: input.sessionId,
+          parentToolCallId: toolContext.toolCallId ?? 'unknown',
+          workspace,
+          workspaceRoot: toolContext.workspaceRoot,
+          depth: 1,
+          signal: toolContext.signal,
+        }),
       }));
       this.publish(runtime, { type: 'session-start' });
       this.publish(runtime, { type: 'activity-change', activity: 'pending' });
@@ -70,6 +86,10 @@ export class CoreAgentSystem implements AgentSystem {
 
   events(signal?: AbortSignal): AsyncIterable<AgentSystemEvent> {
     return streamSystemEvents(this.deps.bus, signal);
+  }
+
+  private ensureRecovery(): Promise<number> {
+    return (this.recovery ??= this.deps.sessionService.recoverInterruptedDelegations());
   }
 
   private publish(

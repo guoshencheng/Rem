@@ -7,5 +7,5 @@ export {
 } from './capabilities/sub-agent/delegate-task.js';
 export type {
   DelegateTaskInput as DelegateTaskInputV2,
-  DelegateTaskExecutorParams as DelegateTaskExecutorV2Params,
 } from './capabilities/sub-agent/delegate-task.js';
+export type { RunDelegation as DelegateTaskExecutorV2Params } from './delegation/types.js';

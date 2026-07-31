@@ -55,6 +55,31 @@ describe('AgentsUniService', () => {
     expect(messages.filter((message) => message.role === 'assistant')).toHaveLength(2);
   });
 
+  it('不同 session 使用不同 root Agent', async () => {
+    ctx = await createTestService();
+    const first = await ctx.service.createSession(DEFAULT_WORKSPACE);
+    const second = await ctx.service.createSession(DEFAULT_WORKSPACE);
+
+    const firstEnd = waitForBusEvent(
+      ctx.service,
+      (e) => e.type === 'session-end' && e.sessionId === first.sessionId,
+    );
+    await ctx.service.run(DEFAULT_WORKSPACE, first.sessionId, 'first');
+    await firstEnd;
+
+    const secondEnd = waitForBusEvent(
+      ctx.service,
+      (e) => e.type === 'session-end' && e.sessionId === second.sessionId,
+    );
+    await ctx.service.run(DEFAULT_WORKSPACE, second.sessionId, 'second');
+    await secondEnd;
+
+    expect(ctx.service.sessions.get(first.sessionId)?.rootAgent).toBeDefined();
+    expect(ctx.service.sessions.get(second.sessionId)?.rootAgent).toBeDefined();
+    expect(ctx.service.sessions.get(first.sessionId)?.rootAgent)
+      .not.toBe(ctx.service.sessions.get(second.sessionId)?.rootAgent);
+  });
+
   it('running 中重复 run 抛 409', async () => {
     ctx = await createTestService();
     const s = await ctx.service.createSession(DEFAULT_WORKSPACE);

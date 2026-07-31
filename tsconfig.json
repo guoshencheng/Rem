@@ -9,7 +9,6 @@
     "forceConsistentCasingInFileNames": true
   },
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/bridge" }
+    { "path": "./packages/core" }
   ]
 }

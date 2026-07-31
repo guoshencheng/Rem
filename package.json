@@ -7,10 +7,11 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "build:all": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-bridge build",
-    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-bridge build && pnpm --filter rem-agent-bridge typecheck && pnpm --filter rem-agent-routes typecheck && pnpm --filter rem-agent-ui typecheck && pnpm --filter rem-agent-web typecheck"
+    "build": "pnpm --filter rem-agent-core build",
+    "test": "vitest run packages/core/tests",
+    "test:watch": "vitest packages/core/tests",
+    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck",
+    "check:structure": "pnpm --filter rem-agent-core check-structure"
   },
   "devDependencies": {
     "@opentui/core-darwin-arm64": "^0.4.2",

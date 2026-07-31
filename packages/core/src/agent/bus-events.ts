@@ -11,7 +11,7 @@ export type SessionActivity =
   | 'outputting'
   | 'compressing';
 
-export type BusEvent =
+export type AgentSystemEvent =
   | { workspace: string; sessionId: string; type: 'chunk'; chunk: AgentStreamEvent; agentId?: string }
   | { workspace: string; sessionId: string; type: 'session-start' }
   | { workspace: string; sessionId: string; type: 'session-end' }
@@ -35,3 +35,6 @@ export type BusEvent =
       type: 'todo-updated';
       todos: TodoItem[];
     };
+
+/** @deprecated 使用 AgentSystemEvent。 */
+export type BusEvent = AgentSystemEvent;

@@ -4,6 +4,32 @@ import { createFakeAssembly, fakeSession } from './helpers/fake-di.js';
 import { createMockModels } from './helpers/mock-models.js';
 
 describe('REMAgent 装配（首次 run 惰性初始化）', () => {
+  it('多个 run 复用同一次惰性 loop 装配', async () => {
+    const { di, runtimeConfig } = await createFakeAssembly();
+    const original = di.configProvider.resolveAgent.bind(di.configProvider);
+    let resolutions = 0;
+    di.configProvider.resolveAgent = (...args) => {
+      resolutions += 1;
+      return original(...args);
+    };
+    const agent = new REMAgent({
+      di,
+      runtimeConfig,
+      session: fakeSession(),
+      workspace: 'default',
+      agentId: 'root',
+    });
+
+    for await (const _event of agent.run({ content: 'first' })) {
+      // drain
+    }
+    for await (const _event of agent.run({ content: 'second' })) {
+      // drain
+    }
+
+    expect(resolutions).toBe(1);
+  });
+
   it('new REMAgent 同步构造即可用（root，含 delegate_task/todo_write 工具）', async () => {
     const { di, runtimeConfig } = await createFakeAssembly();
     const session = fakeSession();

@@ -31,14 +31,14 @@
 
 - [ ] **Step 1: Add a regression test for one-time lazy assembly**
 
-Add a test that wraps `di.configProvider.getAgentConfig` with a call counter, constructs one `REMAgent`, invokes `run()` twice sequentially with scripted model responses, and expects configuration resolution to occur once while both runs finish.
+Add a test that wraps `di.configProvider.resolveAgent` with a call counter, constructs one `REMAgent`, invokes `run()` twice sequentially, and expects configuration resolution to occur once while both runs finish.
 
 ```typescript
 it('多个 run 复用同一次惰性 loop 装配', async () => {
   const { di, runtimeConfig } = await createFakeAssembly();
-  const original = di.configProvider.getAgentConfig.bind(di.configProvider);
+  const original = di.configProvider.resolveAgent.bind(di.configProvider);
   let resolutions = 0;
-  di.configProvider.getAgentConfig = (...args) => {
+  di.configProvider.resolveAgent = (...args) => {
     resolutions += 1;
     return original(...args);
   };

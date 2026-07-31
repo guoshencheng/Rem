@@ -1,35 +1,22 @@
 import { Type, type Static } from '@sinclair/typebox';
-import type { ToolDefinition, ToolExecutor, ToolContext } from '../../../sdk/tool-provider.js';
-import type { TodoService } from '../../../capabilities/todo/service.js';
-import type { RemMetaEvent } from '../../../agent/types.js';
+import type { RemMetaEvent } from '../../agent/types.js';
+import type { ToolDefinition, ToolExecutor } from '../../sdk/tool-provider.js';
+import type { TodoService } from './service.js';
 
 const TodoStatusSchema = Type.Union(
-  [
-    Type.Literal('pending'),
-    Type.Literal('in_progress'),
-    Type.Literal('completed'),
-    Type.Literal('cancelled'),
-  ],
+  [Type.Literal('pending'), Type.Literal('in_progress'), Type.Literal('completed'), Type.Literal('cancelled')],
   { description: 'Current status of the task' },
 );
-
 const TodoPrioritySchema = Type.Union(
-  [
-    Type.Literal('high'),
-    Type.Literal('medium'),
-    Type.Literal('low'),
-  ],
+  [Type.Literal('high'), Type.Literal('medium'), Type.Literal('low')],
   { description: 'Priority level of the task' },
 );
-
-const TodoItemSchema = Type.Object({
-  content: Type.String({ description: 'Brief description of the task' }),
-  status: TodoStatusSchema,
-  priority: TodoPrioritySchema,
-});
-
 const TodoWriteSchema = Type.Object({
-  todos: Type.Array(TodoItemSchema, { description: 'Full ordered list of todos for this session' }),
+  todos: Type.Array(Type.Object({
+    content: Type.String({ description: 'Brief description of the task' }),
+    status: TodoStatusSchema,
+    priority: TodoPrioritySchema,
+  }), { description: 'Full ordered list of todos for this session' }),
 }, { additionalProperties: false });
 
 export type TodoWriteInput = Static<typeof TodoWriteSchema>;
@@ -72,21 +59,9 @@ export function createTodoWriteToolExecutor(
   emit: (event: RemMetaEvent) => void,
 ): ToolExecutor<typeof TodoWriteSchema> {
   return async (input, ctx) => {
-    if (!ctx.sessionId) {
-      throw new Error('todowrite requires a sessionId in tool context');
-    }
-
+    if (!ctx.sessionId) throw new Error('todowrite requires a sessionId in tool context');
     const updatedTodos = await todoService.update(ctx.sessionId, input.todos);
-
-    emit({
-      type: 'todo-updated',
-      sessionId: ctx.sessionId,
-      todos: updatedTodos,
-    });
-
-    return {
-      output: JSON.stringify(updatedTodos, null, 2),
-      details: { todos: updatedTodos },
-    };
+    emit({ type: 'todo-updated', sessionId: ctx.sessionId, todos: updatedTodos });
+    return { output: JSON.stringify(updatedTodos, null, 2), details: { todos: updatedTodos } };
   };
 }

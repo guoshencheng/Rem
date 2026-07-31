@@ -2,7 +2,7 @@ import type { ToolProvider } from '../sdk/tool-provider.js';
 import type { SkillProvider } from '../sdk/skill-provider.js';
 import type { ToolInfo } from '../sdk/system-prompt.js';
 import { composeToolProviders } from './composer.js';
-import { createTodoWriteToolDefinition } from '../plugins/tool/builtin/todo-write.js';
+import { createTodoWriteToolDefinition } from '../capabilities/todo/tool.js';
 import { createDelegateTaskToolDefinition } from '../capabilities/sub-agent/delegate-task.js';
 
 /** systemPrompt 的工具清单：composed providers + delegate_task/todo_write 两个内建工具（无需真建 overlay） */

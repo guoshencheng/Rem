@@ -4,8 +4,9 @@ import { TODO_DDL } from './schema/todo-ddl.js';
 import { ARCHIVE_DDL } from './schema/archive-ddl.js';
 import { WORKSPACE_DDL } from './schema/workspace-ddl.js';
 import { runMigrations } from './schema/migrations.js';
+import { AGENT_DDL } from './schema/agent-ddl.js';
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -20,6 +21,7 @@ export class SqliteSchemaManager {
     this.db.exec(TODO_DDL);
     this.db.exec(ARCHIVE_DDL);
     this.db.exec(WORKSPACE_DDL);
+    this.db.exec(AGENT_DDL);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
       | { version: number }

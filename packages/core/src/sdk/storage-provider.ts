@@ -3,6 +3,8 @@ import type { Usage } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session/model.js';
 import type { SessionTreeEntry } from '../session/tree/types.js';
 import type { TodoItem } from '../capabilities/todo/types.js';
+import type { AgentProfileStore } from '../agent-profile/store.js';
+import type { AgentThreadStore } from '../session/agent-thread/store.js';
 
 export interface ArchiveRecord {
   id: string;
@@ -42,6 +44,8 @@ export interface StorageProvider {
   readonly todoStore: TodoStore;
   readonly archiveStore: ArchiveStore;
   readonly workspaceStore: WorkspaceStore;
+  readonly agentProfileStore: AgentProfileStore;
+  readonly agentThreadStore: AgentThreadStore;
 }
 
 export interface TodoStore {

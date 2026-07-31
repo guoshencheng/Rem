@@ -22,7 +22,8 @@ export interface REMSessionParams {
 export class REMSession {
   readonly sessionId: string;
   readonly workspace: string;
-  agents: REMAgent[] = [];
+  private root?: REMAgent;
+  private readonly childAgents: REMAgent[] = [];
 
   status: REMSessionStatus = 'idle';
   budget = new IterationBudget({ maxTurns: 60 });
@@ -42,6 +43,22 @@ export class REMSession {
     this.publish = params.publish;
   }
 
+  get rootAgent(): REMAgent | undefined {
+    return this.root;
+  }
+
+  get childAgentCount(): number {
+    return this.childAgents.length;
+  }
+
+  getOrCreateRootAgent(create: () => REMAgent): REMAgent {
+    return (this.root ??= create());
+  }
+
+  addChildAgent(agent: REMAgent): void {
+    this.childAgents.push(agent);
+  }
+
   // ---- 运行生命周期 ----
 
   startRun(): AbortController {
@@ -56,6 +73,11 @@ export class REMSession {
     this.publish({ workspace: this.workspace, sessionId: this.sessionId, type: 'session-start' });
     this.publish({ workspace: this.workspace, sessionId: this.sessionId, type: 'activity-change', activity: 'pending' });
     return controller;
+  }
+
+  interruptRun(): void {
+    this.runController?.abort();
+    this.root?.interrupt();
   }
 
   finishRun(error?: string): void {

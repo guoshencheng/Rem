@@ -28,6 +28,33 @@ describe('AgentsUniService', () => {
     expect(messages.some((m) => m.role === 'assistant')).toBe(true);
   }, 15000);
 
+  it('同一 session 连续 run 复用 root Agent 并延续 transcript', async () => {
+    ctx = await createTestService();
+    const s = await ctx.service.createSession(DEFAULT_WORKSPACE);
+
+    const firstEnd = waitForBusEvent(
+      ctx.service,
+      (e) => e.type === 'session-end' && e.sessionId === s.sessionId,
+    );
+    await ctx.service.run(DEFAULT_WORKSPACE, s.sessionId, 'first');
+    await firstEnd;
+    const remSession = ctx.service.sessions.get(s.sessionId);
+    const firstRoot = remSession?.rootAgent;
+
+    const secondEnd = waitForBusEvent(
+      ctx.service,
+      (e) => e.type === 'session-end' && e.sessionId === s.sessionId,
+    );
+    await ctx.service.run(DEFAULT_WORKSPACE, s.sessionId, 'second');
+    await secondEnd;
+
+    expect(firstRoot).toBeDefined();
+    expect(remSession?.rootAgent).toBe(firstRoot);
+    const messages = await ctx.service.getMessages(DEFAULT_WORKSPACE, s.sessionId);
+    expect(messages.filter((message) => message.role === 'user')).toHaveLength(2);
+    expect(messages.filter((message) => message.role === 'assistant')).toHaveLength(2);
+  });
+
   it('running 中重复 run 抛 409', async () => {
     ctx = await createTestService();
     const s = await ctx.service.createSession(DEFAULT_WORKSPACE);

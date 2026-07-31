@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import type { BusEvent } from 'rem-agent-core';
+import { describe, expect, it, vi } from 'vitest';
+import type { BusEvent, REMAgent } from 'rem-agent-core';
 import type { REMAgentEvent } from 'rem-agent-core';
 import { REMSession } from '../src/rem-session.js';
 
@@ -10,6 +10,34 @@ function createSession(): { s: REMSession; events: BusEvent[] } {
 }
 
 describe('REMSession', () => {
+  it('同一 session 只创建一个 root Agent，child Agent 单独计数', () => {
+    const { s } = createSession();
+    const root = { interrupt: vi.fn() } as unknown as REMAgent;
+    const otherRoot = { interrupt: vi.fn() } as unknown as REMAgent;
+    const child = {} as REMAgent;
+    const createRoot = vi.fn(() => root);
+
+    expect(s.getOrCreateRootAgent(createRoot)).toBe(root);
+    expect(s.getOrCreateRootAgent(() => otherRoot)).toBe(root);
+    expect(createRoot).toHaveBeenCalledTimes(1);
+
+    s.addChildAgent(child);
+    expect(s.rootAgent).toBe(root);
+    expect(s.childAgentCount).toBe(1);
+  });
+
+  it('interruptRun 同时中止本轮 controller 和 root Agent', () => {
+    const { s } = createSession();
+    const interrupt = vi.fn();
+    s.getOrCreateRootAgent(() => ({ interrupt }) as unknown as REMAgent);
+    const controller = s.startRun();
+
+    s.interruptRun();
+
+    expect(controller.signal.aborted).toBe(true);
+    expect(interrupt).toHaveBeenCalledTimes(1);
+  });
+
   it('startRun 置 running 并发 session-start / activity-change', () => {
     const { s, events } = createSession();
     const controller = s.startRun();

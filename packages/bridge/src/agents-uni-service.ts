@@ -51,7 +51,7 @@ export class AgentsUniService implements IAgentService {
     if (remSession?.status === 'running') {
       throw new ServiceError('Session is already running', 409);
     }
-    const controller = remSession.startRun();
+    remSession.startRun();
     log('uni', 'run started', { sessionId, workspace });
 
     // 恢复累计 token usage（原 runAgent 行为）
@@ -66,7 +66,7 @@ export class AgentsUniService implements IAgentService {
     }
 
     try {
-      const remAgent = new REMAgent({
+      const remAgent = remSession.getOrCreateRootAgent(() => new REMAgent({
         di: this.di,
         runtimeConfig: this.runtimeConfig,
         session,
@@ -74,10 +74,8 @@ export class AgentsUniService implements IAgentService {
         workspaceRoot: workspace,
         agentId: 'root',
         sessionId,
-        signal: controller.signal,
         spawnChild: (childInput, toolCtx) => this.spawnChild(remSession, 'root', childInput, toolCtx),
-      });
-      remSession.agents.push(remAgent);
+      }));
       this.agentService.run(remSession, remAgent, { content: input, timestamp: new Date() });
     } catch (err) {
       remSession.finishRun(err instanceof Error ? err.message : String(err));
@@ -92,7 +90,7 @@ export class AgentsUniService implements IAgentService {
       workspace: remSession.workspace,
       title: input.task.slice(0, 50),
     });
-    const childAgentId = `${parentAgentId}.delegate-${remSession.agents.length}`;
+    const childAgentId = `${parentAgentId}.delegate-${remSession.childAgentCount + 1}`;
     const remAgent = new REMAgent({
       di: this.di,
       runtimeConfig: this.runtimeConfig,
@@ -107,13 +105,13 @@ export class AgentsUniService implements IAgentService {
       signal: toolCtx.signal,
       spawnChild: (grandInput, grandCtx) => this.spawnChild(remSession, childAgentId, grandInput, grandCtx),
     });
-    remSession.agents.push(remAgent);
+    remSession.addChildAgent(remAgent);
     return remAgent;
   }
 
-  private rootAgent(sessionId: string): REMAgent {
+  private runningRootAgent(sessionId: string): REMAgent {
     const remSession = this.sessions.get(sessionId);
-    const root = remSession?.agents[0];
+    const root = remSession?.rootAgent;
     if (!remSession || remSession.status !== 'running' || !root) {
       throw new ServiceError('Session is not running', 409);
     }
@@ -121,22 +119,22 @@ export class AgentsUniService implements IAgentService {
   }
 
   async steer(_workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
-    this.rootAgent(sessionId).steer(input);
+    this.runningRootAgent(sessionId).steer(input);
   }
 
   async followUp(_workspace: string, sessionId: string, input: UserInputContent): Promise<void> {
-    this.rootAgent(sessionId).followUp(input);
+    this.runningRootAgent(sessionId).followUp(input);
   }
 
   async interrupt(_workspace: string, sessionId: string): Promise<void> {
     log('uni', 'interrupt requested', { sessionId });
-    this.sessions.get(sessionId)?.runController?.abort();
+    this.sessions.get(sessionId)?.interruptRun();
   }
 
   async reset(_workspace: string, sessionId: string): Promise<void> {
     log('uni', 'reset requested', { sessionId });
     const remSession = this.sessions.get(sessionId);
-    remSession?.runController?.abort();
+    remSession?.interruptRun();
     remSession?.finishRun();
   }
 
@@ -168,7 +166,7 @@ export class AgentsUniService implements IAgentService {
 
   async deleteSession(_workspace: string, sessionId: string): Promise<void> {
     const remSession = this.sessions.get(sessionId);
-    remSession?.runController?.abort();
+    remSession?.interruptRun();
     this.sessions.remove(sessionId);
     return this.translateNotFound(() => this.sessionService.delete(sessionId));
   }

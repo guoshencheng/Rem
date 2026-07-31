@@ -15,6 +15,19 @@ async function collect(iter: AsyncIterable<REMAgentEvent>): Promise<REMAgentEven
 }
 
 describe('REMAgent', () => {
+  it('run 会把构造时恢复的 transcript 传给模型', async () => {
+    const seen: string[][] = [];
+    const { agent } = await createTestAgent({
+      conversation: [userMessage('old'), fauxAssistantMessage('old reply')],
+      steps: [({ context }) => {
+        seen.push(context.messages.map((message) => message.role));
+        return fauxAssistantMessage('new reply');
+      }],
+    });
+    await collect(agent.run({ content: 'new' }));
+    expect(seen).toEqual([['user', 'assistant', 'user']]);
+  });
+
   it('run 产出 message-persist / usage / finish，output 解析为文本', async () => {
     const { agent } = await createTestAgent({ steps: [fauxAssistantMessage('Hello')] });
 

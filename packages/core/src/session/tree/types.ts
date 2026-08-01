@@ -1,11 +1,6 @@
-import type { Message } from '@earendil-works/pi-ai';
+export type { MessageEntryPayload } from '../messages/payload.js';
 
 export type SessionTreeEntryType = 'message' | 'model_change' | 'label';
-
-export interface MessageEntryPayload {
-  message: Message;
-  messageId: string;
-}
 
 export interface SessionTreeEntry {
   id: string;

@@ -1,5 +1,5 @@
-import type { Message } from '@earendil-works/pi-ai';
 import type { Session, SessionSummary } from '../session/model.js';
+import type { MessageEntryPayload, SessionTreeEntry } from '../session/tree/types.js';
 
 export type { Session, SessionSummary };
 
@@ -11,5 +11,7 @@ export interface SessionProvider {
   list(): Promise<SessionSummary[]>;
 
   /** 追加一条已完成的消息并持久化为 tree entry */
-  appendMessage(session: Session, message: Message, messageId: string): Promise<void>;
+  appendMessage(session: Session, payload: MessageEntryPayload): Promise<void>;
+  listEntries(sessionId: string): Promise<SessionTreeEntry[]>;
+  getActiveLeafId(sessionId: string): Promise<string | null>;
 }

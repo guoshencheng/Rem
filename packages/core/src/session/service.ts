@@ -84,7 +84,10 @@ export class SessionService {
   async persistAgentEvent(sessionId: string, event: REMAgentEvent): Promise<void> {
     if (event.type === 'message-persist') {
       const session = await this.requireSession(sessionId);
-      await this.di.sessionProvider.appendMessage(session, event.message, event.messageId);
+      await this.di.sessionProvider.appendMessage(session, {
+        message: event.message,
+        messageId: event.messageId,
+      });
     } else if (event.type === 'usage') {
       await this.persistUsage(sessionId, event.usage, event.assistantMessageId);
     } else if (event.type === 'session-title') {

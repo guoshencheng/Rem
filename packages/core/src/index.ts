@@ -59,6 +59,3 @@ export { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from './ca
 export { formatTaskResult } from './capabilities/sub-agent/format-task-result.js'
 export { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type DelegateTaskInput } from './capabilities/sub-agent/delegate-task.js'
 export type { PromptBuildContext } from './sdk/system-prompt.js'
-
-// ═══ 临时兼容 API：见 compat.ts 的删除条件 ═══
-export * from './compat.js'

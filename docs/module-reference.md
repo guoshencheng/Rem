@@ -9,7 +9,6 @@
 | 文件 | 职责 |
 |---|---|
 | `src/index.ts` | Core 公共 barrel 导出 |
-| `src/compat.ts` | 临时兼容导出集中入口 |
 | `src/assembly/agent-factory.ts` | 从 Core 配置环境装配 Agent |
 | `src/assembly/agent-assembly.ts` | 同步构造 AgentDI 与 runtime config |
 
@@ -49,7 +48,7 @@ REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-trans
 
 ### `session/`
 
-持久化 Session 领域。`model.ts` 定义 schema v2 Session；`tree/` 定义 message entry 与 conversation 构建；`manager/` 提供通用 CRUD 和 UI-neutral 查询逻辑。
+持久化 Session 领域。`model.ts` 定义 schema v2 Session；`tree/` 定义 message entry 与 conversation 构建；`manager/` 提供 Session 列表汇总。
 
 ### `shared/`
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// packages/core 结构检查：依赖方向、文件行数上限、kebab-case、.js 扩展名、compat 出口收敛。
+// packages/core 结构检查：依赖方向、文件行数上限、kebab-case、.js 扩展名。
 // 用法: node packages/core/scripts/check-structure.mjs（任意目录下可运行）
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
@@ -84,10 +84,6 @@ for (const file of files) {
     errors.push(`${rel}: runtime/ 不得读取 process.env`);
   }
 
-  // V2 兼容导出只能集中在 compat.ts
-  if (base !== 'compat.ts' && /export\s+(type\s+)?\{[^}]*\b\w*V2\w*\b/.test(content)) {
-    errors.push(`${rel}: V2 兼容导出只能集中在 compat.ts`);
-  }
 }
 
 if (errors.length) {

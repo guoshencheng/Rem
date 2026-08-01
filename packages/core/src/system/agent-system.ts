@@ -58,7 +58,6 @@ export class CoreAgentSystem implements AgentSystem {
     runtime.startRun();
     try {
       const agent = runtime.rootAgent;
-      if (!agent) throw new Error(`Root Agent unavailable for Session: ${input.sessionId}`);
       this.publish(runtime, { type: 'session-start' });
       this.publish(runtime, { type: 'activity-change', activity: 'pending' });
       const events = agent.run({ content: input.content, timestamp: new Date() });
@@ -92,12 +91,7 @@ export class CoreAgentSystem implements AgentSystem {
       profile.agentProfileId,
     );
     const projectedSession = await this.deps.contextUsecase.projectSession(session, thread);
-    const runtime = new SessionRuntime({
-      sessionId: session.sessionId,
-      workspace,
-      agentThreadId: thread.agentThreadId,
-    });
-    runtime.getOrCreateRootAgent(() => this.deps.createRootAgent({
+    const rootAgent = this.deps.createRootAgent({
       ...this.deps.agentParams,
       session: projectedSession,
       workspace,
@@ -113,8 +107,13 @@ export class CoreAgentSystem implements AgentSystem {
         depth: 1,
         signal: toolContext.signal,
       }),
-    }));
-    return runtime;
+    });
+    return new SessionRuntime({
+      sessionId: session.sessionId,
+      workspace,
+      agentThreadId: thread.agentThreadId,
+      rootAgent,
+    });
   }
 
   private publish(

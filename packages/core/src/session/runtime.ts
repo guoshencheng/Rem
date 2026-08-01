@@ -7,6 +7,7 @@ export interface SessionRuntimeParams {
   sessionId: string;
   workspace: string;
   agentThreadId: string;
+  rootAgent: REMAgent;
 }
 
 /** 一个持久化 Session 对应的进程内执行所有权。 */
@@ -14,22 +15,15 @@ export class SessionRuntime {
   readonly sessionId: string;
   readonly workspace: string;
   readonly agentThreadId: string;
+  readonly rootAgent: REMAgent;
   status: SessionRuntimeStatus = 'idle';
-  private root?: REMAgent;
   private runController?: AbortController;
 
   constructor(params: SessionRuntimeParams) {
     this.sessionId = params.sessionId;
     this.workspace = params.workspace;
     this.agentThreadId = params.agentThreadId;
-  }
-
-  get rootAgent(): REMAgent | undefined {
-    return this.root;
-  }
-
-  getOrCreateRootAgent(create: () => REMAgent): REMAgent {
-    return (this.root ??= create());
+    this.rootAgent = params.rootAgent;
   }
 
   startRun(): AbortSignal {
@@ -51,6 +45,6 @@ export class SessionRuntime {
 
   interrupt(): void {
     this.runController?.abort();
-    this.root?.interrupt();
+    this.rootAgent.interrupt();
   }
 }

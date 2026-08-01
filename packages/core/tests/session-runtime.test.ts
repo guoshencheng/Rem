@@ -5,13 +5,12 @@ import { SessionAlreadyRunningError } from '../src/system/errors.js';
 
 describe('SessionRuntime', () => {
   it('只创建一个 root Agent，并协调 run 与 interrupt', () => {
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
     const agent = { interrupt: vi.fn() } as unknown as REMAgent;
-    const create = vi.fn(() => agent);
+    const runtime = new SessionRuntime({
+      sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1', rootAgent: agent,
+    });
 
-    expect(runtime.getOrCreateRootAgent(create)).toBe(agent);
-    expect(runtime.getOrCreateRootAgent(create)).toBe(agent);
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(runtime.rootAgent).toBe(agent);
     runtime.startRun();
     expect(() => runtime.startRun()).toThrow(SessionAlreadyRunningError);
     runtime.interrupt();
@@ -21,7 +20,10 @@ describe('SessionRuntime', () => {
   });
 
   it('失败后允许开始新 run', () => {
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
+    const runtime = new SessionRuntime({
+      sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1',
+      rootAgent: { interrupt: vi.fn() } as unknown as REMAgent,
+    });
     runtime.startRun();
     runtime.failRun();
     expect(runtime.status).toBe('error');

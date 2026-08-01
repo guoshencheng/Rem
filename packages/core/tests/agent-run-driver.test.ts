@@ -15,7 +15,10 @@ describe('AgentRunDriver', () => {
       sessionUsecase: { persistAgentEvent } as unknown as SessionUsecase,
       publish: (event) => published.push(event),
     });
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
+    const runtime = new SessionRuntime({
+      sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1',
+      rootAgent: { interrupt: vi.fn() } as unknown as REMAgent,
+    });
     runtime.startRun();
     const queue = new EventQueue<REMAgentEvent>();
     const driving = driver.drive(runtime, { agentId: 'root' } as REMAgent, queue);
@@ -45,8 +48,10 @@ describe('AgentRunDriver', () => {
       } as unknown as SessionUsecase,
       publish,
     });
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
-    runtime.getOrCreateRootAgent(() => ({ interrupt } as unknown as REMAgent));
+    const runtime = new SessionRuntime({
+      sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1',
+      rootAgent: { interrupt } as unknown as REMAgent,
+    });
     runtime.startRun();
     const queue = new EventQueue<REMAgentEvent>();
     queue.push({
@@ -54,7 +59,7 @@ describe('AgentRunDriver', () => {
       message: { role: 'user', content: 'hi', timestamp: 1 } as never,
     });
     queue.finish();
-    await driver.drive(runtime, runtime.rootAgent!, queue);
+    await driver.drive(runtime, runtime.rootAgent, queue);
     expect(interrupt).toHaveBeenCalledOnce();
     expect(runtime.status).toBe('error');
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({

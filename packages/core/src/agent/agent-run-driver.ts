@@ -27,11 +27,15 @@ export class AgentRunDriver {
     try {
       for await (const event of events) {
         if (event.type === 'message-persist') {
-          await this.deps.sessionService.persistAgentEvent(runtime.sessionId, event);
+          await this.deps.sessionService.persistAgentEvent(
+            runtime.sessionId, runtime.agentThreadId, event,
+          );
           continue;
         }
         if (event.type === 'usage') {
-          await this.deps.sessionService.persistAgentEvent(runtime.sessionId, event);
+          await this.deps.sessionService.persistAgentEvent(
+            runtime.sessionId, runtime.agentThreadId, event,
+          );
           this.publish(runtime, { type: 'usage-change', usage: event.usage });
           continue;
         }
@@ -40,7 +44,9 @@ export class AgentRunDriver {
           continue;
         }
         if (event.type === 'session-title' || event.type === 'compress-end') {
-          await this.deps.sessionService.persistAgentEvent(runtime.sessionId, event);
+          await this.deps.sessionService.persistAgentEvent(
+            runtime.sessionId, runtime.agentThreadId, event,
+          );
         }
         const nextActivity = reduceSessionActivity(activity, event);
         if (nextActivity !== activity) {
@@ -49,7 +55,9 @@ export class AgentRunDriver {
         }
         this.publish(runtime, { type: 'chunk', chunk: event, agentId: agent.agentId });
         if (event.type === 'finish') {
-          await this.deps.sessionService.persistAgentEvent(runtime.sessionId, event);
+          await this.deps.sessionService.persistAgentEvent(
+            runtime.sessionId, runtime.agentThreadId, event,
+          );
           runtime.finishRun();
           this.publish(runtime, { type: 'session-end' });
           return;

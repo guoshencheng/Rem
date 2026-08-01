@@ -5,6 +5,10 @@ import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import type { SessionService } from '../session/service.js';
 import type { DelegationRunner } from '../delegation/runner.js';
+import type { AgentProfileService } from '../agent-profile/service.js';
+import type { AgentThreadService } from '../session/agent-thread/service.js';
+import type { SessionAgentContextService } from '../session/agent-context-service.js';
+import type { Session } from '../session/model.js';
 import type {
   AgentSystem, CreateSessionInput, RootAgentFactory, SendMessageInput,
 } from './types.js';
@@ -16,6 +20,9 @@ export interface CoreAgentSystemDeps {
   driver: AgentRunDriver;
   registry: SessionRuntimeRegistry;
   sessionService: SessionService;
+  profileService: AgentProfileService;
+  threadService: AgentThreadService;
+  contextService: SessionAgentContextService;
   createRootAgent: RootAgentFactory;
   delegationRunner: DelegationRunner;
   agentParams: Pick<Parameters<RootAgentFactory>[0], 'di' | 'runtimeConfig'>;
@@ -46,26 +53,12 @@ export class CoreAgentSystem implements AgentSystem {
     await this.ensureRecovery();
     const session = await this.deps.sessionService.requireSession(input.sessionId);
     const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
-    const runtime = await this.deps.registry.getOrCreate(input.sessionId, async () =>
-      new SessionRuntime({ sessionId: input.sessionId, workspace }));
+    const runtime = await this.deps.registry.getOrCreate(input.sessionId, () =>
+      this.createRuntime(session, workspace));
     runtime.startRun();
     try {
-      const agent = runtime.getOrCreateRootAgent(() => this.deps.createRootAgent({
-        ...this.deps.agentParams,
-        session,
-        workspace,
-        workspaceRoot: workspace,
-        agentId: 'root',
-        sessionId: input.sessionId,
-        runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {
-          parentSessionId: input.sessionId,
-          parentToolCallId: toolContext.toolCallId ?? 'unknown',
-          workspace,
-          workspaceRoot: toolContext.workspaceRoot,
-          depth: 1,
-          signal: toolContext.signal,
-        }),
-      }));
+      const agent = runtime.rootAgent;
+      if (!agent) throw new Error(`Root Agent unavailable for Session: ${input.sessionId}`);
       this.publish(runtime, { type: 'session-start' });
       this.publish(runtime, { type: 'activity-change', activity: 'pending' });
       const events = agent.run({ content: input.content, timestamp: new Date() });
@@ -90,6 +83,38 @@ export class CoreAgentSystem implements AgentSystem {
 
   private ensureRecovery(): Promise<number> {
     return (this.recovery ??= this.deps.sessionService.recoverInterruptedDelegations());
+  }
+
+  private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
+    const profile = await this.deps.profileService.ensureDefaultPrimary();
+    const thread = await this.deps.threadService.ensurePrimaryThread(
+      session.sessionId,
+      profile.agentProfileId,
+    );
+    const projectedSession = await this.deps.contextService.projectSession(session, thread);
+    const runtime = new SessionRuntime({
+      sessionId: session.sessionId,
+      workspace,
+      agentThreadId: thread.agentThreadId,
+    });
+    runtime.getOrCreateRootAgent(() => this.deps.createRootAgent({
+      ...this.deps.agentParams,
+      session: projectedSession,
+      workspace,
+      workspaceRoot: workspace,
+      agentId: 'root',
+      sessionId: session.sessionId,
+      runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {
+        parentSessionId: session.sessionId,
+        parentAgentThreadId: thread.agentThreadId,
+        parentToolCallId: toolContext.toolCallId ?? 'unknown',
+        workspace,
+        workspaceRoot: toolContext.workspaceRoot,
+        depth: 1,
+        signal: toolContext.signal,
+      }),
+    }));
+    return runtime;
   }
 
   private publish(

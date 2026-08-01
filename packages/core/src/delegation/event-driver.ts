@@ -7,7 +7,11 @@ import type { SessionService } from '../session/service.js';
 export class DelegationEventDriver {
   constructor(private readonly sessionService: SessionService) {}
 
-  async drive(sessionId: string, events: AsyncIterable<REMAgentEvent>): Promise<Usage> {
+  async drive(
+    sessionId: string,
+    agentThreadId: string,
+    events: AsyncIterable<REMAgentEvent>,
+  ): Promise<Usage> {
     let usage = emptyUsage();
     for await (const event of events) {
       if (event.type === 'usage') usage = addUsage(usage, event.usage);
@@ -18,7 +22,7 @@ export class DelegationEventDriver {
         || event.type === 'compress-end'
         || event.type === 'finish'
       ) {
-        await this.sessionService.persistAgentEvent(sessionId, event);
+        await this.sessionService.persistAgentEvent(sessionId, agentThreadId, event);
       }
     }
     return usage;

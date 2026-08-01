@@ -6,12 +6,14 @@ export type SessionRuntimeStatus = 'idle' | 'running' | 'error';
 export interface SessionRuntimeParams {
   sessionId: string;
   workspace: string;
+  agentThreadId: string;
 }
 
 /** 一个持久化 Session 对应的进程内执行所有权。 */
 export class SessionRuntime {
   readonly sessionId: string;
   readonly workspace: string;
+  readonly agentThreadId: string;
   status: SessionRuntimeStatus = 'idle';
   private root?: REMAgent;
   private runController?: AbortController;
@@ -19,6 +21,7 @@ export class SessionRuntime {
   constructor(params: SessionRuntimeParams) {
     this.sessionId = params.sessionId;
     this.workspace = params.workspace;
+    this.agentThreadId = params.agentThreadId;
   }
 
   get rootAgent(): REMAgent | undefined {

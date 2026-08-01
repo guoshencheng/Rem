@@ -8,6 +8,7 @@ import { AgentSessionManager } from './manager/agent-session-manager.js';
 import { SessionNotFoundError } from './manager/errors.js';
 import type { SessionInfo } from './manager/types.js';
 import type { DelegationStatus } from '../delegation/types.js';
+import { agentEventToMessagePayload } from './messages/event-payload.js';
 
 /** Session 查询与 Agent 事件持久化的唯一业务写入方。 */
 export class SessionService {
@@ -81,13 +82,17 @@ export class SessionService {
     return session;
   }
 
-  async persistAgentEvent(sessionId: string, event: REMAgentEvent): Promise<void> {
+  async persistAgentEvent(
+    sessionId: string,
+    agentThreadId: string,
+    event: REMAgentEvent,
+  ): Promise<void> {
     if (event.type === 'message-persist') {
       const session = await this.requireSession(sessionId);
-      await this.di.sessionProvider.appendMessage(session, {
-        message: event.message,
-        messageId: event.messageId,
-      });
+      await this.di.sessionProvider.appendMessage(
+        session,
+        agentEventToMessagePayload(event, agentThreadId),
+      );
     } else if (event.type === 'usage') {
       await this.persistUsage(sessionId, event.usage, event.assistantMessageId);
     } else if (event.type === 'session-title') {

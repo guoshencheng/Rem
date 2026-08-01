@@ -5,6 +5,7 @@ import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import type { SessionService } from '../session/service.js';
 import type { DelegationContext, DelegationRequest, DelegationResult } from './types.js';
 import type { DelegationEventDriver } from './event-driver.js';
+import type { AgentThreadService } from '../session/agent-thread/service.js';
 import { assertDelegationDepth } from './depth.js';
 
 export interface DelegationRunnerDeps {
@@ -12,6 +13,7 @@ export interface DelegationRunnerDeps {
   runtimeConfig: AgentRuntimeConfig;
   sessionService: SessionService;
   eventDriver: DelegationEventDriver;
+  threadService: AgentThreadService;
   createAgent: (params: REMAgentParams) => REMAgent;
   publish: (event: AgentSystemEvent) => void;
   maxDepth: number;
@@ -23,6 +25,13 @@ export class DelegationRunner {
 
   async run(request: DelegationRequest, context: DelegationContext): Promise<DelegationResult> {
     assertDelegationDepth(context.depth, this.deps.maxDepth);
+    const parentThread = await this.deps.threadService.get(context.parentAgentThreadId);
+    if (!parentThread) {
+      throw new Error(`Parent AgentThread not found: ${context.parentAgentThreadId}`);
+    }
+    if (parentThread.sessionId !== context.parentSessionId) {
+      throw new Error(`AgentThread does not belong to parent Session: ${context.parentAgentThreadId}`);
+    }
     const child = await this.deps.sessionService.createDelegationSession({
       parentSessionId: context.parentSessionId,
       parentToolCallId: context.parentToolCallId,
@@ -30,6 +39,10 @@ export class DelegationRunner {
       task: request.task,
       depth: context.depth,
     });
+    const childThread = await this.deps.threadService.createDelegatedThread(
+      child.sessionId,
+      parentThread.agentProfileId,
+    );
     this.publish(context, child.sessionId, request.task, 'running');
     let agent: REMAgent | undefined;
     try {
@@ -47,6 +60,7 @@ export class DelegationRunner {
         signal: context.signal,
         runDelegation: (nested, toolContext) => this.run(nested, {
           parentSessionId: child.sessionId,
+          parentAgentThreadId: childThread.agentThreadId,
           parentToolCallId: toolContext.toolCallId ?? 'unknown',
           workspace: context.workspace,
           workspaceRoot: toolContext.workspaceRoot,
@@ -55,7 +69,9 @@ export class DelegationRunner {
         }),
       });
       const events = agent.run({ content: request.task, timestamp: new Date() });
-      const usage = await this.deps.eventDriver.drive(child.sessionId, events);
+      const usage = await this.deps.eventDriver.drive(
+        child.sessionId, childThread.agentThreadId, events,
+      );
       const output = (await agent.output) ?? { content: '', completed: true };
       const status = context.signal?.aborted
         ? 'interrupted'

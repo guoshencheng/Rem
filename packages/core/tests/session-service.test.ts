@@ -21,16 +21,16 @@ describe('SessionService', () => {
     const service = new SessionService(di);
     const info = await service.create('ws');
     const usage = { ...emptyUsage(), input: 2, output: 3, totalTokens: 5 };
-    await service.persistAgentEvent(info.sessionId, {
+    await service.persistAgentEvent(info.sessionId, 't-1', {
       type: 'message-persist',
       messageId: 'm-1',
       message: { role: 'user', content: 'hello', timestamp: 1 } as never,
     });
-    await service.persistAgentEvent(info.sessionId, {
+    await service.persistAgentEvent(info.sessionId, 't-1', {
       type: 'usage', usage, assistantMessageId: 'm-2',
     });
-    await service.persistAgentEvent(info.sessionId, { type: 'session-title', title: 'Title' });
-    await service.persistAgentEvent(info.sessionId, {
+    await service.persistAgentEvent(info.sessionId, 't-1', { type: 'session-title', title: 'Title' });
+    await service.persistAgentEvent(info.sessionId, 't-1', {
       type: 'finish', output: { content: 'done', completed: true },
     });
 

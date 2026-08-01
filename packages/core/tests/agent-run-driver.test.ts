@@ -15,7 +15,7 @@ describe('AgentRunDriver', () => {
       sessionService: { persistAgentEvent } as unknown as SessionService,
       publish: (event) => published.push(event),
     });
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws' });
+    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
     runtime.startRun();
     const queue = new EventQueue<REMAgentEvent>();
     const driving = driver.drive(runtime, { agentId: 'root' } as REMAgent, queue);
@@ -45,7 +45,7 @@ describe('AgentRunDriver', () => {
       } as unknown as SessionService,
       publish,
     });
-    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws' });
+    const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
     runtime.getOrCreateRootAgent(() => ({ interrupt } as unknown as REMAgent));
     runtime.startRun();
     const queue = new EventQueue<REMAgentEvent>();

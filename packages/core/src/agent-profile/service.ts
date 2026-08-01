@@ -19,4 +19,12 @@ export class AgentProfileService {
     await this.store.save(profile);
     return (await this.store.get(DEFAULT_PRIMARY_PROFILE_ID)) ?? profile;
   }
+
+  get(agentProfileId: string): Promise<AgentProfile | null> {
+    return this.store.get(agentProfileId);
+  }
+
+  list(): Promise<AgentProfile[]> {
+    return this.store.list();
+  }
 }

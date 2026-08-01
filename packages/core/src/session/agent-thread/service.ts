@@ -36,4 +36,8 @@ export class AgentThreadService {
   listBySession(sessionId: string): Promise<AgentThread[]> {
     return this.store.listBySession(sessionId);
   }
+
+  get(agentThreadId: string): Promise<AgentThread | null> {
+    return this.store.get(agentThreadId);
+  }
 }

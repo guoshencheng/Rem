@@ -11,6 +11,7 @@ export interface DelegationRequest {
 
 export interface DelegationContext {
   parentSessionId: string;
+  parentAgentThreadId: string;
   parentToolCallId: string;
   workspace: string;
   workspaceRoot: string;

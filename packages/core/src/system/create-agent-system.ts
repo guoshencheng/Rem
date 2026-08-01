@@ -9,6 +9,9 @@ import { CoreAgentSystem } from './agent-system.js';
 import { DelegationEventDriver } from '../delegation/event-driver.js';
 import { DelegationRunner } from '../delegation/runner.js';
 import { resolveDelegationMaxDepth } from '../delegation/depth.js';
+import { AgentProfileService } from '../agent-profile/service.js';
+import { AgentThreadService } from '../session/agent-thread/service.js';
+import { SessionAgentContextService } from '../session/agent-context-service.js';
 
 export function createAgentSystem(
   assembly: AgentAssembly,
@@ -16,6 +19,13 @@ export function createAgentSystem(
 ): AgentSystem {
   const bus = new BroadcastBus();
   const sessionService = new SessionService(assembly.di);
+  const profileService = new AgentProfileService(assembly.di.storage.agentProfileStore);
+  const threadService = new AgentThreadService(assembly.di.storage.agentThreadStore);
+  const contextService = new SessionAgentContextService({
+    sessionProvider: assembly.di.sessionProvider,
+    profileService,
+    threadService,
+  });
   const registry = new SessionRuntimeRegistry();
   const driver = new AgentRunDriver({
     sessionService,
@@ -27,6 +37,7 @@ export function createAgentSystem(
     runtimeConfig: assembly.runtimeConfig,
     sessionService,
     eventDriver: new DelegationEventDriver(sessionService),
+    threadService,
     createAgent,
     publish: (event) => bus.publish(event),
     maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
@@ -36,6 +47,9 @@ export function createAgentSystem(
     driver,
     registry,
     sessionService,
+    profileService,
+    threadService,
+    contextService,
     createRootAgent: createAgent,
     delegationRunner,
     agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },

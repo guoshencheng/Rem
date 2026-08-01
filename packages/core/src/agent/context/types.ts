@@ -6,7 +6,7 @@ import type { Session } from '../../session/model.js';
 export interface ResolveAgentConfigParams {
   di: AgentDI;
   runtimeConfig: AgentRuntimeConfig;
-  /** 已由 SessionService 加载/创建的 session */
+  /** 已由 SessionUsecase 加载/创建的 session */
   session: Session;
   workspace: string;
   agentRoleId?: string;

@@ -2,7 +2,7 @@ import type { AgentThreadStore } from './store.js';
 import type { AgentThread } from './model.js';
 import { generateId } from '../../shared/generate-id.js';
 
-export class AgentThreadService {
+export class AgentThreadUsecase {
   constructor(private readonly store: AgentThreadStore) {}
 
   async ensurePrimaryThread(sessionId: string, agentProfileId: string): Promise<AgentThread> {

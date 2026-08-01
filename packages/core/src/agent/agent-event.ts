@@ -5,7 +5,7 @@ import type { RemMetaEvent } from './types.js';
 /**
  * REMAgent 向上抛出的事件。
  * - loop AgentEvent / RemMetaEvent：原样上抛（最终成为 BusEvent chunk）。
- * - message-persist：一条已完成消息待 SessionService 落盘。
+ * - message-persist：一条已完成消息待 SessionUsecase 落盘。
  * - usage：本次 run 的累计 token usage（assistantMessageId 用于挂 messageTokenUsage）。
  */
 export type REMAgentEvent =

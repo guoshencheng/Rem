@@ -1,7 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox';
 import type { RemMetaEvent } from '../../agent/types.js';
 import type { ToolDefinition, ToolExecutor } from '../../sdk/tool-provider.js';
-import type { TodoService } from './service.js';
+import type { TodoUsecase } from './todo-usecase.js';
 
 const TodoStatusSchema = Type.Union(
   [Type.Literal('pending'), Type.Literal('in_progress'), Type.Literal('completed'), Type.Literal('cancelled')],
@@ -55,12 +55,12 @@ The list is ordered: position 0 is the current/next task. Always send the full u
 }
 
 export function createTodoWriteToolExecutor(
-  todoService: TodoService,
+  todoUsecase: TodoUsecase,
   emit: (event: RemMetaEvent) => void,
 ): ToolExecutor<typeof TodoWriteSchema> {
   return async (input, ctx) => {
     if (!ctx.sessionId) throw new Error('todowrite requires a sessionId in tool context');
-    const updatedTodos = await todoService.update(ctx.sessionId, input.todos);
+    const updatedTodos = await todoUsecase.update(ctx.sessionId, input.todos);
     emit({ type: 'todo-updated', sessionId: ctx.sessionId, todos: updatedTodos });
     return { output: JSON.stringify(updatedTodos, null, 2), details: { todos: updatedTodos } };
   };

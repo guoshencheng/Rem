@@ -21,7 +21,7 @@ import type { AgentAssembly, AssembleAgentContextOptions } from './types.js';
 
 export type { AgentAssembly, AssembleAgentContextOptions } from './types.js';
 
-/** 初始化 AgentDI 中的所有异步组件。调用方在创建 AgentService 前必须调用此函数。 */
+/** 初始化 AgentDI 中的所有异步组件。调用方在创建 AgentSystem 前必须调用此函数。 */
 export async function initializeAgentDI(di: AgentDI): Promise<void> {
   await di.configProvider.init();
   await di.storage.init();

@@ -5,14 +5,14 @@ import { AgentRunDriver } from '../src/agent/agent-run-driver.js';
 import { EventQueue } from '../src/agent/event-queue.js';
 import { emptyUsage } from '../src/agent/token-usage/index.js';
 import { SessionRuntime } from '../src/session/runtime.js';
-import type { SessionService } from '../src/session/service.js';
+import type { SessionUsecase } from '../src/session/session-usecase.js';
 
 describe('AgentRunDriver', () => {
   it('串行持久化内部事件并发布公开终态', async () => {
     const persistAgentEvent = vi.fn(async () => {});
     const published: Array<{ type: string }> = [];
     const driver = new AgentRunDriver({
-      sessionService: { persistAgentEvent } as unknown as SessionService,
+      sessionUsecase: { persistAgentEvent } as unknown as SessionUsecase,
       publish: (event) => published.push(event),
     });
     const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });
@@ -40,9 +40,9 @@ describe('AgentRunDriver', () => {
     const publish = vi.fn();
     const interrupt = vi.fn();
     const driver = new AgentRunDriver({
-      sessionService: {
+      sessionUsecase: {
         persistAgentEvent: vi.fn(async () => { throw new Error('disk failed'); }),
-      } as unknown as SessionService,
+      } as unknown as SessionUsecase,
       publish,
     });
     const runtime = new SessionRuntime({ sessionId: 's-1', workspace: 'ws', agentThreadId: 't-1' });

@@ -2,16 +2,11 @@ import type { TodoItem, TodoPriority, TodoStatus } from './types.js';
 import { TodoValidationError } from './errors.js';
 import type { TodoStore } from '../../sdk/storage-provider.js';
 
-export interface TodoService {
-  get(sessionId: string): Promise<TodoItem[]>;
-  update(sessionId: string, todos: TodoItem[]): Promise<TodoItem[]>;
-}
-
 const VALID_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed', 'cancelled'];
 const VALID_PRIORITIES: TodoPriority[] = ['high', 'medium', 'low'];
 const MAX_TODOS = 50;
 
-export class DefaultTodoService implements TodoService {
+export class TodoUsecase {
   constructor(private store: TodoStore) {}
 
   async get(sessionId: string): Promise<TodoItem[]> {

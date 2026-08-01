@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentSystemEvent } from '../src/agent/bus-events.js';
 import type { MessageEntryPayload } from '../src/session/messages/payload.js';
 import type { SessionTreeEntry } from '../src/session/tree/types.js';
-import { DEFAULT_PRIMARY_PROFILE_ID } from '../src/agent-profile/service.js';
+import { DEFAULT_PRIMARY_PROFILE_ID } from '../src/agent-profile/agent-profile-usecase.js';
 import { REMAgent } from '../src/agent/rem-agent.js';
 import { createAgentSystem } from '../src/system/create-agent-system.js';
 import { createFakeAssembly } from './helpers/fake-di.js';

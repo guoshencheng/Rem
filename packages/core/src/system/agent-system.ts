@@ -3,11 +3,11 @@ import type { BroadcastBus } from '../agent/broadcast-bus.js';
 import type { AgentRunDriver } from '../agent/agent-run-driver.js';
 import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
-import type { SessionService } from '../session/service.js';
+import type { SessionUsecase } from '../session/session-usecase.js';
 import type { DelegationRunner } from '../delegation/runner.js';
-import type { AgentProfileService } from '../agent-profile/service.js';
-import type { AgentThreadService } from '../session/agent-thread/service.js';
-import type { SessionAgentContextService } from '../session/agent-context-service.js';
+import type { AgentProfileUsecase } from '../agent-profile/agent-profile-usecase.js';
+import type { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
+import type { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
 import type { Session } from '../session/model.js';
 import type {
   AgentSystem, CreateSessionInput, RootAgentFactory, SendMessageInput,
@@ -19,10 +19,10 @@ export interface CoreAgentSystemDeps {
   bus: BroadcastBus;
   driver: AgentRunDriver;
   registry: SessionRuntimeRegistry;
-  sessionService: SessionService;
-  profileService: AgentProfileService;
-  threadService: AgentThreadService;
-  contextService: SessionAgentContextService;
+  sessionUsecase: SessionUsecase;
+  profileUsecase: AgentProfileUsecase;
+  threadUsecase: AgentThreadUsecase;
+  contextUsecase: SessionAgentContextUsecase;
   createRootAgent: RootAgentFactory;
   delegationRunner: DelegationRunner;
   agentParams: Pick<Parameters<RootAgentFactory>[0], 'di' | 'runtimeConfig'>;
@@ -36,22 +36,22 @@ export class CoreAgentSystem implements AgentSystem {
 
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {
     await this.ensureRecovery();
-    return this.deps.sessionService.create(input.workspace);
+    return this.deps.sessionUsecase.create(input.workspace);
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {
     await this.ensureRecovery();
-    return this.deps.sessionService.get(sessionId);
+    return this.deps.sessionUsecase.get(sessionId);
   }
 
   async listSessions(workspace: string): Promise<SessionInfo[]> {
     await this.ensureRecovery();
-    return this.deps.sessionService.list(workspace);
+    return this.deps.sessionUsecase.list(workspace);
   }
 
   async send(input: SendMessageInput): Promise<void> {
     await this.ensureRecovery();
-    const session = await this.deps.sessionService.requireSession(input.sessionId);
+    const session = await this.deps.sessionUsecase.requireSession(input.sessionId);
     const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
     const runtime = await this.deps.registry.getOrCreate(input.sessionId, () =>
       this.createRuntime(session, workspace));
@@ -82,16 +82,16 @@ export class CoreAgentSystem implements AgentSystem {
   }
 
   private ensureRecovery(): Promise<number> {
-    return (this.recovery ??= this.deps.sessionService.recoverInterruptedDelegations());
+    return (this.recovery ??= this.deps.sessionUsecase.recoverInterruptedDelegations());
   }
 
   private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
-    const profile = await this.deps.profileService.ensureDefaultPrimary();
-    const thread = await this.deps.threadService.ensurePrimaryThread(
+    const profile = await this.deps.profileUsecase.ensureDefaultPrimary();
+    const thread = await this.deps.threadUsecase.ensurePrimaryThread(
       session.sessionId,
       profile.agentProfileId,
     );
-    const projectedSession = await this.deps.contextService.projectSession(session, thread);
+    const projectedSession = await this.deps.contextUsecase.projectSession(session, thread);
     const runtime = new SessionRuntime({
       sessionId: session.sessionId,
       workspace,

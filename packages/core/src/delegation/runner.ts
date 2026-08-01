@@ -2,18 +2,18 @@ import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { REMAgent, REMAgentParams } from '../agent/rem-agent.js';
 import type { AgentDI } from '../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
-import type { SessionService } from '../session/service.js';
+import type { SessionUsecase } from '../session/session-usecase.js';
 import type { DelegationContext, DelegationRequest, DelegationResult } from './types.js';
 import type { DelegationEventDriver } from './event-driver.js';
-import type { AgentThreadService } from '../session/agent-thread/service.js';
+import type { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import { assertDelegationDepth } from './depth.js';
 
 export interface DelegationRunnerDeps {
   di: AgentDI;
   runtimeConfig: AgentRuntimeConfig;
-  sessionService: SessionService;
+  sessionUsecase: SessionUsecase;
   eventDriver: DelegationEventDriver;
-  threadService: AgentThreadService;
+  threadUsecase: AgentThreadUsecase;
   createAgent: (params: REMAgentParams) => REMAgent;
   publish: (event: AgentSystemEvent) => void;
   maxDepth: number;
@@ -25,21 +25,21 @@ export class DelegationRunner {
 
   async run(request: DelegationRequest, context: DelegationContext): Promise<DelegationResult> {
     assertDelegationDepth(context.depth, this.deps.maxDepth);
-    const parentThread = await this.deps.threadService.get(context.parentAgentThreadId);
+    const parentThread = await this.deps.threadUsecase.get(context.parentAgentThreadId);
     if (!parentThread) {
       throw new Error(`Parent AgentThread not found: ${context.parentAgentThreadId}`);
     }
     if (parentThread.sessionId !== context.parentSessionId) {
       throw new Error(`AgentThread does not belong to parent Session: ${context.parentAgentThreadId}`);
     }
-    const child = await this.deps.sessionService.createDelegationSession({
+    const child = await this.deps.sessionUsecase.createDelegationSession({
       parentSessionId: context.parentSessionId,
       parentToolCallId: context.parentToolCallId,
       workspace: context.workspace,
       task: request.task,
       depth: context.depth,
     });
-    const childThread = await this.deps.threadService.createDelegatedThread(
+    const childThread = await this.deps.threadUsecase.createDelegatedThread(
       child.sessionId,
       parentThread.agentProfileId,
     );
@@ -76,13 +76,13 @@ export class DelegationRunner {
       const status = context.signal?.aborted
         ? 'interrupted'
         : output.content.startsWith('Error: ') ? 'failed' : 'completed';
-      await this.deps.sessionService.setDelegationStatus(child.sessionId, status);
+      await this.deps.sessionUsecase.setDelegationStatus(child.sessionId, status);
       this.publish(context, child.sessionId, request.task, status, usage);
       return { childSessionId: child.sessionId, content: output.content, status, usage };
     } catch (error) {
       agent?.interrupt();
       const status = context.signal?.aborted ? 'interrupted' : 'failed';
-      await this.deps.sessionService.setDelegationStatus(child.sessionId, status);
+      await this.deps.sessionUsecase.setDelegationStatus(child.sessionId, status);
       const content = error instanceof Error ? error.message : String(error);
       this.publish(context, child.sessionId, request.task, status);
       return { childSessionId: child.sessionId, content, status };

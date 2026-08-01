@@ -2,7 +2,7 @@ import type { AgentSystemEvent, SessionActivity } from './bus-events.js';
 import type { REMAgentEvent } from './agent-event.js';
 import type { REMAgent } from './rem-agent.js';
 import type { SessionRuntime } from '../session/runtime.js';
-import type { SessionService } from '../session/service.js';
+import type { SessionUsecase } from '../session/session-usecase.js';
 import { reduceSessionActivity } from './session-activity.js';
 
 type SystemEventBody<T = AgentSystemEvent> = T extends AgentSystemEvent
@@ -10,7 +10,7 @@ type SystemEventBody<T = AgentSystemEvent> = T extends AgentSystemEvent
   : never;
 
 export interface AgentRunDriverDeps {
-  sessionService: SessionService;
+  sessionUsecase: SessionUsecase;
   publish: (event: AgentSystemEvent) => void;
 }
 
@@ -27,13 +27,13 @@ export class AgentRunDriver {
     try {
       for await (const event of events) {
         if (event.type === 'message-persist') {
-          await this.deps.sessionService.persistAgentEvent(
+          await this.deps.sessionUsecase.persistAgentEvent(
             runtime.sessionId, runtime.agentThreadId, event,
           );
           continue;
         }
         if (event.type === 'usage') {
-          await this.deps.sessionService.persistAgentEvent(
+          await this.deps.sessionUsecase.persistAgentEvent(
             runtime.sessionId, runtime.agentThreadId, event,
           );
           this.publish(runtime, { type: 'usage-change', usage: event.usage });
@@ -44,7 +44,7 @@ export class AgentRunDriver {
           continue;
         }
         if (event.type === 'session-title' || event.type === 'compress-end') {
-          await this.deps.sessionService.persistAgentEvent(
+          await this.deps.sessionUsecase.persistAgentEvent(
             runtime.sessionId, runtime.agentThreadId, event,
           );
         }
@@ -55,7 +55,7 @@ export class AgentRunDriver {
         }
         this.publish(runtime, { type: 'chunk', chunk: event, agentId: agent.agentId });
         if (event.type === 'finish') {
-          await this.deps.sessionService.persistAgentEvent(
+          await this.deps.sessionUsecase.persistAgentEvent(
             runtime.sessionId, runtime.agentThreadId, event,
           );
           runtime.finishRun();

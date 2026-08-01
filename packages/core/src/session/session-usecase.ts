@@ -11,7 +11,7 @@ import type { DelegationStatus } from '../delegation/types.js';
 import { agentEventToMessagePayload } from './messages/event-payload.js';
 
 /** Session 查询与 Agent 事件持久化的唯一业务写入方。 */
-export class SessionService {
+export class SessionUsecase {
   private readonly manager: AgentSessionManager;
   private readonly loaded = new Map<string, Session>();
 

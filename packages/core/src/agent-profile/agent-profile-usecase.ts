@@ -3,7 +3,7 @@ import type { AgentProfile } from './model.js';
 
 export const DEFAULT_PRIMARY_PROFILE_ID = 'default-primary';
 
-export class AgentProfileService {
+export class AgentProfileUsecase {
   constructor(private readonly store: AgentProfileStore) {}
 
   async ensureDefaultPrimary(): Promise<AgentProfile> {

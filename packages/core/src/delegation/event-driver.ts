@@ -1,11 +1,11 @@
 import type { Usage } from '@earendil-works/pi-ai';
 import type { REMAgentEvent } from '../agent/agent-event.js';
 import { addUsage, emptyUsage } from '../agent/token-usage/index.js';
-import type { SessionService } from '../session/service.js';
+import type { SessionUsecase } from '../session/session-usecase.js';
 
 /** 消费一次 child run，仅持久化 child Session，不转发私有流式内容。 */
 export class DelegationEventDriver {
-  constructor(private readonly sessionService: SessionService) {}
+  constructor(private readonly sessionUsecase: SessionUsecase) {}
 
   async drive(
     sessionId: string,
@@ -22,7 +22,7 @@ export class DelegationEventDriver {
         || event.type === 'compress-end'
         || event.type === 'finish'
       ) {
-        await this.sessionService.persistAgentEvent(sessionId, agentThreadId, event);
+        await this.sessionUsecase.persistAgentEvent(sessionId, agentThreadId, event);
       }
     }
     return usage;

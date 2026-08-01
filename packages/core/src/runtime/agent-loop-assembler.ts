@@ -8,7 +8,7 @@ import type { AgentDI } from '../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import { createDelegateTaskExecutor, createDelegateTaskToolDefinition } from '../capabilities/sub-agent/delegate-task.js';
 import type { RunDelegation } from '../delegation/types.js';
-import { DefaultTodoService } from '../capabilities/todo/service.js';
+import { TodoUsecase } from '../capabilities/todo/todo-usecase.js';
 import { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from '../capabilities/todo/tool.js';
 import { resolveContextWindow } from '../infrastructure/llm/context-window.js';
 import type { Session } from '../session/model.js';
@@ -63,7 +63,7 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     ),
     todoToolProviderEntry: defineOverlayTool(
       createTodoWriteToolDefinition(),
-      createTodoWriteToolExecutor(new DefaultTodoService(di.storage.todoStore), input.emitMeta),
+      createTodoWriteToolExecutor(new TodoUsecase(di.storage.todoStore), input.emitMeta),
     ),
     workspaceRoot: resolution.workspaceRoot,
     agentName: behavior.name,

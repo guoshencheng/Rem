@@ -4,40 +4,40 @@ import { REMAgent } from '../agent/rem-agent.js';
 import { AgentRunDriver } from '../agent/agent-run-driver.js';
 import { BroadcastBus } from '../agent/broadcast-bus.js';
 import { SessionRuntimeRegistry } from '../session/runtime-registry.js';
-import { SessionService } from '../session/service.js';
+import { SessionUsecase } from '../session/session-usecase.js';
 import { CoreAgentSystem } from './agent-system.js';
 import { DelegationEventDriver } from '../delegation/event-driver.js';
 import { DelegationRunner } from '../delegation/runner.js';
 import { resolveDelegationMaxDepth } from '../delegation/depth.js';
-import { AgentProfileService } from '../agent-profile/service.js';
-import { AgentThreadService } from '../session/agent-thread/service.js';
-import { SessionAgentContextService } from '../session/agent-context-service.js';
+import { AgentProfileUsecase } from '../agent-profile/agent-profile-usecase.js';
+import { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
+import { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
 
 export function createAgentSystem(
   assembly: AgentAssembly,
   options: CreateAgentSystemOptions = {},
 ): AgentSystem {
   const bus = new BroadcastBus();
-  const sessionService = new SessionService(assembly.di);
-  const profileService = new AgentProfileService(assembly.di.storage.agentProfileStore);
-  const threadService = new AgentThreadService(assembly.di.storage.agentThreadStore);
-  const contextService = new SessionAgentContextService({
+  const sessionUsecase = new SessionUsecase(assembly.di);
+  const profileUsecase = new AgentProfileUsecase(assembly.di.storage.agentProfileStore);
+  const threadUsecase = new AgentThreadUsecase(assembly.di.storage.agentThreadStore);
+  const contextUsecase = new SessionAgentContextUsecase({
     sessionProvider: assembly.di.sessionProvider,
-    profileService,
-    threadService,
+    profileUsecase,
+    threadUsecase,
   });
   const registry = new SessionRuntimeRegistry();
   const driver = new AgentRunDriver({
-    sessionService,
+    sessionUsecase,
     publish: (event) => bus.publish(event),
   });
   const createAgent = options.createRootAgent ?? ((params) => new REMAgent(params));
   const delegationRunner = new DelegationRunner({
     di: assembly.di,
     runtimeConfig: assembly.runtimeConfig,
-    sessionService,
-    eventDriver: new DelegationEventDriver(sessionService),
-    threadService,
+    sessionUsecase,
+    eventDriver: new DelegationEventDriver(sessionUsecase),
+    threadUsecase,
     createAgent,
     publish: (event) => bus.publish(event),
     maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
@@ -46,10 +46,10 @@ export function createAgentSystem(
     bus,
     driver,
     registry,
-    sessionService,
-    profileService,
-    threadService,
-    contextService,
+    sessionUsecase,
+    profileUsecase,
+    threadUsecase,
+    contextUsecase,
     createRootAgent: createAgent,
     delegationRunner,
     agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },

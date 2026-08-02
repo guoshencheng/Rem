@@ -4,6 +4,8 @@ import type { Session, SessionSummary } from '../session/model.js';
 import type { SessionTreeEntry } from '../session/tree/types.js';
 import type { TodoItem } from '../capabilities/todo/types.js';
 import type { AgentThreadStore } from '../session/agent-thread/store.js';
+import type { MessageDelivery } from '../orchestration/delivery-model.js';
+import type { MessageDeliveryStore } from '../orchestration/delivery-store.js';
 
 export interface ArchiveRecord {
   id: string;
@@ -44,6 +46,12 @@ export interface StorageProvider {
   readonly archiveStore: ArchiveStore;
   readonly workspaceStore: WorkspaceStore;
   readonly agentThreadStore: AgentThreadStore;
+  readonly messageDeliveryStore: MessageDeliveryStore;
+  readonly orchestrationStore: OrchestrationStore;
+}
+
+export interface OrchestrationStore {
+  appendMessageWithDeliveries(entry: SessionTreeEntry, deliveries: MessageDelivery[]): Promise<void>;
 }
 
 export interface TodoStore {

@@ -36,7 +36,7 @@ export function assembleAgentContext(options: AssembleAgentContextOptions): Agen
   return {
     di: {
       configProvider,
-      sessionProvider: new DefaultSessionProvider(storageProvider.sessionStore),
+      sessionProvider: new DefaultSessionProvider(storageProvider),
       toolProvider: options.toolProvider ?? new StaticToolProvider(),
       skillProvider: options.skillProvider ?? new EmptySkillProvider(),
       budgetPolicy: options.budgetPolicy ?? new FixedBudgetPolicy(configProvider),

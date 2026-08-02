@@ -4,5 +4,7 @@ export { SqliteTodoStore } from './todo-store.js';
 export { SqliteArchiveStore } from './archive-store.js';
 export { SqliteWorkspaceStore } from './workspace-store.js';
 export { SqliteAgentThreadStore } from './agent-thread-store.js';
+export { SqliteMessageDeliveryStore } from './message-delivery-store.js';
+export { SqliteOrchestrationStore } from './orchestration-store.js';
 export { SqliteSchemaManager, CURRENT_SCHEMA_VERSION } from './schema.js';
 export { StorageError, wrapSqliteError, type StorageErrorCode } from './errors.js';

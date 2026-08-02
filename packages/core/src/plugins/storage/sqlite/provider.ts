@@ -9,6 +9,8 @@ import { SqliteArchiveStore } from './archive-store.js';
 import { SqliteWorkspaceStore } from './workspace-store.js';
 import { StorageError, wrapSqliteError } from './errors.js';
 import { SqliteAgentThreadStore } from './agent-thread-store.js';
+import { SqliteMessageDeliveryStore } from './message-delivery-store.js';
+import { SqliteOrchestrationStore } from './orchestration-store.js';
 
 export interface SqliteStorageProviderOptions {
   dbPath: string;
@@ -21,6 +23,8 @@ export class SqliteStorageProvider implements StorageProvider {
   private _archiveStore: SqliteArchiveStore | undefined;
   private _workspaceStore: SqliteWorkspaceStore | undefined;
   private _agentThreadStore: SqliteAgentThreadStore | undefined;
+  private _messageDeliveryStore: SqliteMessageDeliveryStore | undefined;
+  private _orchestrationStore: SqliteOrchestrationStore | undefined;
 
   constructor(private options: SqliteStorageProviderOptions) {
     this.open();
@@ -38,6 +42,8 @@ export class SqliteStorageProvider implements StorageProvider {
       this._archiveStore = new SqliteArchiveStore(this.db);
       this._workspaceStore = new SqliteWorkspaceStore(this.db);
       this._agentThreadStore = new SqliteAgentThreadStore(this.db);
+      this._messageDeliveryStore = new SqliteMessageDeliveryStore(this.db);
+      this._orchestrationStore = new SqliteOrchestrationStore(this.db);
     } catch (err) {
       if (err instanceof StorageError) throw err;
       throw wrapSqliteError(
@@ -61,6 +67,8 @@ export class SqliteStorageProvider implements StorageProvider {
     this._archiveStore = undefined;
     this._workspaceStore = undefined;
     this._agentThreadStore = undefined;
+    this._messageDeliveryStore = undefined;
+    this._orchestrationStore = undefined;
   }
 
   get sessionStore(): SqliteSessionStore {
@@ -86,6 +94,16 @@ export class SqliteStorageProvider implements StorageProvider {
   get agentThreadStore(): SqliteAgentThreadStore {
     if (!this._agentThreadStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
     return this._agentThreadStore;
+  }
+
+  get messageDeliveryStore(): SqliteMessageDeliveryStore {
+    if (!this._messageDeliveryStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
+    return this._messageDeliveryStore;
+  }
+
+  get orchestrationStore(): SqliteOrchestrationStore {
+    if (!this._orchestrationStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
+    return this._orchestrationStore;
   }
 
   clean() {

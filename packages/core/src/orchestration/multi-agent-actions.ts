@@ -8,6 +8,7 @@ import { createCommunicationMessage, type CommunicationModelIdentity } from './c
 import type { MessageDelivery } from './delivery-model.js';
 import type { DiscussionRuntime } from './discussion-runtime.js';
 import type { AgentOrchestrationActions } from './orchestration-actions.js';
+import { BUDGET_SUMMARY_BATCH_PREFIX } from './scheduler.js';
 
 export interface MultiAgentActionsInput {
   di: AgentDI;
@@ -23,6 +24,11 @@ export function createMultiAgentActions(input: MultiAgentActionsInput): AgentOrc
   return {
     sendMessage: async ({ toAgentIds, content }) => {
       if (input.discussion.status !== 'running') throw new Error('Discussion no longer accepts messages');
+      if (input.delivery.batchId.startsWith(BUDGET_SUMMARY_BATCH_PREFIX)) {
+        throw new Error('send_message is disabled during the restricted budget summary');
+      }
+      const budgetReason = input.discussion.budget.check(input.delivery.depth + 1);
+      if (budgetReason) throw new Error(`Discussion budget exhausted: ${budgetReason}`);
       const allowed = new Set([input.team.organizer.id, ...input.team.members.map(({ id }) => id)]);
       const targetIds = [...new Set(toAgentIds)];
       if (targetIds.includes(input.callerThread.agentId)) throw new Error('Agent cannot send_message to itself');
@@ -49,6 +55,7 @@ export function createMultiAgentActions(input: MultiAgentActionsInput): AgentOrc
         scope: { type: 'session' }, mentions: targets.map(({ agentThreadId }) => agentThreadId),
         rootUserMessageId: input.delivery.rootUserMessageId,
       }, deliveries);
+      input.discussion.budget.recordMessage();
       return { batchId };
     },
     ...(input.callerThread.role === 'organizer' ? {

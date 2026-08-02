@@ -107,7 +107,10 @@ export class CoreAgentSystem implements AgentSystem {
   }
 
   async interrupt(sessionId: string): Promise<void> {
-    this.deps.registry.get(sessionId)?.interrupt();
+    const runtime = this.deps.registry.get(sessionId);
+    if (!runtime) return;
+    if (runtime.mode === 'multi-agent') await this.deps.multiAgentCoordinator.interrupt(runtime);
+    else runtime.interrupt();
   }
 
   events(signal?: AbortSignal): AsyncIterable<AgentSystemEvent> {
@@ -115,7 +118,10 @@ export class CoreAgentSystem implements AgentSystem {
   }
 
   private ensureRecovery(): Promise<number> {
-    return (this.recovery ??= this.deps.sessionUsecase.recoverInterruptedDelegations());
+    return (this.recovery ??= Promise.all([
+      this.deps.sessionUsecase.recoverInterruptedDelegations(),
+      this.deps.multiAgentCoordinator.recoverProcessing(),
+    ]).then(([delegations, deliveries]) => delegations + deliveries));
   }
 
   private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {

@@ -34,19 +34,7 @@ describe('AgentSystem multi-agent sessions', () => {
   });
 
   it('routes the user through Organizer, Member and Organizer finish', async () => {
-    const responder: Exclude<ScriptedStep, AssistantMessage> = ({ context }) => {
-      const serialized = JSON.stringify(context.messages);
-      if (context.systemPrompt.includes('architect prompt')) return fauxAssistantMessage('architecture review');
-      if (!serialized.includes('send_message')) {
-        return fauxAssistantMessage([fauxToolCall('send_message', { to: ['architect'], content: 'please review' })]);
-      }
-      if (!serialized.includes('architecture review')) return fauxAssistantMessage('waiting for review');
-      if (!serialized.includes('finish_discussion')) {
-        return fauxAssistantMessage([fauxToolCall('finish_discussion', { answer: 'final answer' })]);
-      }
-      return fauxAssistantMessage('finishing');
-    };
-    const scripted = createScriptedModels(Array.from({ length: 10 }, () => responder));
+    const scripted = createScriptedModels(Array.from({ length: 10 }, () => teamResponder));
     const assembly = await createFakeAssembly({ models: scripted.models });
     configureTeam(assembly.di.configProvider);
     const system = createAgentSystem(assembly);
@@ -66,7 +54,40 @@ describe('AgentSystem multi-agent sessions', () => {
     expect(deliveries.filter((item) => item.kind === 'resume')).toHaveLength(1);
     expect(deliveries.every((item) => item.status === 'completed')).toBe(true);
   });
+
+  it('uses one restricted Organizer summary after the run budget is exhausted', async () => {
+    const scripted = createScriptedModels(Array.from({ length: 10 }, () => teamResponder));
+    const assembly = await createFakeAssembly({ models: scripted.models });
+    configureTeam(assembly.di.configProvider);
+    assembly.di.configProvider.getOrchestrationConfig = () => ({ maxAgentRuns: 2, maxMessages: 50,
+      maxDepth: 8, timeoutMs: 300_000, maxTokens: 200_000, maxParallelAgents: 2 });
+    const system = createAgentSystem(assembly);
+    const session = await system.createSession({ workspace: 'ws', teamId: 'engineering' });
+
+    await system.send({ sessionId: session.sessionId, content: 'design it' });
+
+    const chat = await system.getSessionChat(session.sessionId);
+    const deliveries = await assembly.di.storage.messageDeliveryStore.listByRoot(
+      session.sessionId, chat[0]!.messageId,
+    );
+    expect(deliveries.filter((item) => item.batchId.startsWith('budget-summary:'))).toHaveLength(1);
+    expect(deliveries.filter((item) => item.kind === 'resume' && item.status === 'interrupted')).toHaveLength(1);
+    expect(chat.at(-1)?.message).toMatchObject({ content: [{ type: 'text', text: 'final answer' }] });
+  });
 });
+
+const teamResponder: Exclude<ScriptedStep, AssistantMessage> = ({ context }) => {
+  const serialized = JSON.stringify(context.messages);
+  if (context.systemPrompt.includes('architect prompt')) return fauxAssistantMessage('architecture review');
+  if (!serialized.includes('send_message')) {
+    return fauxAssistantMessage([fauxToolCall('send_message', { to: ['architect'], content: 'please review' })]);
+  }
+  if (!serialized.includes('architecture review')) return fauxAssistantMessage('waiting for review');
+  if (!serialized.includes('finish_discussion')) {
+    return fauxAssistantMessage([fauxToolCall('finish_discussion', { answer: 'final answer' })]);
+  }
+  return fauxAssistantMessage('finishing');
+};
 
 function configureTeam(config: import('../src/sdk/config-provider.js').ConfigProvider): void {
   config.resolveAgent = (id) => {

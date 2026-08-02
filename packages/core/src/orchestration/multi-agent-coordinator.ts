@@ -1,17 +1,12 @@
 import type { Message } from '@earendil-works/pi-ai';
-import type { AgentSystemEvent } from '../agent/bus-events.js';
-import type { REMAgent, REMAgentParams } from '../agent/rem-agent.js';
+import type { REMAgent } from '../agent/rem-agent.js';
 import type { AgentDI } from '../assembly/agent-di.js';
-import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
-import type { DelegationRunner } from '../delegation/runner.js';
 import type { ResolvedTeam } from '../sdk/agent-role.js';
 import type { AgentThread } from '../session/agent-thread/model.js';
 import { AgentThreadRuntime } from '../session/agent-thread-runtime.js';
 import type { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import type { Session } from '../session/model.js';
 import { SessionRuntime } from '../session/runtime.js';
-import type { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
-import type { SessionUsecase } from '../session/session-usecase.js';
 import { generateId } from '../shared/generate-id.js';
 import { AgentThreadDeliveryExecutor } from './delivery-executor.js';
 import { MessageDeliveryUsecase } from './delivery-usecase.js';
@@ -21,24 +16,21 @@ import { createCommunicationMessage } from './communication-message.js';
 import { createMultiAgentActions, resolveCommunicationModel } from './multi-agent-actions.js';
 import { OrchestrationActionBinding } from './orchestration-action-binding.js';
 import { OrchestrationScheduler } from './scheduler.js';
-
-export interface MultiAgentCoordinatorDeps {
-  di: AgentDI;
-  runtimeConfig: AgentRuntimeConfig;
-  sessionUsecase: SessionUsecase;
-  threadUsecase: AgentThreadUsecase;
-  contextUsecase: SessionAgentContextUsecase;
-  delegationRunner: DelegationRunner;
-  createAgent(params: REMAgentParams): REMAgent;
-  publish(event: AgentSystemEvent): void;
-}
+import { BUDGET_SUMMARY_BATCH_PREFIX } from './scheduler.js';
+import { MultiAgentEventHandler } from './multi-agent-event-handler.js';
+import type { MultiAgentCoordinatorDeps } from './multi-agent-coordinator-types.js';
 
 export class MultiAgentCoordinator {
   private readonly bindings = new Map<string, OrchestrationActionBinding>();
   private readonly deliveries: MessageDeliveryUsecase;
+  private readonly eventHandler: MultiAgentEventHandler;
 
   constructor(private readonly deps: MultiAgentCoordinatorDeps) {
     this.deliveries = new MessageDeliveryUsecase(deps.di.storage.messageDeliveryStore);
+    this.eventHandler = new MultiAgentEventHandler({
+      di: deps.di, sessionUsecase: deps.sessionUsecase, threadUsecase: deps.threadUsecase,
+      deliveries: this.deliveries, publish: deps.publish,
+    });
   }
 
   async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
@@ -72,6 +64,7 @@ export class MultiAgentCoordinator {
       const config = (this.deps.di.configProvider.forWorkspace?.(runtime.workspace)
         ?? this.deps.di.configProvider).getOrchestrationConfig();
       const discussion = runtime.startDiscussion(rootUserMessageId, config);
+      discussion.budget.recordMessage();
       this.publish(runtime, { type: 'session-start' });
       this.deps.publish({ type: 'discussion-change', workspace: runtime.workspace,
         sessionId: runtime.sessionId, rootUserMessageId, status: 'running' });
@@ -95,9 +88,22 @@ export class MultiAgentCoordinator {
     }
   }
 
+  async interrupt(runtime: SessionRuntime): Promise<void> {
+    const discussion = runtime.activeDiscussion;
+    runtime.interrupt();
+    if (discussion) {
+      await this.deliveries.interruptRoot(runtime.sessionId, discussion.rootUserMessageId);
+      this.deps.publish({ type: 'discussion-change', workspace: runtime.workspace,
+        sessionId: runtime.sessionId, rootUserMessageId: discussion.rootUserMessageId,
+        status: 'interrupted' });
+    }
+  }
+
+  recoverProcessing(): Promise<number> { return this.deliveries.recoverProcessing(); }
+
   private createScheduler(session: Session, runtime: SessionRuntime, team: ResolvedTeam): OrchestrationScheduler {
     const eventDriver = new AgentThreadEventDriver({ handle: (threadId, event) =>
-      this.handleAgentEvent(runtime, threadId, event) });
+      this.eventHandler.handle(runtime, threadId, event) });
     const executor = new AgentThreadDeliveryExecutor({
       getRuntime: async (delivery) => runtime.threadRuntimes.getOrCreate(delivery.targetAgentThreadId, async () => {
         const thread = await this.requireThread(session.sessionId, delivery.targetAgentThreadId);
@@ -119,6 +125,22 @@ export class MultiAgentCoordinator {
       maxParallelAgents: discussionLimit(this.deps.di, runtime.workspace),
       onDeliveryChange: (delivery) => this.deps.publish({ type: 'delivery-change',
         workspace: runtime.workspace, sessionId: runtime.sessionId, delivery }),
+      onBudgetExhausted: async (_reason, delivery, discussion) => {
+        await this.deliveries.interruptRoot(session.sessionId, discussion.rootUserMessageId);
+        const organizer = (await this.deps.threadUsecase.listBySession(session.sessionId))
+          .find((thread) => thread.role === 'organizer');
+        if (!organizer) throw new Error(`Organizer AgentThread not found: ${session.sessionId}`);
+        const now = new Date();
+        await this.deliveries.createBatch([{
+          deliveryId: generateId(), sessionId: session.sessionId, kind: 'resume',
+          batchId: `${BUDGET_SUMMARY_BATCH_PREFIX}${discussion.rootUserMessageId}`,
+          messageId: delivery.messageId, rootUserMessageId: discussion.rootUserMessageId,
+          targetAgentThreadId: organizer.agentThreadId, status: 'queued', attempt: 0,
+          depth: delivery.depth, createdAt: now, updatedAt: now,
+        }]);
+      },
+      onExecutionFailure: (delivery, error, discussion) =>
+        this.eventHandler.handleFailure(session, delivery, error, discussion),
     });
   }
 
@@ -135,30 +157,6 @@ export class MultiAgentCoordinator {
         workspaceRoot: toolContext.workspaceRoot, depth: 1, signal: toolContext.signal,
       }) });
     return new AgentThreadRuntime(thread, agent);
-  }
-
-  private async handleAgentEvent(runtime: SessionRuntime, threadId: string, event: import('../agent/agent-event.js').REMAgentEvent): Promise<void> {
-    if (event.type === 'message-persist') {
-      await this.deps.sessionUsecase.persistAgentEvent(runtime.sessionId, threadId, event);
-      return;
-    }
-    if (event.type === 'usage') {
-      await this.deps.sessionUsecase.persistAgentEvent(runtime.sessionId, threadId, event);
-      this.deps.publish({ type: 'usage-change', workspace: runtime.workspace,
-        sessionId: runtime.sessionId, usage: event.usage });
-      return;
-    }
-    if (event.type === 'todo-updated') {
-      this.deps.publish({ type: 'todo-updated', workspace: runtime.workspace,
-        sessionId: runtime.sessionId, todos: event.todos });
-      return;
-    }
-    if (event.type === 'session-title' || event.type === 'compress-end') {
-      await this.deps.sessionUsecase.persistAgentEvent(runtime.sessionId, threadId, event);
-    }
-    if (event.type === 'error') throw event.error;
-    this.deps.publish({ type: 'chunk', workspace: runtime.workspace, sessionId: runtime.sessionId,
-      agentId: runtime.threadRuntimes.get(threadId)?.agent.agentId, agentThreadId: threadId, chunk: event });
   }
 
   private async persistFinalAnswer(session: Session, organizer: AgentThread, answer: string, rootId: string): Promise<void> {

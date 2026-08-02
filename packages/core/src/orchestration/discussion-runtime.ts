@@ -1,5 +1,5 @@
 import type { ResolvedOrchestrationConfig } from '../sdk/config-provider.js';
-import { createDiscussionBudget } from './discussion-budget.js';
+import { DiscussionBudget } from './discussion-budget.js';
 
 export type DiscussionRuntimeStatus = 'running' | 'finishing' | 'completed' | 'failed' | 'interrupted';
 
@@ -11,7 +11,7 @@ export class DiscussionRuntime {
   finishRequest?: { requestedByAgentThreadId: string; answer: string };
 
   constructor(readonly rootUserMessageId: string, config: ResolvedOrchestrationConfig) {
-    this.budget = createDiscussionBudget(config);
+    this.budget = new DiscussionBudget(config, this.startedAt);
   }
 
   requestFinish(requestedByAgentThreadId: string, answer: string): void {

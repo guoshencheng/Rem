@@ -1,6 +1,6 @@
+import type { LiveAgentToolCall } from './types.js';
 import { Type } from '@sinclair/typebox';
 import { StaticToolProvider } from '../../plugins/tool/static/index.js';
-import type { LiveAgentToolCall } from './types.js';
 
 const getTestDataDefinition = {
   name: 'get_test_data',

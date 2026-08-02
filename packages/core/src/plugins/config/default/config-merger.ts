@@ -1,6 +1,6 @@
 import type { AgentConfig, AgentBehaviorConfig } from '../../../sdk/config-provider.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
-import { pickToolPolicy, pickModels, pickModelConfig, pickAgents, pickCompressionConfig } from './config-parser.js';
+import { pickToolPolicy, pickModels, pickModelConfig, pickAgents, pickCompressionConfig, pickTeams, pickOrchestrationConfig } from './config-parser.js';
 
 export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>): AgentConfig {
   const merged: AgentConfig = { ...base };
@@ -20,6 +20,10 @@ export function mergeFileConfig(base: AgentConfig, file: Record<string, unknown>
   if (typeof file.activeModel === 'string') merged.activeModel = file.activeModel;
   const agents = pickAgents(file.agents);
   if (agents) merged.agents = { ...merged.agents, ...agents };
+  const teams = pickTeams(file.teams);
+  if (teams) merged.teams = { ...merged.teams, ...teams };
+  const orchestration = pickOrchestrationConfig(file.orchestration);
+  if (orchestration) merged.orchestration = { ...merged.orchestration, ...orchestration };
   const compression = pickCompressionConfig(file.compression);
   if (compression) {
     merged.compression = merged.compression
@@ -70,6 +74,10 @@ export function mergeDeepConfig(base: AgentConfig, file: Record<string, unknown>
   }
   if (base.agents && merged.agents) {
     merged.agents = { ...base.agents, ...merged.agents };
+  }
+  if (base.teams && merged.teams) merged.teams = { ...base.teams, ...merged.teams };
+  if (base.orchestration && merged.orchestration) {
+    merged.orchestration = { ...base.orchestration, ...merged.orchestration };
   }
   return merged;
 }

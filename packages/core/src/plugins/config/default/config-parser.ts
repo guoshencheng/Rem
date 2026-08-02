@@ -1,4 +1,4 @@
-import type { AgentModelConfig, CompressionConfig } from '../../../sdk/config-provider.js';
+import type { AgentModelConfig, CompressionConfig, OrchestrationConfig, TeamConfig } from '../../../sdk/config-provider.js';
 import type { CustomAgentConfig } from '../../../sdk/agent-role.js';
 import type { ToolPolicyConfig } from '../../../sdk/tool-policy.js';
 import type { ThinkingLevel } from '@earendil-works/pi-ai';
@@ -93,6 +93,26 @@ export function pickAgents(raw: unknown): Record<string, CustomAgentConfig> | un
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
+export function pickTeams(raw: unknown): Record<string, TeamConfig> | undefined {
+  if (!isObject(raw)) return undefined;
+  const result: Record<string, TeamConfig> = {};
+  for (const [id, value] of Object.entries(raw)) {
+    if (!isObject(value) || typeof value.organizer !== 'string' || !Array.isArray(value.members)) continue;
+    if (!value.members.every((member) => typeof member === 'string')) continue;
+    result[id] = { organizer: value.organizer, members: value.members };
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+export function pickOrchestrationConfig(raw: unknown): OrchestrationConfig | undefined {
+  if (!isObject(raw)) return undefined;
+  const config: OrchestrationConfig = {};
+  for (const key of ['maxAgentRuns', 'maxMessages', 'maxDepth', 'timeoutMs', 'maxTokens', 'maxParallelAgents'] as const) {
+    if (typeof raw[key] === 'number') config[key] = raw[key];
+  }
+  return Object.keys(config).length > 0 ? config : undefined;
+}
+
 export function pickCompressionConfig(raw: unknown): CompressionConfig | undefined {
   if (!isObject(raw)) return undefined;
   const cfg: CompressionConfig = {};
@@ -102,4 +122,3 @@ export function pickCompressionConfig(raw: unknown): CompressionConfig | undefin
   if (typeof raw.protectTail === 'number') cfg.protectTail = raw.protectTail;
   return Object.keys(cfg).length > 0 ? cfg : undefined;
 }
-

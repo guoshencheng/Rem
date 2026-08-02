@@ -21,8 +21,7 @@ export class DefaultAgentResolver implements AgentResolver {
     if (id === undefined || id === '') return this.defaultRole;
     const role = this.agents.get(id);
     if (!role) {
-      log('agent-resolver', 'unknown agent, fallback to default', { id });
-      return this.defaultRole;
+      throw new Error(`Unknown agent: ${id}`);
     }
     return role;
   }

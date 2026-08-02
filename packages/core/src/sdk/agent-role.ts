@@ -13,6 +13,12 @@ export interface ResolvedAgentRole {
   model?: ResolvedModelConfig;
 }
 
+export interface ResolvedTeam {
+  id: string;
+  organizer: ResolvedAgentRole;
+  members: ResolvedAgentRole[];
+}
+
 export interface AgentResolver {
   resolveAgent(id?: string): ResolvedAgentRole;
 }

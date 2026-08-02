@@ -5,13 +5,15 @@ import type {
   ConfigProvider,
   ResolvedAgentConfig,
   ResolvedModelConfig,
+  ResolvedOrchestrationConfig,
 } from '../../../sdk/config-provider.js';
-import type { AgentResolver, ResolvedAgentRole } from '../../../sdk/agent-role.js';
+import type { AgentResolver, ResolvedAgentRole, ResolvedTeam } from '../../../sdk/agent-role.js';
 import type { AgentPaths } from '../../../infrastructure/config/paths.js';
 import { loadConfigFile, loadConfigFileSync, resolveConfigPaths } from './config-loader.js';
 import { mergeFileConfig, mergeEnvConfig, applyBehaviorDefaults, mergeDeepConfig } from './config-merger.js';
 import { DefaultAgentResolver } from './agent-resolver.js';
 import { resolveModelConfig } from './model-config-resolver.js';
+import { TeamResolver } from './team-resolver.js';
 
 export interface DefaultConfigProviderOptions {
   env?: NodeJS.ProcessEnv;
@@ -24,6 +26,7 @@ export class DefaultConfigProvider implements ConfigProvider {
   private env: NodeJS.ProcessEnv;
   private _paths?: AgentPaths;
   private agentResolver?: AgentResolver;
+  private teamResolver?: TeamResolver;
   private workspaceCache = new Map<string, ConfigProvider>();
 
   constructor(private options: DefaultConfigProviderOptions = {}) {
@@ -103,6 +106,10 @@ export class DefaultConfigProvider implements ConfigProvider {
         return resolveModelConfig(model, this.env);
       },
     });
+    this.teamResolver = new TeamResolver(
+      this.getRawConfig().teams ?? {},
+      (id) => this.resolveAgent(id),
+    );
   }
 
   private getRawConfig(): AgentConfig {
@@ -150,5 +157,22 @@ export class DefaultConfigProvider implements ConfigProvider {
       throw new Error('DefaultConfigProvider must be initialized before resolving agent');
     }
     return this.agentResolver.resolveAgent(id);
+  }
+
+  resolveTeam(id: string): ResolvedTeam {
+    if (!this.teamResolver) throw new Error('DefaultConfigProvider must be initialized before resolving team');
+    return this.teamResolver.resolveTeam(id);
+  }
+
+  getOrchestrationConfig(): ResolvedOrchestrationConfig {
+    const config = this.getRawConfig().orchestration;
+    return {
+      maxAgentRuns: config?.maxAgentRuns ?? 20,
+      maxMessages: config?.maxMessages ?? 50,
+      maxDepth: config?.maxDepth ?? 8,
+      timeoutMs: config?.timeoutMs ?? 300_000,
+      maxTokens: config?.maxTokens ?? 200_000,
+      maxParallelAgents: config?.maxParallelAgents ?? 4,
+    };
   }
 }

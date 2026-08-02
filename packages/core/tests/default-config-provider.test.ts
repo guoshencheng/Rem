@@ -29,4 +29,23 @@ describe('DefaultConfigProvider', () => {
     const scoped = provider.forWorkspace('/tmp/rem-agent-test-nonexistent-ws');
     expect(scoped).toBe(provider.forWorkspace('/tmp/rem-agent-test-nonexistent-ws'));
   });
+
+  it('resolves only omitted agent ids to the default agent', () => {
+    const provider = new DefaultConfigProvider({ env: {} as NodeJS.ProcessEnv, paths });
+    expect(provider.resolveAgent().id).toBe('default');
+    expect(provider.resolveAgent('').id).toBe('default');
+    expect(() => provider.resolveAgent('missing')).toThrow('Unknown agent: missing');
+  });
+
+  it('uses stable orchestration defaults', () => {
+    const provider = new DefaultConfigProvider({ env: {} as NodeJS.ProcessEnv, paths });
+    expect(provider.getOrchestrationConfig()).toEqual({
+      maxAgentRuns: 20,
+      maxMessages: 50,
+      maxDepth: 8,
+      timeoutMs: 300_000,
+      maxTokens: 200_000,
+      maxParallelAgents: 4,
+    });
+  });
 });

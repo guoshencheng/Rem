@@ -1,5 +1,5 @@
 import type { ToolPolicyConfig } from './tool-policy.js';
-import type { CustomAgentConfig, ResolvedAgentRole } from './agent-role.js';
+import type { CustomAgentConfig, ResolvedAgentRole, ResolvedTeam } from './agent-role.js';
 import type { ThinkingLevel } from '@earendil-works/pi-ai';
 
 export interface AgentModelConfig {
@@ -30,12 +30,37 @@ export interface AgentBehaviorConfig {
   compression?: CompressionConfig;
 }
 
+export interface TeamConfig {
+  organizer: string;
+  members: string[];
+}
+
+export interface OrchestrationConfig {
+  maxAgentRuns?: number;
+  maxMessages?: number;
+  maxDepth?: number;
+  timeoutMs?: number;
+  maxTokens?: number;
+  maxParallelAgents?: number;
+}
+
+export interface ResolvedOrchestrationConfig {
+  maxAgentRuns: number;
+  maxMessages: number;
+  maxDepth: number;
+  timeoutMs: number;
+  maxTokens: number;
+  maxParallelAgents: number;
+}
+
 export interface AgentConfig extends AgentBehaviorConfig, AgentToolConfig {
   models?: Record<string, AgentModelConfig>;
   activeModel?: string;
   model?: AgentModelConfig;
   toolPolicy?: ToolPolicyConfig;
   agents?: Record<string, CustomAgentConfig>;
+  teams?: Record<string, TeamConfig>;
+  orchestration?: OrchestrationConfig;
 }
 
 export interface ResolvedModelConfig {
@@ -59,6 +84,8 @@ export interface ConfigProvider {
   getBehaviorConfig(): Required<AgentBehaviorConfig>;
   getCompressionConfig(): Required<CompressionConfig>;
   resolveAgent(id?: string): ResolvedAgentRole;
+  resolveTeam(id: string): ResolvedTeam;
+  getOrchestrationConfig(): ResolvedOrchestrationConfig;
   /** 返回指定 workspace 的配置视图（合并 workspace 级配置文件）；缺省时用自身 */
   forWorkspace?(workspace: string): ConfigProvider;
 }

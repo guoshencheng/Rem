@@ -1,6 +1,6 @@
 # Rem Agent — Core 模块参考
 
-> 状态：Core-first 重建阶段（2026-07-31）
+> 状态：Core-first 多 Agent 执行内核已落地（2026-08-02）
 
 活动 workspace 只有 `packages/core`。旧模块可在 `archive/` 中查阅，但不属于当前代码边界。
 
@@ -48,7 +48,19 @@ REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-trans
 
 ### `session/`
 
-持久化 Session 领域。`model.ts` 定义 schema v2 Session；`tree/` 定义 message entry 与 conversation 构建；`manager/` 提供 Session 列表汇总。
+持久化 Session 领域。`model.ts` 定义 schema v2 Session；`tree/` 定义 message entry 与 conversation 构建；`messages/` 负责中心消息信封、Session keyed 写入协调和聊天/Thread 投影；`agent-thread/` 保存配置 `agentId`；`agent-thread-runtime.ts` 为每个长期 Agent 提供 REMAgent FIFO 执行权。
+
+### `orchestration/`
+
+多 Agent 编排域。`delivery-*` 定义持久投递与状态机；`scheduler.ts` 负责 claim、并发限制、批次完成和 resume；`multi-agent-coordinator.ts` 把 Team Session 接入 AgentSystem；`multi-agent-actions.ts` 实现 `send_message` / `finish_discussion` 的当前 Delivery 语义；`discussion-runtime.ts` 与 `discussion-budget.ts` 管理单次讨论、中止和五类预算。
+
+### `system/`
+
+传输无关的 Core 门面。`create-agent-system.ts` 完成用例、Runtime、Delegation 和多 Agent Coordinator 装配；`agent-system.ts` 统一分派单 Agent与 Team Session，并提供 Thread、中心聊天和单 Thread 上下文查询。
+
+### `delegation/`
+
+一次性 child Agent 执行。每次委派创建独立 child Session 与 one-shot AgentThread，临时 REMAgent 完成后释放；启动恢复只收敛遗留运行状态。
 
 ### `shared/`
 
@@ -67,29 +79,24 @@ Tool provider 组合、overlay、registry 和 prompt tool summary。
 ```text
 SessionProvider / StorageProvider
         ↓
-Session(pi.Message[])
+Session tree entries（唯一消息事实）
         ↓
-REMAgent
+SessionRuntime
+        ↓
+AgentThreadRuntime → REMAgent
         ↓
 runAgentLoop / runAgentLoopContinue
         ↓
-REMAgentEvent / AgentOutput
+REMAgentEvent → Message / Delivery / AgentSystemEvent
 ```
 
-## 计划模块
+## AgentSystem 主要查询
 
-以下模块属于已批准设计，尚未全部实现：
-
-| 计划模块 | 目标职责 |
+| API | 含义 |
 |---|---|
-| `system/` | `AgentSystem` 公共门面与完整 Core 装配 |
-| `session/runtime.ts` | Session 级长期运行态 |
-| `session/runtime-registry.ts` | 按 sessionId 管理运行态 |
-| `session/messages/` | 中心 entry 元数据、串行 append、聊天投影 |
-| `session/agent-thread/` | AgentThread 类型、持久化、runtime 和上下文投影 |
-| `agent/agent-run-driver.ts` | 消费 REMAgent 事件并协调持久化与系统事件 |
-| `delegation/delegation-runner.ts` | one-shot child Session/Agent 执行 |
-| `orchestration/` | Organizer、Scheduler、Delivery、讨论预算与终止协议 |
-| `workspace/` | Core workspace 应用服务 |
-
-详细边界和阶段见 `docs/superpowers/specs/2026-07-31-core-agent-system-rebuild-design.md`。
+| `createSession({ workspace, teamId? })` | 没有 teamId 为单 Agent；显式 teamId 为多 Agent |
+| `send({ sessionId, content })` | 用户只面向 Session；多 Agent由 Organizer 首先处理 |
+| `getSessionThreads(sessionId)` | 查询该 Session 的 AgentThread |
+| `getSessionChat(sessionId)` | 投影中心公开聊天 |
+| `getAgentThreadContext(sessionId, agentThreadId)` | 投影指定 Agent 的模型输入视角 |
+| `interrupt(sessionId)` | 中止 Session 中全部运行 Agent，并收敛 Delivery |

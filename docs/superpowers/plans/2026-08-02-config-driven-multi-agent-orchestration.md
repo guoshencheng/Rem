@@ -58,7 +58,7 @@
 - Modify: `packages/core/tests/default-config-provider.test.ts`
 - Create: `packages/core/tests/team-resolver.test.ts`
 
-- [ ] **Step 1: Add failing parser and resolver tests**
+- [x] **Step 1: Add failing parser and resolver tests**
 
 Test a valid `engineering` team, workspace override, unknown Team, missing Agent, Organizer duplicated as Member,
 duplicate Members and an empty Member list. Assert that `resolveAgent('missing')` throws instead of silently falling
@@ -74,7 +74,7 @@ expect(() => provider.resolveAgent('missing')).toThrow('Unknown agent: missing')
 expect(() => provider.resolveTeam('broken')).toThrow('Unknown team member: missing');
 ```
 
-- [ ] **Step 2: Verify the focused tests fail**
+- [x] **Step 2: Verify the focused tests fail**
 
 Run:
 
@@ -84,7 +84,7 @@ pnpm vitest run packages/core/tests/default-config-provider.test.ts packages/cor
 
 Expected: FAIL because Team contracts and `resolveTeam()` do not exist.
 
-- [ ] **Step 3: Add configuration contracts and strict resolution**
+- [x] **Step 3: Add configuration contracts and strict resolution**
 
 Add these exact public shapes and defaults:
 
@@ -120,7 +120,7 @@ Use defaults `20/50/8/300000/200000/4`. `TeamResolver` must preserve configured 
 input; it must never invent an active/default Team. Update `FakeConfigProvider` with strict in-memory implementations
 so the new interface remains usable throughout the existing test suite.
 
-- [ ] **Step 4: Run focused tests and Core typecheck**
+- [x] **Step 4: Run focused tests and Core typecheck**
 
 ```bash
 pnpm vitest run packages/core/tests/default-config-provider.test.ts packages/core/tests/team-resolver.test.ts
@@ -129,7 +129,7 @@ pnpm --filter rem-agent-core typecheck
 
 Expected: both test files PASS and no TypeScript errors.
 
-- [ ] **Step 5: Commit configuration support**
+- [x] **Step 5: Commit configuration support**
 
 ```bash
 git add packages/core/src/sdk packages/core/src/plugins/config packages/core/tests/default-config-provider.test.ts packages/core/tests/team-resolver.test.ts
@@ -159,7 +159,7 @@ git commit -m "feat(core): resolve configured agent teams"
 - Modify: `packages/core/tests/message-projection.test.ts`
 - Modify: `packages/core/tests/agent-system-thread.test.ts`
 
-- [ ] **Step 1: Rewrite tests around `agentId` and v10→v11 migration**
+- [x] **Step 1: Rewrite tests around `agentId` and v10→v11 migration**
 
 Assert that primary/team/delegated Threads round-trip `agentId`, persistent `(sessionId, agentId)` is unique,
 Session deletion cascades Threads, and no `agent_profiles` table exists. Build a v10 fixture containing
@@ -171,7 +171,7 @@ expect(tableNames).not.toContain('agent_profiles');
 expect(CURRENT_SCHEMA_VERSION).toBe(11);
 ```
 
-- [ ] **Step 2: Run focused tests and observe profile-shaped failures**
+- [x] **Step 2: Run focused tests and observe profile-shaped failures**
 
 ```bash
 pnpm vitest run packages/core/tests/agent-thread-storage.test.ts packages/core/tests/sqlite-storage.test.ts packages/core/tests/message-projection.test.ts packages/core/tests/agent-system-thread.test.ts
@@ -179,7 +179,7 @@ pnpm vitest run packages/core/tests/agent-thread-storage.test.ts packages/core/t
 
 Expected: FAIL on `agentProfileId`, schema version 10 and Profile dependencies.
 
-- [ ] **Step 3: Implement v11 Thread identity and migration**
+- [x] **Step 3: Implement v11 Thread identity and migration**
 
 Use this domain model:
 
@@ -201,7 +201,7 @@ Rebuild `agent_threads` inside a transaction with foreign keys temporarily disab
 `PRAGMA foreign_key_check`. Define the Delivery domain/store contracts now so the v11 DDL is final in this task;
 Task 3 implements its Store without another schema-version change.
 
-- [ ] **Step 4: Resolve projection names from ConfigProvider**
+- [x] **Step 4: Resolve projection names from ConfigProvider**
 
 Change `projectThreadContext` input from persisted Profiles to resolved Agents:
 
@@ -219,7 +219,7 @@ Inject ConfigProvider into `SessionAgentContextUsecase`; obtain `configProvider.
 resolve every Thread `agentId`, and throw
 `ProjectionError` when configuration is missing. Delegated Thread creation inherits `parentThread.agentId`.
 
-- [ ] **Step 5: Remove Profile exports/provider plumbing and run verification**
+- [x] **Step 5: Remove Profile exports/provider plumbing and run verification**
 
 ```bash
 pnpm vitest run packages/core/tests/agent-thread-storage.test.ts packages/core/tests/sqlite-storage.test.ts packages/core/tests/message-projection.test.ts packages/core/tests/agent-system-thread.test.ts
@@ -229,7 +229,7 @@ pnpm --filter rem-agent-core check-structure
 
 Expected: focused tests PASS, no `agentProfile` symbol remains in active Core.
 
-- [ ] **Step 6: Commit identity migration**
+- [x] **Step 6: Commit identity migration**
 
 ```bash
 git add packages/core
@@ -253,7 +253,7 @@ git commit -m "refactor(core): source agent identities from config"
 - Create: `packages/core/tests/message-delivery-storage.test.ts`
 - Create: `packages/core/tests/orchestration-enqueue.test.ts`
 
-- [ ] **Step 1: Add failing Delivery state-machine and atomic enqueue tests**
+- [x] **Step 1: Add failing Delivery state-machine and atomic enqueue tests**
 
 Test batch creation, ordered queued reads, unique `(kind,batch,target)`, atomic claim, same-Thread processing exclusion,
 complete/fail/interrupt, root interruption and `processing→interrupted` recovery. In a transaction rollback test force
@@ -265,13 +265,13 @@ expect(await deliveryStore.listByRoot(rootId)).toEqual([]);
 expect(await sessionStore.listEntries(sessionId)).toEqual([]);
 ```
 
-- [ ] **Step 2: Verify tests fail because Delivery APIs are absent**
+- [x] **Step 2: Verify tests fail because Delivery APIs are absent**
 
 ```bash
 pnpm vitest run packages/core/tests/message-delivery-storage.test.ts packages/core/tests/orchestration-enqueue.test.ts
 ```
 
-- [ ] **Step 3: Implement Delivery contracts and SQLite store**
+- [x] **Step 3: Implement Delivery contracts and SQLite store**
 
 Implement the exact spec fields, terminal-state guard and methods:
 
@@ -292,7 +292,7 @@ interface MessageDeliveryStore {
 `claim` uses one conditional UPDATE with `status='queued'` plus `NOT EXISTS` processing for the target Thread.
 The Store targets the v11 table created in Task 2 and must not advance `CURRENT_SCHEMA_VERSION`.
 
-- [ ] **Step 4: Share one Session-keyed write coordinator**
+- [x] **Step 4: Share one Session-keyed write coordinator**
 
 Move Promise-tail ownership out of SessionMessageAppender into:
 
@@ -307,14 +307,14 @@ DefaultSessionProvider creates one coordinator. Both `appendMessage()` and new
 The latter delegates to `OrchestrationStore`, whose SQLite transaction reads
 the active leaf, inserts one entry, advances the leaf and inserts the complete Delivery batch.
 
-- [ ] **Step 5: Run Delivery, existing appender and SQLite tests**
+- [x] **Step 5: Run Delivery, existing appender and SQLite tests**
 
 ```bash
 pnpm vitest run packages/core/tests/message-delivery-storage.test.ts packages/core/tests/orchestration-enqueue.test.ts packages/core/tests/session-message-appender.test.ts packages/core/tests/sqlite-storage.test.ts
 pnpm --filter rem-agent-core typecheck
 ```
 
-- [ ] **Step 6: Commit persistent Delivery infrastructure**
+- [x] **Step 6: Commit persistent Delivery infrastructure**
 
 ```bash
 git add packages/core
@@ -339,7 +339,7 @@ git commit -m "feat(core): persist atomic agent message deliveries"
 - Create: `packages/core/tests/discussion-runtime.test.ts`
 - Modify: `packages/core/tests/rem-agent.test.ts`
 
-- [ ] **Step 1: Write failing Runtime and transcript synchronization tests**
+- [x] **Step 1: Write failing Runtime and transcript synchronization tests**
 
 Assert same-Thread tasks execute FIFO after rejection, different ThreadRuntime instances overlap, SessionRuntime
 allows only one active Discussion, interrupt reaches every running Agent, and `syncTranscript` rejects while running
@@ -351,13 +351,13 @@ expect(modelContextRoles).toEqual(['user']);
 expect(() => runningAgent.syncTranscript([])).toThrow('Cannot sync transcript while running');
 ```
 
-- [ ] **Step 2: Verify Runtime tests fail**
+- [x] **Step 2: Verify Runtime tests fail**
 
 ```bash
 pnpm vitest run packages/core/tests/agent-thread-runtime.test.ts packages/core/tests/discussion-runtime.test.ts packages/core/tests/session-runtime.test.ts packages/core/tests/rem-agent.test.ts
 ```
 
-- [ ] **Step 3: Implement focused Runtime classes**
+- [x] **Step 3: Implement focused Runtime classes**
 
 `AgentThreadRuntime.enqueue()` owns a Promise tail with failure recovery and matching-tail cleanup. Runtime status
 changes `queued→running→idle/error`; interrupt delegates to its REMAgent. Registry caches pending/resolved creation by
@@ -380,20 +380,20 @@ class SessionRuntime {
 
 Keep current single-Agent behavior by registering its primary REMAgent as the initial ThreadRuntime.
 
-- [ ] **Step 4: Implement `REMAgent.syncTranscript()`**
+- [x] **Step 4: Implement `REMAgent.syncTranscript()`**
 
 Only allow idle/finished/error states, replace `messages` with a shallow copy, clear no persistent data and emit no
 events. Reset per-run turn counters in `beginRun()` so maxTurns applies to each delivery rather than the lifetime of
 the cached Agent.
 
-- [ ] **Step 5: Run Runtime and existing AgentSystem tests**
+- [x] **Step 5: Run Runtime and existing AgentSystem tests**
 
 ```bash
 pnpm vitest run packages/core/tests/agent-thread-runtime.test.ts packages/core/tests/discussion-runtime.test.ts packages/core/tests/session-runtime.test.ts packages/core/tests/session-runtime-registry.test.ts packages/core/tests/rem-agent.test.ts packages/core/tests/agent-system.test.ts
 pnpm --filter rem-agent-core typecheck
 ```
 
-- [ ] **Step 6: Commit Runtime hierarchy**
+- [x] **Step 6: Commit Runtime hierarchy**
 
 ```bash
 git add packages/core
@@ -414,7 +414,7 @@ git commit -m "feat(core): add serialized agent thread runtimes"
 - Modify: `packages/core/src/session/messages/payload.ts` only if discussion metadata input helpers are needed
 - Create: `packages/core/tests/orchestration-tools.test.ts`
 
-- [ ] **Step 1: Add failing tool contract tests**
+- [x] **Step 1: Add failing tool contract tests**
 
 Assert definitions use strict schemas, send targets are deduplicated, self/unknown/non-Team targets fail, a Member
 can send, finish is absent for Members, Organizer finish trims answer, and budget-locked discussions reject send.
@@ -425,18 +425,18 @@ expect(memberTools.tools.map((tool) => tool.name)).not.toContain('finish_discuss
 expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ toAgentIds: ['architect'] }));
 ```
 
-- [ ] **Step 2: Verify tool tests fail**
+- [x] **Step 2: Verify tool tests fail**
 
 ```bash
 pnpm vitest run packages/core/tests/orchestration-tools.test.ts
 ```
 
-- [ ] **Step 3: Implement communication message construction**
+- [x] **Step 3: Implement communication message construction**
 
 Resolve the pi Model before assembling tools. Build a valid zero-usage AssistantMessage using its `api`, provider and
 id, with one text block and `stopReason:'stop'`. Never introduce a Harness-only Message role.
 
-- [ ] **Step 4: Implement tool definitions and injected actions**
+- [x] **Step 4: Implement tool definitions and injected actions**
 
 Use callbacks rather than importing Scheduler into runtime assembly:
 
@@ -449,14 +449,14 @@ interface AgentOrchestrationActions {
 
 Only inject these tools for multi-Agent persistent Threads. Keep `delegate_task` and todo behavior unchanged.
 
-- [ ] **Step 5: Run tool and loop assembly regression tests**
+- [x] **Step 5: Run tool and loop assembly regression tests**
 
 ```bash
 pnpm vitest run packages/core/tests/orchestration-tools.test.ts packages/core/tests/rem-agent-assembly.test.ts packages/core/tests/delegate-task.test.ts
 pnpm --filter rem-agent-core typecheck
 ```
 
-- [ ] **Step 6: Commit Organizer protocol tools**
+- [x] **Step 6: Commit Organizer protocol tools**
 
 ```bash
 git add packages/core
@@ -479,12 +479,12 @@ git commit -m "feat(core): add agent messaging and discussion finish tools"
 - Modify: `packages/core/src/session/agent-thread/agent-thread-usecase.ts`
 - Create: `packages/core/tests/orchestration-scheduler.test.ts`
 
-- [ ] **Step 1: Add a scripted mixed-Agent scheduler fixture**
+- [x] **Step 1: Add a scripted mixed-Agent scheduler fixture**
 
 Create one Organizer and two Members. Script Organizer `send_message`, overlap Member model promises, complete them,
 then script Organizer `finish_discussion`. Record run start/end times and contexts.
 
-- [ ] **Step 2: Add failing scheduler assertions**
+- [x] **Step 2: Add failing scheduler assertions**
 
 Assert Organizer is first, two Members overlap, two Deliveries for the same Member do not overlap, every run starts
 from a fresh Thread projection, batch completion creates exactly one resume, and final answer is persisted once.
@@ -496,7 +496,7 @@ expect(resumeDeliveries).toHaveLength(1);
 expect(finalMessages.filter(isFinalAnswer)).toHaveLength(1);
 ```
 
-- [ ] **Step 3: Implement claim/drain and Thread execution**
+- [x] **Step 3: Implement claim/drain and Thread execution**
 
 Scheduler drains queued Deliveries for one Discussion until none remain or finish/failure occurs. It claims before
 enqueue, passes claimed work through the target AgentThreadRuntime, projects the latest context, calls
@@ -505,19 +505,19 @@ target Thread ID without changing the single-Agent `agent-run-driver.ts` contrac
 
 Use `maxParallelAgents` in a small limiter; per-Thread serialization remains in AgentThreadRuntime.
 
-- [ ] **Step 4: Implement batch completion and failure projection**
+- [x] **Step 4: Implement batch completion and failure projection**
 
 After each terminal message Delivery, check the full batch. If terminal and requestedBy exists, insert one resume
 Delivery via the unique constraint. A Member failure appends one public synthetic AssistantMessage authored by that
 Thread before failing the Delivery. Organizer failure interrupts the root and marks Discussion failed.
 
-- [ ] **Step 5: Implement actions used by tools**
+- [x] **Step 5: Implement actions used by tools**
 
 Bind each Agent's callbacks to its current Delivery/Discussion. `sendMessage` resolves Team Threads, computes
 `depth+1`, and atomically appends communication Message plus Delivery batch. `finishDiscussion` records the request;
 Scheduler validates it after the current Organizer run completes.
 
-- [ ] **Step 6: Run scheduler tests and typecheck**
+- [x] **Step 6: Run scheduler tests and typecheck**
 
 ```bash
 pnpm vitest run packages/core/tests/orchestration-scheduler.test.ts packages/core/tests/message-projection.test.ts packages/core/tests/agent-run-driver.test.ts
@@ -525,7 +525,7 @@ pnpm --filter rem-agent-core typecheck
 pnpm --filter rem-agent-core check-structure
 ```
 
-- [ ] **Step 7: Commit Scheduler**
+- [x] **Step 7: Commit Scheduler**
 
 ```bash
 git add packages/core
@@ -549,7 +549,7 @@ git commit -m "feat(core): schedule persistent multi-agent discussions"
 - Modify: `packages/core/tests/agent-system.test.ts`
 - Modify: `packages/core/tests/agent-system-thread.test.ts`
 
-- [ ] **Step 1: Add failing public API integration tests**
+- [x] **Step 1: Add failing public API integration tests**
 
 Test `createSession({workspace})` remains single-Agent, `createSession({workspace,teamId:'engineering'})` saves the
 Team and creates one Organizer plus configured Members, `send()` starts Organizer, and query methods return group and
@@ -561,32 +561,32 @@ expect((await system.getSessionThreads(session.sessionId)).map((t) => t.role))
   .toEqual(['organizer', 'member', 'member']);
 ```
 
-- [ ] **Step 2: Extend AgentSystem contracts and events**
+- [x] **Step 2: Extend AgentSystem contracts and events**
 
 Add optional `teamId`, SessionInfo mode/team fields, three read APIs from the spec, and event variants carrying
 `agentThreadId`, rootUserMessageId, Delivery and Discussion status. Do not expose mutable Runtime maps.
 
-- [ ] **Step 3: Branch `send()` by persisted Session mode**
+- [x] **Step 3: Branch `send()` by persisted Session mode**
 
 Single mode continues through the existing primary Thread path. Multi-Agent mode persists one user Message with a
 generated root message ID and initial Organizer Delivery without requestedBy in one
 `appendMessageWithDeliveries()` transaction, starts DiscussionRuntime and awaits Scheduler driving. Both modes retain
 one `session-start/session-end` lifecycle.
 
-- [ ] **Step 4: Wire creation and read Usecases**
+- [x] **Step 4: Wire creation and read Usecases**
 
 AgentThreadUsecase adds idempotent `ensureTeamThreads(sessionId, team)`. SessionUsecase stores teamId in metadata and
 validates it through workspace ConfigProvider before returning SessionInfo. Read APIs use existing projectors and
 strict Thread/Session membership checks.
 
-- [ ] **Step 5: Run single/multi/child integration suites**
+- [x] **Step 5: Run single/multi/child integration suites**
 
 ```bash
 pnpm vitest run packages/core/tests/multi-agent-system.test.ts packages/core/tests/agent-system.test.ts packages/core/tests/agent-system-thread.test.ts packages/core/tests/agent-system-delegation.test.ts
 pnpm --filter rem-agent-core typecheck
 ```
 
-- [ ] **Step 6: Commit AgentSystem integration**
+- [x] **Step 6: Commit AgentSystem integration**
 
 ```bash
 git add packages/core
@@ -606,30 +606,30 @@ git commit -m "feat(core): expose organizer-driven multi-agent sessions"
 - Create: `packages/core/tests/discussion-budget.test.ts`
 - Create: `packages/core/tests/multi-agent-interrupt-recovery.test.ts`
 
-- [ ] **Step 1: Add failing budget tests**
+- [x] **Step 1: Add failing budget tests**
 
 Test each independent bound at `limit-1`, `limit` and `limit+1`: Agent runs, Message count, depth, elapsed time and
 token usage. Test one and only one restricted Organizer resume and rejection of send_message while restricted.
 
-- [ ] **Step 2: Add failing interrupt/restart tests**
+- [x] **Step 2: Add failing interrupt/restart tests**
 
 Block two Member model calls, interrupt the Session, and assert both signals abort plus queued/processing Delivery
 terminal states. Insert processing Deliveries, create a new AgentSystem, trigger recovery and expect interrupted with
 no model invocation or tool replay.
 
-- [ ] **Step 3: Implement budget accounting and restricted summary mode**
+- [x] **Step 3: Implement budget accounting and restricted summary mode**
 
 DiscussionBudgetState records counters from persisted Message/Delivery/usage events, not estimates hidden inside the
 Scheduler. On exhaustion, stop ordinary claims, interrupt Members, interrupt queued work, and idempotently enqueue
 one Organizer resume whose actions expose finish only.
 
-- [ ] **Step 4: Implement Session-wide interrupt and startup recovery**
+- [x] **Step 4: Implement Session-wide interrupt and startup recovery**
 
 `SessionRuntime.interrupt()` aborts Discussion and every ThreadRuntime. DeliveryUsecase interrupts the active root.
 Recovery runs once per AgentSystem alongside child recovery, converting every processing Delivery to interrupted;
 it never creates new queued work.
 
-- [ ] **Step 5: Run budget/recovery and full test suite**
+- [x] **Step 5: Run budget/recovery and full test suite**
 
 ```bash
 pnpm vitest run packages/core/tests/discussion-budget.test.ts packages/core/tests/multi-agent-interrupt-recovery.test.ts
@@ -642,7 +642,7 @@ git diff --check
 
 Expected: all Core tests pass, build/typecheck/structure are green, and no active source contains `AgentProfile`.
 
-- [ ] **Step 6: Commit reliability semantics**
+- [x] **Step 6: Commit reliability semantics**
 
 ```bash
 git add packages/core
@@ -657,13 +657,13 @@ git commit -m "feat(core): enforce multi-agent budgets and recovery"
 - Modify: `docs/module-reference.md`
 - Modify: `docs/superpowers/plans/2026-08-02-config-driven-multi-agent-orchestration.md` — check completed steps only after verification
 
-- [ ] **Step 1: Update current-state documentation**
+- [x] **Step 1: Update current-state documentation**
 
 Document `agents/teams`, explicit teamId semantics, Runtime ownership, Delivery state machine, tools, budgets, query
 APIs and recovery. Remove statements that Organizer/Scheduler are merely planned and remove AgentProfile references
 from active architecture descriptions.
 
-- [ ] **Step 2: Run forbidden-pattern and module-boundary scans**
+- [x] **Step 2: Run forbidden-pattern and module-boundary scans**
 
 ```bash
 rg -n "AgentProfile|agent_profiles|agentProfileId|activeTeam|thread_messages|messagesByThread" packages/core/src docs/architecture.md docs/module-reference.md
@@ -672,7 +672,7 @@ find packages/core/src/orchestration -maxdepth 1 -type f -name '*.ts' -print -ex
 
 Expected: first command has no matches; implementation files remain below the module-separation hard limit.
 
-- [ ] **Step 3: Run final verification from a clean build**
+- [x] **Step 3: Run final verification from a clean build**
 
 ```bash
 pnpm --filter rem-agent-core build
@@ -685,7 +685,7 @@ git status --short
 
 Expected: all commands pass; status contains only the planned docs/checklist changes before the final commit.
 
-- [ ] **Step 4: Commit documentation and completed plan**
+- [x] **Step 4: Commit documentation and completed plan**
 
 ```bash
 git add docs packages/core

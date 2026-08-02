@@ -5,12 +5,12 @@ import { generateId } from '../../shared/generate-id.js';
 export class AgentThreadUsecase {
   constructor(private readonly store: AgentThreadStore) {}
 
-  async ensurePrimaryThread(sessionId: string, agentProfileId: string): Promise<AgentThread> {
+  async ensurePrimaryThread(sessionId: string, agentId: string): Promise<AgentThread> {
     const existing = (await this.store.listBySession(sessionId)).find((item) => item.role === 'primary');
     if (existing) return existing;
     const now = new Date();
     const thread: AgentThread = {
-      agentThreadId: generateId(), sessionId, agentProfileId,
+      agentThreadId: generateId(), sessionId, agentId,
       role: 'primary', lifecycle: 'persistent', createdAt: now, updatedAt: now,
     };
     try {
@@ -23,10 +23,10 @@ export class AgentThreadUsecase {
     }
   }
 
-  async createDelegatedThread(sessionId: string, agentProfileId: string): Promise<AgentThread> {
+  async createDelegatedThread(sessionId: string, agentId: string): Promise<AgentThread> {
     const now = new Date();
     const thread: AgentThread = {
-      agentThreadId: generateId(), sessionId, agentProfileId,
+      agentThreadId: generateId(), sessionId, agentId,
       role: 'delegated', lifecycle: 'one-shot', createdAt: now, updatedAt: now,
     };
     await this.store.save(thread);

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { AgentSystemEvent } from '../src/agent/bus-events.js';
 import type { MessageEntryPayload } from '../src/session/messages/payload.js';
 import type { SessionTreeEntry } from '../src/session/tree/types.js';
-import { DEFAULT_PRIMARY_PROFILE_ID } from '../src/agent-profile/agent-profile-usecase.js';
 import { REMAgent } from '../src/agent/rem-agent.js';
 import { createAgentSystem } from '../src/system/create-agent-system.js';
 import { createFakeAssembly } from './helpers/fake-di.js';
@@ -43,7 +42,7 @@ describe('AgentSystem AgentThread binding', () => {
     const firstThreads = await assembly.di.storage.agentThreadStore.listBySession(session.sessionId);
     expect(firstThreads).toHaveLength(1);
     expect(firstThreads[0]).toMatchObject({
-      agentProfileId: DEFAULT_PRIMARY_PROFILE_ID,
+      agentId: 'default',
       role: 'primary',
       lifecycle: 'persistent',
     });
@@ -76,7 +75,7 @@ describe('AgentSystem AgentThread binding', () => {
     expect(contexts).toEqual([['user', 'assistant', 'user']]);
   });
 
-  it('binds root tool history and one-shot child to inherited profiles', async () => {
+  it('binds root tool history and one-shot child to inherited agent ids', async () => {
     const scripted = createScriptedModels([
       fauxAssistantMessage([fauxToolCall('delegate_task', { task: 'research' })]),
       fauxAssistantMessage('child result'),
@@ -95,7 +94,7 @@ describe('AgentSystem AgentThread binding', () => {
     )!;
     const childThread = (await assembly.di.storage.agentThreadStore.listBySession(child.sessionId))[0]!;
     expect(childThread).toMatchObject({
-      agentProfileId: parentThread.agentProfileId,
+      agentId: parentThread.agentId,
       role: 'delegated',
       lifecycle: 'one-shot',
     });

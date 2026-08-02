@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssistantMessage, Message, ToolResultMessage } from '@earendil-works/pi-ai';
-import type { AgentProfile } from '../src/agent-profile/model.js';
+import type { ResolvedAgentRole } from '../src/sdk/agent-role.js';
 import type { AgentThread } from '../src/session/agent-thread/model.js';
 import type { MessageEntryPayload, SessionTreeEntry } from '../src/session/tree/types.js';
 import {
@@ -10,14 +10,14 @@ import {
 } from '../src/session/messages/index.js';
 
 const now = new Date(1);
-const profileA: AgentProfile = { agentProfileId: 'pa', name: 'A', createdAt: now, updatedAt: now };
-const profileB: AgentProfile = { agentProfileId: 'pb', name: 'B', createdAt: now, updatedAt: now };
+const agentA: ResolvedAgentRole = { id: 'pa', name: 'A', corePrompt: '' };
+const agentB: ResolvedAgentRole = { id: 'pb', name: 'B', corePrompt: '' };
 const threadA: AgentThread = {
-  agentThreadId: 'ta', sessionId: 's', agentProfileId: 'pa', role: 'primary',
+  agentThreadId: 'ta', sessionId: 's', agentId: 'pa', role: 'primary',
   lifecycle: 'persistent', createdAt: now, updatedAt: now,
 };
 const threadB: AgentThread = {
-  agentThreadId: 'tb', sessionId: 's', agentProfileId: 'pb', role: 'member',
+  agentThreadId: 'tb', sessionId: 's', agentId: 'pb', role: 'member',
   lifecycle: 'persistent', createdAt: now, updatedAt: now,
 };
 
@@ -83,7 +83,7 @@ describe('message projection', () => {
     const entries = fixture();
     const originalB = (entries[3]?.payload as MessageEntryPayload).message;
     const projected = projectThreadContext({
-      entries, leafId: 'bt', target: threadA, threads: [threadA, threadB], profiles: [profileA, profileB],
+      entries, leafId: 'bt', target: threadA, threads: [threadA, threadB], agents: [agentA, agentB],
     });
     expect(projected.map((message) => message.role)).toEqual([
       'user', 'assistant', 'toolResult', 'user',
@@ -95,10 +95,10 @@ describe('message projection', () => {
     expect((entries[3]?.payload as MessageEntryPayload).message).toBe(originalB);
   });
 
-  it('throws when a referenced thread or profile cannot be resolved', () => {
+  it('throws when a referenced thread or configured agent cannot be resolved', () => {
     const input = { entries: fixture(), leafId: 'bt', target: threadA, threads: [threadA, threadB] };
-    expect(() => projectThreadContext({ ...input, profiles: [profileA] })).toThrow(ProjectionError);
-    expect(() => projectThreadContext({ ...input, threads: [threadA], profiles: [profileA] }))
+    expect(() => projectThreadContext({ ...input, agents: [agentA] })).toThrow(ProjectionError);
+    expect(() => projectThreadContext({ ...input, threads: [threadA], agents: [agentA] }))
       .toThrow('agent thread not found: tb');
   });
 
@@ -111,7 +111,7 @@ describe('message projection', () => {
     })];
     expect(projectSessionChat(entries, 'r', 'ta')).toEqual([]);
     expect(projectThreadContext({
-      entries, leafId: 'r', target: threadA, threads: [threadA, threadB], profiles: [profileA, profileB],
+      entries, leafId: 'r', target: threadA, threads: [threadA, threadB], agents: [agentA, agentB],
     })).toEqual([]);
   });
 });

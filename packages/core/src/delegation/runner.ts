@@ -41,7 +41,7 @@ export class DelegationRunner {
     });
     const childThread = await this.deps.threadUsecase.createDelegatedThread(
       child.sessionId,
-      parentThread.agentProfileId,
+      parentThread.agentId,
     );
     this.publish(context, child.sessionId, request.task, 'running');
     let agent: REMAgent | undefined;

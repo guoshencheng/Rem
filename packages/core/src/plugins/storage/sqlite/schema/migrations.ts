@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { AGENT_DDL } from './agent-ddl.js';
+import { migrateAgentIdentity } from './agent-identity-migration.js';
 
 /** 版本迁移：从旧 schema 版本逐级升级到 CURRENT_SCHEMA_VERSION（由 schema.ts 调用） */
 export function runMigrations(db: Database.Database, version: number): void {
@@ -163,4 +164,5 @@ export function runMigrations(db: Database.Database, version: number): void {
       }
     }
     if (version < 10) db.exec(AGENT_DDL);
+    if (version < 11) migrateAgentIdentity(db);
 }

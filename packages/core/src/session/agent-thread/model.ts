@@ -4,7 +4,7 @@ export type AgentThreadLifecycle = 'persistent' | 'one-shot';
 export interface AgentThread {
   agentThreadId: string;
   sessionId: string;
-  agentProfileId: string;
+  agentId: string;
   role: AgentThreadRole;
   lifecycle: AgentThreadLifecycle;
   createdAt: Date;

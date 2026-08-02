@@ -1,5 +1,5 @@
 import type { ImageContent, Message, TextContent, UserMessage } from '@earendil-works/pi-ai';
-import type { AgentProfile } from '../../agent-profile/model.js';
+import type { ResolvedAgentRole } from '../../sdk/agent-role.js';
 import type { AgentThread } from '../agent-thread/model.js';
 import type { SessionTreeEntry } from '../tree/types.js';
 import { getActiveEntryChain } from './entry-chain.js';
@@ -11,7 +11,7 @@ export interface ThreadContextProjectionInput {
   leafId: string | null;
   target: AgentThread;
   threads: AgentThread[];
-  profiles: AgentProfile[];
+  agents: ResolvedAgentRole[];
 }
 
 export class ProjectionError extends Error {
@@ -23,15 +23,15 @@ export class ProjectionError extends Error {
 
 export function projectThreadContext(input: ThreadContextProjectionInput): Message[] {
   const threadById = new Map(input.threads.map((thread) => [thread.agentThreadId, thread]));
-  const profileById = new Map(input.profiles.map((profile) => [profile.agentProfileId, profile]));
-  requireTarget(input.target, threadById, profileById);
+  const agentById = new Map(input.agents.map((agent) => [agent.id, agent]));
+  requireTarget(input.target, threadById, agentById);
   const primaryThreadId = input.threads.find((thread) => thread.role === 'primary')?.agentThreadId
     ?? input.target.agentThreadId;
 
   return getActiveEntryChain(input.entries, input.leafId).flatMap((entry) => {
     if (entry.type !== 'message') return [];
     const payload = normalizeMessagePayload(entry.payload as MessageEntryPayload, primaryThreadId);
-    return projectPayload(payload, input.target, threadById, profileById);
+    return projectPayload(payload, input.target, threadById, agentById);
   });
 }
 
@@ -39,7 +39,7 @@ function projectPayload(
   payload: NormalizedMessageEntryPayload,
   target: AgentThread,
   threads: Map<string, AgentThread>,
-  profiles: Map<string, AgentProfile>,
+  agents: Map<string, ResolvedAgentRole>,
 ): Message[] {
   if (payload.author.type === 'user') {
     return payload.scope.type === 'session' ? [payload.message] : [];
@@ -49,9 +49,9 @@ function projectPayload(
   if (payload.scope.type !== 'session' || payload.author.type !== 'agent') return [];
   const authorThread = threads.get(authorThreadId);
   if (!authorThread) throw new ProjectionError(`agent thread not found: ${authorThreadId}`);
-  const profile = profiles.get(authorThread.agentProfileId);
-  if (!profile) throw new ProjectionError(`agent profile not found: ${authorThread.agentProfileId}`);
-  const converted = convertPublicAgentMessage(payload.message, profile.name);
+  const agent = agents.get(authorThread.agentId);
+  if (!agent) throw new ProjectionError(`configured agent not found: ${authorThread.agentId}`);
+  const converted = convertPublicAgentMessage(payload.message, agent.name);
   return converted ? [converted] : [];
 }
 
@@ -74,12 +74,12 @@ function isSupportedPublicContent(part: unknown): part is TextContent | ImageCon
 function requireTarget(
   target: AgentThread,
   threads: Map<string, AgentThread>,
-  profiles: Map<string, AgentProfile>,
+  agents: Map<string, ResolvedAgentRole>,
 ): void {
   if (!threads.has(target.agentThreadId)) {
     throw new ProjectionError(`target agent thread not found: ${target.agentThreadId}`);
   }
-  if (!profiles.has(target.agentProfileId)) {
-    throw new ProjectionError(`target agent profile not found: ${target.agentProfileId}`);
+  if (!agents.has(target.agentId)) {
+    throw new ProjectionError(`target configured agent not found: ${target.agentId}`);
   }
 }

@@ -9,7 +9,6 @@ import { CoreAgentSystem } from './agent-system.js';
 import { DelegationEventDriver } from '../delegation/event-driver.js';
 import { DelegationRunner } from '../delegation/runner.js';
 import { resolveDelegationMaxDepth } from '../delegation/depth.js';
-import { AgentProfileUsecase } from '../agent-profile/agent-profile-usecase.js';
 import { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
 
@@ -19,11 +18,10 @@ export function createAgentSystem(
 ): AgentSystem {
   const bus = new BroadcastBus();
   const sessionUsecase = new SessionUsecase(assembly.di);
-  const profileUsecase = new AgentProfileUsecase(assembly.di.storage.agentProfileStore);
   const threadUsecase = new AgentThreadUsecase(assembly.di.storage.agentThreadStore);
   const contextUsecase = new SessionAgentContextUsecase({
     sessionProvider: assembly.di.sessionProvider,
-    profileUsecase,
+    configProvider: assembly.di.configProvider,
     threadUsecase,
   });
   const registry = new SessionRuntimeRegistry();
@@ -47,7 +45,6 @@ export function createAgentSystem(
     driver,
     registry,
     sessionUsecase,
-    profileUsecase,
     threadUsecase,
     contextUsecase,
     createRootAgent: createAgent,

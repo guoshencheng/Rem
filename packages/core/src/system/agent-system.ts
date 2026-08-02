@@ -5,7 +5,6 @@ import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import type { SessionUsecase } from '../session/session-usecase.js';
 import type { DelegationRunner } from '../delegation/runner.js';
-import type { AgentProfileUsecase } from '../agent-profile/agent-profile-usecase.js';
 import type { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import type { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
 import type { Session } from '../session/model.js';
@@ -20,7 +19,6 @@ export interface CoreAgentSystemDeps {
   driver: AgentRunDriver;
   registry: SessionRuntimeRegistry;
   sessionUsecase: SessionUsecase;
-  profileUsecase: AgentProfileUsecase;
   threadUsecase: AgentThreadUsecase;
   contextUsecase: SessionAgentContextUsecase;
   createRootAgent: RootAgentFactory;
@@ -85,10 +83,9 @@ export class CoreAgentSystem implements AgentSystem {
   }
 
   private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
-    const profile = await this.deps.profileUsecase.ensureDefaultPrimary();
     const thread = await this.deps.threadUsecase.ensurePrimaryThread(
       session.sessionId,
-      profile.agentProfileId,
+      'default',
     );
     const projectedSession = await this.deps.contextUsecase.projectSession(session, thread);
     const rootAgent = this.deps.createRootAgent({

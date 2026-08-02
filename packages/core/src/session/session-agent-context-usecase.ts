@@ -1,4 +1,4 @@
-import type { AgentProfileUsecase } from '../agent-profile/agent-profile-usecase.js';
+import type { ConfigProvider } from '../sdk/config-provider.js';
 import type { AgentThread } from './agent-thread/model.js';
 import type { AgentThreadUsecase } from './agent-thread/agent-thread-usecase.js';
 import type { SessionProvider } from '../sdk/session-provider.js';
@@ -7,7 +7,7 @@ import { projectThreadContext } from './messages/thread-context-projector.js';
 
 export interface SessionAgentContextUsecaseDeps {
   sessionProvider: SessionProvider;
-  profileUsecase: AgentProfileUsecase;
+  configProvider: ConfigProvider;
   threadUsecase: AgentThreadUsecase;
 }
 
@@ -16,15 +16,18 @@ export class SessionAgentContextUsecase {
   constructor(private readonly deps: SessionAgentContextUsecaseDeps) {}
 
   async projectSession(session: Session, target: AgentThread): Promise<Session> {
-    const [entries, leafId, threads, profiles] = await Promise.all([
+    const [entries, leafId, threads] = await Promise.all([
       this.deps.sessionProvider.listEntries(session.sessionId),
       this.deps.sessionProvider.getActiveLeafId(session.sessionId),
       this.deps.threadUsecase.listBySession(session.sessionId),
-      this.deps.profileUsecase.list(),
     ]);
+    const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
+    const config = this.deps.configProvider.forWorkspace?.(workspace) ?? this.deps.configProvider;
+    const agents = [...new Set(threads.map((thread) => thread.agentId))]
+      .map((agentId) => config.resolveAgent(agentId));
     return {
       ...session,
-      conversation: projectThreadContext({ entries, leafId, target, threads, profiles }),
+      conversation: projectThreadContext({ entries, leafId, target, threads, agents }),
       metadata: { ...session.metadata },
     };
   }

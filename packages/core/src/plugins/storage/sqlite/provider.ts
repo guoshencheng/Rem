@@ -8,7 +8,6 @@ import { SqliteTodoStore } from './todo-store.js';
 import { SqliteArchiveStore } from './archive-store.js';
 import { SqliteWorkspaceStore } from './workspace-store.js';
 import { StorageError, wrapSqliteError } from './errors.js';
-import { SqliteAgentProfileStore } from './agent-profile-store.js';
 import { SqliteAgentThreadStore } from './agent-thread-store.js';
 
 export interface SqliteStorageProviderOptions {
@@ -21,7 +20,6 @@ export class SqliteStorageProvider implements StorageProvider {
   private _todoStore: SqliteTodoStore | undefined;
   private _archiveStore: SqliteArchiveStore | undefined;
   private _workspaceStore: SqliteWorkspaceStore | undefined;
-  private _agentProfileStore: SqliteAgentProfileStore | undefined;
   private _agentThreadStore: SqliteAgentThreadStore | undefined;
 
   constructor(private options: SqliteStorageProviderOptions) {
@@ -39,7 +37,6 @@ export class SqliteStorageProvider implements StorageProvider {
       this._todoStore = new SqliteTodoStore(this.db);
       this._archiveStore = new SqliteArchiveStore(this.db);
       this._workspaceStore = new SqliteWorkspaceStore(this.db);
-      this._agentProfileStore = new SqliteAgentProfileStore(this.db);
       this._agentThreadStore = new SqliteAgentThreadStore(this.db);
     } catch (err) {
       if (err instanceof StorageError) throw err;
@@ -63,7 +60,6 @@ export class SqliteStorageProvider implements StorageProvider {
     this._todoStore = undefined;
     this._archiveStore = undefined;
     this._workspaceStore = undefined;
-    this._agentProfileStore = undefined;
     this._agentThreadStore = undefined;
   }
 
@@ -85,11 +81,6 @@ export class SqliteStorageProvider implements StorageProvider {
   get workspaceStore(): SqliteWorkspaceStore {
     if (!this._workspaceStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
     return this._workspaceStore;
-  }
-
-  get agentProfileStore(): SqliteAgentProfileStore {
-    if (!this._agentProfileStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
-    return this._agentProfileStore;
   }
 
   get agentThreadStore(): SqliteAgentThreadStore {

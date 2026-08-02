@@ -5,7 +5,7 @@ const DEFAULT_TEST_DATA = { orders: { 'A-100': { status: 'paid' } } };
 
 export function parseLiveAgentCommandOptions(argv: string[]): LiveAgentCommandOptions {
   const { values } = parseArgs({
-    args: argv,
+    args: argv[0] === '--' ? argv.slice(1) : argv,
     options: {
       task: { type: 'string' },
       data: { type: 'string' },

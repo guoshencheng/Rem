@@ -5,10 +5,9 @@ export function assertLiveAgentResult(
   calls: LiveAgentToolCall[],
   expectedResult: Record<string, unknown> | undefined,
 ): LiveAgentResultAssertion {
-  if (!expectedResult) return { passed: true };
-
   const recorded = [...calls].reverse().find((call) => call.toolName === 'record_result');
   if (!recorded) return { passed: false, reason: 'Agent 未调用 record_result' };
+  if (!expectedResult) return { passed: true };
   if (!isDeepStrictEqual(recorded.input, expectedResult)) {
     return {
       passed: false,

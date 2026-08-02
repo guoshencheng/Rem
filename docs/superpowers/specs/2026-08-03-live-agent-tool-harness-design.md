@@ -11,6 +11,7 @@
 - 新增根脚本 `pnpm test:agent:live`，显式执行才会发起网络请求和产生模型费用。
 - 从 Core 的 `createAgentFromEnv()` 读取 Provider、模型和认证配置；脚本不得直接读取或解析 Provider 密钥。
 - 不注册文件系统、Shell、技能、委派或编排工具。因此任务不会读写工作区，也不会执行宿主命令。
+- Harness 通过 `AgentToolCapabilities` 关闭 `read_skill`、`delegate_task` 和 `todowrite`；模型可调用的工具仅为 `get_test_data` 与 `record_result`。
 - 测试工具及调用记录只保存在当前进程。脚本退出后不保留工具副作用。
 - 默认 Core 装配产生的 session/storage 行为维持既有语义；本功能不改变生产 Agent 的默认工具集。
 

@@ -16,6 +16,12 @@ describe('live agent 命令选项', () => {
     });
   });
 
+  it('接受 pnpm 转发参数时保留的分隔符', () => {
+    expect(parseLiveAgentCommandOptions(['--', '--task', '查询订单'])).toMatchObject({
+      task: '查询订单',
+    });
+  });
+
   it.each([
     [['--task', 'x', '--data', '{bad'], '--data'],
     [['--task', 'x', '--expect-result', '[]'], '--expect-result'],

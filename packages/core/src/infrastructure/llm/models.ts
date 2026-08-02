@@ -14,13 +14,7 @@ export function createCoreModels(options?: CreateCoreModelsOptions): Models {
   const models = options?.all ? builtinModels() : createModels();
   if (options?.all) {
     for (const model of models.getModels()) {
-      if (['minimax', 'minimax-cn'].includes(model.provider)) {
-        console.log(model)
-      }
       patchMiniMaxAdaptiveThinking(model);
-      if (['minimax', 'minimax-cn'].includes(model.provider)) {
-        console.log(model)
-      }
     }
   }
   for (const provider of options?.customProviders ?? []) {

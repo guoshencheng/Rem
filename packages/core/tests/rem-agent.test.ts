@@ -28,6 +28,23 @@ describe('REMAgent', () => {
     expect(seen).toEqual([['user', 'assistant', 'user']]);
   });
 
+  it('syncTranscript 在空闲时替换上下文且不产生持久化事件', async () => {
+    const seen: string[][] = [];
+    const incoming = userMessage('projected');
+    const { agent } = await createTestAgent({
+      conversation: [userMessage('stale')],
+      steps: [({ context }) => {
+        seen.push(context.messages.map((message) => message.role));
+        expect(() => agent.syncTranscript([])).toThrow('already running');
+        return fauxAssistantMessage('reply');
+      }],
+    });
+    agent.syncTranscript([incoming]);
+    const events = await collect(agent.continue());
+    expect(seen).toEqual([['user']]);
+    expect(events.filter((event) => event.type === 'message-persist')).toHaveLength(1);
+  });
+
   it('run 产出 message-persist / usage / finish，output 解析为文本', async () => {
     const { agent } = await createTestAgent({ steps: [fauxAssistantMessage('Hello')] });
 

@@ -95,6 +95,11 @@ export class REMAgent {
     this.activeAbort?.abort();
   }
 
+  syncTranscript(messages: Message[]): void {
+    this.assertNotRunning();
+    this.messages = messages.slice();
+  }
+
   emitMeta(event: RemMetaEvent): void {
     if (this.runState) this.runState.queue.push(event);
     else this.pendingMeta.push(event);
@@ -127,6 +132,7 @@ export class REMAgent {
   private beginRun(): AgentRunState {
     this.assertNotRunning();
     this.status = 'running';
+    this.turns = 0;
     const state = new AgentRunState(this.pendingMeta);
     this.pendingMeta = [];
     return (this.runState = state);

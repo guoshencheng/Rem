@@ -16,6 +16,9 @@ import { defineOverlayTool } from '../tools/overlay.js';
 import { createAgentTools } from './agent-tools.js';
 import { createCompressionTransform } from './compression-transform.js';
 import { archiveConversation } from './conversation-archive.js';
+import type { AgentOrchestrationActions } from '../orchestration/orchestration-actions.js';
+import { createSendMessageToolDefinition, createSendMessageToolExecutor } from '../orchestration/send-message-tool.js';
+import { createFinishDiscussionToolDefinition, createFinishDiscussionToolExecutor } from '../orchestration/finish-discussion-tool.js';
 
 export interface AgentLoopAssemblyInput {
   di: AgentDI;
@@ -28,6 +31,7 @@ export interface AgentLoopAssemblyInput {
   systemPrompt?: string;
   maxTurns?: number;
   runDelegation?: RunDelegation;
+  orchestrationActions?: AgentOrchestrationActions;
   messages: () => Message[];
   drainSteering: () => Message[];
   drainFollowUp: () => Message[];
@@ -51,6 +55,8 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     ?? await resolveSystemPrompt({ di, runtimeConfig, resolution });
   const sessionId = input.sessionId ?? session.sessionId;
   const { effectiveModel, behavior, configProvider } = resolution;
+  const resolved = di.models.getModel(effectiveModel.provider, effectiveModel.model);
+  if (!resolved) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
   const runDelegation: RunDelegation = input.runDelegation ?? (async () => {
     throw new Error('delegate_task is not available for this agent');
   });
@@ -68,6 +74,14 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     workspaceRoot: resolution.workspaceRoot,
     agentName: behavior.name,
     sessionId,
+    orchestrationToolProviderEntries: input.orchestrationActions
+      ? [
+        defineOverlayTool(createSendMessageToolDefinition(), createSendMessageToolExecutor(input.orchestrationActions)),
+        ...(input.orchestrationActions.finishDiscussion
+          ? [defineOverlayTool(createFinishDiscussionToolDefinition(), createFinishDiscussionToolExecutor(input.orchestrationActions))]
+          : []),
+      ]
+      : [],
   });
   const transformContext = createCompressionTransform({
     compressor: di.compressor,
@@ -80,8 +94,6 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
     emit: (event: AgentStreamEvent) => input.emitMeta(event as RemMetaEvent),
     sessionId,
   });
-  const resolved = di.models.getModel(effectiveModel.provider, effectiveModel.model);
-  if (!resolved) throw new Error(`Unknown model: ${effectiveModel.provider}/${effectiveModel.model}`);
   const config: AgentLoopConfig = {
     model: effectiveModel.baseURL ? { ...resolved, baseUrl: effectiveModel.baseURL } : resolved,
     reasoning: effectiveModel.reasoning,

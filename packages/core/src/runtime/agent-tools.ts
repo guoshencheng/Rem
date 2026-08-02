@@ -14,6 +14,7 @@ export interface AgentToolsParams {
   skillProvider: SkillProvider;
   delegateToolProviderEntry: ToolOverlayEntry;
   todoToolProviderEntry: ToolOverlayEntry;
+  orchestrationToolProviderEntries?: ToolOverlayEntry[];
 }
 
 export interface AgentTools {
@@ -34,6 +35,7 @@ export function createAgentTools(params: AgentToolsParams): AgentTools {
   const finalToolProvider: ToolProvider = new ToolOverlay(effectiveToolProvider, [
     delegateToolProviderEntry,
     todoToolProviderEntry,
+    ...(params.orchestrationToolProviderEntries ?? []),
   ]);
 
   const executeOne = async (

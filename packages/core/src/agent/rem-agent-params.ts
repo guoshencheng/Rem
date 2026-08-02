@@ -2,6 +2,7 @@ import type { AgentDI } from '../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import type { RunDelegation } from '../delegation/types.js';
 import type { Session } from '../session/model.js';
+import type { AgentOrchestrationActions } from '../orchestration/orchestration-actions.js';
 
 export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';
 
@@ -24,4 +25,5 @@ export interface REMAgentParams {
   maxTurns?: number;
   signal?: AbortSignal;
   runDelegation?: RunDelegation;
+  orchestrationActions?: AgentOrchestrationActions;
 }

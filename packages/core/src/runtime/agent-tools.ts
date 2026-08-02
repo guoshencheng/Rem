@@ -12,8 +12,9 @@ export interface AgentToolsParams {
 
   toolProvider: ToolProvider;
   skillProvider: SkillProvider;
-  delegateToolProviderEntry: ToolOverlayEntry;
-  todoToolProviderEntry: ToolOverlayEntry;
+  includeSkillReadTool?: boolean;
+  delegateToolProviderEntry?: ToolOverlayEntry;
+  todoToolProviderEntry?: ToolOverlayEntry;
   orchestrationToolProviderEntries?: ToolOverlayEntry[];
 }
 
@@ -28,13 +29,12 @@ export function createAgentTools(params: AgentToolsParams): AgentTools {
     delegateToolProviderEntry, todoToolProviderEntry,
   } = params;
 
-  const effectiveToolProvider = composeToolProviders({
-    toolProvider,
-    skillProvider,
-  });
+  const effectiveToolProvider = params.includeSkillReadTool === false
+    ? toolProvider
+    : composeToolProviders({ toolProvider, skillProvider });
   const finalToolProvider: ToolProvider = new ToolOverlay(effectiveToolProvider, [
-    delegateToolProviderEntry,
-    todoToolProviderEntry,
+    ...(delegateToolProviderEntry ? [delegateToolProviderEntry] : []),
+    ...(todoToolProviderEntry ? [todoToolProviderEntry] : []),
     ...(params.orchestrationToolProviderEntries ?? []),
   ]);
 

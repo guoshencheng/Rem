@@ -19,6 +19,8 @@ import { archiveConversation } from './conversation-archive.js';
 import type { AgentOrchestrationActions } from '../orchestration/orchestration-actions.js';
 import { createSendMessageToolDefinition, createSendMessageToolExecutor } from '../orchestration/send-message-tool.js';
 import { createFinishDiscussionToolDefinition, createFinishDiscussionToolExecutor } from '../orchestration/finish-discussion-tool.js';
+import type { AgentToolCapabilities } from './agent-tool-capabilities.js';
+import { isToolCapabilityEnabled } from './agent-tool-capabilities.js';
 
 export interface AgentLoopAssemblyInput {
   di: AgentDI;
@@ -30,6 +32,7 @@ export interface AgentLoopAssemblyInput {
   workspaceRoot?: string;
   systemPrompt?: string;
   maxTurns?: number;
+  toolCapabilities?: AgentToolCapabilities;
   runDelegation?: RunDelegation;
   orchestrationActions?: AgentOrchestrationActions;
   messages: () => Message[];
@@ -60,17 +63,20 @@ export async function assembleAgentLoop(input: AgentLoopAssemblyInput): Promise<
   const runDelegation: RunDelegation = input.runDelegation ?? (async () => {
     throw new Error('delegate_task is not available for this agent');
   });
+  const capabilities = input.toolCapabilities;
   const agentTools = createAgentTools({
     toolProvider: di.toolProvider,
     skillProvider: di.skillProvider,
-    delegateToolProviderEntry: defineOverlayTool(
-      createDelegateTaskToolDefinition(),
-      createDelegateTaskExecutor(runDelegation),
-    ),
-    todoToolProviderEntry: defineOverlayTool(
-      createTodoWriteToolDefinition(),
-      createTodoWriteToolExecutor(new TodoUsecase(di.storage.todoStore), input.emitMeta),
-    ),
+    includeSkillReadTool: isToolCapabilityEnabled(capabilities, 'readSkill'),
+    delegateToolProviderEntry: isToolCapabilityEnabled(capabilities, 'delegateTask')
+      ? defineOverlayTool(createDelegateTaskToolDefinition(), createDelegateTaskExecutor(runDelegation))
+      : undefined,
+    todoToolProviderEntry: isToolCapabilityEnabled(capabilities, 'todoWrite')
+      ? defineOverlayTool(
+        createTodoWriteToolDefinition(),
+        createTodoWriteToolExecutor(new TodoUsecase(di.storage.todoStore), input.emitMeta),
+      )
+      : undefined,
     workspaceRoot: resolution.workspaceRoot,
     agentName: behavior.name,
     sessionId,

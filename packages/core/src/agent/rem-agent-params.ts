@@ -3,6 +3,7 @@ import type { AgentRuntimeConfig } from '../assembly/runtime-config.js';
 import type { RunDelegation } from '../delegation/types.js';
 import type { Session } from '../session/model.js';
 import type { AgentOrchestrationActions } from '../orchestration/orchestration-actions.js';
+import type { AgentToolCapabilities } from '../runtime/agent-tool-capabilities.js';
 
 export type REMAgentStatus = 'idle' | 'running' | 'finished' | 'error';
 
@@ -23,6 +24,8 @@ export interface REMAgentParams {
   systemPrompt?: string;
   /** 子 Agent 覆盖：缺省使用 behavior.maxTurns */
   maxTurns?: number;
+  /** 缩减本次运行暴露的内置工具；未指定时全部启用。 */
+  toolCapabilities?: AgentToolCapabilities;
   signal?: AbortSignal;
   runDelegation?: RunDelegation;
   orchestrationActions?: AgentOrchestrationActions;

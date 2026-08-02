@@ -76,6 +76,7 @@ export { createAgentTools, type AgentToolsParams, type AgentTools } from './runt
 export { createCompressionTransform } from './runtime/compression-transform.js'
 export type { AgentContext, AgentLoopConfig, AgentTool, AgentToolResult, StreamFn } from '@earendil-works/pi-agent-core'
 export { EventQueue } from './agent/event-queue.js'
+export * from './runtime/agent-tool-capabilities.js'
 export { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from './capabilities/todo/tool.js'
 export { formatTaskResult } from './capabilities/sub-agent/format-task-result.js'
 export { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type DelegateTaskInput } from './capabilities/sub-agent/delegate-task.js'

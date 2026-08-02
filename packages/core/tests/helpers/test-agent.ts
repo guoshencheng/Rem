@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox';
 import type { Message } from '@earendil-works/pi-ai';
-import type { ToolCall, ToolContext, ToolDefinition, ToolProvider, ToolResult, ToolSet } from 'rem-agent-core';
+import type { AgentToolCapabilities, ToolCall, ToolContext, ToolDefinition, ToolProvider, ToolResult, ToolSet } from 'rem-agent-core';
 import { REMAgent } from '../../src/agent/rem-agent.js';
 import { createFakeAssembly, fakeSession } from './fake-di.js';
 import { createScriptedModels, type ScriptedStep } from './scripted-models.js';
@@ -69,6 +69,7 @@ export interface TestAgentParams {
   conversation?: Message[];
   agentId?: string;
   sessionId?: string;
+  toolCapabilities?: AgentToolCapabilities;
 }
 
 export interface TestAgent {
@@ -103,6 +104,7 @@ export async function createTestAgent(params: TestAgentParams): Promise<TestAgen
     sessionId: session.sessionId,
     maxTurns: params.maxTurns,
     systemPrompt: params.systemPrompt,
+    toolCapabilities: params.toolCapabilities,
   });
   return { agent, state: scripted.state, scripted };
 }

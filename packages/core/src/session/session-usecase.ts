@@ -18,9 +18,13 @@ export class SessionUsecase {
   constructor(private readonly di: AgentDI) {
     this.manager = new AgentSessionManager(di.sessionProvider);
   }
-  async create(workspace: string): Promise<SessionInfo> {
+  async create(workspace: string, teamId?: string): Promise<SessionInfo> {
+    const config = this.di.configProvider.forWorkspace?.(workspace) ?? this.di.configProvider;
+    if (teamId) config.resolveTeam(teamId);
     const session = await this.di.sessionProvider.create();
     session.metadata.workspace = workspace;
+    session.metadata.mode = teamId ? 'multi-agent' : 'single';
+    if (teamId) session.metadata.teamId = teamId;
     await this.di.sessionProvider.save(session);
     this.loaded.set(session.sessionId, session);
     return this.toInfo(session);
@@ -109,6 +113,13 @@ export class SessionUsecase {
     }
   }
 
+  async completeDiscussion(sessionId: string): Promise<void> {
+    const session = await this.requireSession(sessionId);
+    session.currentTurn += 1;
+    session.updatedAt = new Date();
+    await this.di.sessionProvider.save(session);
+  }
+
   private async persistUsage(sessionId: string, usage: Usage, messageId?: string): Promise<void> {
     const session = await this.requireSession(sessionId);
     const history = ((session.metadata.tokenUsageHistory as unknown[]) ?? [])
@@ -153,6 +164,8 @@ export class SessionUsecase {
       messageCount: session.conversation.length,
       parentSessionId: session.metadata.parentSessionId as string | undefined,
       parentToolCallId: session.metadata.parentToolCallId as string | undefined,
+      mode: session.metadata.mode === 'multi-agent' ? 'multi-agent' : 'single',
+      teamId: session.metadata.teamId as string | undefined,
     };
   }
 }

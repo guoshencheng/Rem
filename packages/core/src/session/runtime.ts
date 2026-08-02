@@ -4,6 +4,7 @@ import type { ResolvedOrchestrationConfig } from '../sdk/config-provider.js';
 import { AgentThreadRuntime } from './agent-thread-runtime.js';
 import { AgentThreadRuntimeRegistry } from './agent-thread-runtime-registry.js';
 import { DiscussionRuntime } from '../orchestration/discussion-runtime.js';
+import type { AgentThread } from './agent-thread/model.js';
 
 export type SessionRuntimeStatus = 'idle' | 'running' | 'error';
 
@@ -13,6 +14,7 @@ export interface SessionRuntimeParams {
   agentThreadId: string;
   rootAgent: REMAgent;
   mode?: 'single' | 'multi-agent';
+  initialThread?: AgentThread;
 }
 
 /** 一个持久化 Session 对应的进程内执行所有权。 */
@@ -34,7 +36,7 @@ export class SessionRuntime {
     this.rootAgent = params.rootAgent;
     this.mode = params.mode ?? 'single';
     const now = new Date();
-    this.threadRuntimes.register(new AgentThreadRuntime({
+    this.threadRuntimes.register(new AgentThreadRuntime(params.initialThread ?? {
       agentThreadId: params.agentThreadId, sessionId: params.sessionId, agentId: 'default',
       role: 'primary', lifecycle: 'persistent', createdAt: now, updatedAt: now,
     }, params.rootAgent));

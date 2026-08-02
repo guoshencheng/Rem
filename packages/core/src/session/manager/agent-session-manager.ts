@@ -28,6 +28,8 @@ export class AgentSessionManager {
           updatedAt: s.updatedAt.getTime(),
           messageCount: s.messageCount,
           tokenUsage,
+          mode: session.metadata.mode === 'multi-agent' ? 'multi-agent' as const : 'single' as const,
+          teamId: session.metadata.teamId as string | undefined,
         };
       }),
     );

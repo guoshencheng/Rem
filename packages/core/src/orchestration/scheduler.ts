@@ -30,6 +30,8 @@ export class OrchestrationScheduler {
 
   private async execute(delivery: MessageDelivery, discussion: DiscussionRuntime): Promise<void> {
     if (discussion.abortController.signal.aborted || !await this.deps.deliveries.claim(delivery.deliveryId)) return;
+    const processing = await this.deps.deliveries.get(delivery.deliveryId);
+    if (processing) this.deps.onDeliveryChange?.(processing);
     discussion.budget.agentRuns += 1;
     try {
       await this.deps.executor.execute(delivery, discussion);
@@ -41,7 +43,10 @@ export class OrchestrationScheduler {
       );
     }
     const terminal = await this.deps.deliveries.get(delivery.deliveryId);
-    if (terminal) await this.batches.createResumeIfComplete(terminal);
+    if (terminal) {
+      this.deps.onDeliveryChange?.(terminal);
+      await this.batches.createResumeIfComplete(terminal);
+    }
   }
 
   private resolveIdle(discussion: DiscussionRuntime, deliveries: MessageDelivery[]): void {

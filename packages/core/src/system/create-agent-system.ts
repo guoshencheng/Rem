@@ -11,6 +11,7 @@ import { DelegationRunner } from '../delegation/runner.js';
 import { resolveDelegationMaxDepth } from '../delegation/depth.js';
 import { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
+import { MultiAgentCoordinator } from '../orchestration/multi-agent-coordinator.js';
 
 export function createAgentSystem(
   assembly: AgentAssembly,
@@ -40,6 +41,16 @@ export function createAgentSystem(
     publish: (event) => bus.publish(event),
     maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
   });
+  const multiAgentCoordinator = new MultiAgentCoordinator({
+    di: assembly.di,
+    runtimeConfig: assembly.runtimeConfig,
+    sessionUsecase,
+    threadUsecase,
+    contextUsecase,
+    delegationRunner,
+    createAgent,
+    publish: (event) => bus.publish(event),
+  });
   return new CoreAgentSystem({
     bus,
     driver,
@@ -50,5 +61,6 @@ export function createAgentSystem(
     createRootAgent: createAgent,
     delegationRunner,
     agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
+    multiAgentCoordinator,
   });
 }

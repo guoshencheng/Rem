@@ -13,6 +13,8 @@ import type {
 } from './types.js';
 import { SessionRuntime } from '../session/runtime.js';
 import { streamSystemEvents } from './event-stream.js';
+import { projectSessionChat } from '../session/messages/session-chat-projector.js';
+import type { MultiAgentCoordinator } from '../orchestration/multi-agent-coordinator.js';
 
 export interface CoreAgentSystemDeps {
   bus: BroadcastBus;
@@ -24,6 +26,7 @@ export interface CoreAgentSystemDeps {
   createRootAgent: RootAgentFactory;
   delegationRunner: DelegationRunner;
   agentParams: Pick<Parameters<RootAgentFactory>[0], 'di' | 'runtimeConfig'>;
+  multiAgentCoordinator: MultiAgentCoordinator;
 }
 
 /** Core 单 Agent 用例门面。 */
@@ -34,7 +37,13 @@ export class CoreAgentSystem implements AgentSystem {
 
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {
     await this.ensureRecovery();
-    return this.deps.sessionUsecase.create(input.workspace);
+    const info = await this.deps.sessionUsecase.create(input.workspace, input.teamId);
+    if (input.teamId) {
+      const config = this.deps.agentParams.di.configProvider.forWorkspace?.(input.workspace)
+        ?? this.deps.agentParams.di.configProvider;
+      await this.deps.threadUsecase.ensureTeamThreads(info.sessionId, config.resolveTeam(input.teamId));
+    }
+    return info;
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {
@@ -47,12 +56,39 @@ export class CoreAgentSystem implements AgentSystem {
     return this.deps.sessionUsecase.list(workspace);
   }
 
+  async getSessionThreads(sessionId: string) {
+    await this.deps.sessionUsecase.requireSession(sessionId);
+    return this.deps.threadUsecase.listBySession(sessionId);
+  }
+
+  async getSessionChat(sessionId: string) {
+    const session = await this.deps.sessionUsecase.requireSession(sessionId);
+    const threads = await this.deps.threadUsecase.listBySession(sessionId);
+    const primary = threads.find((thread) => thread.role === 'primary' || thread.role === 'organizer');
+    const [entries, leafId] = await Promise.all([
+      this.deps.agentParams.di.sessionProvider.listEntries(sessionId),
+      this.deps.agentParams.di.sessionProvider.getActiveLeafId(sessionId),
+    ]);
+    return projectSessionChat(entries, leafId, primary?.agentThreadId ?? session.sessionId);
+  }
+
+  async getAgentThreadContext(sessionId: string, agentThreadId: string) {
+    const session = await this.deps.sessionUsecase.requireSession(sessionId);
+    const thread = await this.deps.threadUsecase.get(agentThreadId);
+    if (!thread || thread.sessionId !== sessionId) throw new Error(`AgentThread does not belong to Session: ${agentThreadId}`);
+    return (await this.deps.contextUsecase.projectSession(session, thread)).conversation;
+  }
+
   async send(input: SendMessageInput): Promise<void> {
     await this.ensureRecovery();
     const session = await this.deps.sessionUsecase.requireSession(input.sessionId);
     const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
     const runtime = await this.deps.registry.getOrCreate(input.sessionId, () =>
       this.createRuntime(session, workspace));
+    if (session.metadata.mode === 'multi-agent') {
+      await this.deps.multiAgentCoordinator.send(session, runtime, input.content as import('@earendil-works/pi-ai').Message['content']);
+      return;
+    }
     runtime.startRun();
     try {
       const agent = runtime.rootAgent;
@@ -83,6 +119,9 @@ export class CoreAgentSystem implements AgentSystem {
   }
 
   private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
+    if (session.metadata.mode === 'multi-agent') {
+      return this.deps.multiAgentCoordinator.createRuntime(session, workspace);
+    }
     const thread = await this.deps.threadUsecase.ensurePrimaryThread(
       session.sessionId,
       'default',

@@ -32,6 +32,14 @@ export interface PromptSection {
   render(ctx: PromptBuildContext): string | undefined | Promise<string | undefined>;
 }
 
+export interface PromptSectionRegistry {
+  set(name: string, section: PromptSection): void;
+  delete(name: string): boolean;
+  moveBefore(name: string, anchor: string): void;
+  moveAfter(name: string, anchor: string): void;
+  has(name: string): boolean;
+}
+
 export interface SystemPromptAssembler {
   assemble(ctx: PromptBuildContext): Promise<string>;
 }

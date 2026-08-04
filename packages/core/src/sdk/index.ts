@@ -9,3 +9,5 @@ export * from './session-provider.js';
 export * from './agent-state-provider.js';
 export * from './title-provider.js';
 export * from './storage-provider.js';
+export * from './agent-plugin.js';
+export * from './system-prompt.js';

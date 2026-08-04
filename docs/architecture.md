@@ -22,6 +22,7 @@ packages/core/src/
 ├── security/       审批、权限、规则、tool policy、workspace 守卫
 ├── sdk/            Provider 与 Store 稳定接口
 ├── plugins/        默认 Provider 和 SQLite 存储实现
+├── plugin-system/  装配期 Agent 插件执行、事务与错误边界
 ├── infrastructure/ 配置、LLM、MCP、可观测基础设施
 ├── system-prompt/  system prompt 选择、装配和模板
 └── shared/         无业务依赖的共享工具
@@ -46,6 +47,9 @@ Core AgentSystem
 
 - Core 领域层不引用未来接入层类型。
 - SDK 只定义稳定抽象，默认实现位于 plugins。
+- `AgentDI` 持有已完成装配的运行时能力；`AgentPlugin` 只参与装配，不进入 Agent 执行生命周期。
+- `plugin-system/` 执行统一插件协议，`plugins/` 仍表示 SDK Provider 的内置实现，两者不可混用。
+- System prompt 插件通过具名 section registry 贡献内容；`runtime` 内容可替换，但始终是最后一个 section。
 - `pi.Message` 只表达模型消息；多 Agent作者、scope 和 mentions 作为 Harness entry 元数据保存。
 - Session 是用户的一场中心会话，AgentThread 是某个长期 Agent 在该 Session 中的私有视角。
 - child Agent 的 REMAgent 只运行一次，历史由独立 child Session 保存。

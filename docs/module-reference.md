@@ -20,7 +20,7 @@
 
 ### `assembly/`
 
-装配边界。包含 `AgentDI`、runtime config、Agent context assembler，以及 `createAgentAssembly` / `createAgentFromEnv`。
+装配边界。包含 `AgentDI`、runtime config、Agent context assembler，以及 `createAgentAssembly` / `createAgentFromEnv`。同步装配会执行已配置的 `AgentPlugin`，并将最终 `SystemPromptAssembler` 注入 `AgentDI`。
 
 ### `capabilities/`
 
@@ -34,13 +34,17 @@
 
 SDK 默认实现：budget、compressor、config、error、memory、session、skill、storage、title 和 tool。SQLite schema、SessionStore、archive、todo、workspace 存储位于 `plugins/storage/sqlite/`。
 
+### `plugin-system/`
+
+Agent 装配期插件机制。`plugin-host.ts` 校验插件身份并按配置顺序执行注册；`errors.ts` 定义插件和 prompt section 装配错误。该目录不保存 SDK Provider 的默认实现。
+
 ### `runtime/`
 
 REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-transform.ts` 连接上下文压缩与归档，`pending-queue.ts` 管理 steering/follow-up 消息。
 
 ### `sdk/`
 
-稳定抽象接口。当前包括 Agent role、budget、compressor、config、error、session、skill、storage、system prompt、title、tool policy 和 tool provider。
+稳定抽象接口。当前包括 Agent role、budget、compressor、config、error、session、skill、storage、system prompt、title、tool policy 和 tool provider。插件相关稳定接口包括 `AgentPlugin`、`PromptSectionRegistry` 和 `SystemPromptAssembler`。
 
 ### `security/`
 
@@ -68,7 +72,7 @@ REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-trans
 
 ### `system-prompt/`
 
-system prompt 模板选择和装配，包含 sections、templates 与 loaders。
+system prompt 模板选择和装配，包含默认 section 构造、事务式 section registry、sections、templates 与 loaders。普通 section 可由插件按名称替换和重排；`runtime` 内容可替换但位置固定在最后。
 
 ### `tools/`
 

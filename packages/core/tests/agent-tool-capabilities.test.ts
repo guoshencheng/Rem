@@ -38,4 +38,19 @@ describe('Agent 内置工具能力', () => {
 
     expect(seen).toEqual([['get_test_data']]);
   });
+
+  it('关闭全部内置工具且未注入工具时暴露空工具集', async () => {
+    const seen: string[][] = [];
+    const { agent } = await createTestAgent({
+      toolCapabilities: { readSkill: false, delegateTask: false, todoWrite: false },
+      steps: [({ context }) => {
+        seen.push(context.tools?.map((tool) => tool.name) ?? []);
+        return fauxAssistantMessage('done');
+      }],
+    });
+
+    await collect(agent.run({ content: 'hello' }));
+
+    expect(seen).toEqual([[]]);
+  });
 });

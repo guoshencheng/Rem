@@ -1,12 +1,5 @@
 import type { REMAgentEvent } from '../../agent/agent-event.js';
 
-export function isImportantLiveAgentEvent(event: REMAgentEvent): boolean {
-  return event.type === 'tool_execution_start'
-    || event.type === 'tool_execution_end'
-    || event.type === 'error'
-    || event.type === 'finish';
-}
-
 export function formatLiveAgentEvent(event: REMAgentEvent): string {
   switch (event.type) {
     case 'tool_execution_start':

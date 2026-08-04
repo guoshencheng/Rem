@@ -1,3 +1,5 @@
+> 已由 `2026-08-04-live-agent-observation-design.md` 取代。
+
 # 真实 LLM Agent 工具测试 Harness 设计
 
 ## 目标

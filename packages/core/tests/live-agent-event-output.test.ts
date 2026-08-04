@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLiveAgentEvent, isImportantLiveAgentEvent } from '../src/testing/live-agent/event-output.js';
+import { formatLiveAgentEvent } from '../src/testing/live-agent/event-output.js';
 
 describe('live agent 事件输出', () => {
   it('将工具执行与终态事件压缩成可读行', () => {
@@ -8,7 +8,6 @@ describe('live agent 事件输出', () => {
 
     expect(formatLiveAgentEvent(started)).toContain('get_test_data');
     expect(formatLiveAgentEvent(finished)).toContain('完成');
-    expect(isImportantLiveAgentEvent(started)).toBe(true);
-    expect(isImportantLiveAgentEvent({ type: 'message_update' } as never)).toBe(false);
+    expect(formatLiveAgentEvent({ type: 'turn_start' } as never)).toBe('{"type":"turn_start"}');
   });
 });

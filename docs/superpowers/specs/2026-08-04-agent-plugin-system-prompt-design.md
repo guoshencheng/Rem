@@ -60,7 +60,7 @@ AgentDI.systemPromptAssembler
 ```ts
 export interface AgentPlugin {
   readonly name: string;
-  register(context: PluginRegistrationContext): void | Promise<void>;
+  register(context: PluginRegistrationContext): void;
 }
 
 export interface PluginRegistrationContext {
@@ -148,7 +148,9 @@ safety:
 
 插件注册采用 fail-fast。任一插件失败都会使 `createAgentAssembly()` 失败，不生成缺少部分业务或安全提示词的 assembly。
 
-传给插件的 registry 是本次 `register()` 调用的限时视图。`register()` resolve 或 reject 后该视图立即失效，后续任何操作都抛出错误。插件不得保存 registry 引用并在注册完成后修改装配状态；异步贡献必须在其返回的 Promise 完成前执行并等待完成。
+传给插件的 registry 是本次 `register()` 调用的限时视图。`register()` 返回或抛错后该视图立即失效，后续任何操作都抛出错误。插件不得保存 registry 引用并在注册完成后修改装配状态。
+
+第一阶段的 `register()` 有意保持同步，以维持 `createAgentAssembly()` 的同步装配契约。未来插件发现、读取配置或下载代码可以发生在调用装配入口之前，但得到插件定义后的 capability 注册仍是同步、确定性的转换；异步 Provider 初始化继续由 `initializeAgentDI()` 负责。
 
 ## 装配与运行数据流
 
@@ -197,6 +199,7 @@ enabled plugins changed
 
 公开可识别的装配错误包括：
 
+- `InvalidPluginNameError`：插件名不符合稳定名称格式。
 - `DuplicatePluginNameError`：同一次装配出现重复插件名。
 - `PromptSectionIdentityError`：名称格式非法，或 `set` 的名字与 `section.name` 不一致。
 - `ProtectedPromptSectionError`：删除或移动 `runtime`，或把其他 section 移到它之后。
@@ -285,3 +288,4 @@ src/
 - 插件失败具有事务性并阻止 assembly 创建。
 - Agent 运行路径只依赖 `AgentDI.systemPromptAssembler`。
 - 第一阶段 API 不妨碍未来新增 capability 或通过完整重建支持动态启停。
+- `createAgentAssembly()` 保持同步，插件 capability 注册不进入异步 DI 初始化阶段。

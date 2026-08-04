@@ -2,8 +2,8 @@ import type { PromptBuildContext, AgentPromptTemplateSelector, PromptSection, Sy
 
 export class DefaultSystemPromptAssembler implements SystemPromptAssembler {
   constructor(
-    private templateSelector: AgentPromptTemplateSelector,
-    private sections: PromptSection[],
+    private readonly templateSelector: AgentPromptTemplateSelector,
+    private readonly sections: readonly PromptSection[],
   ) {}
 
   async assemble(ctx: PromptBuildContext): Promise<string> {

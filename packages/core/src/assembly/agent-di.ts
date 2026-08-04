@@ -8,6 +8,7 @@ import type { ContextCompressor } from '../sdk/compressor.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { TitleProvider } from '../sdk/title-provider.js';
 import type { StorageProvider } from '../sdk/storage-provider.js';
+import type { SystemPromptAssembler } from '../sdk/system-prompt.js';
 
 export interface AgentDI {
   configProvider: ConfigProvider; // 基础配置
@@ -25,6 +26,8 @@ export interface AgentDI {
   skillProvider: SkillProvider;
   // 统一存储入口：session/todo/archive/workspace 全部由其实现
   storage: StorageProvider;
+
+  systemPromptAssembler: SystemPromptAssembler;
 
   models: Models;
 }

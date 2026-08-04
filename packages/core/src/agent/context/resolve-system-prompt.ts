@@ -3,7 +3,6 @@ import type { PromptBuildContext } from '../../sdk/system-prompt.js';
 import type { AgentDI } from '../../assembly/agent-di.js';
 import type { AgentRuntimeConfig } from '../../assembly/runtime-config.js';
 import { listPromptToolSummaries } from '../../tools/prompt-tool-summary.js';
-import { createDefaultSystemPromptAssembler } from '../../system-prompt/default-assembler.js';
 import type { AgentConfigResolution } from './resolve-config.js';
 
 export interface ResolveSystemPromptParams {
@@ -38,5 +37,5 @@ export async function resolveSystemPrompt(params: ResolveSystemPromptParams): Pr
     agentCorePrompt: agentRole.corePrompt,
   };
 
-  return createDefaultSystemPromptAssembler(di.skillProvider).assemble(buildCtx);
+  return di.systemPromptAssembler.assemble(buildCtx);
 }

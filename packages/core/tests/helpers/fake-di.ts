@@ -1,4 +1,4 @@
-import type { AgentDI, AgentRuntimeConfig, Session } from 'rem-agent-core';
+import type { AgentDI, AgentPlugin, AgentRuntimeConfig, Session } from 'rem-agent-core';
 import { createAgentAssembly, createDefaultAgentPaths, initializeAgentDI } from 'rem-agent-core';
 import type { ConfigProvider, ResolvedAgentConfig, ResolvedAgentRole, ResolvedModelConfig, AgentBehaviorConfig, AgentToolConfig, CompressionConfig, ToolProvider, ResolvedTeam, ResolvedOrchestrationConfig } from 'rem-agent-core';
 import type { Models } from '@earendil-works/pi-ai';
@@ -47,6 +47,7 @@ export interface FakeAssemblyOptions {
   models?: Models;
   toolProvider?: ToolProvider;
   maxTurns?: number;
+  plugins?: readonly AgentPlugin[];
 }
 
 /** 用真实装配 + mock models（LLM 响应由注入的 models 脚本化） */
@@ -59,6 +60,7 @@ export async function createFakeAssembly(options: FakeAssemblyOptions = {}): Pro
     configProvider: new FakeConfigProvider(options.maxTurns ?? 5),
     models,
     toolProvider: options.toolProvider,
+    plugins: options.plugins,
   });
   await initializeAgentDI(di);
   return { di, runtimeConfig, cleanup: async () => {} };

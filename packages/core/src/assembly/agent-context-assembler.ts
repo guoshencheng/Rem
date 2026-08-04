@@ -18,6 +18,7 @@ import { LLMSummarizingCompressor } from '../plugins/compressor/llm-summary/inde
 import { SimpleErrorHandler } from '../plugins/error/simple/index.js';
 import { LLMTitleProvider } from '../plugins/title/llm/index.js';
 import type { AgentAssembly, AssembleAgentContextOptions } from './types.js';
+import { createDefaultSystemPromptAssembler } from '../system-prompt/default-assembler.js';
 
 export type { AgentAssembly, AssembleAgentContextOptions } from './types.js';
 
@@ -32,18 +33,20 @@ export function assembleAgentContext(options: AssembleAgentContextOptions): Agen
 
   const compressor = options.compressor
     ?? new LLMSummarizingCompressor(configProvider.getCompressionConfig(), configProvider.getModelConfig(), models, runtime.env);
+  const skillProvider = options.skillProvider ?? new EmptySkillProvider();
 
   return {
     di: {
       configProvider,
       sessionProvider: new DefaultSessionProvider(storageProvider),
       toolProvider: options.toolProvider ?? new StaticToolProvider(),
-      skillProvider: options.skillProvider ?? new EmptySkillProvider(),
+      skillProvider,
       budgetPolicy: options.budgetPolicy ?? new FixedBudgetPolicy(configProvider),
       compressor,
       errorHandler: options.errorHandler ?? new SimpleErrorHandler(),
       titleProvider: options.titleProvider ?? new LLMTitleProvider(configProvider, models),
       storage: storageProvider,
+      systemPromptAssembler: createDefaultSystemPromptAssembler(skillProvider, options.plugins),
       models,
     },
     runtimeConfig: { runtime },

@@ -9,6 +9,7 @@ import type { ContextCompressor } from '../sdk/compressor.js';
 import type { ErrorHandler } from '../sdk/error-handler.js';
 import type { TitleProvider } from '../sdk/title-provider.js';
 import type { StorageProvider } from '../sdk/storage-provider.js';
+import type { AgentPlugin } from '../sdk/agent-plugin.js';
 
 export interface AgentAssembly {
   di: AgentDI;
@@ -26,4 +27,5 @@ export interface AssembleAgentContextOptions {
   compressor?: ContextCompressor;
   errorHandler?: ErrorHandler;
   titleProvider?: TitleProvider;
+  plugins?: readonly AgentPlugin[];
 }

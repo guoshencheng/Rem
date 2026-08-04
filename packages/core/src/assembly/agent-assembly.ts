@@ -16,6 +16,7 @@ import type { SkillProvider } from '../sdk/skill-provider.js';
 import type { ContextCompressor } from '../sdk/compressor.js';
 import type { TitleProvider } from '../sdk/title-provider.js';
 import type { AgentPaths } from '../infrastructure/config/paths.js';
+import type { AgentPlugin } from '../sdk/agent-plugin.js';
 
 export interface AgentContextBuildOptions {
   paths?: AgentPaths;
@@ -26,6 +27,7 @@ export interface AgentContextBuildOptions {
   skillProvider?: SkillProvider;
   compressor?: ContextCompressor;
   titleProvider?: TitleProvider;
+  plugins?: readonly AgentPlugin[];
 }
 
 export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAssembly {
@@ -58,5 +60,6 @@ export function createAgentAssembly(options?: AgentContextBuildOptions): AgentAs
     skillProvider,
     compressor: options?.compressor,
     titleProvider: options?.titleProvider,
+    plugins: options?.plugins,
   });
 }

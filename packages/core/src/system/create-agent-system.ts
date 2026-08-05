@@ -1,3 +1,4 @@
+import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { AgentAssembly } from '../assembly/types.js';
 import type { AgentSystem, CreateAgentSystemOptions } from './types.js';
 import { REMAgent } from '../agent/rem-agent.js';
@@ -12,6 +13,8 @@ import { resolveDelegationMaxDepth } from '../delegation/depth.js';
 import { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
 import { MultiAgentCoordinator } from '../orchestration/multi-agent-coordinator.js';
+import { SingleAgentCoordinator } from '../orchestration/single-agent-coordinator.js';
+import { AgentCoordinatorResolver } from '../orchestration/coordinator-resolver.js';
 
 export function createAgentSystem(
   assembly: AgentAssembly,
@@ -30,37 +33,38 @@ export function createAgentSystem(
     sessionUsecase,
     publish: (event) => bus.publish(event),
   });
-  const createAgent = options.createRootAgent ?? ((params) => new REMAgent(params));
+  const createRootAgent = options.createRootAgent ?? ((params) => new REMAgent(params));
   const delegationRunner = new DelegationRunner({
     di: assembly.di,
     runtimeConfig: assembly.runtimeConfig,
     sessionUsecase,
     eventDriver: new DelegationEventDriver(sessionUsecase),
     threadUsecase,
-    createAgent,
+    createAgent: createRootAgent,
     publish: (event) => bus.publish(event),
     maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
   });
+  const publish = (event: AgentSystemEvent) => bus.publish(event);
+  const sharedDeps = { createRootAgent, delegationRunner, threadUsecase, contextUsecase, publish };
+  const singleAgentCoordinator = new SingleAgentCoordinator({
+    ...sharedDeps,
+    driver,
+    agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
+  });
   const multiAgentCoordinator = new MultiAgentCoordinator({
+    ...sharedDeps,
     di: assembly.di,
     runtimeConfig: assembly.runtimeConfig,
     sessionUsecase,
-    threadUsecase,
-    contextUsecase,
-    delegationRunner,
-    createRootAgent: createAgent,
-    publish: (event) => bus.publish(event),
   });
+  const coordinators = new AgentCoordinatorResolver([singleAgentCoordinator, multiAgentCoordinator]);
   return new CoreAgentSystem({
     bus,
-    driver,
     registry,
     sessionUsecase,
     threadUsecase,
     contextUsecase,
-    createRootAgent: createAgent,
-    delegationRunner,
-    agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
-    multiAgentCoordinator,
+    coordinators,
+    di: assembly.di,
   });
 }

@@ -1,35 +1,28 @@
+import type { Message } from '@earendil-works/pi-ai';
 import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { BroadcastBus } from '../agent/broadcast-bus.js';
-import type { AgentRunDriver } from '../agent/agent-run-driver.js';
+import type { AgentDI } from '../assembly/agent-di.js';
+import type { AgentCoordinatorResolver } from '../orchestration/coordinator-resolver.js';
 import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import type { SessionUsecase } from '../session/session-usecase.js';
-import type { DelegationRunner } from '../delegation/runner.js';
 import type { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import type { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
-import type { Session } from '../session/model.js';
-import type {
-  AgentSystem, CreateSessionInput, RootAgentFactory, SendMessageInput,
-} from './types.js';
-import { SessionRuntime } from '../session/runtime.js';
+import type { AgentSystem, CreateSessionInput, SendMessageInput } from './types.js';
 import { streamSystemEvents } from './event-stream.js';
 import { projectSessionChat } from '../session/messages/session-chat-projector.js';
-import type { MultiAgentCoordinator } from '../orchestration/multi-agent-coordinator.js';
 
 export interface CoreAgentSystemDeps {
   bus: BroadcastBus;
-  driver: AgentRunDriver;
   registry: SessionRuntimeRegistry;
   sessionUsecase: SessionUsecase;
   threadUsecase: AgentThreadUsecase;
   contextUsecase: SessionAgentContextUsecase;
-  createRootAgent: RootAgentFactory;
-  delegationRunner: DelegationRunner;
-  agentParams: Pick<Parameters<RootAgentFactory>[0], 'di' | 'runtimeConfig'>;
-  multiAgentCoordinator: MultiAgentCoordinator;
+  coordinators: AgentCoordinatorResolver;
+  di: AgentDI;
 }
 
-/** Core 单 Agent 用例门面。 */
+/** Core Agent 用例门面：按 Session mode 分发到对应 coordinator，自身不持有 mode 分支。 */
 export class CoreAgentSystem implements AgentSystem {
   private recovery?: Promise<number>;
 
@@ -39,8 +32,8 @@ export class CoreAgentSystem implements AgentSystem {
     await this.ensureRecovery();
     const info = await this.deps.sessionUsecase.create(input.workspace, input.teamId);
     if (input.teamId) {
-      const config = this.deps.agentParams.di.configProvider.forWorkspace?.(input.workspace)
-        ?? this.deps.agentParams.di.configProvider;
+      const config = this.deps.di.configProvider.forWorkspace?.(input.workspace)
+        ?? this.deps.di.configProvider;
       await this.deps.threadUsecase.ensureTeamThreads(info.sessionId, config.resolveTeam(input.teamId));
     }
     return info;
@@ -66,8 +59,8 @@ export class CoreAgentSystem implements AgentSystem {
     const threads = await this.deps.threadUsecase.listBySession(sessionId);
     const primary = threads.find((thread) => thread.role === 'primary' || thread.role === 'organizer');
     const [entries, leafId] = await Promise.all([
-      this.deps.agentParams.di.sessionProvider.listEntries(sessionId),
-      this.deps.agentParams.di.sessionProvider.getActiveLeafId(sessionId),
+      this.deps.di.sessionProvider.listEntries(sessionId),
+      this.deps.di.sessionProvider.getActiveLeafId(sessionId),
     ]);
     return projectSessionChat(entries, leafId, primary?.agentThreadId ?? session.sessionId);
   }
@@ -83,34 +76,16 @@ export class CoreAgentSystem implements AgentSystem {
     await this.ensureRecovery();
     const session = await this.deps.sessionUsecase.requireSession(input.sessionId);
     const workspace = (session.metadata.workspace as string | undefined) ?? 'default';
+    const coordinator = this.deps.coordinators.forSession(session);
     const runtime = await this.deps.registry.getOrCreate(input.sessionId, () =>
-      this.createRuntime(session, workspace));
-    if (session.metadata.mode === 'multi-agent') {
-      await this.deps.multiAgentCoordinator.send(session, runtime, input.content as import('@earendil-works/pi-ai').Message['content']);
-      return;
-    }
-    runtime.startRun();
-    try {
-      const agent = runtime.rootAgent;
-      this.publish(runtime, { type: 'session-start' });
-      this.publish(runtime, { type: 'activity-change', activity: 'pending' });
-      const events = agent.run({ content: input.content, timestamp: new Date() });
-      void this.deps.driver.drive(runtime, agent, events);
-    } catch (error) {
-      runtime.failRun();
-      this.publish(runtime, {
-        type: 'session-error',
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+      coordinator.createRuntime(session, workspace));
+    await coordinator.send(session, runtime, input.content as Message['content']);
   }
 
   async interrupt(sessionId: string): Promise<void> {
     const runtime = this.deps.registry.get(sessionId);
     if (!runtime) return;
-    if (runtime.mode === 'multi-agent') await this.deps.multiAgentCoordinator.interrupt(runtime);
-    else runtime.interrupt();
+    await this.deps.coordinators.forRuntime(runtime).interrupt(runtime);
   }
 
   events(signal?: AbortSignal): AsyncIterable<AgentSystemEvent> {
@@ -120,50 +95,7 @@ export class CoreAgentSystem implements AgentSystem {
   private ensureRecovery(): Promise<number> {
     return (this.recovery ??= Promise.all([
       this.deps.sessionUsecase.recoverInterruptedDelegations(),
-      this.deps.multiAgentCoordinator.recoverProcessing(),
-    ]).then(([delegations, deliveries]) => delegations + deliveries));
-  }
-
-  private async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
-    if (session.metadata.mode === 'multi-agent') {
-      return this.deps.multiAgentCoordinator.createRuntime(session, workspace);
-    }
-    const thread = await this.deps.threadUsecase.ensurePrimaryThread(
-      session.sessionId,
-      'default',
-    );
-    const projectedSession = await this.deps.contextUsecase.projectSession(session, thread);
-    const rootAgent = this.deps.createRootAgent({
-      ...this.deps.agentParams,
-      session: projectedSession,
-      workspace,
-      workspaceRoot: workspace,
-      agentId: 'root',
-      sessionId: session.sessionId,
-      runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {
-        parentSessionId: session.sessionId,
-        parentAgentThreadId: thread.agentThreadId,
-        parentToolCallId: toolContext.toolCallId ?? 'unknown',
-        workspace,
-        workspaceRoot: toolContext.workspaceRoot,
-        depth: 1,
-        signal: toolContext.signal,
-      }),
-    });
-    return new SessionRuntime({
-      sessionId: session.sessionId,
-      workspace,
-      agentThreadId: thread.agentThreadId,
-      rootAgent,
-    });
-  }
-
-  private publish(
-    runtime: SessionRuntime,
-    event: { type: 'session-start' }
-      | { type: 'activity-change'; activity: 'pending' }
-      | { type: 'session-error'; error: string },
-  ): void {
-    this.deps.bus.publish({ ...event, sessionId: runtime.sessionId, workspace: runtime.workspace });
+      ...[...this.deps.coordinators.all()].map((coordinator) => coordinator.recoverProcessing()),
+    ]).then(([delegations, ...counts]) => delegations + counts.reduce((sum, n) => sum + n, 0)));
   }
 }

@@ -78,6 +78,7 @@ Core 不依赖 `ai` 包。推理循环复用 `@earendil-works/pi-agent-core` 的
 | `packages/core/src/assembly/agent-factory.ts` | `createAgentFromEnv` |
 | `packages/core/src/assembly/agent-assembly.ts` | `createAgentAssembly` |
 | `packages/core/src/agent/rem-agent.ts` | 当前单 Agent 执行单元 |
+| `packages/core/src/orchestration/agent-coordinator-types.ts` | AgentCoordinator 接口（按 Session mode 分发单/多 Agent 实现） |
 | `packages/core/src/session/model.ts` | 当前持久化 Session 模型 |
 | `packages/core/src/sdk/storage-provider.ts` | Storage Provider 稳定接口 |
 | `packages/core/src/plugins/storage/sqlite/` | 默认 SQLite 存储实现 |
@@ -97,7 +98,7 @@ Core 不依赖 `ai` 包。推理循环复用 `@earendil-works/pi-agent-core` 的
 - 单元测试放在 `packages/core/tests/`。
 - 测试专用 fake 位于 `packages/core/tests/helpers/`。
 - 完成修改后运行 `pnpm build && pnpm typecheck && pnpm test`。
-- 结构检查当前仍报告 `agent/rem-agent.ts` 文件过长和 `agent → plugins` 依赖两项既有问题；下一阶段拆分 REMAgent 时修复，不得新增结构违规。
+- 结构检查当前全绿，不得新增结构违规。
 
 ## 语言
 

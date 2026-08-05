@@ -56,7 +56,7 @@ REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-trans
 
 ### `orchestration/`
 
-Session 运行时协调域。`agent-coordinator-types.ts` 定义 `AgentCoordinator` 接口（createRuntime / send / interrupt / recoverProcessing）与共享 deps（Agent 创建统一走 `createRootAgent` 工厂）；`coordinator-resolver.ts` 按 `Session.metadata.mode` / `runtime.mode` 分发到对应实现。`single-agent-coordinator.ts` 驱动单 Agent 路径（一个 REMAgent 一次 run 到底）。多 Agent 侧：`delivery-*` 定义持久投递与状态机；`scheduler.ts` 负责 claim、并发限制、批次完成和 resume；`multi-agent-coordinator.ts` 实现 Team Session 的 `AgentCoordinator`；`multi-agent-actions.ts` 实现 `send_message` / `finish_discussion` 的当前 Delivery 语义；`discussion-runtime.ts` 与 `discussion-budget.ts` 管理单次讨论、中止和五类预算。
+Session 运行时协调域。`agent-coordinator-types.ts` 定义 `AgentCoordinator` 接口（createRuntime / send / interrupt / recoverProcessing）与共享 deps（Agent 创建统一走 `createRootAgent` 工厂）；`coordinator-resolver.ts` 按 `Session.metadata.mode` / `runtime.mode` 分发到对应实现。`single-agent-coordinator.ts` 驱动单 Agent 路径（一个 REMAgent 一次 run 到底）。多 Agent 侧：`delivery-*` 定义持久投递与状态机；`scheduler.ts` 负责连续调度（按 thread 空闲放行、完成即重扫）、并发限制与 resume 唤醒；`multi-agent-coordinator.ts` 实现 Team Session 的 `AgentCoordinator`；`multi-agent-actions.ts` 实现 `send_message` / `finish_discussion` 的当前 Delivery 语义；`discussion-runtime.ts` 与 `discussion-budget.ts` 管理单次讨论、中止和五类预算。
 
 ### `system/`
 

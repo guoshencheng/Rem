@@ -17,18 +17,33 @@ export class OrchestrationScheduler {
     this.batches = new BatchCompletion(deps.deliveries);
   }
 
-  /** 主循环：持续消费 queued delivery，空闲时交给 resolveIdle 决定收尾或退出。 */
+  /** 主循环（连续调度）：扫描 queued delivery，按 thread 空闲放行执行，任何一条完成立即重扫；真空时交给 resolveIdle 收尾或退出。 */
   async drive(sessionId: string, discussion: DiscussionRuntime): Promise<void> {
+    const busyThreads = new Set<string>();
+    let inFlight = 0;
+    let wake: () => void = () => {};
     while (discussion.status === 'running' || discussion.status === 'finishing') {
       const queued = await this.deps.deliveries.listQueued(
         sessionId, discussion.rootUserMessageId,
       );
-      if (queued.length === 0) {
+      for (const delivery of queued) {
+        if (busyThreads.has(delivery.targetAgentThreadId)) continue;
+        busyThreads.add(delivery.targetAgentThreadId);
+        inFlight += 1;
+        void this.limiter.run(() => this.execute(delivery, discussion))
+          .catch(() => undefined)
+          .finally(() => {
+            busyThreads.delete(delivery.targetAgentThreadId);
+            inFlight -= 1;
+            wake();
+          });
+      }
+      if (inFlight === 0) {
         const deliveries = await this.deps.deliveries.listByRoot(sessionId, discussion.rootUserMessageId);
         if (await this.resolveIdle(discussion, deliveries)) continue;
         return;
       }
-      await Promise.all(queued.map((delivery) => this.limiter.run(() => this.execute(delivery, discussion))));
+      await new Promise<void>((resolve) => { wake = resolve; });
     }
   }
 

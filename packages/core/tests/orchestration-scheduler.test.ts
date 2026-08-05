@@ -58,6 +58,56 @@ describe('OrchestrationScheduler', () => {
     expect(discussion.status).toBe('completed');
     expect(discussion.finishRequest?.answer).toBe('final answer');
   });
+
+  it('快 Agent 的回复在慢 Agent 完成前即被调度（连续调度，无轮次屏障）', async () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    new SqliteSchemaManager(db).migrate();
+    const session = await new SqliteSessionStore(db).create('ws');
+    const threadStore = new SqliteAgentThreadStore(db);
+    const now = new Date();
+    for (const [agentThreadId, agentId, role] of [
+      ['organizer', 'organizer', 'organizer'], ['fast', 'fast', 'member'], ['slow', 'slow', 'member'],
+    ] as const) {
+      await threadStore.save({ agentThreadId, sessionId: session.sessionId, agentId, role,
+        lifecycle: 'persistent', createdAt: now, updatedAt: now });
+    }
+    const deliveries = new MessageDeliveryUsecase(new SqliteMessageDeliveryStore(db));
+    await deliveries.createBatch([makeDelivery(session.sessionId, 'initial', 'initial', 'organizer')]);
+    let slowFinishedAt = 0;
+    let replyRanAt = 0;
+    const executor = new DeliveryExecutor(async (delivery, discussion) => {
+      if (delivery.deliveryId === 'initial') {
+        await deliveries.createBatch([
+          makeDelivery(session.sessionId, 'fast-work', 'fast-batch', 'fast', 'organizer'),
+          makeDelivery(session.sessionId, 'slow-work', 'slow-batch', 'slow', 'organizer'),
+        ]);
+      } else if (delivery.deliveryId === 'fast-work') {
+        await deliveries.createBatch([
+          makeDelivery(session.sessionId, 'fast-reply', 'fast-reply-batch', 'organizer', 'fast'),
+        ]);
+      } else if (delivery.deliveryId === 'slow-work') {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        slowFinishedAt = Date.now();
+      } else if (delivery.deliveryId === 'fast-reply') {
+        replyRanAt = Date.now();
+      } else if (delivery.kind === 'resume') {
+        discussion.requestFinish('organizer', 'done');
+      }
+    });
+    const discussion = new DiscussionRuntime('root', {
+      maxAgentRuns: 20, maxMessages: 50, maxDepth: 8, timeoutMs: 300_000,
+      maxTokens: 200_000, maxParallelAgents: 3,
+    });
+
+    await new OrchestrationScheduler({ deliveries, executor, maxParallelAgents: 3 })
+      .drive(session.sessionId, discussion);
+
+    expect(replyRanAt).toBeGreaterThan(0);
+    expect(slowFinishedAt).toBeGreaterThan(0);
+    expect(replyRanAt).toBeLessThan(slowFinishedAt);
+    expect(discussion.status).toBe('completed');
+  });
 });
 
 function makeDelivery(

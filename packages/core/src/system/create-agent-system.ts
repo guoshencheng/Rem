@@ -2,7 +2,6 @@ import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { AgentAssembly } from '../assembly/types.js';
 import type { AgentSystem, CreateAgentSystemOptions } from './types.js';
 import { REMAgent } from '../agent/rem-agent.js';
-import { AgentRunDriver } from '../agent/agent-run-driver.js';
 import { BroadcastBus } from '../agent/broadcast-bus.js';
 import { SessionRuntimeRegistry } from '../session/runtime-registry.js';
 import { SessionUsecase } from '../session/session-usecase.js';
@@ -29,10 +28,6 @@ export function createAgentSystem(
     threadUsecase,
   });
   const registry = new SessionRuntimeRegistry();
-  const driver = new AgentRunDriver({
-    sessionUsecase,
-    publish: (event) => bus.publish(event),
-  });
   const createRootAgent = options.createRootAgent ?? ((params) => new REMAgent(params));
   const delegationRunner = new DelegationRunner({
     di: assembly.di,
@@ -48,7 +43,7 @@ export function createAgentSystem(
   const sharedDeps = { createRootAgent, delegationRunner, threadUsecase, contextUsecase, publish };
   const singleAgentCoordinator = new SingleAgentCoordinator({
     ...sharedDeps,
-    driver,
+    sessionUsecase,
     agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
   });
   const multiAgentCoordinator = new MultiAgentCoordinator({

@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { REMAgent } from '../src/agent/rem-agent.js';
 import type { REMAgentEvent } from '../src/agent/agent-event.js';
-import { AgentRunDriver } from '../src/agent/agent-run-driver.js';
+import { SingleAgentRunDriver } from '../src/orchestration/single-agent-run-driver.js';
 import { EventQueue } from '../src/agent/event-queue.js';
 import { emptyUsage } from '../src/agent/token-usage/index.js';
 import { SessionRuntime } from '../src/session/runtime.js';
 import type { SessionUsecase } from '../src/session/session-usecase.js';
 
-describe('AgentRunDriver', () => {
+describe('SingleAgentRunDriver', () => {
   it('串行持久化内部事件并发布公开终态', async () => {
     const persistAgentEvent = vi.fn(async () => {});
     const published: Array<{ type: string }> = [];
-    const driver = new AgentRunDriver({
+    const driver = new SingleAgentRunDriver({
       sessionUsecase: { persistAgentEvent } as unknown as SessionUsecase,
       publish: (event) => published.push(event),
     });
@@ -42,7 +42,7 @@ describe('AgentRunDriver', () => {
   it('持久化失败会中断 Agent、标记 Runtime error 并发布错误', async () => {
     const publish = vi.fn();
     const interrupt = vi.fn();
-    const driver = new AgentRunDriver({
+    const driver = new SingleAgentRunDriver({
       sessionUsecase: {
         persistAgentEvent: vi.fn(async () => { throw new Error('disk failed'); }),
       } as unknown as SessionUsecase,

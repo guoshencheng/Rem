@@ -1,22 +1,22 @@
-import type { AgentSystemEvent, SessionActivity } from './bus-events.js';
-import type { REMAgentEvent } from './agent-event.js';
-import type { REMAgent } from './rem-agent.js';
+import type { AgentSystemEvent, SessionActivity } from '../agent/bus-events.js';
+import type { REMAgentEvent } from '../agent/agent-event.js';
+import type { REMAgent } from '../agent/rem-agent.js';
 import type { SessionRuntime } from '../session/runtime.js';
 import type { SessionUsecase } from '../session/session-usecase.js';
-import { reduceSessionActivity } from './session-activity.js';
+import { reduceSessionActivity } from '../agent/session-activity.js';
 
 type SystemEventBody<T = AgentSystemEvent> = T extends AgentSystemEvent
   ? Omit<T, 'workspace' | 'sessionId'>
   : never;
 
-export interface AgentRunDriverDeps {
+export interface SingleAgentRunDriverDeps {
   sessionUsecase: SessionUsecase;
   publish: (event: AgentSystemEvent) => void;
 }
 
-/** 消费一次 root Agent run：串行持久化并发布公开系统事件。 */
-export class AgentRunDriver {
-  constructor(private readonly deps: AgentRunDriverDeps) {}
+/** 单 Agent 的 run 驱动器：串行消费一次 root Agent 的事件流，持久化并发布公开系统事件。仅供 SingleAgentCoordinator 内部使用。 */
+export class SingleAgentRunDriver {
+  constructor(private readonly deps: SingleAgentRunDriverDeps) {}
 
   async drive(
     runtime: SessionRuntime,

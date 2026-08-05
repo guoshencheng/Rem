@@ -11,8 +11,7 @@ import { DelegationRunner } from '../delegation/runner.js';
 import { resolveDelegationMaxDepth } from '../delegation/depth.js';
 import { AgentThreadUsecase } from '../session/agent-thread/agent-thread-usecase.js';
 import { SessionAgentContextUsecase } from '../session/session-agent-context-usecase.js';
-import { MultiAgentCoordinator } from '../orchestration/multi-agent-coordinator.js';
-import { SingleAgentCoordinator } from '../orchestration/single-agent-coordinator.js';
+import { createDefaultCoordinators } from '../orchestration/default-coordinators.js';
 import { AgentCoordinatorResolver } from '../orchestration/coordinator-resolver.js';
 
 export function createAgentSystem(
@@ -40,19 +39,16 @@ export function createAgentSystem(
     maxDepth: resolveDelegationMaxDepth(options.delegation?.maxDepth),
   });
   const publish = (event: AgentSystemEvent) => bus.publish(event);
-  const sharedDeps = { createRootAgent, delegationRunner, threadUsecase, contextUsecase, publish };
-  const singleAgentCoordinator = new SingleAgentCoordinator({
-    ...sharedDeps,
-    sessionUsecase,
-    agentParams: { di: assembly.di, runtimeConfig: assembly.runtimeConfig },
-  });
-  const multiAgentCoordinator = new MultiAgentCoordinator({
-    ...sharedDeps,
+  const coordinators = new AgentCoordinatorResolver(createDefaultCoordinators({
+    createRootAgent,
+    delegationRunner,
+    threadUsecase,
+    contextUsecase,
+    publish,
     di: assembly.di,
     runtimeConfig: assembly.runtimeConfig,
     sessionUsecase,
-  });
-  const coordinators = new AgentCoordinatorResolver([singleAgentCoordinator, multiAgentCoordinator]);
+  }));
   return new CoreAgentSystem({
     bus,
     registry,

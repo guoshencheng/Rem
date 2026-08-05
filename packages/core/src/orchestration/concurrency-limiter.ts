@@ -1,3 +1,4 @@
+/** 内存信号量：限制同时执行的 Agent 数量，超限时排队等待空位。 */
 export class ConcurrencyLimiter {
   private active = 0;
   private readonly waiting: Array<() => void> = [];

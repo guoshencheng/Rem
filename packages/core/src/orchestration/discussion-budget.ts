@@ -2,6 +2,7 @@ import type { ResolvedOrchestrationConfig } from '../sdk/config-provider.js';
 
 export type DiscussionBudgetReason = 'agent-runs' | 'messages' | 'depth' | 'timeout' | 'tokens';
 
+/** 讨论预算账本：agent-runs / messages / depth / timeout / tokens 五类额度的记账与耗尽检查。 */
 export class DiscussionBudget {
   agentRuns = 0;
   messages = 0;
@@ -25,6 +26,7 @@ export class DiscussionBudget {
     this.maxDepthReached = Math.max(this.maxDepthReached, depth);
   }
 
+  /** 预算护栏：先检查是否耗尽，未耗尽则记账一次 run 并放行。 */
   reserveRun(depth: number): DiscussionBudgetReason | null {
     const reason = this.check(depth);
     if (reason) return reason;

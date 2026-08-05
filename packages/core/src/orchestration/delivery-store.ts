@@ -1,5 +1,6 @@
 import type { MessageDelivery } from './delivery-model.js';
 
+/** delivery 持久化接口，SQLite 实现见 plugins/storage。 */
 export interface MessageDeliveryStore {
   createBatch(items: MessageDelivery[]): Promise<void>;
   get(deliveryId: string): Promise<MessageDelivery | null>;

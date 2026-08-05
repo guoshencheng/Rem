@@ -21,6 +21,7 @@ import { MultiAgentEventHandler } from './multi-agent-event-handler.js';
 import type { MultiAgentCoordinatorDeps } from './multi-agent-coordinator-types.js';
 import type { AgentCoordinator, SessionMode } from './agent-coordinator-types.js';
 
+/** 多 Agent 协调器：把用户消息落成初始 delivery 交给 OrchestrationScheduler 驱动整轮讨论，组装执行器、事件处理与编排工具绑定。 */
 export class MultiAgentCoordinator implements AgentCoordinator {
   readonly mode: SessionMode = 'multi-agent';
   private readonly bindings = new Map<string, OrchestrationActionBinding>();

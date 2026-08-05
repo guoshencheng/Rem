@@ -20,6 +20,7 @@ export interface MultiAgentActionsInput {
   threadUsecase: AgentThreadUsecase;
 }
 
+/** 创建编排工具实现：send_message 校验（讨论进行中、预算、team 成员、不自发）后写消息并产出新 delivery；finish_discussion 仅 organizer 可用，提交最终答案。 */
 export function createMultiAgentActions(input: MultiAgentActionsInput): AgentOrchestrationActions {
   return {
     sendMessage: async ({ toAgentIds, content }) => {

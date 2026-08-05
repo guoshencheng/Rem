@@ -20,6 +20,7 @@ export interface MultiAgentEventHandlerDeps {
   publish(event: AgentSystemEvent): void;
 }
 
+/** 多 Agent 事件处理器：把 agent 事件分流到持久化（message-persist/usage 等）、bus 发布（chunk/usage-change/todo-updated）与预算 recordTokens。 */
 export class MultiAgentEventHandler {
   constructor(private readonly deps: MultiAgentEventHandlerDeps) {}
 
@@ -48,6 +49,7 @@ export class MultiAgentEventHandler {
       agentId: runtime.threadRuntimes.get(threadId)?.agent.agentId, agentThreadId: threadId, chunk: event });
   }
 
+  /** 执行失败按角色处理：organizer 失败终止整个讨论；member 失败写入 synthetic failure 消息让讨论继续。 */
   async handleFailure(
     session: Session,
     delivery: MessageDelivery,

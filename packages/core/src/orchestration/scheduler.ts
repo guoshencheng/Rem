@@ -4,8 +4,10 @@ import type { SchedulerDeps } from './scheduler-types.js';
 import { BatchCompletion } from './batch-completion.js';
 import { ConcurrencyLimiter } from './concurrency-limiter.js';
 
+/** 预算耗尽后给 organizer 做受限收尾总结用的特殊批次前缀，该批次的 resume 不再占用预算。 */
 export const BUDGET_SUMMARY_BATCH_PREFIX = 'budget-summary:';
 
+/** 调度主循环：拉取 queued delivery → 经 ConcurrencyLimiter 并发执行 → 完成/失败落库 → 触发批次完成检查，直到 discussion 结束。 */
 export class OrchestrationScheduler {
   private readonly limiter: ConcurrencyLimiter;
   private readonly batches: BatchCompletion;
@@ -15,6 +17,7 @@ export class OrchestrationScheduler {
     this.batches = new BatchCompletion(deps.deliveries);
   }
 
+  /** 主循环：持续消费 queued delivery，空闲时交给 resolveIdle 决定收尾或退出。 */
   async drive(sessionId: string, discussion: DiscussionRuntime): Promise<void> {
     while (discussion.status === 'running' || discussion.status === 'finishing') {
       const queued = await this.deps.deliveries.listQueued(
@@ -29,6 +32,7 @@ export class OrchestrationScheduler {
     }
   }
 
+  /** 执行单条 delivery：先过 budget.reserveRun 预算护栏，再 claim 原子抢占防并发重复执行，执行后落库并触发批次完成检查。 */
   private async execute(delivery: MessageDelivery, discussion: DiscussionRuntime): Promise<void> {
     const restrictedSummary = delivery.kind === 'resume'
       && delivery.batchId.startsWith(BUDGET_SUMMARY_BATCH_PREFIX);
@@ -68,6 +72,7 @@ export class OrchestrationScheduler {
     }
   }
 
+  /** 无 queued delivery 时的收尾决策：finishing 则完成 / 预算耗尽则触发 onBudgetExhausted / 否则标记 failed。 */
   private async resolveIdle(
     discussion: DiscussionRuntime,
     deliveries: MessageDelivery[],

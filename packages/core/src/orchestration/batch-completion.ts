@@ -4,9 +4,11 @@ import { generateId } from '../shared/generate-id.js';
 
 const TERMINAL = new Set(['completed', 'failed', 'interrupted']);
 
+/** 批次完成检测：同一 batchId 的 message delivery 全部进入终态时，为发起方生成 resume delivery，唤醒其继续讨论。 */
 export class BatchCompletion {
   constructor(private readonly deliveries: MessageDeliveryUsecase) {}
 
+  /** 若所属批次已全部终态则创建 resume delivery；unique constraint 冲突视为已有 resume，直接忽略。 */
   async createResumeIfComplete(delivery: MessageDelivery): Promise<void> {
     if (delivery.kind !== 'message' || !delivery.requestedByAgentThreadId) return;
     const root = await this.deliveries.listByRoot(delivery.sessionId, delivery.rootUserMessageId);

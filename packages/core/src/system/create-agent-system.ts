@@ -48,7 +48,7 @@ export function createAgentSystem(
     threadUsecase,
     contextUsecase,
     delegationRunner,
-    createAgent,
+    createRootAgent: createAgent,
     publish: (event) => bus.publish(event),
   });
   return new CoreAgentSystem({

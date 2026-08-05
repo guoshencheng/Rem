@@ -19,8 +19,10 @@ import { OrchestrationScheduler } from './scheduler.js';
 import { BUDGET_SUMMARY_BATCH_PREFIX } from './scheduler.js';
 import { MultiAgentEventHandler } from './multi-agent-event-handler.js';
 import type { MultiAgentCoordinatorDeps } from './multi-agent-coordinator-types.js';
+import type { AgentCoordinator, SessionMode } from './agent-coordinator-types.js';
 
-export class MultiAgentCoordinator {
+export class MultiAgentCoordinator implements AgentCoordinator {
+  readonly mode: SessionMode = 'multi-agent';
   private readonly bindings = new Map<string, OrchestrationActionBinding>();
   private readonly deliveries: MessageDeliveryUsecase;
   private readonly eventHandler: MultiAgentEventHandler;
@@ -148,7 +150,7 @@ export class MultiAgentCoordinator {
     const binding = new OrchestrationActionBinding(thread.role === 'organizer');
     this.bindings.set(thread.agentThreadId, binding);
     const projected = await this.deps.contextUsecase.projectSession(session, thread);
-    const agent = this.deps.createAgent({ di: this.deps.di, runtimeConfig: this.deps.runtimeConfig,
+    const agent = this.deps.createRootAgent({ di: this.deps.di, runtimeConfig: this.deps.runtimeConfig,
       session: projected, workspace, workspaceRoot: workspace, agentId: thread.agentId,
       agentRoleId: thread.agentId, sessionId: session.sessionId, orchestrationActions: binding.actions,
       runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {

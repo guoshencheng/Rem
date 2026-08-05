@@ -7,6 +7,10 @@ export default defineConfig({
     environment: 'node',
     include: ['packages/core/**/*.test.ts'],
     setupFiles: ['packages/core/tests/setup.ts'],
+    coverage: {
+      include: ['packages/core/src/**/*.ts'],
+      exclude: ['archive/**', 'packages/core/src/**/*.d.ts'],
+    },
   },
   resolve: {
     alias: [

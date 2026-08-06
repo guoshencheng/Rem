@@ -120,4 +120,10 @@ describe('AgentSystem', () => {
     await system.send({ sessionId: session.sessionId, content: 'retry' });
     expect((await terminal).at(-1)?.type).toBe('session-end');
   });
+
+  it('listTeams delegates to config provider', async () => {
+    const assembly = await createFakeAssembly({ models: createScriptedModels([]).models });
+    const system = createAgentSystem(assembly);
+    expect(await system.listTeams()).toEqual([]);
+  });
 });

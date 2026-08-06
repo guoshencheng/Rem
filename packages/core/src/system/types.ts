@@ -1,3 +1,4 @@
+import type { TeamInfo } from '../sdk/config-provider.js';
 import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { REMAgent, REMAgentParams } from '../agent/rem-agent.js';
 import type { UserInputContent } from '../agent/types.js';
@@ -27,6 +28,7 @@ export interface AgentSystem {
   createSession(input: CreateSessionInput): Promise<SessionInfo>;
   getSession(sessionId: string): Promise<SessionInfo>;
   listSessions(workspace: string): Promise<SessionInfo[]>;
+  listTeams(): Promise<TeamInfo[]>;
   getSessionThreads(sessionId: string): Promise<AgentThread[]>;
   getSessionChat(sessionId: string): Promise<SessionChatMessage[]>;
   getAgentThreadContext(sessionId: string, agentThreadId: string): Promise<Message[]>;

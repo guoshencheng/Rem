@@ -2,6 +2,7 @@ import type { Message } from '@earendil-works/pi-ai';
 import type { AgentSystemEvent } from '../agent/bus-events.js';
 import type { BroadcastBus } from '../agent/broadcast-bus.js';
 import type { AgentDI } from '../assembly/agent-di.js';
+import type { TeamInfo } from '../sdk/config-provider.js';
 import type { AgentCoordinatorResolver } from '../orchestration/coordinator-resolver.js';
 import type { SessionInfo } from '../session/manager/types.js';
 import type { SessionRuntimeRegistry } from '../session/runtime-registry.js';
@@ -37,6 +38,10 @@ export class CoreAgentSystem implements AgentSystem {
       await this.deps.threadUsecase.ensureTeamThreads(info.sessionId, config.resolveTeam(input.teamId));
     }
     return info;
+  }
+
+  async listTeams(): Promise<TeamInfo[]> {
+    return this.deps.di.configProvider.listTeams();
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {

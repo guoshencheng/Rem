@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist/server",
+    "rootDir": "src/server",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "rem-agent-core": ["../core/src/index.ts"]
+    }
+  },
+  "include": ["src/server"]
+}

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/client/*"],
+      "rem-agent-core": ["../core/src/index.ts"]
+    }
+  },
+  "include": ["src/client", "tests", "vite.config.ts", "vitest.config.ts"]
+}

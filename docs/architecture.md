@@ -4,9 +4,9 @@
 
 ## 活动边界
 
-`packages/core` 是唯一活动包。`archive/` 保存旧 Core、Bridge、Routes、UI 和 Web 实现，不参与 workspace 构建。
+`packages/core` 是 Core Agent System。`packages/web` 是基于 Core 的接入层与 Web UI（Hono + React）。`archive/` 保存旧 Core、Bridge、Routes、UI 和 Web 实现，不参与 workspace 构建。
 
-当前目标不是维护接入层，而是先让 Core 独立提供完整 Agent System。未来的协议、服务和 UI 只能依赖 Core；Core 不依赖 HTTP、SSE、React 或其他表现层协议。
+当前目标不是维护接入层，而是先让 Core 独立提供完整 Agent System。未来的协议、服务和 UI 只能依赖 Core；Core 不依赖 HTTP、SSE、React 或其他表现层协议。`packages/web` 只通过 `AgentSystem` 门面依赖 Core。
 
 ## 当前 Core 能力
 

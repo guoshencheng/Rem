@@ -53,7 +53,7 @@ export class SingleAgentRunDriver {
           activity = nextActivity;
           this.publish(runtime, { type: 'activity-change', activity });
         }
-        this.publish(runtime, { type: 'chunk', chunk: event, agentId: agent.agentId });
+        this.publish(runtime, { type: 'chunk', chunk: event, agentId: agent.agentId, agentThreadId: runtime.agentThreadId });
         if (event.type === 'finish') {
           await this.deps.sessionUsecase.persistAgentEvent(
             runtime.sessionId, runtime.agentThreadId, event,

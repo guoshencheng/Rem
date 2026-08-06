@@ -126,4 +126,23 @@ describe('AgentSystem', () => {
     const system = createAgentSystem(assembly);
     expect(await system.listTeams()).toEqual([]);
   });
+
+  it('单 Agent chunk 事件携带 agentThreadId', async () => {
+    const scripted = createScriptedModels([() => fauxAssistantMessage('hi')]);
+    const assembly = await createFakeAssembly({ models: scripted.models });
+    const system = createAgentSystem(assembly);
+    const session = await system.createSession({ workspace: 'ws' });
+
+    const terminal = waitForTerminal(system.events(), session.sessionId);
+    await system.send({ sessionId: session.sessionId, content: 'hello' });
+    const events = await terminal;
+    const threads = await system.getSessionThreads(session.sessionId);
+
+    const chunks = events.filter((e) => e.type === 'chunk');
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(threads.length).toBeGreaterThan(0);
+    for (const chunk of chunks) {
+      expect(chunk.agentThreadId).toBe(threads[0].agentThreadId);
+    }
+  });
 });

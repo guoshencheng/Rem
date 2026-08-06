@@ -11,7 +11,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/client/*"],
-      "rem-agent-core": ["../core/src/index.ts"]
+      "rem-agent-core": ["../core/dist/index.d.ts"]
     }
   },
   "include": ["src/client", "tests", "vite.config.ts", "vitest.config.ts"]

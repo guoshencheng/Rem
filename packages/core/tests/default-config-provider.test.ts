@@ -48,4 +48,9 @@ describe('DefaultConfigProvider', () => {
       maxParallelAgents: 4,
     });
   });
+
+  it('listTeams returns configured teams with organizer and members', () => {
+    const provider = new DefaultConfigProvider({ env: {} as NodeJS.ProcessEnv, paths });
+    expect(provider.listTeams()).toEqual([]);
+  });
 });

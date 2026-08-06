@@ -6,6 +6,7 @@ import type {
   ResolvedAgentConfig,
   ResolvedModelConfig,
   ResolvedOrchestrationConfig,
+  TeamInfo,
 } from '../../../sdk/config-provider.js';
 import type { AgentResolver, ResolvedAgentRole, ResolvedTeam } from '../../../sdk/agent-role.js';
 import type { AgentPaths } from '../../../infrastructure/config/paths.js';
@@ -162,6 +163,15 @@ export class DefaultConfigProvider implements ConfigProvider {
   resolveTeam(id: string): ResolvedTeam {
     if (!this.teamResolver) throw new Error('DefaultConfigProvider must be initialized before resolving team');
     return this.teamResolver.resolveTeam(id);
+  }
+
+  listTeams(): TeamInfo[] {
+    const teams = this.getRawConfig().teams ?? {};
+    return Object.entries(teams).map(([id, team]) => ({
+      id,
+      organizer: team.organizer,
+      members: [...team.members],
+    }));
   }
 
   getOrchestrationConfig(): ResolvedOrchestrationConfig {

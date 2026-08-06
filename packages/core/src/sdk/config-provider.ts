@@ -35,6 +35,12 @@ export interface TeamConfig {
   members: string[];
 }
 
+export interface TeamInfo {
+  id: string;
+  organizer: string;
+  members: string[];
+}
+
 export interface OrchestrationConfig {
   maxAgentRuns?: number;
   maxMessages?: number;
@@ -85,6 +91,7 @@ export interface ConfigProvider {
   getCompressionConfig(): Required<CompressionConfig>;
   resolveAgent(id?: string): ResolvedAgentRole;
   resolveTeam(id: string): ResolvedTeam;
+  listTeams(): TeamInfo[];
   getOrchestrationConfig(): ResolvedOrchestrationConfig;
   /** 返回指定 workspace 的配置视图（合并 workspace 级配置文件）；缺省时用自身 */
   forWorkspace?(workspace: string): ConfigProvider;

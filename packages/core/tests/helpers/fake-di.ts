@@ -1,6 +1,6 @@
 import type { AgentDI, AgentPlugin, AgentRuntimeConfig, Session } from 'rem-agent-core';
 import { createAgentAssembly, createDefaultAgentPaths, initializeAgentDI } from 'rem-agent-core';
-import type { ConfigProvider, ResolvedAgentConfig, ResolvedAgentRole, ResolvedModelConfig, AgentBehaviorConfig, AgentToolConfig, CompressionConfig, ToolProvider, ResolvedTeam, ResolvedOrchestrationConfig } from 'rem-agent-core';
+import type { ConfigProvider, ResolvedAgentConfig, ResolvedAgentRole, ResolvedModelConfig, AgentBehaviorConfig, AgentToolConfig, CompressionConfig, ToolProvider, ResolvedTeam, ResolvedOrchestrationConfig, TeamInfo } from 'rem-agent-core';
 import type { Models } from '@earendil-works/pi-ai';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -32,6 +32,7 @@ class FakeConfigProvider implements ConfigProvider {
     return { id: 'default', name: 'TestAgent', corePrompt: '' };
   }
   resolveTeam(id: string): ResolvedTeam { throw new Error(`Unknown team: ${id}`); }
+  listTeams(): TeamInfo[] { return []; }
   getOrchestrationConfig(): ResolvedOrchestrationConfig {
     return { maxAgentRuns: 20, maxMessages: 50, maxDepth: 8, timeoutMs: 300_000, maxTokens: 200_000, maxParallelAgents: 4 };
   }

@@ -5,6 +5,7 @@ import type { SessionTreeEntry } from '../tree/types.js';
 import { getActiveEntryChain } from './entry-chain.js';
 import type { MessageEntryPayload, NormalizedMessageEntryPayload } from './payload.js';
 import { normalizeMessagePayload } from './normalize.js';
+import { repairToolResultAdjacency } from './tool-result-repair.js';
 
 export interface ThreadContextProjectionInput {
   entries: SessionTreeEntry[];
@@ -28,11 +29,12 @@ export function projectThreadContext(input: ThreadContextProjectionInput): Messa
   const primaryThreadId = input.threads.find((thread) => thread.role === 'primary')?.agentThreadId
     ?? input.target.agentThreadId;
 
-  return getActiveEntryChain(input.entries, input.leafId).flatMap((entry) => {
+  const projected = getActiveEntryChain(input.entries, input.leafId).flatMap((entry) => {
     if (entry.type !== 'message') return [];
     const payload = normalizeMessagePayload(entry.payload as MessageEntryPayload, primaryThreadId);
     return projectPayload(payload, input.target, threadById, agentById);
   });
+  return repairToolResultAdjacency(projected);
 }
 
 function projectPayload(

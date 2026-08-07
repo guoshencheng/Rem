@@ -9,7 +9,12 @@ export default defineConfig({
     setupFiles: ['packages/core/tests/setup.ts'],
     coverage: {
       include: ['packages/core/src/**/*.ts'],
-      exclude: ['archive/**', 'packages/core/src/**/*.d.ts'],
+      exclude: [
+        'archive/**',
+        'packages/core/src/**/*.d.ts',
+        // 手动 live 脚本，需要真实 LLM API key，无法单元测试
+        'packages/core/src/testing/live-agent/run-live-agent.ts',
+      ],
     },
   },
   resolve: {

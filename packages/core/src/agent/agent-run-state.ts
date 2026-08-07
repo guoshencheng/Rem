@@ -33,6 +33,8 @@ export class AgentRunState {
       const messageId = generateId();
       if (message.role === 'assistant') {
         this.lastAssistantMessageId = messageId;
+        // LLM 调用失败的占位 assistant（通常为空内容）不落盘，避免污染叶链与后续投影。
+        if ((message as AssistantMessage).stopReason === 'error') return;
       }
       this.queue.push({ type: 'message-persist', message, messageId });
     } else if (event.type === 'turn_end' && (event.message as Message).role === 'assistant') {

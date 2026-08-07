@@ -42,6 +42,8 @@ export class AgentThreadDeliveryExecutor implements DeliveryExecutionPort {
       await this.deps.beforeRun?.(runtime, delivery, discussion);
       const transcript = await this.deps.projectTranscript(delivery);
       runtime.agent.syncTranscript(transcript);
+      // 无新消息（末尾已是本 thread 的 assistant）：该 delivery 的消息此前已随批次进入上下文，跳过避免无效 continue。
+      if (transcript.at(-1)?.role === 'assistant') return;
       await this.deps.eventDriver.drive(delivery.targetAgentThreadId, runtime.agent.continue());
     });
   }

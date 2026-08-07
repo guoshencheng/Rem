@@ -5,4 +5,5 @@ export * from './appender.js';
 export * from './write-coordinator.js';
 export * from './session-chat-projector.js';
 export * from './thread-context-projector.js';
+export * from './tool-result-repair.js';
 export * from './event-payload.js';

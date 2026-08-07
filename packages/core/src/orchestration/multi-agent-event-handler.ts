@@ -44,7 +44,14 @@ export class MultiAgentEventHandler {
     if (event.type === 'session-title' || event.type === 'compress-end') {
       await this.deps.sessionUsecase.persistAgentEvent(runtime.sessionId, threadId, event);
     }
-    if (event.type === 'error') throw event.error;
+    if (event.type === 'error') {
+      this.deps.publish({ type: 'chunk', workspace: runtime.workspace, sessionId: runtime.sessionId,
+        agentId: runtime.threadRuntimes.get(threadId)?.agent.agentId, agentThreadId: threadId, chunk: event });
+      const error = new Error(event.error.message);
+      error.name = event.error.name;
+      if (event.error.stack) error.stack = event.error.stack;
+      throw error;
+    }
     this.deps.publish({ type: 'chunk', workspace: runtime.workspace, sessionId: runtime.sessionId,
       agentId: runtime.threadRuntimes.get(threadId)?.agent.agentId, agentThreadId: threadId, chunk: event });
   }

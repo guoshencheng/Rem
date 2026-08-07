@@ -106,6 +106,14 @@ export function App() {
         threadCount={currentState?.threads.length ?? 0}
         runningThreads={Object.keys(currentState?.streaming ?? {}).length}
       />
+      <NewSessionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onCreated={(id) => {
+          setDialogOpen(false);
+          setSessionId(id);
+        }}
+      />
     </div>
   );
 }

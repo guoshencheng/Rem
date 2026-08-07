@@ -25,14 +25,15 @@ export class SingleAgentCoordinator implements AgentCoordinator {
   }
 
   async createRuntime(session: Session, workspace: string): Promise<SessionRuntime> {
-    const thread = await this.deps.threadUsecase.ensurePrimaryThread(session.sessionId, 'default');
+    const defaultAgentId = this.deps.agentParams.di.configProvider.resolveAgent().id;
+    const thread = await this.deps.threadUsecase.ensurePrimaryThread(session.sessionId, defaultAgentId);
     const projectedSession = await this.deps.contextUsecase.projectSession(session, thread);
     const rootAgent = this.deps.createRootAgent({
       ...this.deps.agentParams,
       session: projectedSession,
       workspace,
       workspaceRoot: workspace,
-      agentId: 'root',
+      agentId: defaultAgentId,
       sessionId: session.sessionId,
       runDelegation: (request, toolContext) => this.deps.delegationRunner.run(request, {
         parentSessionId: session.sessionId,

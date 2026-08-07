@@ -13,7 +13,7 @@ const portFile = resolve(dir, '.dev-port');
 
 if (existsSync(portFile)) process.exit(0);
 
-await new Promise<void>((resolvePromise) => {
+await new Promise((resolvePromise) => {
   const w = watch(dir, (_event, filename) => {
     if (filename === '.dev-port') {
       w.close();

@@ -38,6 +38,7 @@ export class DefaultAgentResolver implements AgentResolver {
 
   private buildAgentMap(): Map<string, ResolvedAgentRole> {
     const map = new Map<string, ResolvedAgentRole>();
+    map.set('default', this.defaultRole);
     for (const [id, cfg] of Object.entries(this.options.agents ?? {})) {
       if (id === 'default') continue;
       if (!cfg.name || !cfg.corePrompt) {

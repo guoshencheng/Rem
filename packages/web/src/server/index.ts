@@ -6,7 +6,9 @@ import { createAgentFromEnv, createAgentSystem } from 'rem-agent-core';
 import { createWebApp } from './app.js';
 
 function parseArgs(argv: string[]): { workspace: string; port?: number } {
-  const args: { workspace: string; port?: number } = { workspace: process.cwd() };
+  const args: { workspace: string; port?: number } = {
+    workspace: process.env.REM_WORKSPACE || process.cwd(),
+  };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--workspace') args.workspace = path.resolve(argv[++i]);
     else if (argv[i] === '--port') args.port = Number(argv[++i]);

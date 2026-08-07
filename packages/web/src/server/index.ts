@@ -1,19 +1,32 @@
-import { stat } from 'node:fs/promises';
+import { stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { createAgentFromEnv, createAgentSystem } from 'rem-agent-core';
 import { createWebApp } from './app.js';
 
-function parseArgs(argv: string[]): { workspace: string; port?: number } {
-  const args: { workspace: string; port?: number } = {
+function parseArgs(argv: string[]): { workspace: string; port?: number; portFile?: string } {
+  const args: { workspace: string; port?: number; portFile?: string } = {
     workspace: process.env.REM_WORKSPACE || process.cwd(),
   };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--workspace') args.workspace = path.resolve(argv[++i]);
     else if (argv[i] === '--port') args.port = Number(argv[++i]);
+    else if (argv[i] === '--port-file') args.portFile = argv[++i];
   }
   return args;
+}
+
+function findAvailablePort(startPort: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on('error', () => resolve(findAvailablePort(startPort + 1)));
+    server.listen(startPort, () => {
+      server.close(() => resolve(startPort));
+    });
+  });
 }
 
 const MIME: Record<string, string> = {
@@ -60,7 +73,17 @@ async function main(): Promise<void> {
     });
   }
 
-  const port = args.port ?? (isProduction ? 3000 : 3001);
+  const port = args.port ?? (isProduction ? 3000 : await findAvailablePort(3001));
+  if (!isProduction) {
+    let dir = path.dirname(fileURLToPath(import.meta.url));
+    while (true) {
+      if (await stat(path.resolve(dir, 'package.json')).catch(() => null)) break;
+      const parent = path.resolve(dir, '..');
+      if (parent === dir) break;
+      dir = parent;
+    }
+    await writeFile(path.resolve(dir, '.dev-port'), String(port), 'utf-8');
+  }
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Rem Web listening at http://localhost:${info.port} (workspace: ${args.workspace})`);
   });

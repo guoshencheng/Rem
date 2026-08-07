@@ -14,3 +14,4 @@ vitest.config.js
 *.cpuprofile
 coverage
 .pnpm-store
+.dev-port

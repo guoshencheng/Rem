@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"pnpm:dev:server\" \"pnpm:dev:client\"",
+    "dev": "concurrently -k --names server,client \"pnpm:dev:server\" \"pnpm:dev:client\"",
     "dev:server": "tsx watch src/server/index.ts",
-    "dev:client": "vite",
+    "dev:client": "node scripts/wait-port.mjs && vite",
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "cross-env NODE_ENV=production node dist/server/index.js",
     "test": "vitest run",

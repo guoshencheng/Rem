@@ -8,7 +8,7 @@ import { StatusBar } from '@/components/status-bar';
 import { SessionList } from '@/components/session-list';
 import { NewSessionDialog } from '@/components/new-session-dialog';
 import { ChatView } from '@/components/chat-view';
-import { ThreadPanel } from '@/components/thread-panel';
+import { CollaborationInspector } from '@/components/collaboration-inspector';
 import { WorkbenchShell } from '@/components/workbench-shell';
 
 export function App() {
@@ -19,6 +19,7 @@ export function App() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [connection, setConnection] = useState<SseConnectionState>('connecting');
+  const [selectedThreads, setSelectedThreads] = useState<Record<string, string>>({});
 
   const current = sessions.find((s) => s.sessionId === sessionId);
   const currentState = sessionId ? bySession[sessionId] : undefined;
@@ -30,6 +31,10 @@ export function App() {
     useStreamStore.getState().setThreads(id, threads);
     const primary = threads.find((t) => t.role === 'primary' || t.role === 'organizer');
     if (primary) {
+      setSelectedThreads((current) => ({
+        ...current,
+        [id]: current[id] ?? primary.agentThreadId,
+      }));
       const messages = await api.getThreadMessages(id, primary.agentThreadId);
       useStreamStore.getState().setThreadMessages(
         { sessionId: id, threadId: primary.agentThreadId }, messages);
@@ -92,6 +97,13 @@ export function App() {
     setSessionId(id);
     setSessionOpen(false);
   };
+  const selectThread = (threadId: string) => {
+    if (!sessionId) return;
+    setSelectedThreads((current) => ({ ...current, [sessionId]: threadId }));
+    void api.getThreadMessages(sessionId, threadId).then((messages) => {
+      useStreamStore.getState().setThreadMessages({ sessionId, threadId }, messages);
+    });
+  };
 
   return (
     <>
@@ -106,7 +118,13 @@ export function App() {
         onOpenInspector={() => setInspectorOpen(true)}
       />}
         sessionPanel={<SessionList sessions={sessions} currentId={sessionId} onSelect={selectSession} />}
-        inspector={hasInspector && sessionId ? <ThreadPanel sessionId={sessionId} /> : undefined}
+        inspector={hasInspector && sessionId ? (
+          <CollaborationInspector
+            sessionId={sessionId}
+            selectedThreadId={selectedThreads[sessionId]}
+            onSelectedThreadChange={selectThread}
+          />
+        ) : undefined}
         statusBar={<StatusBar
         session={current}
         threadCount={currentState?.threads.length ?? 0}

@@ -9,18 +9,21 @@ interface ReasoningBlockProps {
 export function ReasoningBlock({ text }: ReasoningBlockProps) {
   const [open, setOpen] = useState(false);
   if (!text) return null;
+
   return (
-    <div className="mb-2">
+    <div>
       <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 rounded-md bg-accent/50 px-3 py-1.5 text-left text-xs font-medium text-accent-foreground transition-colors hover:bg-accent"
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-[var(--ds-control-sm-height)] w-full items-center gap-[var(--ds-space-row-gap)] rounded-md border border-selected-border bg-selected-bg px-[var(--ds-control-sm-padding-x)] text-left text-meta leading-control font-medium text-composite-text transition-colors hover:bg-accent [&_svg]:size-3"
       >
-        <ChevronRight size={12} className={cn('shrink-0 transition-transform', open && 'rotate-90')} />
-        <Sparkles size={12} className="shrink-0" />
+        <ChevronRight className={cn('shrink-0 transition-transform', open && 'rotate-90')} />
+        <Sparkles className="shrink-0" />
         <span>思考</span>
       </button>
       {open && (
-        <div className="mx-2 mt-1.5 max-h-48 overflow-y-auto rounded-md border border-border bg-card px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+        <div className="mx-[var(--ds-space-inner)] mt-[var(--ds-space-tree)] max-h-48 overflow-y-auto rounded-md border border-border-subtle bg-surface p-[var(--ds-space-card)] text-meta leading-body text-muted-foreground">
           {text}
         </div>
       )}

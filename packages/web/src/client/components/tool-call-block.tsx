@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ChevronRight, Wrench, Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ChevronRight, Wrench } from 'lucide-react';
 import type { ToolCall } from 'rem-agent-core';
+import { StatusDot } from '@/components/status-dot';
+import type { StatusTone } from '@/components/status-dot';
+import { cn } from '@/lib/utils';
 
 export interface ToolResultInfo {
   output?: string;
@@ -15,50 +17,51 @@ interface ToolCallBlockProps {
 
 export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false);
-  const isError = !!result?.error;
-  const isExecuting = !result;
-
-  const statusIcon = isExecuting
-    ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
-    : isError
-      ? <XCircle size={14} className="text-destructive" />
-      : <CheckCircle2 size={14} className="text-emerald-400" />;
-
-  const statusText = isExecuting ? '执行中…' : isError ? '执行失败' : (result?.output?.slice(0, 60) ?? '完成');
+  const tone: StatusTone = !result ? 'running' : result.error ? 'error' : 'success';
+  const statusText = !result
+    ? '执行中…'
+    : result.error
+      ? '执行失败'
+      : (result.output?.slice(0, 60) ?? '完成');
 
   return (
-    <div className="mb-2">
+    <div>
       <button
-        onClick={() => setOpen(!open)}
+        type="button"
+        aria-expanded={open}
+        data-tone={tone}
+        onClick={() => setOpen((current) => !current)}
         className={cn(
-          'flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium transition-colors',
-          isError ? 'bg-destructive/20 text-destructive'
-            : isExecuting ? 'bg-muted text-muted-foreground'
-              : 'bg-emerald-500/10 text-emerald-400',
+          'flex h-[var(--ds-control-sm-height)] w-full items-center gap-[var(--ds-space-row-gap)] rounded-md border px-[var(--ds-control-sm-padding-x)] text-left text-meta leading-control font-medium transition-colors [&_svg]:size-3',
+          tone === 'error'
+            ? 'border-destructive/40 bg-destructive/10 text-destructive'
+            : tone === 'success'
+              ? 'border-status-success/30 bg-status-success/10 text-status-success'
+              : 'border-border bg-raised text-muted-foreground',
         )}
       >
-        <ChevronRight size={12} className={cn('shrink-0 transition-transform', open && 'rotate-90')} />
-        <Wrench size={12} className="shrink-0" />
+        <ChevronRight className={cn('shrink-0 transition-transform', open && 'rotate-90')} />
+        <Wrench className="shrink-0" />
         <span className="truncate font-mono">{tool.name}</span>
-        {statusIcon}
-        <span className="flex-1 truncate text-muted-foreground">{statusText}</span>
+        <StatusDot tone={tone} />
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">{statusText}</span>
       </button>
       {open && (
-        <div className="mx-2 mt-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs">
-          <div className="mb-1 font-medium text-muted-foreground">入参</div>
-          <pre className="max-h-24 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-foreground">
+        <div className="mx-[var(--ds-space-inner)] mt-[var(--ds-space-tree)] rounded-md border border-border-subtle bg-surface p-[var(--ds-space-card)] text-meta">
+          <div className="mb-[var(--ds-space-tree)] font-medium text-muted-foreground">入参</div>
+          <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-meta text-foreground">
             {JSON.stringify(tool.arguments, null, 2) || '{}'}
           </pre>
           {result && (
             <>
-              <div className="mb-1 mt-2 font-medium text-muted-foreground">
-                {isError ? '错误' : '出参'}
+              <div className="mb-[var(--ds-space-tree)] mt-[var(--ds-space-inner)] font-medium text-muted-foreground">
+                {result.error ? '错误' : '出参'}
               </div>
               <pre className={cn(
-                'max-h-32 overflow-x-auto whitespace-pre-wrap font-mono text-xs',
-                isError ? 'text-destructive' : 'text-foreground',
+                'max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-meta',
+                result.error ? 'text-destructive' : 'text-foreground',
               )}>
-                {isError ? result.error : result.output}
+                {result.error ?? result.output}
               </pre>
             </>
           )}

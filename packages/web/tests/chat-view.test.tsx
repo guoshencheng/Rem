@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import { ChatView } from '@/components/chat-view';
 import { useStreamStore } from '@/state/stream-store';
 
@@ -12,7 +12,28 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
+afterEach(cleanup);
+
 describe('ChatView', () => {
+  it('没有消息时显示公开会话空态', () => {
+    useStreamStore.getState().reset();
+    render(<ChatView sessionId="empty" running={false} onSend={() => {}} />);
+    expect(screen.getByText('开始一段公开会话')).toBeTruthy();
+    expect(screen.getByText('消息会显示在这里')).toBeTruthy();
+  });
+
+  it('在消息上下文内显示 Session 错误', () => {
+    useStreamStore.getState().reset();
+    useStreamStore.getState().applyEvent({
+      workspace: '/w',
+      sessionId: 's1',
+      type: 'session-error',
+      error: '运行失败',
+    });
+    render(<ChatView sessionId="s1" running={false} onSend={() => {}} />);
+    expect(screen.getByRole('alert').textContent).toContain('运行失败');
+  });
+
   it('渲染中心流消息与 streaming 增量', () => {
     useStreamStore.getState().reset();
     useStreamStore.getState().setChat('s1', [

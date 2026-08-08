@@ -6,6 +6,7 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { api } from '@/api/client';
 import type { TeamInfo } from 'rem-agent-core';
 
@@ -62,7 +63,11 @@ export function NewSessionDialog({ open, onOpenChange, onCreated }: NewSessionDi
             </SelectGroup>
           </SelectContent>
         </Select>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         <DialogFooter>
           <Button onClick={create} disabled={creating}>
             {creating ? '创建中…' : '创建'}

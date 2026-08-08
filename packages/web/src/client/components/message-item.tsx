@@ -15,13 +15,21 @@ export function MessageItem({ item }: { item: SessionChatMessage }) {
   const isUser = item.message.role === 'user';
   const text = messageText(item.message);
   if (!text) return null;
+
   return (
-    <div className={cn('max-w-[85%] text-xs leading-relaxed', isUser && 'self-end')}>
+    <article className={cn('max-w-[78%] text-body leading-body', isUser && 'max-w-[68%] self-end')}>
       {isUser ? (
-        <div className="rounded-lg border border-primary/60 bg-accent px-3 py-2">{text}</div>
+        <div className="rounded-lg border border-selected-border bg-selected-bg p-[var(--ds-space-card)] text-foreground">
+          {text}
+        </div>
       ) : (
-        <MarkdownContent text={text} className="px-1" />
+        <div className="border-l-2 border-selected-border pl-[var(--ds-space-card)] text-secondary-foreground">
+          <div className="mb-[var(--ds-space-tree)] text-label font-extrabold uppercase leading-control tracking-[0.1em] text-muted-foreground">
+            REM{item.authorThreadId ? ` · ${item.authorThreadId}` : ''}
+          </div>
+          <MarkdownContent text={text} />
+        </div>
       )}
-    </div>
+    </article>
   );
 }

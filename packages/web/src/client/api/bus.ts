@@ -6,8 +6,16 @@ export interface EventBusHandlers {
   onReconnect: () => void;
 }
 
+export type SseConnectionState = 'connecting' | 'connected' | 'reconnecting';
+
 const INITIAL_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 15_000;
+
+function publishConnectionState(state: SseConnectionState): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('rem:sse-state', { detail: state }));
+  }
+}
 
 export function startEventBus(handlers: EventBusHandlers): () => void {
   let stopped = false;
@@ -23,9 +31,7 @@ export function startEventBus(handlers: EventBusHandlers): () => void {
         if (everConnected) handlers.onReconnect();
         everConnected = true;
         delay = INITIAL_DELAY_MS;
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('rem:sse-connected'));
-        }
+        publishConnectionState('connected');
         for await (const frame of parseSSEStream(res.body.getReader())) {
           if (stopped) return;
           if (frame.event !== 'bus') continue;
@@ -35,6 +41,7 @@ export function startEventBus(handlers: EventBusHandlers): () => void {
         throw new Error('SSE stream ended');
       } catch {
         if (stopped) return;
+        publishConnectionState('reconnecting');
         await new Promise<void>((resolve) => {
           timer = setTimeout(resolve, delay);
         });
@@ -43,6 +50,7 @@ export function startEventBus(handlers: EventBusHandlers): () => void {
     }
   };
 
+  publishConnectionState('connecting');
   void connect();
   return () => {
     stopped = true;

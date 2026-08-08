@@ -27,7 +27,8 @@ describe('startEventBus', () => {
       sseResponse(['{"workspace":"/w","sessionId":"s1","type":"session-start"}'])));
     vi.stubGlobal('addEventListener', vi.fn());
     vi.stubGlobal('dispatchEvent', vi.fn());
-    vi.stubGlobal('window', { addEventListener: vi.fn(), dispatchEvent: vi.fn() });
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { addEventListener: vi.fn(), dispatchEvent });
     const received: unknown[] = [];
     const stop = startEventBus({
       onEvent: (ev) => received.push(ev),
@@ -35,6 +36,9 @@ describe('startEventBus', () => {
     });
     await vi.waitFor(() => expect(received).toHaveLength(1), { timeout: 1000 });
     expect(received[0]).toMatchObject({ type: 'session-start', sessionId: 's1' });
+    expect(dispatchEvent.mock.calls.map(([event]) => event.detail)).toEqual(
+      expect.arrayContaining(['connecting', 'connected']),
+    );
     stop();
   });
 
@@ -48,7 +52,8 @@ describe('startEventBus', () => {
     }));
     vi.stubGlobal('addEventListener', vi.fn());
     vi.stubGlobal('dispatchEvent', vi.fn());
-    vi.stubGlobal('window', { addEventListener: vi.fn(), dispatchEvent: vi.fn() });
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { addEventListener: vi.fn(), dispatchEvent });
     const onReconnect = vi.fn();
     const stop = startEventBus({ onEvent: () => {}, onReconnect });
     // attempt 1: 成功连接并立即结束（空流）
@@ -59,6 +64,7 @@ describe('startEventBus', () => {
       await vi.advanceTimersByTimeAsync(1_000);
     }
     expect(onReconnect).toHaveBeenCalledTimes(1);
+    expect(dispatchEvent.mock.calls.some(([event]) => event.detail === 'reconnecting')).toBe(true);
     stop();
     vi.useRealTimers();
   });

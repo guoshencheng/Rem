@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { startEventBus } from '@/api/bus';
+import type { SseConnectionState } from '@/api/bus';
 import { useStreamStore } from '@/state/stream-store';
 import { TopBar } from '@/components/top-bar';
 import { StatusBar } from '@/components/status-bar';
@@ -8,12 +9,16 @@ import { SessionList } from '@/components/session-list';
 import { NewSessionDialog } from '@/components/new-session-dialog';
 import { ChatView } from '@/components/chat-view';
 import { ThreadPanel } from '@/components/thread-panel';
+import { WorkbenchShell } from '@/components/workbench-shell';
 
 export function App() {
   const sessions = useStreamStore((s) => s.sessions);
   const bySession = useStreamStore((s) => s.bySession);
   const [sessionId, setSessionId] = useState<string>();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [connection, setConnection] = useState<SseConnectionState>('connecting');
 
   const current = sessions.find((s) => s.sessionId === sessionId);
   const currentState = sessionId ? bySession[sessionId] : undefined;
@@ -36,14 +41,22 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const updateConnection = (event: Event) => {
+      setConnection((event as CustomEvent<SseConnectionState>).detail);
+    };
+    window.addEventListener('rem:sse-state', updateConnection);
     void refreshSessions();
-    return startEventBus({
+    const stop = startEventBus({
       onEvent: (event) => useStreamStore.getState().applyEvent(event),
       onReconnect: () => {
         void refreshSessions();
         if (sessionId) void loadSession(sessionId);
       },
     });
+    return () => {
+      window.removeEventListener('rem:sse-state', updateConnection);
+      stop();
+    };
   }, [refreshSessions, loadSession, sessionId]);
 
   useEffect(() => {
@@ -74,38 +87,45 @@ export function App() {
     useStreamStore.getState().setChat(sessionId, chat);
   };
 
+  const hasInspector = sessionId !== undefined && current?.mode === 'multi-agent';
+  const selectSession = (id: string) => {
+    setSessionId(id);
+    setSessionOpen(false);
+  };
+
   return (
-    <div className="grid h-screen grid-rows-[auto_1fr_auto]">
-      <TopBar
+    <>
+      <WorkbenchShell
+        topBar={<TopBar
         session={current}
         running={running}
+        hasInspector={hasInspector}
         onInterrupt={() => sessionId && void api.interrupt(sessionId)}
         onNewSession={() => setDialogOpen(true)}
-      />
-      <div className="grid min-h-0 grid-cols-[220px_1fr_auto]">
-        <aside className="border-r border-border bg-card">
-          <SessionList sessions={sessions} currentId={sessionId} onSelect={setSessionId} />
-        </aside>
-        <main className="min-w-0 bg-background">
-          {sessionId ? (
-            <ChatView sessionId={sessionId} running={running} onSend={(c) => void send(c)} />
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              选择或新建一个 Session 开始
-            </div>
-          )}
-        </main>
-        {sessionId && current?.mode === 'multi-agent' && (
-          <aside className="border-l border-border bg-card">
-            <ThreadPanel sessionId={sessionId} />
-          </aside>
-        )}
-      </div>
-      <StatusBar
+        onOpenSessions={() => setSessionOpen(true)}
+        onOpenInspector={() => setInspectorOpen(true)}
+      />}
+        sessionPanel={<SessionList sessions={sessions} currentId={sessionId} onSelect={selectSession} />}
+        inspector={hasInspector && sessionId ? <ThreadPanel sessionId={sessionId} /> : undefined}
+        statusBar={<StatusBar
         session={current}
         threadCount={currentState?.threads.length ?? 0}
         runningThreads={Object.keys(currentState?.streaming ?? {}).length}
-      />
+        connection={connection}
+      />}
+        sessionOpen={sessionOpen}
+        onSessionOpenChange={setSessionOpen}
+        inspectorOpen={inspectorOpen}
+        onInspectorOpenChange={setInspectorOpen}
+      >
+        {sessionId ? (
+          <ChatView sessionId={sessionId} running={running} onSend={(c) => void send(c)} />
+        ) : (
+          <div className="flex h-full items-center justify-center text-body text-muted-foreground">
+            选择或新建一个 Session 开始
+          </div>
+        )}
+      </WorkbenchShell>
       <NewSessionDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -114,6 +134,6 @@ export function App() {
           setSessionId(id);
         }}
       />
-    </div>
+    </>
   );
 }

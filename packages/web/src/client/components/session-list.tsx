@@ -1,7 +1,16 @@
+import { Bot } from 'lucide-react';
+import type { SessionInfo } from 'rem-agent-core';
+import { SectionLabel } from '@/components/section-label';
+import { StatusDot } from '@/components/status-dot';
 import { Badge } from '@/components/ui/badge';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import type { SessionInfo } from 'rem-agent-core';
 
 interface SessionListProps {
   sessions: SessionInfo[];
@@ -9,41 +18,69 @@ interface SessionListProps {
   onSelect: (sessionId: string) => void;
 }
 
+const activityLabels: Record<NonNullable<SessionInfo['activity']>, string> = {
+  idle: '空闲',
+  pending: '等待运行',
+  thinking: '思考中',
+  'calling-function': '调用工具',
+  outputting: '输出中',
+  compressing: '压缩上下文',
+};
+
 export function SessionList({ sessions, currentId, onSelect }: SessionListProps) {
   return (
-    <div className="flex h-full flex-col p-2">
-      <div className="mx-1 mb-2 mt-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col p-[var(--ds-space-panel)]">
+      <SectionLabel className="mx-[var(--ds-space-tree)] mb-[var(--ds-space-card)]">
         Sessions
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-1 pr-1">
-          {sessions.map((s) => (
-            <button
-              key={s.sessionId}
-              onClick={() => onSelect(s.sessionId)}
-              className={cn(
-                'flex items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:bg-muted',
-                s.sessionId === currentId && 'border-primary/60 bg-accent',
-              )}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{s.title ?? s.sessionId}</span>
-                <span className="block text-[10px] text-muted-foreground">
-                  {s.activity && s.activity !== 'idle' ? s.activity : `${s.messageCount} 条消息`}
-                </span>
-              </span>
-              <Badge variant={s.mode === 'multi-agent' ? 'default' : 'outline'} className="text-[9px]">
-                {s.mode === 'multi-agent' ? 'multi' : 'single'}
-              </Badge>
-            </button>
-          ))}
-          {sessions.length === 0 && (
-            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-              还没有 Session，点右上角新建
-            </p>
-          )}
-        </div>
-      </ScrollArea>
+      </SectionLabel>
+      {sessions.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>还没有 Session</EmptyTitle>
+            <EmptyDescription>从右上角新建一个会话</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="grid gap-[var(--ds-space-tree)] pr-[var(--ds-space-tree)]">
+            {sessions.map((session) => {
+              const selected = session.sessionId === currentId;
+              const active = session.activity !== undefined && session.activity !== 'idle';
+              return (
+                <button
+                  key={session.sessionId}
+                  type="button"
+                  data-selected={selected}
+                  onClick={() => onSelect(session.sessionId)}
+                  className={cn(
+                    'grid h-[var(--ds-row-md-height)] w-full grid-cols-[var(--ds-icon-sm)_minmax(0,1fr)_auto] items-center gap-[var(--ds-space-row-gap)] rounded-md border border-transparent px-[var(--ds-space-row-x)] text-left text-control leading-compact text-secondary-foreground transition-colors hover:bg-hover',
+                    selected && 'border-selected-border bg-selected-bg',
+                  )}
+                >
+                  <span className="grid size-[var(--ds-icon-sm)] place-items-center rounded-sm bg-raised text-muted-foreground [&_svg]:size-3">
+                    <Bot />
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="block truncate font-semibold">
+                      {session.title ?? session.sessionId}
+                    </strong>
+                    <small className="flex items-center gap-[var(--ds-space-row-gap)] truncate text-label text-muted-foreground">
+                      {active && <StatusDot tone="running" />}
+                      {session.activity ? activityLabels[session.activity] : `${session.messageCount} 条消息`}
+                    </small>
+                  </span>
+                  <Badge
+                    size="tag"
+                    variant={session.mode === 'multi-agent' ? 'composite' : 'secondary'}
+                  >
+                    {session.mode === 'multi-agent' ? '多 Agent' : '单 Agent'}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }

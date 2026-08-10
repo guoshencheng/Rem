@@ -94,9 +94,10 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       expect(claimed).toMatchObject({ leaseOwner: 'b', attempt: 2, leaseExpiresAt: new Date(at(10).getTime() + 1500), updatedAt: new Date(at(10).getTime() + 1000) });
     });
 
-    it('按确定顺序列出可恢复任务', async () => {
-      const store = await open(); await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work('b', 'run-b', at(2))); uow.workItems.insert(work('a', 'run-a', at(2))); uow.workItems.insert({ ...work('expired', 'run-c', at(3)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(9) }); uow.workItems.insert({ ...work('active', 'run-d'), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(11) }); uow.workItems.insert({ ...work('done', 'run-e'), status: 'completed' }); });
-      expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual(['a', 'b', 'expired']);
+    it('全局按创建时间排序恢复任务，claim 选择同一首项', async () => {
+      const store = await open(); await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work('queued', 'run-queued', at(3))); uow.workItems.insert({ ...work('expired', 'run-expired', at(2)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(9) }); uow.workItems.insert({ ...work('active', 'run-active', at(1)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(11) }); uow.workItems.insert({ ...work('completed', 'run-completed', at(1)), status: 'completed' }); uow.workItems.insert({ ...work('failed', 'run-failed', at(1)), status: 'failed' }); });
+      expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual(['expired', 'queued']);
+      expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe('expired');
     });
 
     it('使用原始 UTF-16 顺序稳定领取和恢复任务', async () => {
@@ -106,18 +107,21 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe(first);
     });
 
-    it('事件 cursor、冲突与事务内 run 更新一起回滚', async () => {
-      const store = await open(); await store.transaction((uow) => { expect(uow.events.nextSequence('run-1')).toBe(1); createRun(uow); uow.events.append(event(1)); uow.events.append(event(2)); expect(uow.events.nextSequence('run-1')).toBe(3); });
-      expect((await store.listEvents('run-1', 1, 1)).map((item) => item.sequence)).toEqual([2]);
-      await expectCode(() => store.transaction((uow) => { uow.events.append(event(2, 'event-other')); }), 'STORAGE_CONFLICT');
-      await expect(store.transaction((uow) => { uow.runs.update({ ...run(), status: 'running' }); uow.events.append(event(2, 'event-duplicate')); })).rejects.toMatchObject({ code: 'STORAGE_CONFLICT' });
-      expect((await store.getRun('run-1'))?.status).toBe('queued'); expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual([1, 2]);
+    it('事件按 sequence 排序，cursor 排他，run 更新与 event 原子提交', async () => {
+      const store = await open(); await store.transaction((uow) => { expect(uow.events.nextSequence('run-1')).toBe(1); createRun(uow); uow.events.append(event(3)); uow.events.append(event(1)); uow.events.append(event(2)); expect(uow.events.nextSequence('run-1')).toBe(4); });
+      expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual([1, 2, 3]);
+      expect((await store.listEvents('run-1', 1, 2)).map((item) => item.sequence)).toEqual([2, 3]);
+      await store.transaction((uow) => { uow.runs.update({ ...run(), status: 'running', startedAt: at(4), updatedAt: at(4) }); uow.events.append(event(4)); });
+      expect(await store.getRun('run-1')).toMatchObject({ status: 'running', startedAt: at(4) });
+      await expectCode(() => store.transaction((uow) => { uow.runs.update({ ...run(), status: 'failed', startedAt: at(4), finishedAt: at(5), updatedAt: at(5) }); uow.events.append(event(4, 'event-duplicate')); }), 'STORAGE_CONFLICT');
+      expect(await store.getRun('run-1')).toMatchObject({ status: 'running', startedAt: at(4) }); expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual([1, 2, 3, 4]);
     });
 
     it('默认最多读取 100 个 event，并保持 eventId 全局唯一', async () => {
-      const store = await open(); await store.transaction((uow) => { createRun(uow); for (let sequence = 1; sequence <= 101; sequence += 1) uow.events.append(event(sequence)); });
+      const store = await open(); await store.transaction((uow) => { createRun(uow); for (let sequence = 101; sequence >= 1; sequence -= 1) uow.events.append(event(sequence)); });
       expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));
-      await expectCode(() => store.transaction((uow) => uow.events.append({ ...event(1), runId: 'run-2', eventId: 'event-1' })), 'STORAGE_CONFLICT');
+      await store.transaction((uow) => { uow.sessions.insert({ ...session(), sessionId: 'session-2' }); uow.runs.insert({ ...run('run-2'), sessionId: 'session-2' }); });
+      await expectCode(() => store.transaction((uow) => uow.events.append({ ...event(1), sessionId: 'session-2', runId: 'run-2', eventId: 'event-1' })), 'STORAGE_CONFLICT');
     });
 
     it('session entry、artifact 与 tool invocation 可往返且隔离别名', async () => {

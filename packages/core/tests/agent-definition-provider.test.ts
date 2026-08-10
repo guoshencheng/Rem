@@ -1,7 +1,6 @@
 import type { AgentDefinition, ContextTypeConstraint, RunTriggerType } from '../src/domain/agent-definition/types.js';
-import type { RuntimeErrorCode } from '../src/application/runtime/runtime-error.js';
 import { describe, expect, it } from 'vitest';
-import { RuntimeError } from '../src/application/runtime/runtime-error.js';
+import { RuntimeError, RUNTIME_ERROR_CODES } from '../src/application/runtime/runtime-error.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/index.js';
 
 const runtimeErrorCodes = [
@@ -32,16 +31,7 @@ const runtimeErrorCodes = [
   'EXECUTION_TIMEOUT',
   'EXECUTION_CANCELLED',
   'INTERNAL_ERROR',
-] as const satisfies readonly RuntimeErrorCode[];
-
-type PlannedRuntimeErrorCode = (typeof runtimeErrorCodes)[number];
-type AssertNever<Value extends never> = Value;
-type RuntimeErrorCodeSetMatchesPlan = [
-  AssertNever<Exclude<RuntimeErrorCode, PlannedRuntimeErrorCode>>,
-  AssertNever<Exclude<PlannedRuntimeErrorCode, RuntimeErrorCode>>,
-];
-
-void (undefined as unknown as RuntimeErrorCodeSetMatchesPlan);
+] as const;
 
 const definitions: AgentDefinition[] = [
   {
@@ -113,6 +103,24 @@ describe('StaticAgentDefinitionProvider', () => {
     await expect(provider.get('support', '2')).resolves.toMatchObject({ revision: '2' });
   });
 
+  it('treats an empty revision as an explicit revision and current definition', async () => {
+    const provider = new StaticAgentDefinitionProvider([{ ...definitions[0]!, revision: '' }]);
+
+    await expect(provider.get('support')).resolves.toMatchObject({ revision: '' });
+    await expect(provider.get('support', '')).resolves.toMatchObject({ revision: '' });
+  });
+
+  it('uses a lexical tiebreaker for numerically equal revisions', async () => {
+    const revisionTwo = { ...definitions[0]!, revision: '2' };
+    const revisionZeroTwo = { ...definitions[0]!, revision: '02' };
+    const firstProvider = new StaticAgentDefinitionProvider([revisionTwo, revisionZeroTwo]);
+    const secondProvider = new StaticAgentDefinitionProvider([revisionZeroTwo, revisionTwo]);
+
+    const firstCurrent = await firstProvider.get('support');
+    const secondCurrent = await secondProvider.get('support');
+    expect(firstCurrent?.revision).toBe(secondCurrent?.revision);
+  });
+
   it('returns null for unknown agents and revisions', async () => {
     const provider = new StaticAgentDefinitionProvider(definitions);
 
@@ -166,6 +174,7 @@ describe('StaticAgentDefinitionProvider', () => {
 
 describe('RuntimeError', () => {
   it('matches the planned error code set', () => {
+    expect(RUNTIME_ERROR_CODES).toEqual(runtimeErrorCodes);
     expect(runtimeErrorCodes).toHaveLength(27);
     expect(runtimeErrorCodes).toContain('AGENT_NOT_FOUND');
     expect(runtimeErrorCodes).toContain('STORAGE_UNAVAILABLE');

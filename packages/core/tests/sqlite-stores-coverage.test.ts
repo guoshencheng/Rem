@@ -405,6 +405,7 @@ describe('SqliteStorageProvider', () => {
       expect(provider.agentThreadStore).toBeDefined();
       expect(provider.messageDeliveryStore).toBeDefined();
       expect(provider.orchestrationStore).toBeDefined();
+      expect(provider.runtimeStore).toBeDefined();
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -444,6 +445,7 @@ describe('SqliteStorageProvider', () => {
       expect(() => provider.agentThreadStore).toThrow(StorageError);
       expect(() => provider.messageDeliveryStore).toThrow(StorageError);
       expect(() => provider.orchestrationStore).toThrow(StorageError);
+      expect(() => provider.runtimeStore).toThrow(StorageError);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

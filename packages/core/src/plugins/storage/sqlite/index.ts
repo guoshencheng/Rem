@@ -7,4 +7,6 @@ export { SqliteAgentThreadStore } from './agent-thread-store.js';
 export { SqliteMessageDeliveryStore } from './message-delivery-store.js';
 export { SqliteOrchestrationStore } from './orchestration-store.js';
 export { SqliteSchemaManager, CURRENT_SCHEMA_VERSION } from './schema.js';
+export { SqliteRuntimeStore } from './runtime-store.js';
+export { RUNTIME_DDL, RUNTIME_TABLE_NAMES, type RuntimeTableName } from './runtime-ddl.js';
 export { StorageError, wrapSqliteError, type StorageErrorCode } from './errors.js';

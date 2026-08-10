@@ -14,6 +14,7 @@ export {
   SqliteArchiveStore,
   SqliteWorkspaceStore,
   SqliteSchemaManager,
+  SqliteRuntimeStore,
   CURRENT_SCHEMA_VERSION,
   StorageError,
   wrapSqliteError,

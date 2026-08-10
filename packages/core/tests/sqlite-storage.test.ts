@@ -16,7 +16,7 @@ describe('SqliteSchemaManager', () => {
     const row = db.prepare('SELECT version FROM schema_version').get() as { version: number };
     expect(row.version).toBe(CURRENT_SCHEMA_VERSION);
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name);
-    for (const t of ['sessions', 'messages', 'todos', 'archived_messages', 'workspaces', 'session_entries']) {
+    for (const t of ['sessions', 'messages', 'todos', 'archived_messages', 'workspaces', 'session_entries', 'runtime_runs']) {
       expect(tables).toContain(t);
     }
   });

@@ -20,7 +20,7 @@ const setupVersionDb = (version: number) => {
 };
 
 describe('runMigrations', () => {
-  it('migrates from version 1 (triggers all migrations v2 through v11)', () => {
+  it('migrates from version 1 (triggers all migrations v2 through v12)', () => {
     const db = setupVersionDb(1);
     // Create pre-v2 state: sessions + messages only, no newer columns
     // Also create session_entries manually since v9 migration expects it (it's normally created by SESSION_DDL)
@@ -47,6 +47,7 @@ describe('runMigrations', () => {
     expect(tables).toContain('archived_messages');
     expect(tables).toContain('agent_threads');
     expect(tables).toContain('message_deliveries');
+    expect(tables).toContain('runtime_runs');
 
     const todoCols = columnsOf(db, 'todos');
     expect(todoCols).toContain('todos_json');
@@ -60,7 +61,7 @@ describe('runMigrations', () => {
     expect(sessionCols).toContain('active_leaf_id');
   });
 
-  it('migrates from version 9 (triggers v10, v11 only)', () => {
+  it('migrates from version 9 (triggers v10 through v12)', () => {
     const db = setupVersionDb(9);
     // Create pre-v9 state: sessions with active_leaf_id (added in v9), messages with tool_call_id/tool_name (added in v8)
     // session_entries table already exists (it's created by current DDL but v9 migration only inserts into it)
@@ -72,6 +73,7 @@ describe('runMigrations', () => {
     const tables = tableNames(db);
     expect(tables).toContain('agent_threads');
     expect(tables).toContain('message_deliveries');
+    expect(tables).toContain('runtime_runs');
   });
 
   it('migrates from version 10 (triggers v11 only — agent identity migration with profile remapping)', () => {
@@ -342,7 +344,7 @@ describe('SqliteSchemaManager', () => {
     const row = db.prepare('SELECT version FROM schema_version').get() as { version: number };
     expect(row.version).toBe(CURRENT_SCHEMA_VERSION);
     const tables = tableNames(db);
-    for (const t of ['sessions', 'messages', 'todos', 'archived_messages', 'workspaces', 'session_entries', 'agent_threads', 'message_deliveries']) {
+    for (const t of ['sessions', 'messages', 'todos', 'archived_messages', 'workspaces', 'session_entries', 'agent_threads', 'message_deliveries', 'runtime_sessions', 'runtime_runs', 'runtime_events', 'runtime_work_items', 'runtime_session_entries', 'runtime_artifacts', 'runtime_idempotency', 'runtime_tool_invocations']) {
       expect(tables).toContain(t);
     }
   });

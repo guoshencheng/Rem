@@ -58,6 +58,7 @@ function makeMockStorage(sessionStore: SessionStore, orchestrationStore: Orchest
     workspaceStore: {} as any,
     agentThreadStore: {} as any,
     messageDeliveryStore: {} as any,
+    runtimeStore: {} as any,
   };
 }
 

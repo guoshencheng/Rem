@@ -11,10 +11,9 @@ import { StorageError, wrapSqliteError } from './errors.js';
 import { SqliteAgentThreadStore } from './agent-thread-store.js';
 import { SqliteMessageDeliveryStore } from './message-delivery-store.js';
 import { SqliteOrchestrationStore } from './orchestration-store.js';
+import { SqliteRuntimeStore } from './runtime-store.js';
 
-export interface SqliteStorageProviderOptions {
-  dbPath: string;
-}
+export interface SqliteStorageProviderOptions { dbPath: string }
 
 export class SqliteStorageProvider implements StorageProvider {
   private db: Database.Database | undefined;
@@ -25,6 +24,7 @@ export class SqliteStorageProvider implements StorageProvider {
   private _agentThreadStore: SqliteAgentThreadStore | undefined;
   private _messageDeliveryStore: SqliteMessageDeliveryStore | undefined;
   private _orchestrationStore: SqliteOrchestrationStore | undefined;
+  private _runtimeStore: SqliteRuntimeStore | undefined;
 
   constructor(private options: SqliteStorageProviderOptions) {
     this.open();
@@ -44,6 +44,7 @@ export class SqliteStorageProvider implements StorageProvider {
       this._agentThreadStore = new SqliteAgentThreadStore(this.db);
       this._messageDeliveryStore = new SqliteMessageDeliveryStore(this.db);
       this._orchestrationStore = new SqliteOrchestrationStore(this.db);
+      this._runtimeStore = new SqliteRuntimeStore(this.db);
     } catch (err) {
       if (err instanceof StorageError) throw err;
       throw wrapSqliteError(
@@ -69,6 +70,7 @@ export class SqliteStorageProvider implements StorageProvider {
     this._agentThreadStore = undefined;
     this._messageDeliveryStore = undefined;
     this._orchestrationStore = undefined;
+    this._runtimeStore = undefined;
   }
 
   get sessionStore(): SqliteSessionStore {
@@ -104,6 +106,11 @@ export class SqliteStorageProvider implements StorageProvider {
   get orchestrationStore(): SqliteOrchestrationStore {
     if (!this._orchestrationStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
     return this._orchestrationStore;
+  }
+
+  get runtimeStore(): SqliteRuntimeStore {
+    if (!this._runtimeStore) throw new StorageError('DB_OPEN', 'StorageProvider not initialized');
+    return this._runtimeStore;
   }
 
   clean() {

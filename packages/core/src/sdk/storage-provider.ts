@@ -6,6 +6,7 @@ import type { TodoItem } from '../capabilities/todo/types.js';
 import type { AgentThreadStore } from '../session/agent-thread/store.js';
 import type { MessageDelivery } from '../orchestration/delivery-model.js';
 import type { MessageDeliveryStore } from '../orchestration/delivery-store.js';
+import type { RuntimeStorage } from './runtime-storage.js';
 
 export interface ArchiveRecord {
   id: string;
@@ -48,6 +49,7 @@ export interface StorageProvider {
   readonly agentThreadStore: AgentThreadStore;
   readonly messageDeliveryStore: MessageDeliveryStore;
   readonly orchestrationStore: OrchestrationStore;
+  readonly runtimeStore: RuntimeStorage;
 }
 
 export interface OrchestrationStore {

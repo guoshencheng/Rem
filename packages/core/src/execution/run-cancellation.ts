@@ -37,7 +37,7 @@ export class RunCancellation {
       uow.events.append({
         eventId: nextWorkerId(this.options.generateId), sequence: uow.events.nextSequence(runId), schemaVersion: 1,
         tenantId: run.tenantId, sessionId: run.sessionId, runId, type: 'run.cancelled',
-        data: { errorCode: 'EXECUTION_CANCELLED' }, occurredAt: cloneDate(at),
+        data: { errorCode: 'EXECUTION_CANCELLED', retryable: false }, occurredAt: cloneDate(at),
       });
       uow.workItems.update(finishWork(work, at));
       return structuredClone(cancelled);

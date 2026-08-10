@@ -44,11 +44,6 @@ export class RunCompletion {
         finishRun(uow, run, liveWork, { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }, at, this.options);
         return { kind: 'skip' };
       }
-      const session = uow.sessions.get(run.sessionId);
-      if (!session || session.tenantId !== run.tenantId) {
-        finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
-        return { kind: 'skip' };
-      }
       if (run.status === 'running') {
         // Tool-level recovery is Task 11. Never replay an execution whose side effects are uncertain.
         finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
@@ -63,6 +58,11 @@ export class RunCompletion {
       };
       uow.runs.update(running);
       appendEvent(uow, running, 'run.started', { attempt: liveWork.attempt }, at, this.options);
+      const session = uow.sessions.get(running.sessionId);
+      if (!session || session.tenantId !== running.tenantId) {
+        finishRun(uow, running, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
+        return { kind: 'skip' };
+      }
       return { kind: 'execute', run: structuredClone(running), session: structuredClone(session) };
     });
   }
@@ -146,10 +146,7 @@ function ownsLease(live: WorkItem, claimed: WorkItem, owner: string): boolean {
 
 function finishRun(uow: RuntimeUnitOfWork, run: AgentRun, work: WorkItem, failure: RunFailure, at: Date, options: ResolvedLocalRunWorkerOptions): void {
   const status = failure.cancelled ? 'cancelled' : 'failed';
-  const nextStatus = status === 'failed' && run.status === 'queued'
-    ? transitionRun(transitionRun(run.status, 'running'), status)
-    : transitionRun(run.status, status);
-  const finished: AgentRun = { ...run, status: nextStatus, errorCode: failure.code,
+  const finished: AgentRun = { ...run, status: transitionRun(run.status, status), errorCode: failure.code,
     finishedAt: cloneDate(at), updatedAt: cloneDate(at) };
   uow.runs.update(finished);
   appendEvent(uow, finished, failure.cancelled ? 'run.cancelled' : 'run.failed',

@@ -21,6 +21,9 @@ export class LocalRunWorker {
   private readonly active = new Map<string, RunExecutionControl>();
   private activeDrain?: Promise<boolean>;
   private pollHandle?: unknown;
+  private pollToken?: symbol;
+  private pollArmed = false;
+  private lifecycleGeneration = 0;
   private started = false;
 
   constructor(
@@ -58,16 +61,16 @@ export class LocalRunWorker {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.schedulePoll(0);
+    const generation = ++this.lifecycleGeneration;
+    this.schedulePoll(0, generation);
   }
 
   async stop(): Promise<void> {
     this.started = false;
-    if (this.pollHandle !== undefined) {
-      this.options.scheduler.clearTimeout(this.pollHandle);
-      this.pollHandle = undefined;
-    }
-    await this.activeDrain;
+    this.lifecycleGeneration += 1;
+    this.clearPoll();
+    const drain = this.activeDrain;
+    await drain;
   }
 
   private async performDrain(): Promise<boolean> {
@@ -125,17 +128,36 @@ export class LocalRunWorker {
     catch (error) { throw storageFailure(error); }
   }
 
-  private schedulePoll(delayMs: number): void {
+  private schedulePoll(delayMs: number, generation: number): void {
+    if (!this.started || generation !== this.lifecycleGeneration) return;
+    const token = Symbol('poll');
+    this.pollToken = token;
+    this.pollArmed = true;
     this.pollHandle = this.options.scheduler.setTimeout(() => {
+      if (!this.pollArmed || this.pollToken !== token) return;
+      this.pollArmed = false;
+      this.pollToken = undefined;
       this.pollHandle = undefined;
-      void this.poll();
+      void this.poll(generation);
     }, delayMs);
   }
 
-  private async poll(): Promise<void> {
+  private clearPoll(): void {
+    if (!this.pollArmed) return;
+    this.pollArmed = false;
+    this.pollToken = undefined;
+    this.options.scheduler.clearTimeout(this.pollHandle);
+    this.pollHandle = undefined;
+  }
+
+  private async poll(generation: number): Promise<void> {
     try { await this.drainOne(); }
     catch { /* Polling continues; explicit drainOne still exposes stable storage failures. */ }
-    finally { if (this.started) this.schedulePoll(this.options.pollMs); }
+    finally {
+      if (this.started && generation === this.lifecycleGeneration) {
+        this.schedulePoll(this.options.pollMs, generation);
+      }
+    }
   }
 }
 

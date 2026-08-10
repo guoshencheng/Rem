@@ -16,6 +16,9 @@ describe('LocalRunWorker 取消', () => {
       status: 'cancelled', errorCode: 'EXECUTION_CANCELLED', cancellationRequestedAt: expect.any(Date),
     });
     expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created', 'run.cancelled']);
+    expect((await store.listEvents('run-1')).at(-1)?.data).toEqual({
+      errorCode: 'EXECUTION_CANCELLED', retryable: false,
+    });
     await store.transaction((uow) => expect(uow.workItems.getByRun('run-1')).toMatchObject({ status: 'failed' }));
   });
 
@@ -38,6 +41,9 @@ describe('LocalRunWorker 取消', () => {
     expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual([
       'run.created', 'run.started', 'run.cancelled',
     ]);
+    expect((await store.listEvents('run-1')).at(-1)?.data).toEqual({
+      errorCode: 'EXECUTION_CANCELLED', retryable: false,
+    });
     executor.resolve(successResult);
     await Promise.resolve();
     expect(await store.listArtifacts('run-1')).toEqual([]);

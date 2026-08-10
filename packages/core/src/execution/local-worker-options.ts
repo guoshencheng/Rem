@@ -32,26 +32,85 @@ const defaultScheduler: WorkerScheduler = {
   clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
+const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+
 export function resolveWorkerOptions(options: LocalRunWorkerOptions): ResolvedLocalRunWorkerOptions {
-  if (!options || typeof options !== 'object') invalid('Worker options are required');
-  const owner = typeof options.owner === 'string' ? options.owner.trim() : '';
+  try { return resolveOptions(options as unknown); }
+  catch (error) {
+    if (error instanceof RuntimeError) throw error;
+    throw new RuntimeError('INVALID_INPUT', 'Worker options are invalid', false, undefined, { cause: error });
+  }
+}
+
+function resolveOptions(value: unknown): ResolvedLocalRunWorkerOptions {
+  const options = optionsRecord(value);
+  const ownerValue = ownValue(options, 'owner');
+  const owner = typeof ownerValue === 'string' ? ownerValue.trim() : '';
   if (!owner) invalid('Worker owner must be a non-empty string');
-  for (const [name, value] of [
-    ['leaseMs', options.leaseMs], ['pollMs', options.pollMs], ['runTimeoutMs', options.runTimeoutMs],
-  ] as const) {
-    if (!Number.isSafeInteger(value) || value <= 0) invalid(`${name} must be a safe positive integer`);
+  const leaseMs = positiveInteger(ownValue(options, 'leaseMs'), 'leaseMs');
+  const pollMs = positiveInteger(ownValue(options, 'pollMs'), 'pollMs');
+  const runTimeoutMs = positiveInteger(ownValue(options, 'runTimeoutMs'), 'runTimeoutMs');
+  if (!Number.isFinite(new Date(leaseMs).getTime())) invalid('leaseMs must produce a finite Date duration');
+  const now = optionalFunction<() => Date>(ownValue(options, 'now'), 'now') ?? (() => new Date());
+  const generateId = optionalFunction<() => string>(ownValue(options, 'generateId'), 'generateId') ?? defaultGenerateId;
+  const schedulerValue = ownValue(options, 'scheduler');
+  const scheduler = schedulerValue === undefined ? defaultScheduler : normalizeScheduler(schedulerValue);
+  if (schedulerValue === undefined && (pollMs > MAX_NODE_TIMER_DELAY_MS || runTimeoutMs > MAX_NODE_TIMER_DELAY_MS)) {
+    invalid(`Default scheduler delays cannot exceed ${MAX_NODE_TIMER_DELAY_MS}`);
   }
-  if (options.now !== undefined && typeof options.now !== 'function') invalid('now must be a function');
-  if (options.generateId !== undefined && typeof options.generateId !== 'function') invalid('generateId must be a function');
-  if (options.scheduler !== undefined
-    && (typeof options.scheduler.setTimeout !== 'function' || typeof options.scheduler.clearTimeout !== 'function')) {
-    invalid('scheduler must provide setTimeout and clearTimeout');
+  return { owner, leaseMs, pollMs, runTimeoutMs, now, generateId, scheduler };
+}
+
+function optionsRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) invalid('Worker options must be a plain object');
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !('value' in descriptor)) invalid('Worker options cannot contain accessors');
   }
+  return value as Record<string, unknown>;
+}
+
+function ownValue(options: Record<string, unknown>, property: string): unknown {
+  return Object.getOwnPropertyDescriptor(options, property)?.value;
+}
+
+function positiveInteger(value: unknown, name: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) invalid(`${name} must be a safe positive integer`);
+  return value as number;
+}
+
+function optionalFunction<T extends (...args: never[]) => unknown>(value: unknown, name: string): T | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'function') invalid(`${name} must be a function`);
+  return value as T;
+}
+
+function normalizeScheduler(value: unknown): WorkerScheduler {
+  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') {
+    invalid('scheduler must be an object');
+  }
+  const setTimeoutMethod = dataMethod(value, 'setTimeout');
+  const clearTimeoutMethod = dataMethod(value, 'clearTimeout');
   return {
-    owner, leaseMs: options.leaseMs, pollMs: options.pollMs, runTimeoutMs: options.runTimeoutMs,
-    now: options.now ?? (() => new Date()), generateId: options.generateId ?? defaultGenerateId,
-    scheduler: options.scheduler ?? defaultScheduler,
+    setTimeout: (callback, delayMs) => setTimeoutMethod.call(value, callback, delayMs),
+    clearTimeout: (handle) => { clearTimeoutMethod.call(value, handle); },
   };
+}
+
+function dataMethod(value: object | Function, property: string): (...args: unknown[]) => unknown {
+  let current: object | null = value;
+  while (current) {
+    const descriptor = Object.getOwnPropertyDescriptor(current, property);
+    if (descriptor) {
+      if (!('value' in descriptor) || typeof descriptor.value !== 'function') {
+        invalid(`scheduler.${property} must be a data method`);
+      }
+      return descriptor.value as (...args: unknown[]) => unknown;
+    }
+    current = Object.getPrototypeOf(current) as object | null;
+  }
+  return invalid(`scheduler.${property} must be a function`);
 }
 
 export function readWorkerNow(now: () => Date): Date {

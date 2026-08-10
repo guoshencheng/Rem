@@ -75,14 +75,17 @@ export function deferred<T>(): Deferred<T> {
 export class ManualScheduler implements WorkerScheduler {
   private nextId = 0;
   private tasks = new Map<number, { callback: () => void; delayMs: number }>();
+  readonly cleared: unknown[] = [];
+  readonly scheduled: number[] = [];
 
   setTimeout(callback: () => void, delayMs: number): number {
     const id = ++this.nextId;
     this.tasks.set(id, { callback, delayMs });
+    this.scheduled.push(delayMs);
     return id;
   }
 
-  clearTimeout(handle: unknown): void { this.tasks.delete(handle as number); }
+  clearTimeout(handle: unknown): void { this.cleared.push(handle); this.tasks.delete(handle as number); }
 
   runDelay(delayMs: number): void {
     const found = [...this.tasks].find(([, task]) => task.delayMs === delayMs);
@@ -92,6 +95,7 @@ export class ManualScheduler implements WorkerScheduler {
   }
 
   get pending(): number { return this.tasks.size; }
+  get pendingDelays(): number[] { return [...this.tasks.values()].map(({ delayMs }) => delayMs); }
 }
 
 export const successResult = {

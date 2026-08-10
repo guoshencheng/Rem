@@ -1,14 +1,33 @@
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { describe, expect, it } from 'vitest';
-import { createWorker, fakeStore, seedRun, successResult } from './helpers/local-worker-fixture.js';
+import { baseTime, createWorker, fakeStore, seedRun, successResult } from './helpers/local-worker-fixture.js';
 
 describe('LocalRunWorker 完整性与隔离', () => {
-  it('Session 缺失时不调用 executor，并稳定完成 failed', async () => {
+  it('queued Run 的 Session 缺失时持久化合法 started→failed 轨迹并清 lease', async () => {
     const store = await fakeStore(); await seedRun(store, { withSession: false });
     let calls = 0;
     await createWorker(store, { execute: async () => { calls += 1; return successResult; } }).drainOne();
     expect(calls).toBe(0);
-    expect(await store.getRun('run-1')).toMatchObject({ status: 'failed', errorCode: 'INTERNAL_ERROR' });
+    expect(await store.getRun('run-1')).toMatchObject({
+      status: 'failed', errorCode: 'INTERNAL_ERROR', startedAt: baseTime, finishedAt: baseTime,
+    });
+    expect((await store.listEvents('run-1')).map(({ sequence, type }) => [sequence, type])).toEqual([
+      [1, 'run.created'], [2, 'run.started'], [3, 'run.failed'],
+    ]);
+    await store.transaction((uow) => {
+      const work = uow.workItems.getByRun('run-1')!;
+      expect(work.status).toBe('failed'); expect(work).not.toHaveProperty('leaseOwner');
+      expect(work).not.toHaveProperty('leaseExpiresAt');
+    });
+  });
+
+  it('running 恢复的 Session 损坏只补 run.failed，不重复 started', async () => {
+    const store = await fakeStore();
+    await seedRun(store, {
+      status: 'running', workStatus: 'leased', leaseOwner: 'dead', leaseExpiresAt: new Date(0), withSession: false,
+    });
+    await createWorker(store, { execute: async () => successResult }).drainOne();
+    expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created', 'run.failed']);
   });
 
   it('claimed Run 缺失时清理 work；transaction 中 work 缺失映射稳定存储错误', async () => {

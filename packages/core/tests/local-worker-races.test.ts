@@ -106,4 +106,99 @@ describe('LocalRunWorker 竞争与计时', () => {
     });
     await worker.stop();
   });
+
+  it('stop 等待期间允许 restart，旧 generation 不得形成第二条 poll 链', async () => {
+    const store = await fakeStore(); await seedRun(store);
+    const scheduler = new ManualScheduler();
+    const entered = deferred<void>(); const result = deferred<typeof successResult>();
+    const secondClaimFinished = deferred<void>();
+    let claims = 0;
+    const counted = {
+      ...store,
+      transaction: store.transaction.bind(store), getSession: store.getSession.bind(store),
+      getRun: store.getRun.bind(store), listEvents: store.listEvents.bind(store),
+      listArtifacts: store.listArtifacts.bind(store), listRecoverableWorkItems: store.listRecoverableWorkItems.bind(store),
+      claimWorkItem: async (...args: Parameters<typeof store.claimWorkItem>) => {
+        claims += 1; const claimed = await store.claimWorkItem(...args);
+        if (claims === 2) secondClaimFinished.resolve();
+        return claimed;
+      },
+    };
+    const worker = createWorker(counted, { execute: async () => { entered.resolve(); return result.promise; } }, { scheduler });
+    worker.start(); scheduler.runDelay(0); await entered.promise;
+
+    const stopping = worker.stop();
+    worker.start(); scheduler.runDelay(0);
+    result.resolve(successResult);
+    await stopping;
+    await Promise.resolve(); await Promise.resolve();
+
+    expect(scheduler.pendingDelays).toEqual([10]);
+    scheduler.runDelay(10);
+    await secondClaimFinished.promise; await Promise.resolve(); await Promise.resolve();
+    expect(scheduler.pendingDelays).toEqual([10]);
+    expect(claims).toBe(2);
+    await worker.stop();
+  });
+
+  it.each(['success', 'failure', 'cancel'] as const)(
+    'timeout handle 为 undefined 时 %s 仍恰好 clear 一次', async (mode) => {
+      const store = await fakeStore(); await seedRun(store);
+      const scheduler = new UndefinedHandleScheduler();
+      const entered = deferred<void>(); const result = deferred<typeof successResult>();
+      const worker = createWorker(store, { execute: async () => {
+        entered.resolve();
+        if (mode === 'success') return successResult;
+        if (mode === 'failure') throw new Error('failure');
+        return result.promise;
+      } }, { scheduler });
+      const drain = worker.drainOne(); await entered.promise;
+      if (mode === 'cancel') await worker.cancel('run-1');
+      await drain;
+      expect(scheduler.clearCalls).toBe(1);
+    },
+  );
+
+  it('timeout 已触发时不再 clear 已消费的 undefined handle', async () => {
+    const store = await fakeStore(); await seedRun(store);
+    const scheduler = new UndefinedHandleScheduler(); const result = deferred<typeof successResult>();
+    const entered = deferred<void>();
+    const worker = createWorker(store, { execute: async () => { entered.resolve(); return result.promise; } }, { scheduler, runTimeoutMs: 50 });
+    const drain = worker.drainOne();
+    await entered.promise;
+    scheduler.fire(50); await drain;
+    expect(scheduler.clearCalls).toBe(0);
+  });
+
+  it('poll handle 为 undefined 时 stop 仍恰好 clear 一次且失效 callback 不 claim', async () => {
+    const store = await fakeStore(); const scheduler = new UndefinedHandleScheduler(); let claims = 0;
+    const counted = {
+      ...store,
+      transaction: store.transaction.bind(store), getSession: store.getSession.bind(store),
+      getRun: store.getRun.bind(store), listEvents: store.listEvents.bind(store),
+      listArtifacts: store.listArtifacts.bind(store), listRecoverableWorkItems: store.listRecoverableWorkItems.bind(store),
+      claimWorkItem: (...args: Parameters<typeof store.claimWorkItem>) => {
+        claims += 1; return store.claimWorkItem(...args);
+      },
+    };
+    const worker = createWorker(counted, { execute: async () => successResult }, { scheduler });
+    worker.start(); await worker.stop();
+    expect(scheduler.clearCalls).toBe(1);
+    scheduler.fire(0); await Promise.resolve();
+    expect(claims).toBe(0);
+  });
 });
+
+class UndefinedHandleScheduler {
+  private tasks: Array<{ callback: () => void; delayMs: number }> = [];
+  clearCalls = 0;
+  setTimeout(callback: () => void, delayMs: number): undefined {
+    this.tasks.push({ callback, delayMs }); return undefined;
+  }
+  clearTimeout(_handle: unknown): void { this.clearCalls += 1; }
+  fire(delayMs: number): void {
+    const index = this.tasks.findIndex((task) => task.delayMs === delayMs);
+    if (index < 0) throw new Error(`No timer for ${delayMs}`);
+    this.tasks.splice(index, 1)[0]!.callback();
+  }
+}

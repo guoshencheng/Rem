@@ -7,17 +7,24 @@ export class RunExecutionControl {
   readonly interrupted: Promise<InterruptReason>;
   private resolveInterrupt!: (reason: InterruptReason) => void;
   private timeoutHandle: unknown;
+  private timeoutArmed = false;
   private reason?: InterruptReason;
 
   constructor(scheduler: WorkerScheduler, timeoutMs: number) {
     this.interrupted = new Promise((resolve) => { this.resolveInterrupt = resolve; });
-    this.timeoutHandle = scheduler.setTimeout(() => this.interrupt('timeout'), timeoutMs);
+    this.timeoutArmed = true;
+    this.timeoutHandle = scheduler.setTimeout(() => {
+      if (!this.timeoutArmed) return;
+      this.timeoutArmed = false;
+      this.interrupt('timeout');
+    }, timeoutMs);
   }
 
   cancel(): void { this.interrupt('cancelled'); }
 
   clear(scheduler: WorkerScheduler): void {
-    if (this.timeoutHandle === undefined) return;
+    if (!this.timeoutArmed) return;
+    this.timeoutArmed = false;
     scheduler.clearTimeout(this.timeoutHandle);
     this.timeoutHandle = undefined;
   }

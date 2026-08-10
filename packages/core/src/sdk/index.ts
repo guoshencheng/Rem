@@ -12,3 +12,4 @@ export * from './title-provider.js';
 export * from './storage-provider.js';
 export * from './agent-plugin.js';
 export * from './system-prompt.js';
+export * from './runtime-plugin.js';

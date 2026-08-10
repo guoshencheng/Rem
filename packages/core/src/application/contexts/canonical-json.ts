@@ -1,0 +1,49 @@
+import { createHash } from 'node:crypto';
+
+export function cloneCanonicalJson(value: unknown): unknown {
+  return canonicalize(value, new WeakSet<object>());
+}
+
+export function hashCanonicalJson(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(cloneCanonicalJson(value))).digest('hex');
+}
+
+function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Non-finite numbers are not JSON-compatible');
+    return value;
+  }
+  if (typeof value !== 'object') throw new Error(`Unsupported JSON value: ${typeof value}`);
+  if (ancestors.has(value)) throw new Error('Circular JSON value');
+  if (Array.isArray(value)) {
+    if (Object.getOwnPropertySymbols(value).length > 0) throw new Error('Symbol keys are not JSON-compatible');
+    for (const key of Object.keys(value)) {
+      if (!/^0$|^[1-9][0-9]*$/.test(key)) throw new Error('Array properties are not JSON-compatible');
+    }
+    ancestors.add(value);
+    try {
+      const result: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.hasOwn(value, index)) throw new Error('Sparse arrays are not JSON-compatible');
+        result.push(canonicalize(value[index], ancestors));
+      }
+      return result;
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) throw new Error('Only plain objects are JSON-compatible');
+  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error('Symbol keys are not JSON-compatible');
+  ancestors.add(value);
+  try {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(value).sort()) {
+      result[key] = canonicalize((value as Record<string, unknown>)[key], ancestors);
+    }
+    return result;
+  } finally {
+    ancestors.delete(value);
+  }
+}

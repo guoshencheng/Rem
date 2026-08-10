@@ -27,6 +27,46 @@ describe('runtime domain', () => {
     )).toThrow('Duplicate context binding');
   });
 
+  it('无 patch 时仍拒绝重复绑定', () => {
+    expect(() => applyContextPatch(
+      { bindings: [
+        { type: 'acme/repository', contextId: 'rem' },
+        { type: 'acme/repository', contextId: 'rem' },
+      ] },
+    )).toThrow('Duplicate context binding');
+  });
+
+  it('返回独立的 binding 与 input 副本', () => {
+    const base = {
+      bindings: [{
+        type: 'acme/repository',
+        contextId: 'rem',
+        input: { branch: 'main' },
+      }],
+    };
+    const result = applyContextPatch(base);
+    const binding = result.bindings[0];
+
+    binding.contextId = 'sdk';
+    (binding.input as { branch: string }).branch = 'next';
+
+    expect(base.bindings[0]).toEqual({
+      type: 'acme/repository',
+      contextId: 'rem',
+      input: { branch: 'main' },
+    });
+  });
+
+  it('不将包含 NUL 的不同 type 与 contextId 元组误判为重复', () => {
+    expect(() => applyContextPatch(
+      { bindings: [
+        { type: 'acme\u0000repository', contextId: 'rem' },
+        { type: 'acme', contextId: 'repository\u0000rem' },
+      ] },
+      {},
+    )).not.toThrow();
+  });
+
   it('拒绝与 replace key 类型不匹配的 replacement', () => {
     expect(() => applyContextPatch(
       { bindings: [] },
@@ -42,6 +82,7 @@ describe('runtime domain', () => {
     expect(transitionRun('queued', 'running')).toBe('running');
     expect(transitionRun('running', 'completed')).toBe('completed');
     expect(transitionRun('waiting', 'queued')).toBe('queued');
+    expect(() => transitionRun('running', 'queued')).toThrow('Illegal run transition');
     expect(() => transitionRun('completed', 'running')).toThrow('Illegal run transition');
   });
 

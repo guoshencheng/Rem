@@ -10,6 +10,7 @@ const transitions: Readonly<Record<RunStatus, readonly RunStatus[]>> = {
 };
 
 export function transitionRun(current: RunStatus, next: RunStatus): RunStatus {
+  // 恢复重排不是正常业务迁移；Task 11 将通过专用 recovery transition/usecase 实现。
   if (!transitions[current].includes(next)) {
     throw new Error(`Illegal run transition: ${current} -> ${next}`);
   }

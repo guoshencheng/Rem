@@ -2,7 +2,7 @@ import type { RuntimeUnitOfWork } from '../src/sdk/runtime-storage.js';
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { RuntimeError } from '../src/application/runtime/runtime-error.js';
-import { mapEventRow, mapRunRow, mapSessionRow, mapToolInvocationRow, mapWorkItemRow } from '../src/plugins/storage/sqlite/runtime-row-mappers.js';
+import { mapEventRow, mapRunRow, mapSessionEntryRow, mapSessionRow, mapToolInvocationRow, mapWorkItemRow } from '../src/plugins/storage/sqlite/runtime-row-mappers.js';
 import { SqliteRuntimeStore } from '../src/plugins/storage/sqlite/runtime-store.js';
 import { SqliteSchemaManager } from '../src/plugins/storage/sqlite/schema.js';
 
@@ -43,14 +43,14 @@ describe('SQLite runtime 关系完整性', () => {
       uow.sessions.insert(session('s1', 't1')); uow.sessions.insert(session('s2', 't2'));
       uow.runs.insert(run('r1', 't1', 's1')); uow.runs.insert(run('r2', 't2', 's2'));
       uow.events.append(event('t1', 's1', 'r1'));
-      uow.sessions.appendEntries([{ entryId: 'entry-ok', tenantId: 't1', sessionId: 's1', runId: 'r1', sequence: 1, message: { role: 'user', content: 'ok' } as never, createdAt: at(3) }]);
+      uow.sessions.appendEntries([{ entryId: 'entry-ok', tenantId: 't1', sessionId: 's1', runId: 'r1', sequence: 1, message: { role: 'user', content: 'ok', timestamp: at(3).getTime() }, createdAt: at(3) }]);
       uow.artifacts.insert({ artifactId: 'artifact-ok', tenantId: 't1', sessionId: 's1', runId: 'r1', type: 'report', mediaType: 'text/plain', name: 'ok', createdAt: at(3) });
       uow.toolInvocations.insert({ invocationId: 'tool-ok', tenantId: 't1', sessionId: 's1', runId: 'r1', toolCallId: 'call-ok', toolName: 'tool', status: 'planned', sideEffect: 'none', supportsIdempotencyKey: false, input: null, createdAt: at(3), updatedAt: at(3) });
     });
     await expectCode(() => store.transaction((uow) => uow.runs.insert(run('bad-run', 't1', 's2'))), 'STORAGE_CONFLICT');
     const invalidChildren: Array<(uow: RuntimeUnitOfWork) => void> = [
       (uow) => uow.events.append({ ...event('t2', 's2', 'r1'), eventId: 'bad-event' }),
-      (uow) => uow.sessions.appendEntries([{ entryId: 'bad-entry', tenantId: 't1', sessionId: 's2', runId: 'r1', sequence: 2, message: { role: 'user', content: 'bad' } as never, createdAt: at(3) }]),
+      (uow) => uow.sessions.appendEntries([{ entryId: 'bad-entry', tenantId: 't1', sessionId: 's2', runId: 'r1', sequence: 2, message: { role: 'user', content: 'bad', timestamp: at(3).getTime() }, createdAt: at(3) }]),
       (uow) => uow.artifacts.insert({ artifactId: 'bad-artifact', tenantId: 't2', sessionId: 's1', runId: 'r1', type: 'report', mediaType: 'text/plain', name: 'bad', createdAt: at(3) }),
       (uow) => uow.toolInvocations.insert({ invocationId: 'bad-tool', tenantId: 't1', sessionId: 's2', runId: 'r1', toolCallId: 'bad-call', toolName: 'tool', status: 'planned', sideEffect: 'none', supportsIdempotencyKey: false, input: null, createdAt: at(3), updatedAt: at(3) }),
     ];
@@ -67,6 +67,9 @@ describe('SQLite runtime 严格映射', () => {
   const eventRow = { id: 'e', sequence: 1, schema_version: 1, tenant_id: 't', session_id: 's', run_id: 'r', type: 'run.created', data_json: 'null', occurred_at: at(1).toISOString() };
   const workRow = { id: 'w', run_id: 'r', status: 'queued', lease_owner: null, lease_expires_at: null, attempt: 0, created_at: at(1).toISOString(), updated_at: at(1).toISOString() };
   const toolRow = { id: 'i', tenant_id: 't', session_id: 's', run_id: 'r', tool_call_id: 'c', tool_name: 'tool', status: 'planned', side_effect: 'none', supports_idempotency_key: 0, input_json: 'null', result_json: null, error: null, created_at: at(1).toISOString(), updated_at: at(1).toISOString() };
+  const entryRow = { id: 'e', tenant_id: 't', session_id: 's', run_id: 'r', sequence: 1, message_json: '{"role":"user","content":"ok","timestamp":1}', metadata_json: null, created_at: at(1).toISOString() };
+  const snapshotItem = { binding: { type: 'account', contextId: 'a' }, pluginId: 'plugin', pluginVersion: '1', snapshotHash: 'a'.repeat(64), snapshot: {} };
+  const snapshotJson = (item: unknown) => JSON.stringify({ items: [item], configLayers: [], promptSections: [] });
 
   it.each([
     ['null contexts', () => mapSessionRow({ ...sessionRow, contexts_json: null as never })],
@@ -76,6 +79,17 @@ describe('SQLite runtime 严格映射', () => {
     ['invalid schema version', () => mapEventRow({ ...eventRow, schema_version: 2 })],
     ['invalid attempt', () => mapWorkItemRow({ ...workRow, attempt: -1 })],
     ['invalid boolean', () => mapToolInvocationRow({ ...toolRow, supports_idempotency_key: 2 })],
+    ['null binding', () => mapSessionRow({ ...sessionRow, contexts_json: '{"bindings":[null]}' })],
+    ['binding without context id', () => mapSessionRow({ ...sessionRow, contexts_json: '{"bindings":[{"type":"account"}]}' })],
+    ['null snapshot item', () => mapRunRow({ ...runRow, context_snapshot_json: '{"items":[null],"configLayers":[],"promptSections":[]}' })],
+    ['invalid snapshot hash', () => mapRunRow({ ...runRow, context_snapshot_json: snapshotJson({ ...snapshotItem, snapshotHash: 'short' }) })],
+    ['snapshot without payload', () => { const { snapshot: _snapshot, ...item } = snapshotItem; return mapRunRow({ ...runRow, context_snapshot_json: snapshotJson(item) }); }],
+    ['empty config layer', () => mapRunRow({ ...runRow, context_snapshot_json: '{"items":[],"configLayers":[{}],"promptSections":[]}' })],
+    ['invalid config priority', () => mapRunRow({ ...runRow, context_snapshot_json: '{"items":[],"configLayers":[{"name":"base","priority":"first","value":{}}],"promptSections":[]}' })],
+    ['invalid prompt section', () => mapRunRow({ ...runRow, context_snapshot_json: '{"items":[],"configLayers":[],"promptSections":[1]}' })],
+    ['message without content', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"user","timestamp":1}' })],
+    ['message without timestamp', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"user","content":"x"}' })],
+    ['tool result without isError', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"toolResult","toolCallId":"c","toolName":"tool","content":[],"timestamp":1}' })],
   ])('拒绝 %s', (_name, action) => {
     let error: unknown; try { action(); } catch (caught) { error = caught; }
     expect(error).toBeInstanceOf(RuntimeError); expect(error).toMatchObject({ code: 'STORAGE_UNAVAILABLE' });
@@ -110,6 +124,22 @@ describe('SQLite runtime 写入与领取边界', () => {
     });
     db.prepare("UPDATE runtime_work_items SET attempt='corrupt' WHERE id='late'").run();
     await expect(store.claimWorkItem('owner', at(10), 1_000)).resolves.toMatchObject({ workItemId: 'early', attempt: 1 });
+    db.close();
+  });
+
+  it('claim 的 queued 与过期 leased 最早查询均使用专用索引', () => {
+    const { db } = openStore();
+    const queued = db.prepare(`
+      EXPLAIN QUERY PLAN
+      SELECT MIN(created_at) AS value FROM runtime_work_items WHERE status = 'queued'
+    `).all() as Array<{ detail: string }>;
+    const leased = db.prepare(`
+      EXPLAIN QUERY PLAN
+      SELECT MIN(created_at) AS value FROM runtime_work_items
+      WHERE status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+    `).all(at(10).toISOString()) as Array<{ detail: string }>;
+    expect(queued.map(({ detail }) => detail).join('\n')).toContain('idx_runtime_work_queued_created');
+    expect(leased.map(({ detail }) => detail).join('\n')).toContain('idx_runtime_work_leased_claim');
     db.close();
   });
 });

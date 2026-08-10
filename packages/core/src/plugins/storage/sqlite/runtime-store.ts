@@ -6,7 +6,7 @@ import type { AgentSession } from '../../../domain/session/types.js';
 import type { RuntimeStorage, RuntimeTransactionCallback, SynchronousRuntimeTransactionCallback } from '../../../sdk/runtime-storage.js';
 import type { RuntimeArtifactRow, RuntimeRunRow, RuntimeSessionRow } from './runtime-row-types.js';
 import { mapArtifactRow, mapRunRow, mapSessionRow } from './runtime-row-mappers.js';
-import { invalidRuntimeInput, mapSqliteFailure, sqliteAction } from './runtime-sqlite-error.js';
+import { invalidRuntimeInput, mapSqliteFailure, rejectedRuntimeInput, sqliteAction } from './runtime-sqlite-error.js';
 import { createSqliteRuntimeUnitOfWork } from './runtime-unit-of-work.js';
 import { SqliteRuntimeEventRepository } from './runtime-event-repository.js';
 import { SqliteRuntimeWorkItemRepository } from './runtime-work-item-repository.js';
@@ -23,10 +23,10 @@ export class SqliteRuntimeStore implements RuntimeStorage {
     this.db.pragma('busy_timeout = 5000');
   }
 
-  async transaction<T extends RuntimeTransactionCallback>(
+  transaction<T extends RuntimeTransactionCallback>(
     operation: SynchronousRuntimeTransactionCallback<T>,
   ): Promise<ReturnType<T>> {
-    if (this.activeCallback) invalidRuntimeInput('Nested RuntimeStorage transactions are not supported');
+    if (this.activeCallback) return this.rejectReentrant('transaction');
     return this.lock(() => {
       let callbackFailure: unknown;
       let callbackFailed = false;
@@ -50,38 +50,43 @@ export class SqliteRuntimeStore implements RuntimeStorage {
     });
   }
 
-  async getSession(sessionId: string): Promise<AgentSession | null> {
+  getSession(sessionId: string): Promise<AgentSession | null> {
+    if (this.activeCallback) return this.rejectReentrant('getSession');
     return this.lock(() => sqliteAction('reading runtime session', () => {
       const row = this.db.prepare('SELECT * FROM runtime_sessions WHERE id = ?').get(sessionId) as RuntimeSessionRow | undefined;
       return row ? mapSessionRow(row) : null;
     }));
   }
 
-  async getRun(runId: string): Promise<AgentRun | null> {
+  getRun(runId: string): Promise<AgentRun | null> {
+    if (this.activeCallback) return this.rejectReentrant('getRun');
     return this.lock(() => sqliteAction('reading runtime run', () => {
       const row = this.db.prepare('SELECT * FROM runtime_runs WHERE id = ?').get(runId) as RuntimeRunRow | undefined;
       return row ? mapRunRow(row) : null;
     }));
   }
 
-  async listEvents(runId: string, afterSequence = 0, limit = 100): Promise<RunEvent[]> {
+  listEvents(runId: string, afterSequence = 0, limit = 100): Promise<RunEvent[]> {
+    if (this.activeCallback) return this.rejectReentrant('listEvents');
     return this.lock(() => new SqliteRuntimeEventRepository(this.db).list(runId, afterSequence, limit));
   }
 
-  async listArtifacts(runId: string): Promise<Artifact[]> {
+  listArtifacts(runId: string): Promise<Artifact[]> {
+    if (this.activeCallback) return this.rejectReentrant('listArtifacts');
     return this.lock(() => sqliteAction('listing runtime artifacts', () => {
       const rows = this.db.prepare('SELECT * FROM runtime_artifacts WHERE run_id = ? ORDER BY created_at, id').all(runId) as RuntimeArtifactRow[];
       return rows.map(mapArtifactRow);
     }));
   }
 
-  async claimWorkItem(owner: string, now: Date, leaseMs: number): Promise<WorkItem | null> {
+  claimWorkItem(owner: string, now: Date, leaseMs: number): Promise<WorkItem | null> {
+    if (this.activeCallback) return this.rejectReentrant('claimWorkItem');
     const leaseOwner = owner.trim();
     const expiresAt = new Date(now.getTime() + leaseMs);
-    if (!leaseOwner) invalidRuntimeInput('Lease owner is required');
+    if (!leaseOwner) return rejectedRuntimeInput('Lease owner is required');
     if (!Number.isSafeInteger(leaseMs) || leaseMs <= 0 || !Number.isFinite(now.getTime())
       || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= now.getTime()) {
-      invalidRuntimeInput('Lease duration must produce a valid expiry');
+      return rejectedRuntimeInput('Lease duration must produce a valid expiry');
     }
     return this.lock(() => {
       try {
@@ -97,9 +102,14 @@ export class SqliteRuntimeStore implements RuntimeStorage {
     });
   }
 
-  async listRecoverableWorkItems(now: Date): Promise<WorkItem[]> {
-    if (!Number.isFinite(now.getTime())) invalidRuntimeInput('Recovery time must be valid');
+  listRecoverableWorkItems(now: Date): Promise<WorkItem[]> {
+    if (this.activeCallback) return this.rejectReentrant('listRecoverableWorkItems');
+    if (!Number.isFinite(now.getTime())) return rejectedRuntimeInput('Recovery time must be valid');
     return this.lock(() => new SqliteRuntimeWorkItemRepository(this.db).listRecoverable(now));
+  }
+
+  private rejectReentrant<T>(operation: string): Promise<T> {
+    return rejectedRuntimeInput(`RuntimeStorage ${operation} cannot run inside a transaction callback`);
   }
 
   private async lock<T>(operation: () => T): Promise<T> {

@@ -54,15 +54,20 @@ export class SqliteRuntimeWorkItemRepository implements RuntimeWorkItemRepositor
   listClaimCandidates(now: Date): WorkItem[] {
     return sqliteAction('listing runtime claim candidates', () => {
       const isoNow = now.toISOString();
-      const earliest = this.db.prepare(`
-        SELECT MIN(created_at) AS created_at FROM runtime_work_items
-        WHERE status = 'queued' OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
-      `).get(isoNow) as { created_at: string | null };
-      if (earliest.created_at === null) return [];
+      const queued = this.db.prepare("SELECT MIN(created_at) AS value FROM runtime_work_items WHERE status = 'queued'").get() as { value: string | null };
+      const leased = this.db.prepare(`
+        SELECT MIN(created_at) AS value FROM runtime_work_items
+        WHERE status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+      `).get(isoNow) as { value: string | null };
+      const earliest = [queued.value, leased.value].filter((value): value is string => value !== null).sort()[0];
+      if (earliest === undefined) return [];
       const rows = this.db.prepare(`
-        SELECT * FROM runtime_work_items WHERE created_at = ?
-          AND (status = 'queued' OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?))
-      `).all(earliest.created_at, isoNow) as RuntimeWorkItemRow[];
+        SELECT * FROM runtime_work_items WHERE created_at = ? AND status = 'queued'
+        UNION ALL
+        SELECT * FROM runtime_work_items WHERE created_at = ? AND status = 'leased'
+          AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
+      `).all(earliest, earliest, isoNow) as RuntimeWorkItemRow[];
+      // Only the equal-time bucket needs JS sorting to preserve raw UTF-16 id order.
       return rows.map(mapWorkItemRow).sort(compareWork);
     });
   }

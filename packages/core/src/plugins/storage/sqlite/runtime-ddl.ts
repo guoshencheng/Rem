@@ -76,8 +76,11 @@ export const RUNTIME_DDL = `
     FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
   );
 
-  CREATE INDEX IF NOT EXISTS idx_runtime_work_claim
-    ON runtime_work_items(status, lease_expires_at, created_at);
+  CREATE INDEX IF NOT EXISTS idx_runtime_work_queued_created
+    ON runtime_work_items(created_at, id) WHERE status = 'queued';
+
+  CREATE INDEX IF NOT EXISTS idx_runtime_work_leased_claim
+    ON runtime_work_items(status, lease_expires_at, created_at, id) WHERE status = 'leased';
 
   CREATE TABLE IF NOT EXISTS runtime_session_entries (
     id TEXT PRIMARY KEY,

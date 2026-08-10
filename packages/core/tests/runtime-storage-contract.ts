@@ -15,7 +15,7 @@ const event = (sequence: number, id = `event-${sequence}`): RunEvent => ({ event
 const work = (id = 'work-1', runId = 'run-1', createdAt = at(4)): WorkItem => ({ workItemId: id, runId, status: 'queued', attempt: 0, createdAt, updatedAt: createdAt });
 const artifact = (): Artifact => ({ artifactId: 'artifact-1', tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', type: 'report', mediaType: 'application/json', name: 'result', metadata: { nested: { value: 1 } }, createdAt: at(5) });
 const invocation = (): ToolInvocation => ({ invocationId: 'invocation-1', tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', toolCallId: 'call-1', toolName: 'lookup', status: 'planned', sideEffect: 'none', supportsIdempotencyKey: true, input: { nested: { value: 1 } }, createdAt: at(6), updatedAt: at(6) });
-const entry = (): RuntimeSessionEntry => ({ entryId: 'entry-1', tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', sequence: 1, message: { role: 'user', content: 'hello' } as RuntimeSessionEntry['message'], metadata: { nested: { value: 1 } }, createdAt: at(7) });
+const entry = (): RuntimeSessionEntry => ({ entryId: 'entry-1', tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', sequence: 1, message: { role: 'user', content: 'hello', timestamp: at(7).getTime() }, metadata: { nested: { value: 1 } }, createdAt: at(7) });
 
 async function expectCode(action: () => unknown | Promise<unknown>, code: RuntimeError['code']): Promise<void> {
   await expect(action()).rejects.toMatchObject({ code });

@@ -37,3 +37,9 @@ export function runtimeConflict(message: string): never {
 export function invalidRuntimeInput(message: string, cause?: unknown): never {
   throw new RuntimeError('INVALID_INPUT', message, false, undefined, cause === undefined ? undefined : { cause });
 }
+
+export function rejectedRuntimeInput<T>(message: string): Promise<T> {
+  const rejected = Promise.reject<T>(new RuntimeError('INVALID_INPUT', message));
+  void rejected.catch(() => {});
+  return rejected;
+}

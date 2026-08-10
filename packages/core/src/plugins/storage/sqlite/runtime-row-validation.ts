@@ -41,6 +41,11 @@ export function runtimeBoolean(value: unknown, column: string): boolean {
   return value === 1;
 }
 
+export function runtimeFiniteNumber(value: unknown, column: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fail(column, 'a finite number', value);
+  return value;
+}
+
 export function runtimeDate(value: unknown, column: string): Date {
   if (typeof value !== 'string') return fail(column, 'a canonical ISO date', value);
   let parsed: Date;
@@ -74,9 +79,21 @@ export function requirePlainObject(value: unknown, column: string): asserts valu
   if (prototype !== Object.prototype && prototype !== null) return fail(column, 'a plain object', value);
 }
 
+function requireArray(value: unknown, column: string): asserts value is unknown[] {
+  if (!Array.isArray(value)) return fail(column, 'an array', value);
+}
+
 export function validateContextSet(value: unknown, column: string): void {
   requirePlainObject(value, column);
-  if (!Array.isArray(value.bindings)) fail(column, 'an object with bindings array', value);
+  const { bindings } = value;
+  requireArray(bindings, `${column}.bindings`);
+  bindings.forEach((binding, index) => validateBinding(binding, `${column}.bindings[${index}]`));
+}
+
+function validateBinding(value: unknown, column: string): void {
+  requirePlainObject(value, column);
+  runtimeText(value.type, `${column}.type`); runtimeText(value.contextId, `${column}.contextId`);
+  if (Object.hasOwn(value, 'revision')) runtimeText(value.revision, `${column}.revision`, true);
 }
 
 export function validateTrigger(value: unknown, column: string): void {
@@ -88,12 +105,36 @@ export function validateTrigger(value: unknown, column: string): void {
 
 export function validateContextSnapshot(value: unknown, column: string): void {
   requirePlainObject(value, column);
-  for (const property of ['items', 'configLayers', 'promptSections']) {
-    if (!Array.isArray(value[property])) fail(column, `an object with ${property} array`, value);
-  }
+  const { items, configLayers, promptSections } = value;
+  requireArray(items, `${column}.items`);
+  requireArray(configLayers, `${column}.configLayers`);
+  requireArray(promptSections, `${column}.promptSections`);
+  items.forEach((item, index) => {
+    const itemColumn = `${column}.items[${index}]`; requirePlainObject(item, itemColumn);
+    validateBinding(item.binding, `${itemColumn}.binding`);
+    runtimeText(item.pluginId, `${itemColumn}.pluginId`); runtimeText(item.pluginVersion, `${itemColumn}.pluginVersion`);
+    if (typeof item.snapshotHash !== 'string' || !/^[0-9a-f]{64}$/i.test(item.snapshotHash)) fail(`${itemColumn}.snapshotHash`, '64 hexadecimal characters', item.snapshotHash);
+    if (!Object.hasOwn(item, 'snapshot')) fail(itemColumn, 'an object with snapshot', item);
+  });
+  configLayers.forEach((layer, index) => {
+    const layerColumn = `${column}.configLayers[${index}]`; requirePlainObject(layer, layerColumn);
+    runtimeText(layer.name, `${layerColumn}.name`); runtimeFiniteNumber(layer.priority, `${layerColumn}.priority`);
+    if (!Object.hasOwn(layer, 'value')) fail(layerColumn, 'an object with value', layer);
+  });
+  promptSections.forEach((section, index) => {
+    const sectionColumn = `${column}.promptSections[${index}]`; requirePlainObject(section, sectionColumn);
+    runtimeText(section.name, `${sectionColumn}.name`); runtimeFiniteNumber(section.priority, `${sectionColumn}.priority`);
+    runtimeText(section.content, `${sectionColumn}.content`, true);
+  });
 }
 
 export function validateMessage(value: unknown, column: string): void {
   requirePlainObject(value, column);
-  runtimeEnum(value.role, `${column}.role`, ['user', 'assistant', 'toolResult'] as const);
+  const role = runtimeEnum(value.role, `${column}.role`, ['user', 'assistant', 'toolResult'] as const);
+  if (!Object.hasOwn(value, 'content')) fail(column, 'an object with content', value);
+  runtimeFiniteNumber(value.timestamp, `${column}.timestamp`);
+  if (role === 'toolResult') {
+    runtimeText(value.toolCallId, `${column}.toolCallId`); runtimeText(value.toolName, `${column}.toolName`);
+    if (typeof value.isError !== 'boolean') fail(`${column}.isError`, 'a boolean', value.isError);
+  }
 }

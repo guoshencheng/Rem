@@ -9,6 +9,7 @@ import { Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 import { ContextResolver } from '../src/application/contexts/context-resolver.js';
 import { RuntimeError } from '../src/application/runtime/runtime-error.js';
+import { cloneCanonicalJson, hashCanonicalJson } from '../src/application/contexts/canonical-json.js';
 import { RuntimePluginHost } from '../src/plugin-system/runtime-plugin-host.js';
 
 const request = { tenantId: 'tenant', principal: { principalId: 'principal', roles: [] } };
@@ -239,5 +240,22 @@ describe('RuntimePluginHost 与 ContextResolver', () => {
       const error = await expectCode(() => resolver.resolve({ bindings: [binding(`acme/${name}`)] }, request), 'CONTEXT_INVALID');
       expect(error.cause).toBeInstanceOf(Error);
     }
+  });
+
+  it('保留 JSON 的 __proto__ own key，并将其写入配置快照', async () => {
+    const value = JSON.parse('{"__proto__":{"kept":true},"z":1}') as Record<string, unknown>;
+    const cloned = cloneCanonicalJson(value) as Record<string, unknown>;
+    const resolver = new ContextResolver(new RuntimePluginHost([plugin('acme/proto', '1', 'acme/proto', {
+      materialize: async () => ({ configLayers: [{ name: 'meta', priority: 1, value }] }),
+    })]));
+    const resolved = await resolver.resolve({ bindings: [binding('acme/proto')] }, request);
+    const configValue = resolved.snapshot.configLayers[0]!.value as Record<string, unknown>;
+
+    expect(Object.hasOwn(cloned, '__proto__')).toBe(true);
+    expect(Object.getPrototypeOf(cloned)).toBe(Object.prototype);
+    expect(cloned.__proto__).toEqual({ kept: true });
+    expect(hashCanonicalJson(value)).not.toBe(hashCanonicalJson({ z: 1 }));
+    expect(Object.hasOwn(configValue, '__proto__')).toBe(true);
+    expect(configValue.__proto__).toEqual({ kept: true });
   });
 });

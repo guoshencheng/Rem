@@ -45,7 +45,12 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
   try {
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(value).sort()) {
-      result[key] = canonicalize((value as Record<string, unknown>)[key], ancestors);
+      Object.defineProperty(result, key, {
+        value: canonicalize((value as Record<string, unknown>)[key], ancestors),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return result;
   } finally {

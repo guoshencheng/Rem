@@ -698,8 +698,14 @@ export interface RuntimeUnitOfWork {
   toolInvocations: RuntimeToolInvocationRepository;
 }
 
+export type RuntimeTransactionCallback = (uow: RuntimeUnitOfWork) => unknown;
+export type SynchronousRuntimeTransactionCallback<T extends RuntimeTransactionCallback> =
+  T & (Extract<ReturnType<T>, PromiseLike<unknown>> extends never ? unknown : never);
+
 export interface RuntimeStorage {
-  transaction<T>(operation: (uow: RuntimeUnitOfWork) => T): Promise<T>;
+  transaction<T extends RuntimeTransactionCallback>(
+    operation: SynchronousRuntimeTransactionCallback<T>,
+  ): Promise<ReturnType<T>>;
   getSession(sessionId: string): Promise<AgentSession | null>;
   getRun(runId: string): Promise<AgentRun | null>;
   listEvents(runId: string, afterSequence?: number, limit?: number): Promise<RunEvent[]>;
@@ -752,6 +758,8 @@ runtimeStorageContract(async () => {
 ```
 
 除复用上述单 Store 契约外，新增跨连接竞争测试：对同一个临时 SQLite 文件分别打开两个独立 `Database` / `SqliteRuntimeStore`，用可控 barrier、`BEGIN IMMEDIATE` 或等价同步方式让两个 `claimWorkItem()` 竞争同一记录，断言恰好一个领取成功。单连接 `Promise.all` 只覆盖内存 Fake 的接口级串行化，不能替代此 SQLite 跨连接测试。
+
+`SqliteRuntimeStore.transaction` 的 concrete 方法签名必须直接复用 `SynchronousRuntimeTransactionCallback`，不能因实现类单独写成接受宽泛回调的签名而绕过 SDK 的同步事务约束。
 
 - [ ] **Step 2: 运行测试确认失败**
 

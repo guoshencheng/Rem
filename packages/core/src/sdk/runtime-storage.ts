@@ -11,7 +11,7 @@ export type { IdempotencyRecord, RuntimeArtifactRepository, RuntimeEventReposito
 
 export type RuntimeTransactionCallback = (uow: RuntimeUnitOfWork) => unknown;
 export type SynchronousRuntimeTransactionCallback<T extends RuntimeTransactionCallback> =
-  T & (ReturnType<T> extends PromiseLike<unknown> ? never : unknown);
+  T & (Extract<ReturnType<T>, PromiseLike<unknown>> extends never ? unknown : never);
 
 export interface RuntimeStorage {
   transaction<T extends RuntimeTransactionCallback>(

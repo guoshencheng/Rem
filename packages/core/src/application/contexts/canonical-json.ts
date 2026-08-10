@@ -26,8 +26,10 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
     try {
       const result: unknown[] = [];
       for (let index = 0; index < value.length; index += 1) {
-        if (!Object.hasOwn(value, index)) throw new Error('Sparse arrays are not JSON-compatible');
-        result.push(canonicalize(value[index], ancestors));
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (!descriptor) throw new Error('Sparse arrays are not JSON-compatible');
+        if (!('value' in descriptor)) throw new Error('Accessor properties are not JSON-compatible');
+        result.push(canonicalize(descriptor.value, ancestors));
       }
       return result;
     } finally {
@@ -45,8 +47,10 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
   try {
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(value).sort()) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !('value' in descriptor)) throw new Error('Accessor properties are not JSON-compatible');
       Object.defineProperty(result, key, {
-        value: canonicalize((value as Record<string, unknown>)[key], ancestors),
+        value: canonicalize(descriptor.value, ancestors),
         enumerable: true,
         writable: true,
         configurable: true,

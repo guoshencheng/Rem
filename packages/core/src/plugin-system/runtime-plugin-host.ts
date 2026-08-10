@@ -6,6 +6,7 @@ import type {
 } from '../sdk/runtime-plugin.js';
 import type { ResolvedContextSnapshot } from '../domain/context/types.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
+import { cloneCanonicalJson } from '../application/contexts/canonical-json.js';
 
 export interface RegisteredContextType {
   pluginId: string;
@@ -32,8 +33,10 @@ export class RuntimePluginHost {
 
     for (const plugin of plugins) {
       const manifest = plugin.manifest;
+      let active = true;
       const registrar: RuntimePluginRegistrar = {
         addContextType: (contribution) => {
+          if (!active) throw new Error(`Runtime plugin registrar is no longer active: ${manifest.pluginId}`);
           if (!contribution.type.trim()) {
             throw new Error('Context type must not be empty');
           }
@@ -47,8 +50,16 @@ export class RuntimePluginHost {
           });
         },
       };
-      plugin.register(registrar);
-      stagedPlugins.set(manifest.pluginId, { version: manifest.version });
+      try {
+        const result = (plugin.register as (registrar: RuntimePluginRegistrar) => unknown)(registrar);
+        if (isThenable(result)) {
+          void Promise.resolve(result).catch(() => undefined);
+          throw new Error(`Runtime plugin register must be synchronous: ${manifest.pluginId}`);
+        }
+        stagedPlugins.set(manifest.pluginId, { version: manifest.version });
+      } finally {
+        active = false;
+      }
     }
 
     this.plugins = stagedPlugins;
@@ -64,25 +75,26 @@ export class RuntimePluginHost {
   }
 
   async materializeSnapshot(snapshot: ResolvedContextSnapshot): Promise<RuntimeToolContribution[]> {
-    const tools: RuntimeToolContribution[] = [];
-    const names = new Set<string>();
-    for (const item of snapshot.items) {
-      const plugin = this.plugins.get(item.pluginId);
-      const registered = this.contexts.get(item.binding.type);
-      if (!plugin || plugin.version !== item.pluginVersion || !registered
-        || registered.pluginId !== item.pluginId || registered.pluginVersion !== item.pluginVersion) {
-        throw new RuntimeError('PLUGIN_DEPENDENCY_MISSING', `Runtime plugin unavailable: ${item.pluginId}@${item.pluginVersion}`);
-      }
-      const contributions = await registered.contribution.materialize(item.snapshot);
-      for (const tool of contributions.tools ?? []) {
-        if (names.has(tool.definition.name)) {
-          throw new RuntimeError('CONTEXT_CONFLICT', `Tool already contributed: ${tool.definition.name}`);
+    return this.normalizeMaterialization(async () => {
+      const tools: RuntimeToolContribution[] = [];
+      const names = new Set<string>();
+      for (const item of snapshot.items) {
+        const plugin = this.plugins.get(item.pluginId);
+        const registered = this.contexts.get(item.binding.type);
+        if (!plugin || plugin.version !== item.pluginVersion || !registered
+          || registered.pluginId !== item.pluginId || registered.pluginVersion !== item.pluginVersion) {
+          throw new RuntimeError('PLUGIN_DEPENDENCY_MISSING', `Runtime plugin unavailable: ${item.pluginId}@${item.pluginVersion}`);
         }
-        names.add(tool.definition.name);
-        tools.push(tool);
+        const contributions = await registered.contribution.materialize(cloneCanonicalJson(item.snapshot));
+        for (const tool of contributions.tools ?? []) {
+          const name = tool.definition.name;
+          if (names.has(name)) throw new RuntimeError('CONTEXT_CONFLICT', `Tool already contributed: ${name}`);
+          names.add(name);
+          tools.push(tool);
+        }
       }
-    }
-    return tools;
+      return tools;
+    });
   }
 
   private validatePlugins(plugins: readonly RuntimePlugin[]): void {
@@ -105,4 +117,18 @@ export class RuntimePluginHost {
       }
     }
   }
+
+  private async normalizeMaterialization<T>(action: () => T | Promise<T>): Promise<T> {
+    try {
+      return await action();
+    } catch (error) {
+      if (error instanceof RuntimeError) throw error;
+      throw new RuntimeError('CONTEXT_INVALID', 'Context materialization failed', false, undefined, { cause: error });
+    }
+  }
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (typeof value === 'object' || typeof value === 'function') && value !== null
+    && typeof (value as { then?: unknown }).then === 'function';
 }

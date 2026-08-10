@@ -10,14 +10,16 @@ export class ContextResolver {
 
   async resolve(contextSet: ContextSet, request: RuntimeRequestContext): Promise<ResolvedRuntimeContext> {
     return this.normalize(async () => {
+      const isolatedContextSet = cloneCanonicalJson(contextSet) as ContextSet;
+      const isolatedRequest = deepFreeze(cloneCanonicalJson(request)) as RuntimeRequestContext;
       const items: ResolvedContextItem[] = [];
       const configLayers: ResolvedContextSnapshot['configLayers'] = [];
       const promptSections: ResolvedContextSnapshot['promptSections'] = [];
       const tools: RuntimeToolContribution[] = [];
       const names = { config: new Set<string>(), prompt: new Set<string>(), tool: new Set<string>() };
 
-      for (const binding of contextSet.bindings) {
-        await this.resolveBinding(binding, request, items, configLayers, promptSections, tools, names);
+      for (const binding of isolatedContextSet.bindings) {
+        await this.resolveBinding(binding, isolatedRequest, items, configLayers, promptSections, tools, names);
       }
 
       configLayers.sort((left, right) => left.priority - right.priority);
@@ -35,10 +37,12 @@ export class ContextResolver {
     tools: RuntimeToolContribution[],
     names: { config: Set<string>; prompt: Set<string>; tool: Set<string> },
   ): Promise<void> {
-    const registered = this.host.getContextType(binding.type);
-    const resolution = await registered.contribution.resolve({ binding, request });
-    const contribution = await registered.contribution.materialize(resolution.snapshot);
-    items.push(this.createItem(binding, registered.pluginId, registered.pluginVersion, resolution.snapshot));
+    const fixedBinding = deepFreeze(cloneCanonicalJson(binding)) as ContextBinding;
+    const registered = this.host.getContextType(fixedBinding.type);
+    const resolution = await registered.contribution.resolve({ binding: fixedBinding, request });
+    const resolvedSnapshot = cloneCanonicalJson(resolution.snapshot);
+    const contribution = await registered.contribution.materialize(cloneCanonicalJson(resolvedSnapshot));
+    items.push(this.createItem(fixedBinding, registered.pluginId, registered.pluginVersion, resolvedSnapshot));
     this.collectContributions(contribution, registered.pluginId, configLayers, promptSections, tools, names);
   }
 
@@ -99,4 +103,15 @@ export class ContextResolver {
       throw new RuntimeError('CONTEXT_INVALID', 'Context resolution failed', false, undefined, { cause: error });
     }
   }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Reflect.ownKeys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor && 'value' in descriptor) deepFreeze(descriptor.value);
+    }
+  }
+  return value;
 }

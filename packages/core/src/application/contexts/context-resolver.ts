@@ -65,21 +65,25 @@ export class ContextResolver {
     for (const layer of contribution.configLayers ?? []) {
       const name = `${pluginId}:${layer.name}`;
       this.assertUnique(names.config, name, 'Config layer');
-      configLayers.push({ name, priority: layer.priority, value: this.copySnapshotValue(layer.value) });
+      configLayers.push(cloneCanonicalJson({
+        name,
+        priority: layer.priority,
+        value: layer.value,
+      }) as ResolvedContextSnapshot['configLayers'][number]);
     }
     for (const section of contribution.promptSections ?? []) {
       const name = `${pluginId}:${section.name}`;
       this.assertUnique(names.prompt, name, 'Prompt section');
-      promptSections.push({ name, priority: section.priority, content: section.content });
+      promptSections.push(cloneCanonicalJson({
+        name,
+        priority: section.priority,
+        content: section.content,
+      }) as ResolvedContextSnapshot['promptSections'][number]);
     }
     for (const tool of contribution.tools ?? []) {
       this.assertUnique(names.tool, tool.definition.name, 'Tool');
       tools.push(tool);
     }
-  }
-
-  private copySnapshotValue(value: unknown): unknown {
-    return cloneCanonicalJson(value);
   }
 
   private assertUnique(names: Set<string>, name: string, label: string): void {

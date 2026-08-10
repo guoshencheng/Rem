@@ -213,4 +213,31 @@ describe('RuntimePluginHost 与 ContextResolver', () => {
     const contributionError = await expectCode(() => resolver.resolve({ bindings: [binding('acme/getter')] }, request), 'CONTEXT_INVALID');
     expect(contributionError.cause).toBe(getterError);
   });
+
+  it('拒绝会被静默丢失的贡献字段与数组、对象属性', async () => {
+    const lossyArray: unknown[] = [];
+    Object.defineProperty(lossyArray, '4294967295', { value: undefined, enumerable: true });
+    const hiddenProperty = {};
+    Object.defineProperty(hiddenProperty, 'hidden', { value: 'lost', enumerable: false });
+    const symbolProperty = {};
+    Object.defineProperty(symbolProperty, Symbol('lost'), { value: 'lost', enumerable: true });
+    const contributions: Array<[string, ContextRuntimeContributions, unknown]> = [
+      ['nan', { configLayers: [{ name: 'bad', priority: Number.NaN, value: {} }] }, {}],
+      ['function', { promptSections: [{ name: 'bad', priority: 1, content: (() => 'bad') as unknown as string }] }, {}],
+      ['array', { configLayers: [{ name: 'bad', priority: 1, value: lossyArray }] }, {}],
+      ['hidden', {}, hiddenProperty],
+      ['symbol-key', {}, symbolProperty],
+    ];
+    const resolver = new ContextResolver(new RuntimePluginHost(contributions.map(([name, contribution, snapshot]) => (
+      plugin(`acme/${name}`, '1', `acme/${name}`, {
+        resolve: async () => ({ snapshot }),
+        materialize: async () => contribution,
+      })
+    ))));
+
+    for (const [name] of contributions) {
+      const error = await expectCode(() => resolver.resolve({ bindings: [binding(`acme/${name}`)] }, request), 'CONTEXT_INVALID');
+      expect(error.cause).toBeInstanceOf(Error);
+    }
+  });
 });

@@ -17,9 +17,10 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
   if (typeof value !== 'object') throw new Error(`Unsupported JSON value: ${typeof value}`);
   if (ancestors.has(value)) throw new Error('Circular JSON value');
   if (Array.isArray(value)) {
-    if (Object.getOwnPropertySymbols(value).length > 0) throw new Error('Symbol keys are not JSON-compatible');
-    for (const key of Object.keys(value)) {
-      if (!/^0$|^[1-9][0-9]*$/.test(key)) throw new Error('Array properties are not JSON-compatible');
+    for (const key of Reflect.ownKeys(value)) {
+      if (key !== 'length' && (typeof key !== 'string' || !isArrayIndex(key, value.length))) {
+        throw new Error('Array properties are not JSON-compatible');
+      }
     }
     ancestors.add(value);
     try {
@@ -35,7 +36,11 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) throw new Error('Only plain objects are JSON-compatible');
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error('Symbol keys are not JSON-compatible');
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string' || !Object.prototype.propertyIsEnumerable.call(value, key)) {
+      throw new Error('Non-enumerable or symbol properties are not JSON-compatible');
+    }
+  }
   ancestors.add(value);
   try {
     const result: Record<string, unknown> = {};
@@ -46,4 +51,10 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
   } finally {
     ancestors.delete(value);
   }
+}
+
+function isArrayIndex(key: string, length: number): boolean {
+  if (!/^(0|[1-9][0-9]*)$/.test(key)) return false;
+  const index = Number(key);
+  return Number.isSafeInteger(index) && String(index) === key && index < length;
 }

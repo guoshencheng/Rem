@@ -1,4 +1,5 @@
 import type { WorkItem } from '../src/domain/run/types.js';
+import type { RuntimeUnitOfWork } from '../src/sdk/runtime-storage.js';
 import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,6 +19,16 @@ const RUNTIME_TABLES = [
 ] as const;
 
 const at = (second: number) => new Date(`2026-08-10T00:00:${String(second).padStart(2, '0')}.000Z`);
+const usage = {
+  input: 1, output: 2, cacheRead: 3, cacheWrite: 4, cacheWrite1h: 5, reasoning: 6, totalTokens: 10,
+  cost: { input: 0.1, output: 0.2, cacheRead: 0.3, cacheWrite: 0.4, total: 1 },
+};
+const messages = [
+  { role: 'user', content: [{ type: 'text', text: 'hello', textSignature: 'text-signature' }, { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }], timestamp: at(3).getTime() },
+  { role: 'assistant', content: [{ type: 'text', text: 'answer', textSignature: 'answer-signature' }, { type: 'thinking', thinking: 'reason', thinkingSignature: 'thinking-signature', redacted: false }, { type: 'toolCall', id: 'call', name: 'tool', arguments: { nested: true }, thoughtSignature: 'thought-signature' }], api: 'openai-responses', provider: 'openai', model: 'model', responseModel: 'response-model', responseId: 'response-id', diagnostics: [{ type: 'notice' }], usage, stopReason: 'toolUse', errorMessage: '', timestamp: at(4).getTime() },
+  { role: 'toolResult', toolCallId: 'call', toolName: 'tool', content: [{ type: 'text', text: 'result' }, { type: 'image', data: 'cmVzdWx0', mimeType: 'image/png' }], details: { nested: true }, usage, addedToolNames: ['later-tool'], isError: false, timestamp: at(5).getTime() },
+] as const;
+
 function openMemoryStore() {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
@@ -57,12 +68,13 @@ describe('SqliteRuntimeStore', () => {
     await store.transaction((uow) => {
       uow.sessions.insert({ sessionId: 's', tenantId: 't', contexts: { bindings: [{ type: 'account', contextId: 'a' }] }, createdAt: at(1), updatedAt: at(2) });
       uow.runs.insert({ runId: 'r', tenantId: 't', principalId: 'p', sessionId: 's', agentId: 'a', agentRevision: '2', status: 'waiting', trigger: { type: 'task', input: { nested: [1] } }, contextSnapshot: { items: [], configLayers: [], promptSections: [] }, waitingReason: 'recovery', errorCode: 'E', cancellationRequestedAt: at(3), createdAt: at(1), startedAt: at(2), finishedAt: at(4), updatedAt: at(4) });
-      uow.sessions.appendEntries([{ entryId: 'e', tenantId: 't', sessionId: 's', runId: 'r', sequence: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }], timestamp: at(3).getTime() } as never, metadata: { nested: { ok: true } }, createdAt: at(3) }]);
+      uow.sessions.appendEntries(messages.map((message, index) => ({ entryId: `e-${index}`, tenantId: 't', sessionId: 's', runId: 'r', sequence: index + 1, message: message as never, metadata: index === 0 ? { nested: { ok: true } } : undefined, createdAt: at(index + 3) })) as never);
       uow.toolInvocations.insert({ invocationId: 'i', tenantId: 't', sessionId: 's', runId: 'r', toolCallId: 'c', toolName: 'tool', status: 'failed', sideEffect: 'non-idempotent', supportsIdempotencyKey: false, input: { nested: 1 }, result: { partial: true }, error: 'boom', createdAt: at(2), updatedAt: at(4) });
     });
     expect(await store.getRun('r')).toMatchObject({ waitingReason: 'recovery', errorCode: 'E', cancellationRequestedAt: at(3), startedAt: at(2), finishedAt: at(4), trigger: { input: { nested: [1] } } });
     await store.transaction((uow) => {
       expect(uow.sessions.listEntries('s')[0]).toMatchObject({ metadata: { nested: { ok: true } }, createdAt: at(3) });
+      expect(uow.sessions.listEntries('s').map(({ message }) => message)).toEqual(messages);
       expect(uow.toolInvocations.get('i')).toMatchObject({ result: { partial: true }, error: 'boom', updatedAt: at(4) });
     });
     await close();
@@ -151,6 +163,59 @@ describe('SqliteRuntimeStore', () => {
       workItemId: 'w', status: 'leased', leaseOwner: 'after', attempt: 1,
     });
     await close();
+  });
+
+  it('异步 transaction 续体不能使用已撤销 UoW，且不会产生未处理拒绝', async () => {
+    const { store, close } = openMemoryStore();
+    let captured: RuntimeUnitOfWork | undefined;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const callback = async (uow: RuntimeUnitOfWork) => {
+        captured = uow;
+        await Promise.resolve();
+        uow.sessions.insert({ sessionId: 'late', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) });
+      };
+      await expect(store.transaction(callback as never)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    } finally { process.off('unhandledRejection', onUnhandled); }
+    expect(unhandled).toEqual([]);
+    expect(await store.getSession('late')).toBeNull();
+    expect(() => captured!.sessions.get('late')).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+    expect(() => captured!.sessions.insert({ sessionId: 'later', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+    expect(await store.getSession('later')).toBeNull();
+    await close();
+  });
+
+  it('异步 transaction 续体只能拒绝同一 Store，且正常调用仍可领取', async () => {
+    const { store, close } = openMemoryStore();
+    const other = openMemoryStore();
+    await store.transaction((uow) => {
+      uow.sessions.insert({ sessionId: 's', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) });
+      uow.runs.insert({ runId: 'r', tenantId: 't', principalId: 'p', sessionId: 's', agentId: 'a', agentRevision: '1', status: 'queued', trigger: { type: 'task', input: null }, contextSnapshot: { items: [], configLayers: [], promptSections: [] }, createdAt: at(1), updatedAt: at(1) });
+      uow.workItems.insert({ workItemId: 'w', runId: 'r', status: 'queued', attempt: 0, createdAt: at(1), updatedAt: at(1) });
+    });
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      await expect(store.transaction((async () => { await Promise.resolve(); await store.claimWorkItem('awaited', at(10), 1_000); }) as never))
+        .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await expect(store.transaction((async () => { await Promise.resolve(); void store.claimWorkItem('void', at(10), 1_000); }) as never))
+        .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await expect(store.transaction((async () => {
+        await Promise.resolve();
+        await other.store.transaction((uow) => uow.sessions.insert({ sessionId: 'other', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) }));
+      }) as never)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    } finally { process.off('unhandledRejection', onUnhandled); }
+    expect(unhandled).toEqual([]);
+    await store.transaction((uow) => expect(uow.workItems.getByRun('r')).toMatchObject({ status: 'queued', attempt: 0 }));
+    expect(await other.store.getSession('other')).not.toBeNull();
+    await expect(store.claimWorkItem('after', at(10), 1_000)).resolves.toMatchObject({ workItemId: 'w', attempt: 1 });
+    await other.close(); await close();
   });
 
   it('两个独立连接同时领取时仅一个成功且不泄漏 SQLITE_BUSY', async () => {

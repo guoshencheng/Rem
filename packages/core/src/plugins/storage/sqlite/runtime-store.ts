@@ -5,6 +5,7 @@ import type { AgentRun, WorkItem } from '../../../domain/run/types.js';
 import type { AgentSession } from '../../../domain/session/types.js';
 import type { RuntimeStorage, RuntimeTransactionCallback, SynchronousRuntimeTransactionCallback } from '../../../sdk/runtime-storage.js';
 import type { RuntimeArtifactRow, RuntimeRunRow, RuntimeSessionRow } from './runtime-row-types.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mapArtifactRow, mapRunRow, mapSessionRow } from './runtime-row-mappers.js';
 import { invalidRuntimeInput, mapSqliteFailure, rejectedRuntimeInput, sqliteAction } from './runtime-sqlite-error.js';
 import { createSqliteRuntimeUnitOfWork } from './runtime-unit-of-work.js';
@@ -18,6 +19,7 @@ const isThenable = (value: unknown): value is PromiseLike<unknown> =>
 export class SqliteRuntimeStore implements RuntimeStorage {
   private tail = Promise.resolve();
   private activeCallback = false;
+  private readonly callbackContext = new AsyncLocalStorage<boolean>();
 
   constructor(private readonly db: Database.Database) {
     this.db.pragma('busy_timeout = 5000');
@@ -26,17 +28,21 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   transaction<T extends RuntimeTransactionCallback>(
     operation: SynchronousRuntimeTransactionCallback<T>,
   ): Promise<ReturnType<T>> {
-    if (this.activeCallback) return this.rejectReentrant('transaction');
+    if (this.isCallbackContext()) return this.rejectReentrant('transaction');
     return this.lock(() => {
       let callbackFailure: unknown;
       let callbackFailed = false;
       try {
         return this.db.transaction(() => {
           let result: ReturnType<T>;
+          const guard = { active: true };
+          const unitOfWork = createSqliteRuntimeUnitOfWork(this.db, guard);
           this.activeCallback = true;
-          try { result = operation(createSqliteRuntimeUnitOfWork(this.db)) as ReturnType<T>; }
+          try {
+            result = this.callbackContext.run(true, () => operation(unitOfWork)) as ReturnType<T>;
+          }
           catch (error) { callbackFailed = true; callbackFailure = error; throw error; }
-          finally { this.activeCallback = false; }
+          finally { guard.active = false; this.activeCallback = false; }
           if (isThenable(result)) {
             void Promise.resolve(result).catch(() => {});
             invalidRuntimeInput('RuntimeStorage transaction callback must be synchronous');
@@ -51,7 +57,7 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   }
 
   getSession(sessionId: string): Promise<AgentSession | null> {
-    if (this.activeCallback) return this.rejectReentrant('getSession');
+    if (this.isCallbackContext()) return this.rejectReentrant('getSession');
     return this.lock(() => sqliteAction('reading runtime session', () => {
       const row = this.db.prepare('SELECT * FROM runtime_sessions WHERE id = ?').get(sessionId) as RuntimeSessionRow | undefined;
       return row ? mapSessionRow(row) : null;
@@ -59,7 +65,7 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   }
 
   getRun(runId: string): Promise<AgentRun | null> {
-    if (this.activeCallback) return this.rejectReentrant('getRun');
+    if (this.isCallbackContext()) return this.rejectReentrant('getRun');
     return this.lock(() => sqliteAction('reading runtime run', () => {
       const row = this.db.prepare('SELECT * FROM runtime_runs WHERE id = ?').get(runId) as RuntimeRunRow | undefined;
       return row ? mapRunRow(row) : null;
@@ -67,12 +73,12 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   }
 
   listEvents(runId: string, afterSequence = 0, limit = 100): Promise<RunEvent[]> {
-    if (this.activeCallback) return this.rejectReentrant('listEvents');
+    if (this.isCallbackContext()) return this.rejectReentrant('listEvents');
     return this.lock(() => new SqliteRuntimeEventRepository(this.db).list(runId, afterSequence, limit));
   }
 
   listArtifacts(runId: string): Promise<Artifact[]> {
-    if (this.activeCallback) return this.rejectReentrant('listArtifacts');
+    if (this.isCallbackContext()) return this.rejectReentrant('listArtifacts');
     return this.lock(() => sqliteAction('listing runtime artifacts', () => {
       const rows = this.db.prepare('SELECT * FROM runtime_artifacts WHERE run_id = ? ORDER BY created_at, id').all(runId) as RuntimeArtifactRow[];
       return rows.map(mapArtifactRow);
@@ -80,7 +86,7 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   }
 
   claimWorkItem(owner: string, now: Date, leaseMs: number): Promise<WorkItem | null> {
-    if (this.activeCallback) return this.rejectReentrant('claimWorkItem');
+    if (this.isCallbackContext()) return this.rejectReentrant('claimWorkItem');
     const leaseOwner = owner.trim();
     const expiresAt = new Date(now.getTime() + leaseMs);
     if (!leaseOwner) return rejectedRuntimeInput('Lease owner is required');
@@ -103,13 +109,17 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   }
 
   listRecoverableWorkItems(now: Date): Promise<WorkItem[]> {
-    if (this.activeCallback) return this.rejectReentrant('listRecoverableWorkItems');
+    if (this.isCallbackContext()) return this.rejectReentrant('listRecoverableWorkItems');
     if (!Number.isFinite(now.getTime())) return rejectedRuntimeInput('Recovery time must be valid');
     return this.lock(() => new SqliteRuntimeWorkItemRepository(this.db).listRecoverable(now));
   }
 
   private rejectReentrant<T>(operation: string): Promise<T> {
     return rejectedRuntimeInput(`RuntimeStorage ${operation} cannot run inside a transaction callback`);
+  }
+
+  private isCallbackContext(): boolean {
+    return this.activeCallback || this.callbackContext.getStore() === true;
   }
 
   private async lock<T>(operation: () => T): Promise<T> {

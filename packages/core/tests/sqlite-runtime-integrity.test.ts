@@ -70,6 +70,10 @@ describe('SQLite runtime 严格映射', () => {
   const entryRow = { id: 'e', tenant_id: 't', session_id: 's', run_id: 'r', sequence: 1, message_json: '{"role":"user","content":"ok","timestamp":1}', metadata_json: null, created_at: at(1).toISOString() };
   const snapshotItem = { binding: { type: 'account', contextId: 'a' }, pluginId: 'plugin', pluginVersion: '1', snapshotHash: 'a'.repeat(64), snapshot: {} };
   const snapshotJson = (item: unknown) => JSON.stringify({ items: [item], configLayers: [], promptSections: [] });
+  const messageUsage = { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, totalTokens: 10, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+  const assistantMessage: Record<string, unknown> = { role: 'assistant', content: [], api: 'api', provider: 'provider', model: 'model', usage: messageUsage, stopReason: 'stop', timestamp: 1 };
+  const assistantJson = (overrides: Record<string, unknown>) => JSON.stringify({ ...assistantMessage, ...overrides });
+  const assistantWithout = (property: string) => { const message = { ...assistantMessage }; delete message[property]; return JSON.stringify(message); };
 
   it.each([
     ['null contexts', () => mapSessionRow({ ...sessionRow, contexts_json: null as never })],
@@ -89,7 +93,14 @@ describe('SQLite runtime 严格映射', () => {
     ['invalid prompt section', () => mapRunRow({ ...runRow, context_snapshot_json: '{"items":[],"configLayers":[],"promptSections":[1]}' })],
     ['message without content', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"user","timestamp":1}' })],
     ['message without timestamp', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"user","content":"x"}' })],
+    ['user object content', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"user","content":{},"timestamp":1}' })],
+    ['assistant numeric content', () => mapSessionEntryRow({ ...entryRow, message_json: assistantJson({ content: 42 }) })],
+    ['assistant without api', () => mapSessionEntryRow({ ...entryRow, message_json: assistantWithout('api') })],
+    ['assistant without usage', () => mapSessionEntryRow({ ...entryRow, message_json: assistantWithout('usage') })],
+    ['assistant without stop reason', () => mapSessionEntryRow({ ...entryRow, message_json: assistantWithout('stopReason') })],
+    ['assistant bogus block', () => mapSessionEntryRow({ ...entryRow, message_json: assistantJson({ content: [{ type: 'bogus' }] }) })],
     ['tool result without isError', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"toolResult","toolCallId":"c","toolName":"tool","content":[],"timestamp":1}' })],
+    ['tool result bogus block', () => mapSessionEntryRow({ ...entryRow, message_json: '{"role":"toolResult","toolCallId":"c","toolName":"tool","content":[{"type":"thinking","thinking":"x"}],"isError":false,"timestamp":1}' })],
   ])('拒绝 %s', (_name, action) => {
     let error: unknown; try { action(); } catch (caught) { error = caught; }
     expect(error).toBeInstanceOf(RuntimeError); expect(error).toMatchObject({ code: 'STORAGE_UNAVAILABLE' });

@@ -79,7 +79,7 @@ export function requirePlainObject(value: unknown, column: string): asserts valu
   if (prototype !== Object.prototype && prototype !== null) return fail(column, 'a plain object', value);
 }
 
-function requireArray(value: unknown, column: string): asserts value is unknown[] {
+export function requireArray(value: unknown, column: string): asserts value is unknown[] {
   if (!Array.isArray(value)) return fail(column, 'an array', value);
 }
 
@@ -126,15 +126,4 @@ export function validateContextSnapshot(value: unknown, column: string): void {
     runtimeText(section.name, `${sectionColumn}.name`); runtimeFiniteNumber(section.priority, `${sectionColumn}.priority`);
     runtimeText(section.content, `${sectionColumn}.content`, true);
   });
-}
-
-export function validateMessage(value: unknown, column: string): void {
-  requirePlainObject(value, column);
-  const role = runtimeEnum(value.role, `${column}.role`, ['user', 'assistant', 'toolResult'] as const);
-  if (!Object.hasOwn(value, 'content')) fail(column, 'an object with content', value);
-  runtimeFiniteNumber(value.timestamp, `${column}.timestamp`);
-  if (role === 'toolResult') {
-    runtimeText(value.toolCallId, `${column}.toolCallId`); runtimeText(value.toolName, `${column}.toolName`);
-    if (typeof value.isError !== 'boolean') fail(`${column}.isError`, 'a boolean', value.isError);
-  }
 }

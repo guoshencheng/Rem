@@ -8,9 +8,10 @@ import type { IdempotencyRecord } from '../../../sdk/runtime-storage.js';
 import type { RuntimeArtifactRow, RuntimeEventRow, RuntimeIdempotencyRow, RuntimeRunRow,
   RuntimeSessionEntryRow, RuntimeSessionRow, RuntimeToolInvocationRow, RuntimeWorkItemRow,
 } from './runtime-row-types.js';
+import { validateMessage } from './runtime-message-validation.js';
 import { requirePlainObject, runtimeBoolean, runtimeDate, runtimeEnum, runtimeInteger, runtimeIntegerEnum,
   runtimeJson, runtimeOptionalDate, runtimeOptionalEnum, runtimeOptionalText, runtimeText,
-  validateContextSet, validateContextSnapshot, validateMessage, validateTrigger,
+  validateContextSet, validateContextSnapshot, validateTrigger,
 } from './runtime-row-validation.js';
 
 const runStatuses = ['queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'] as const;

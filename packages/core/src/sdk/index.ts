@@ -1,4 +1,5 @@
 export * from './tool-provider.js';
+export * from './agent-definition-provider.js';
 export * from './tool-policy.js';
 export * from './config-provider.js';
 export * from './error-handler.js';

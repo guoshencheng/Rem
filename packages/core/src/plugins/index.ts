@@ -1,6 +1,7 @@
 export { FixedBudgetPolicy } from './budget/fixed/index.js';
 export { LLMSummarizingCompressor } from './compressor/llm-summary/index.js';
 export { DefaultConfigProvider } from './config/default/index.js';
+export { StaticAgentDefinitionProvider } from './agent-definition/static/index.js';
 export { SimpleErrorHandler } from './error/simple/index.js';
 export { DefaultSessionProvider } from './session/default/index.js';
 export { FileSkillProvider } from './skill/file/index.js';

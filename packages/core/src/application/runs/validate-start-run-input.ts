@@ -1,44 +1,52 @@
 import type { ContextPatch } from '../../domain/context/types.js';
+import type { RuntimeRequestContext } from '../../domain/identity/types.js';
 import type { RunTrigger } from '../../domain/run/types.js';
-import type { StartRunInput } from './types.js';
+import type { NormalizedStartRunRequest, StartRunInput } from './types.js';
 import { cloneCanonicalJson } from '../contexts/canonical-json.js';
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { assertContextPatchShape } from './validate-run-contexts.js';
 
 type RecordValue = Record<string, unknown>;
 
-export function validateStartRunInput(request: unknown, input: unknown): StartRunInput {
-  const requestRecord = requireRecord(request, 'request');
+export function validateStartRunInput(request: unknown, input: unknown): NormalizedStartRunRequest {
+  const requestRecord = requireRecord(cloneJson(request, 'request'), 'request');
   const principal = requireRecord(requestRecord.principal, 'request.principal');
-  requireNonEmptyText(requestRecord.tenantId, 'request.tenantId');
-  requireNonEmptyText(principal.principalId, 'request.principal.principalId');
+  const tenantId = requireNonEmptyText(requestRecord.tenantId, 'request.tenantId');
+  const principalId = requireNonEmptyText(principal.principalId, 'request.principal.principalId');
   if (!Array.isArray(principal.roles)
     || principal.roles.some((role) => typeof role !== 'string' || !role.trim())) {
     invalid('request.principal.roles must be an array of non-empty strings');
   }
+  const roles = [...principal.roles] as string[];
+  const claims = Object.hasOwn(principal, 'claims')
+    ? requireRecord(principal.claims, 'request.principal.claims')
+    : undefined;
+  const normalizedRequest: RuntimeRequestContext = {
+    tenantId,
+    principal: { principalId, roles, ...(claims === undefined ? {} : { claims }) },
+  };
 
   const value = requireRecord(input, 'input');
-  const agentId = requireNonEmptyText(value.agentId, 'input.agentId');
-  const agentRevision = optionalNonEmptyText(value.agentRevision, 'input.agentRevision');
-  const sessionId = optionalNonEmptyText(value.sessionId, 'input.sessionId');
-  const idempotencyKey = optionalNonEmptyText(value.idempotencyKey, 'input.idempotencyKey');
+  const agentId = requireNonEmptyText(readDataProperty(value, 'agentId'), 'input.agentId');
+  const agentRevision = optionalNonEmptyText(readDataProperty(value, 'agentRevision'), 'input.agentRevision');
+  const sessionId = optionalNonEmptyText(readDataProperty(value, 'sessionId'), 'input.sessionId');
+  const idempotencyKey = optionalNonEmptyText(readDataProperty(value, 'idempotencyKey'), 'input.idempotencyKey');
   if (!Object.hasOwn(value, 'trigger')) invalid('input.trigger is required');
 
-  const trigger = cloneJson<RunTrigger>(value.trigger, 'trigger');
+  const trigger = cloneJson<RunTrigger>(readDataProperty(value, 'trigger'), 'trigger');
   assertTrigger(trigger);
-  const contexts = value.contexts === undefined
+  const contextValue = readDataProperty(value, 'contexts');
+  const contexts = contextValue === undefined
     ? undefined
-    : cloneJson<ContextPatch>(value.contexts, 'contexts');
+    : cloneJson<ContextPatch>(contextValue, 'contexts');
   if (contexts !== undefined) assertContextPatchShape(contexts);
 
-  return {
-    agentId,
-    ...(agentRevision === undefined ? {} : { agentRevision }),
-    ...(sessionId === undefined ? {} : { sessionId }),
-    trigger,
+  return { request: normalizedRequest, input: {
+    agentId, ...(agentRevision === undefined ? {} : { agentRevision }),
+    ...(sessionId === undefined ? {} : { sessionId }), trigger,
     ...(contexts === undefined ? {} : { contexts }),
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
-  };
+  } };
 }
 
 function assertTrigger(trigger: unknown): asserts trigger is RunTrigger {
@@ -97,11 +105,21 @@ function assertKeys(value: RecordValue, required: string[], optional: string[], 
   }
 }
 
-function cloneJson<T>(value: unknown, label: string): T {
+function cloneJson<T = unknown>(value: unknown, label: string): T {
   try { return cloneCanonicalJson(value) as T; }
   catch (cause) {
     throw new RuntimeError('INVALID_INPUT', `${label} must be JSON-compatible`, false, undefined, { cause });
   }
+}
+
+function readDataProperty(value: RecordValue, property: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, property);
+  if (!descriptor) return undefined;
+  if (!('value' in descriptor)) {
+    const cause = new Error(`Accessor property is not JSON-compatible: ${property}`);
+    throw new RuntimeError('INVALID_INPUT', `input.${property} must be JSON-compatible`, false, undefined, { cause });
+  }
+  return descriptor.value;
 }
 
 function requireRecord(value: unknown, label: string): RecordValue {

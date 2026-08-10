@@ -23,7 +23,6 @@ interface PreparedRecords {
 export class StartRunUsecase {
   private readonly now: () => Date;
   private readonly generateId: () => string;
-
   constructor(private readonly deps: StartRunDeps) {
     this.now = deps.now ?? (() => new Date());
     this.generateId = deps.generateId ?? defaultGenerateId;
@@ -31,34 +30,36 @@ export class StartRunUsecase {
 
   async execute(request: RuntimeRequestContext, input: StartRunInput): Promise<AgentRun> {
     const normalized = validateStartRunInput(request, input);
-    const tenantId = request.tenantId;
-    const principalId = request.principal.principalId;
+    const runRequest = normalized.request;
+    const runInput = normalized.input;
+    const tenantId = runRequest.tenantId;
+    const principalId = runRequest.principal.principalId;
     const occurredAt = new Date(this.now().getTime());
-    const requestHash = hashStartRunRequest(request, normalized);
-    const existing = await this.readIdempotentRun(tenantId, normalized.idempotencyKey, requestHash);
+    const requestHash = hashStartRunRequest(runRequest, runInput);
+    const existing = await this.readIdempotentRun(tenantId, runInput.idempotencyKey, requestHash);
     if (existing) return existing;
 
-    const definition = await this.deps.agentDefinitions.get(normalized.agentId, normalized.agentRevision);
+    const definition = await this.deps.agentDefinitions.get(runInput.agentId, runInput.agentRevision);
     if (!definition) {
-      const code = normalized.agentRevision === undefined ? 'AGENT_NOT_FOUND' : 'AGENT_REVISION_NOT_FOUND';
-      throw new RuntimeError(code, `Agent definition not found: ${normalized.agentId}`);
+      const code = runInput.agentRevision === undefined ? 'AGENT_NOT_FOUND' : 'AGENT_REVISION_NOT_FOUND';
+      throw new RuntimeError(code, `Agent definition not found: ${runInput.agentId}`);
     }
-    if (!definition.acceptedTriggers.includes(normalized.trigger.type)) {
-      throw new RuntimeError('TRIGGER_NOT_SUPPORTED', `Trigger is not supported: ${normalized.trigger.type}`);
+    if (!definition.acceptedTriggers.includes(runInput.trigger.type)) {
+      throw new RuntimeError('TRIGGER_NOT_SUPPORTED', `Trigger is not supported: ${runInput.trigger.type}`);
     }
 
-    const storedSession = normalized.sessionId === undefined
+    const storedSession = runInput.sessionId === undefined
       ? null
-      : await this.readSession(normalized.sessionId, tenantId);
+      : await this.readSession(runInput.sessionId, tenantId);
     const base = storedSession?.contexts ?? { bindings: [] };
-    const finalContexts = validateRunContexts(definition, base, normalized.contexts);
-    const resolved = await this.deps.contextResolver.resolve(finalContexts, request);
+    const finalContexts = validateRunContexts(definition, base, runInput.contexts);
+    const resolved = await this.deps.contextResolver.resolve(finalContexts, runRequest);
     const prepared = this.prepareRecords(
-      tenantId, principalId, normalized, definition.revision, finalContexts, resolved.snapshot, occurredAt,
+      tenantId, principalId, runInput, definition.revision, finalContexts, resolved.snapshot, occurredAt,
     );
 
     return this.deps.storage.transaction((uow) => {
-      const raced = readIdempotentRun(uow, tenantId, normalized.idempotencyKey, requestHash);
+      const raced = readIdempotentRun(uow, tenantId, runInput.idempotencyKey, requestHash);
       if (raced) return raced;
       if (storedSession) assertSessionUnchanged(uow, storedSession);
       if (prepared.session) uow.sessions.insert(prepared.session);
@@ -71,9 +72,9 @@ export class StartRunUsecase {
         occurredAt: cloneDate(occurredAt),
       });
       uow.workItems.insert(prepared.workItem);
-      if (normalized.idempotencyKey !== undefined) {
+      if (runInput.idempotencyKey !== undefined) {
         uow.idempotency.insert({
-          tenantId, operation: 'start-run', idempotencyKey: normalized.idempotencyKey,
+          tenantId, operation: 'start-run', idempotencyKey: runInput.idempotencyKey,
           requestHash, resourceId: prepared.run.runId, createdAt: cloneDate(occurredAt),
         });
       }

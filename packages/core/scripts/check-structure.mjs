@@ -7,11 +7,12 @@ import { fileURLToPath } from 'node:url';
 
 const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
-const DOMAINS = ['agent', 'assembly', 'runtime', 'session', 'tools', 'security', 'capabilities', 'sdk', 'plugins', 'infrastructure', 'system-prompt', 'shared'];
+const DOMAINS = ['agent', 'assembly', 'runtime', 'session', 'tools', 'security', 'capabilities', 'sdk', 'plugins', 'infrastructure', 'system-prompt', 'shared', 'domain', 'application', 'execution', 'runtime-events'];
 
 // 规格第 7 节硬约束（只列禁止边；未列出的边不限制）
 const FORBIDDEN = [
-  ['sdk', ['plugins', 'assembly']],
+  ['domain', DOMAINS.filter((d) => d !== 'domain')],
+  ['sdk', ['application', 'execution', 'plugins', 'assembly']],
   ['agent', ['plugins']],
   ['shared', DOMAINS.filter((d) => d !== 'shared')],
   ['plugins', ['assembly']],

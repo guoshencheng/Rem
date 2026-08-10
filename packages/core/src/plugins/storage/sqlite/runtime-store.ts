@@ -26,16 +26,23 @@ export class SqliteRuntimeStore implements RuntimeStorage {
     operation: SynchronousRuntimeTransactionCallback<T>,
   ): Promise<ReturnType<T>> {
     return this.lock(() => {
+      let callbackFailure: unknown;
+      let callbackFailed = false;
       try {
         return this.db.transaction(() => {
-          const result = operation(createSqliteRuntimeUnitOfWork(this.db));
+          let result: ReturnType<T>;
+          try { result = operation(createSqliteRuntimeUnitOfWork(this.db)) as ReturnType<T>; }
+          catch (error) { callbackFailed = true; callbackFailure = error; throw error; }
           if (isThenable(result)) {
             void Promise.resolve(result).catch(() => {});
             invalidRuntimeInput('RuntimeStorage transaction callback must be synchronous');
           }
           return result;
         }).immediate() as ReturnType<T>;
-      } catch (error) { return mapSqliteFailure(error, 'running runtime transaction'); }
+      } catch (error) {
+        if (callbackFailed && error === callbackFailure) throw error;
+        return mapSqliteFailure(error, 'running runtime transaction');
+      }
     });
   }
 

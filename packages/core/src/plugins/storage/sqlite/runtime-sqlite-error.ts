@@ -1,22 +1,21 @@
 import { RuntimeError } from '../../../application/runtime/runtime-error.js';
 
-interface SqliteFailure { code?: unknown }
+interface SqliteFailure { code: string }
 
 export function isSqliteFailure(error: unknown): error is SqliteFailure {
   return typeof error === 'object' && error !== null
-    && typeof (error as SqliteFailure).code === 'string'
-    && (error as { code: string }).code.startsWith('SQLITE_');
+    && typeof (error as { code?: unknown }).code === 'string'
+    && (error as SqliteFailure).code.startsWith('SQLITE_');
 }
 
 export function mapSqliteFailure(error: unknown, action: string): never {
   if (error instanceof RuntimeError) throw error;
-  if (!isSqliteFailure(error)) throw error;
-  const code = error.code as string;
-  const conflict = code.startsWith('SQLITE_CONSTRAINT');
+  const code = isSqliteFailure(error) ? error.code : undefined;
+  const conflict = code?.startsWith('SQLITE_CONSTRAINT') ?? false;
   throw new RuntimeError(
     conflict ? 'STORAGE_CONFLICT' : 'STORAGE_UNAVAILABLE',
     conflict ? `SQLite conflict while ${action}` : `SQLite unavailable while ${action}`,
-    !conflict,
+    code !== undefined && !conflict,
     undefined,
     { cause: error },
   );

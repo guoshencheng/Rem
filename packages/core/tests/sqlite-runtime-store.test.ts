@@ -1,3 +1,4 @@
+import type { WorkItem } from '../src/domain/run/types.js';
 import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,32 @@ const RUNTIME_TABLES = [
 
 const at = (second: number) => new Date(`2026-08-10T00:00:${String(second).padStart(2, '0')}.000Z`);
 const tsxLoader = createRequire(import.meta.url).resolve('tsx');
+
+type ClaimWorkerMessage =
+  | { type: 'ready' }
+  | { type: 'result'; value: WorkItem | null }
+  | { type: 'error'; error: { name: string; message: string; code?: string } };
+
+function createClaimWorker(dbPath: string, owner: string, gate: SharedArrayBuffer) {
+  const worker = new Worker(new URL('./helpers/sqlite-claim-worker.ts', import.meta.url), {
+    workerData: { dbPath, owner, gate },
+    execArgv: ['--import', tsxLoader],
+  });
+  let readyResolve!: () => void; let readyReject!: (error: Error) => void;
+  let resultResolve!: (value: WorkItem | null) => void; let resultReject!: (error: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
+  const result = new Promise<WorkItem | null>((resolve, reject) => { resultResolve = resolve; resultReject = reject; });
+  void result.catch(() => {});
+  const fail = (error: Error) => { readyReject(error); resultReject(error); };
+  worker.on('message', (message: ClaimWorkerMessage) => {
+    if (message.type === 'ready') readyResolve();
+    if (message.type === 'result') resultResolve(message.value);
+    if (message.type === 'error') fail(new Error(`${message.error.name}${message.error.code ? ` [${message.error.code}]` : ''}: ${message.error.message}`));
+  });
+  worker.once('error', fail);
+  worker.once('exit', (code) => { if (code !== 0) fail(new Error(`Claim worker exited with code ${code}`)); });
+  return { ready, result, terminate: () => worker.terminate() };
+}
 
 function openMemoryStore() {
   const db = new Database(':memory:');
@@ -85,6 +112,29 @@ describe('SqliteRuntimeStore', () => {
     db.close();
   });
 
+  it.each([
+    ['getSession', (store: SqliteRuntimeStore) => store.getSession('s')],
+    ['transaction', (store: SqliteRuntimeStore) => store.transaction(() => undefined)],
+    ['claimWorkItem', (store: SqliteRuntimeStore) => store.claimWorkItem('owner', at(10), 1_000)],
+  ])('连接关闭后 %s 统一返回 STORAGE_UNAVAILABLE 并保留 cause', async (_name, action) => {
+    const db = new Database(':memory:');
+    new SqliteSchemaManager(db).migrate();
+    const store = new SqliteRuntimeStore(db);
+    db.close();
+    const error = await action(store).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(RuntimeError);
+    expect(error).toMatchObject({ code: 'STORAGE_UNAVAILABLE' });
+    expect((error as RuntimeError).cause).toBeInstanceOf(Error);
+  });
+
+  it('transaction 原样传播调用方 RuntimeError', async () => {
+    const { store, close } = openMemoryStore();
+    const expected = new RuntimeError('INVALID_INPUT', 'caller validation');
+    const error = await store.transaction(() => { throw expected; }).catch((caught: unknown) => caught);
+    expect(error).toBe(expected);
+    await close();
+  });
+
   it('两个独立连接同时领取时仅一个成功且不泄漏 SQLITE_BUSY', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-runtime-race-')); paths.push(dir);
     const dbPath = join(dir, 'runtime.db');
@@ -99,19 +149,22 @@ describe('SqliteRuntimeStore', () => {
     });
     db.close();
     const gate = new SharedArrayBuffer(4); const flag = new Int32Array(gate);
-    const runWorker = (owner: string) => new Promise<unknown>((resolve, reject) => {
-      const worker = new Worker(new URL('./helpers/sqlite-claim-worker.ts', import.meta.url), {
-        workerData: { dbPath, owner, gate },
-        execArgv: ['--import', tsxLoader],
-      });
-      worker.once('message', resolve); worker.once('error', reject);
-    });
-    const claims = [runWorker('one'), runWorker('two')];
-    Atomics.store(flag, 0, 1); Atomics.notify(flag, 0, 2);
-    const results = await Promise.all(claims);
-    expect(results.filter(Boolean)).toHaveLength(1);
+    const workers = [createClaimWorker(dbPath, 'one', gate), createClaimWorker(dbPath, 'two', gate)];
+    let results: Array<WorkItem | null> = [];
+    try {
+      await Promise.all(workers.map(({ ready }) => ready));
+      Atomics.store(flag, 0, 1); Atomics.notify(flag, 0, workers.length);
+      results = await Promise.all(workers.map(({ result }) => result));
+    } finally {
+      await Promise.all(workers.map(({ terminate }) => terminate()));
+    }
+    expect(results).toHaveLength(2);
+    const winners = results.filter((value): value is WorkItem => value !== null);
+    expect(winners).toHaveLength(1);
+    expect(results.filter((value) => value === null)).toHaveLength(1);
+    expect(winners[0]).toMatchObject({ attempt: 1, leaseOwner: expect.stringMatching(/^(one|two)$/) });
     const verify = new Database(dbPath);
-    expect(verify.prepare('SELECT attempt, lease_owner FROM runtime_work_items WHERE id=?').get('w')).toMatchObject({ attempt: 1, lease_owner: expect.stringMatching(/^(one|two)$/) });
+    expect(verify.prepare('SELECT attempt, lease_owner FROM runtime_work_items WHERE id=?').get('w')).toEqual({ attempt: 1, lease_owner: winners[0].leaseOwner });
     verify.close();
   });
 

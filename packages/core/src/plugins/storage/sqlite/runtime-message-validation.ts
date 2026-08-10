@@ -25,6 +25,22 @@ function validateUsage(value: unknown, column: string): void {
   }
 }
 
+function validateDiagnostic(value: unknown, column: string): void {
+  requirePlainObject(value, column);
+  runtimeText(value.type, `${column}.type`); runtimeFiniteNumber(value.timestamp, `${column}.timestamp`);
+  if (Object.hasOwn(value, 'error')) {
+    requirePlainObject(value.error, `${column}.error`);
+    runtimeText(value.error.message, `${column}.error.message`, true);
+    optionalText(value.error, 'name', `${column}.error`); optionalText(value.error, 'stack', `${column}.error`);
+    if (Object.hasOwn(value.error, 'code')) {
+      const { code } = value.error;
+      if (typeof code === 'string') runtimeText(code, `${column}.error.code`, true);
+      else runtimeFiniteNumber(code, `${column}.error.code`);
+    }
+  }
+  if (Object.hasOwn(value, 'details')) requirePlainObject(value.details, `${column}.details`);
+}
+
 function validateBlock(value: unknown, column: string, allowed: readonly BlockType[]): void {
   requirePlainObject(value, column);
   const type = runtimeEnum(value.type, `${column}.type`, allowed);
@@ -56,7 +72,10 @@ function validateAssistant(value: RecordValue, column: string): void {
   validateBlocks(value.content, `${column}.content`, ['text', 'thinking', 'toolCall']);
   runtimeText(value.api, `${column}.api`); runtimeText(value.provider, `${column}.provider`); runtimeText(value.model, `${column}.model`);
   for (const property of ['responseModel', 'responseId', 'errorMessage']) optionalText(value, property, column);
-  if (Object.hasOwn(value, 'diagnostics')) requireArray(value.diagnostics, `${column}.diagnostics`);
+  if (Object.hasOwn(value, 'diagnostics')) {
+    requireArray(value.diagnostics, `${column}.diagnostics`);
+    value.diagnostics.forEach((diagnostic, index) => validateDiagnostic(diagnostic, `${column}.diagnostics[${index}]`));
+  }
   validateUsage(value.usage, `${column}.usage`);
   runtimeEnum(value.stopReason, `${column}.stopReason`, ['stop', 'length', 'toolUse', 'error', 'aborted'] as const);
 }

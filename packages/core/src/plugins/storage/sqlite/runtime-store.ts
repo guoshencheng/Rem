@@ -17,6 +17,7 @@ const isThenable = (value: unknown): value is PromiseLike<unknown> =>
 
 export class SqliteRuntimeStore implements RuntimeStorage {
   private tail = Promise.resolve();
+  private activeCallback = false;
 
   constructor(private readonly db: Database.Database) {
     this.db.pragma('busy_timeout = 5000');
@@ -25,14 +26,17 @@ export class SqliteRuntimeStore implements RuntimeStorage {
   async transaction<T extends RuntimeTransactionCallback>(
     operation: SynchronousRuntimeTransactionCallback<T>,
   ): Promise<ReturnType<T>> {
+    if (this.activeCallback) invalidRuntimeInput('Nested RuntimeStorage transactions are not supported');
     return this.lock(() => {
       let callbackFailure: unknown;
       let callbackFailed = false;
       try {
         return this.db.transaction(() => {
           let result: ReturnType<T>;
+          this.activeCallback = true;
           try { result = operation(createSqliteRuntimeUnitOfWork(this.db)) as ReturnType<T>; }
           catch (error) { callbackFailed = true; callbackFailure = error; throw error; }
+          finally { this.activeCallback = false; }
           if (isThenable(result)) {
             void Promise.resolve(result).catch(() => {});
             invalidRuntimeInput('RuntimeStorage transaction callback must be synchronous');
@@ -83,7 +87,7 @@ export class SqliteRuntimeStore implements RuntimeStorage {
       try {
         return this.db.transaction(() => {
           const repository = new SqliteRuntimeWorkItemRepository(this.db);
-          for (const candidate of repository.listRecoverable(now)) {
+          for (const candidate of repository.listClaimCandidates(now)) {
             const claimed = repository.claim(candidate, leaseOwner, now, expiresAt);
             if (claimed) return claimed;
           }

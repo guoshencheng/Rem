@@ -6,19 +6,19 @@ import type { IdempotencyRecord } from '../../../sdk/runtime-storage.js';
 import type { RuntimeArtifactRow, RuntimeEventRow, RuntimeIdempotencyRow, RuntimeRunRow,
   RuntimeSessionEntryRow, RuntimeSessionRow, RuntimeToolInvocationRow, RuntimeWorkItemRow,
 } from './runtime-row-types.js';
-import { corruptRuntimeRow } from './runtime-sqlite-error.js';
+import { invalidRuntimeInput } from './runtime-sqlite-error.js';
 
 function json(value: unknown, column: string): string {
   try {
     const encoded = JSON.stringify(value);
     if (encoded === undefined) throw new TypeError(`${column} cannot encode undefined`);
     return encoded;
-  } catch (error) { return corruptRuntimeRow(`Cannot encode ${column}`, error); }
+  } catch (error) { return invalidRuntimeInput(`Cannot encode ${column}`, error); }
 }
 
 function date(value: Date, column: string): string {
   try { return value.toISOString(); }
-  catch (error) { return corruptRuntimeRow(`Cannot encode ${column}`, error); }
+  catch (error) { return invalidRuntimeInput(`Cannot encode ${column}`, error); }
 }
 
 export const sessionToRow = (value: AgentSession): RuntimeSessionRow => ({

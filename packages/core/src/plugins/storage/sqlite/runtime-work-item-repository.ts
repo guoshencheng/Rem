@@ -51,6 +51,22 @@ export class SqliteRuntimeWorkItemRepository implements RuntimeWorkItemRepositor
     return rows.map(mapWorkItemRow).sort(compareWork);
   }
 
+  listClaimCandidates(now: Date): WorkItem[] {
+    return sqliteAction('listing runtime claim candidates', () => {
+      const isoNow = now.toISOString();
+      const earliest = this.db.prepare(`
+        SELECT MIN(created_at) AS created_at FROM runtime_work_items
+        WHERE status = 'queued' OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
+      `).get(isoNow) as { created_at: string | null };
+      if (earliest.created_at === null) return [];
+      const rows = this.db.prepare(`
+        SELECT * FROM runtime_work_items WHERE created_at = ?
+          AND (status = 'queued' OR (status = 'leased' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?))
+      `).all(earliest.created_at, isoNow) as RuntimeWorkItemRow[];
+      return rows.map(mapWorkItemRow).sort(compareWork);
+    });
+  }
+
   claim(candidate: WorkItem, owner: string, now: Date, expiresAt: Date): WorkItem | null {
     const oldExpiry = candidate.leaseExpiresAt?.toISOString() ?? null;
     return sqliteAction('claiming runtime work item', () => {

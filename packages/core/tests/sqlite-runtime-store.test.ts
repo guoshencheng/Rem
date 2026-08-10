@@ -3,13 +3,12 @@ import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
-import { Worker } from 'node:worker_threads';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RuntimeError } from '../src/application/runtime/runtime-error.js';
 import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/provider.js';
 import { SqliteRuntimeStore } from '../src/plugins/storage/sqlite/runtime-store.js';
 import { CURRENT_SCHEMA_VERSION, SqliteSchemaManager } from '../src/plugins/storage/sqlite/schema.js';
+import { createClaimWorker } from './helpers/sqlite-claim-worker-client.js';
 import { runtimeStorageContract } from './runtime-storage-contract.js';
 
 const RUNTIME_TABLES = [
@@ -19,34 +18,6 @@ const RUNTIME_TABLES = [
 ] as const;
 
 const at = (second: number) => new Date(`2026-08-10T00:00:${String(second).padStart(2, '0')}.000Z`);
-const tsxLoader = createRequire(import.meta.url).resolve('tsx');
-
-type ClaimWorkerMessage =
-  | { type: 'ready' }
-  | { type: 'result'; value: WorkItem | null }
-  | { type: 'error'; error: { name: string; message: string; code?: string } };
-
-function createClaimWorker(dbPath: string, owner: string, gate: SharedArrayBuffer) {
-  const worker = new Worker(new URL('./helpers/sqlite-claim-worker.ts', import.meta.url), {
-    workerData: { dbPath, owner, gate },
-    execArgv: ['--import', tsxLoader],
-  });
-  let readyResolve!: () => void; let readyReject!: (error: Error) => void;
-  let resultResolve!: (value: WorkItem | null) => void; let resultReject!: (error: Error) => void;
-  const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  const result = new Promise<WorkItem | null>((resolve, reject) => { resultResolve = resolve; resultReject = reject; });
-  void result.catch(() => {});
-  const fail = (error: Error) => { readyReject(error); resultReject(error); };
-  worker.on('message', (message: ClaimWorkerMessage) => {
-    if (message.type === 'ready') readyResolve();
-    if (message.type === 'result') resultResolve(message.value);
-    if (message.type === 'error') fail(new Error(`${message.error.name}${message.error.code ? ` [${message.error.code}]` : ''}: ${message.error.message}`));
-  });
-  worker.once('error', fail);
-  worker.once('exit', (code) => { if (code !== 0) fail(new Error(`Claim worker exited with code ${code}`)); });
-  return { ready, result, terminate: () => worker.terminate() };
-}
-
 function openMemoryStore() {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
@@ -135,6 +106,18 @@ describe('SqliteRuntimeStore', () => {
     await close();
   });
 
+  it('拒绝 reentrant transaction，外层与内层写入都不产生延迟副作用', async () => {
+    const { store, close } = openMemoryStore();
+    await expect(store.transaction((uow) => {
+      uow.sessions.insert({ sessionId: 'outer', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) });
+      return store.transaction((inner) => inner.sessions.insert({ sessionId: 'inner', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) }));
+    }) as never).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    expect(await store.getSession('outer')).toBeNull(); expect(await store.getSession('inner')).toBeNull();
+    await store.transaction((uow) => uow.sessions.insert({ sessionId: 'after', tenantId: 't', contexts: { bindings: [] }, createdAt: at(1), updatedAt: at(1) }));
+    expect(await store.getSession('after')).not.toBeNull();
+    await close();
+  });
+
   it('两个独立连接同时领取时仅一个成功且不泄漏 SQLITE_BUSY', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-runtime-race-')); paths.push(dir);
     const dbPath = join(dir, 'runtime.db');
@@ -166,6 +149,18 @@ describe('SqliteRuntimeStore', () => {
     const verify = new Database(dbPath);
     expect(verify.prepare('SELECT attempt, lease_owner FROM runtime_work_items WHERE id=?').get('w')).toEqual({ attempt: 1, lease_owner: winners[0].leaseOwner });
     verify.close();
+  });
+
+  it('worker 未发送 result/error 就正常退出时不会留下 pending Promise', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rem-runtime-worker-exit-')); paths.push(dir);
+    const dbPath = join(dir, 'runtime.db'); const db = new Database(dbPath);
+    db.pragma('journal_mode = WAL'); new SqliteSchemaManager(db).migrate(); db.close();
+    const gate = new SharedArrayBuffer(4); const flag = new Int32Array(gate);
+    const worker = createClaimWorker(dbPath, 'owner', gate, { mode: 'exit-before-result' });
+    try {
+      await worker.ready; Atomics.store(flag, 0, 1); Atomics.notify(flag, 0, 1);
+      await expect(worker.result).rejects.toThrow('exited before result with code 0');
+    } finally { await worker.terminate(); }
   });
 
   it('Provider 的 runtimeStore 随 open/close/init 生命周期变化', async () => {

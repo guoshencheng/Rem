@@ -17,7 +17,8 @@ export const RUNTIME_DDL = `
     tenant_id TEXT NOT NULL,
     contexts_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    UNIQUE (tenant_id, id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_runtime_sessions_tenant_updated
@@ -40,7 +41,9 @@ export const RUNTIME_DDL = `
     started_at TEXT,
     finished_at TEXT,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES runtime_sessions(id) ON DELETE CASCADE
+    UNIQUE (tenant_id, session_id, id),
+    FOREIGN KEY (tenant_id, session_id)
+      REFERENCES runtime_sessions(tenant_id, id) ON DELETE CASCADE
   );
 
   CREATE INDEX IF NOT EXISTS idx_runtime_runs_session_created
@@ -57,8 +60,8 @@ export const RUNTIME_DDL = `
     data_json TEXT NOT NULL,
     occurred_at TEXT NOT NULL,
     UNIQUE (run_id, sequence),
-    FOREIGN KEY (session_id) REFERENCES runtime_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, session_id, run_id)
+      REFERENCES runtime_runs(tenant_id, session_id, id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS runtime_work_items (
@@ -86,8 +89,8 @@ export const RUNTIME_DDL = `
     metadata_json TEXT,
     created_at TEXT NOT NULL,
     UNIQUE (session_id, sequence),
-    FOREIGN KEY (session_id) REFERENCES runtime_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, session_id, run_id)
+      REFERENCES runtime_runs(tenant_id, session_id, id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS runtime_artifacts (
@@ -102,8 +105,8 @@ export const RUNTIME_DDL = `
     uri TEXT,
     metadata_json TEXT,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES runtime_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, session_id, run_id)
+      REFERENCES runtime_runs(tenant_id, session_id, id) ON DELETE CASCADE
   );
 
   CREATE INDEX IF NOT EXISTS idx_runtime_artifacts_run ON runtime_artifacts(run_id);
@@ -134,8 +137,8 @@ export const RUNTIME_DDL = `
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE (run_id, tool_call_id),
-    FOREIGN KEY (session_id) REFERENCES runtime_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, session_id, run_id)
+      REFERENCES runtime_runs(tenant_id, session_id, id) ON DELETE CASCADE
   );
 
   CREATE INDEX IF NOT EXISTS idx_runtime_tool_invocations_run

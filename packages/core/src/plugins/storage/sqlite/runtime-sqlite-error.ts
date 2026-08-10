@@ -34,6 +34,6 @@ export function runtimeConflict(message: string): never {
   throw new RuntimeError('STORAGE_CONFLICT', message);
 }
 
-export function invalidRuntimeInput(message: string): never {
-  throw new RuntimeError('INVALID_INPUT', message);
+export function invalidRuntimeInput(message: string, cause?: unknown): never {
+  throw new RuntimeError('INVALID_INPUT', message, false, undefined, cause === undefined ? undefined : { cause });
 }

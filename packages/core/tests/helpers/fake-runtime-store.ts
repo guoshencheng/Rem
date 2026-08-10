@@ -15,17 +15,23 @@ interface State {
   artifacts: Map<string, Artifact>;
   idempotency: Map<string, IdempotencyRecord>;
   toolInvocations: Map<string, ToolInvocation>;
+  toolInvocationByRunCall: Map<string, string>;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
 const conflict = (message: string): never => { throw new RuntimeError('STORAGE_CONFLICT', message); };
 const invalid = (message: string): never => { throw new RuntimeError('INVALID_INPUT', message); };
 const idempotencyKey = (tenantId: string, operation: string, key: string): string => JSON.stringify([tenantId, operation, key]);
-const compareWork = (left: WorkItem, right: WorkItem): number => left.createdAt.getTime() - right.createdAt.getTime() || left.workItemId.localeCompare(right.workItemId);
-const isPromise = (value: unknown): value is Promise<unknown> => typeof value === 'object' && value !== null && 'then' in value && typeof (value as { then?: unknown }).then === 'function';
+const toolCallKey = (runId: string, toolCallId: string): string => JSON.stringify([runId, toolCallId]);
+const compareWork = (left: WorkItem, right: WorkItem): number => {
+  const timeOrder = left.createdAt.getTime() - right.createdAt.getTime();
+  if (timeOrder) return timeOrder;
+  return left.workItemId === right.workItemId ? 0 : left.workItemId < right.workItemId ? -1 : 1;
+};
+const isThenable = (value: unknown): value is PromiseLike<unknown> => (typeof value === 'object' && value !== null || typeof value === 'function') && typeof (value as { then?: unknown }).then === 'function';
 
 function emptyState(): State {
-  return { sessions: new Map(), entries: new Map(), runs: new Map(), events: new Map(), workItems: new Map(), workItemByRun: new Map(), artifacts: new Map(), idempotency: new Map(), toolInvocations: new Map() };
+  return { sessions: new Map(), entries: new Map(), runs: new Map(), events: new Map(), workItems: new Map(), workItemByRun: new Map(), artifacts: new Map(), idempotency: new Map(), toolInvocations: new Map(), toolInvocationByRunCall: new Map() };
 }
 
 function createUnitOfWork(state: State): RuntimeUnitOfWork {
@@ -57,7 +63,11 @@ function createUnitOfWork(state: State): RuntimeUnitOfWork {
         state.events.set(event.runId, [...(state.events.get(event.runId) ?? []), clone(event)]);
       },
       nextSequence(runId) { const events = state.events.get(runId) ?? []; return events.length === 0 ? 1 : Math.max(...events.map((event) => event.sequence)) + 1; },
-      list(runId, afterSequence, limit) { if (limit <= 0) invalid('Event limit must be positive'); return clone((state.events.get(runId) ?? []).filter((event) => event.sequence > afterSequence).sort((left, right) => left.sequence - right.sequence).slice(0, limit)); },
+      list(runId, afterSequence, limit) {
+        if (!Number.isFinite(afterSequence) || !Number.isInteger(afterSequence) || afterSequence < 0) invalid('Event cursor must be a non-negative integer');
+        if (!Number.isFinite(limit) || !Number.isInteger(limit) || limit <= 0) invalid('Event limit must be a positive integer');
+        return clone((state.events.get(runId) ?? []).filter((event) => event.sequence > afterSequence).sort((left, right) => left.sequence - right.sequence).slice(0, limit));
+      },
     },
     workItems: {
       insert(item) { if (state.workItems.has(item.workItemId) || state.workItemByRun.has(item.runId)) conflict('Work item already exists'); state.workItems.set(item.workItemId, clone(item)); state.workItemByRun.set(item.runId, item.workItemId); },
@@ -80,9 +90,22 @@ function createUnitOfWork(state: State): RuntimeUnitOfWork {
       insert(record) { const key = idempotencyKey(record.tenantId, record.operation, record.idempotencyKey); if (state.idempotency.has(key)) conflict('Idempotency record already exists'); state.idempotency.set(key, clone(record)); },
     },
     toolInvocations: {
-      insert(invocation) { if (state.toolInvocations.has(invocation.invocationId)) conflict('Tool invocation already exists'); state.toolInvocations.set(invocation.invocationId, clone(invocation)); },
+      insert(invocation) {
+        const key = toolCallKey(invocation.runId, invocation.toolCallId);
+        if (state.toolInvocations.has(invocation.invocationId) || state.toolInvocationByRunCall.has(key)) conflict('Tool invocation already exists');
+        state.toolInvocations.set(invocation.invocationId, clone(invocation)); state.toolInvocationByRunCall.set(key, invocation.invocationId);
+      },
       get(invocationId) { const invocation = state.toolInvocations.get(invocationId); return invocation ? clone(invocation) : null; },
-      update(invocation) { if (!state.toolInvocations.has(invocation.invocationId)) conflict('Tool invocation does not exist'); state.toolInvocations.set(invocation.invocationId, clone(invocation)); },
+      update(invocation) {
+        const previous = state.toolInvocations.get(invocation.invocationId);
+        if (!previous) conflict('Tool invocation does not exist');
+        const key = toolCallKey(invocation.runId, invocation.toolCallId);
+        const existing = state.toolInvocationByRunCall.get(key);
+        if (existing && existing !== invocation.invocationId) conflict('Tool invocation already exists');
+        const previousKey = toolCallKey(previous.runId, previous.toolCallId);
+        if (previousKey !== key) state.toolInvocationByRunCall.delete(previousKey);
+        state.toolInvocations.set(invocation.invocationId, clone(invocation)); state.toolInvocationByRunCall.set(key, invocation.invocationId);
+      },
       listByRun(runId) { return clone([...state.toolInvocations.values()].filter((invocation) => invocation.runId === runId)); },
     },
   };
@@ -96,7 +119,7 @@ class FakeRuntimeStore implements RuntimeStorage {
     return this.lock(() => {
       const next = clone(this.state);
       const result = operation(createUnitOfWork(next));
-      if (isPromise(result)) invalid('RuntimeStorage transaction callback must be synchronous');
+      if (isThenable(result)) { void Promise.resolve(result).catch(() => {}); invalid('RuntimeStorage transaction callback must be synchronous'); }
       this.state = next;
       return result;
     });
@@ -108,11 +131,14 @@ class FakeRuntimeStore implements RuntimeStorage {
   async listArtifacts(runId: string): Promise<Artifact[]> { return createUnitOfWork(this.state).artifacts.listByRun(runId); }
 
   async claimWorkItem(owner: string, now: Date, leaseMs: number): Promise<WorkItem | null> {
-    if (!owner) invalid('Lease owner is required'); if (leaseMs <= 0) invalid('Lease duration must be positive');
+    const leaseOwner = owner.trim();
+    const expiresAt = new Date(now.getTime() + leaseMs);
+    if (!leaseOwner) invalid('Lease owner is required');
+    if (!Number.isFinite(leaseMs) || leaseMs <= 0 || !Number.isFinite(now.getTime()) || !Number.isFinite(expiresAt.getTime())) invalid('Lease duration must produce a valid expiry');
     return this.lock(() => {
       const item = [...this.state.workItems.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'leased' && (candidate.leaseExpiresAt?.getTime() ?? Infinity) <= now.getTime()).sort(compareWork)[0];
       if (!item) return null;
-      const claimed: WorkItem = { ...item, status: 'leased', leaseOwner: owner, leaseExpiresAt: new Date(now.getTime() + leaseMs), attempt: item.attempt + 1, updatedAt: clone(now) };
+      const claimed: WorkItem = { ...item, status: 'leased', leaseOwner, leaseExpiresAt: expiresAt, attempt: item.attempt + 1, updatedAt: clone(now) };
       this.state.workItems.set(claimed.workItemId, claimed);
       return clone(claimed);
     });

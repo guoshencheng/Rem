@@ -74,7 +74,8 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
 
     it('拒绝被绕过类型系统的异步 transaction callback', async () => {
       const store = await open();
-      await expectCode(() => store.transaction((() => Promise.resolve('bad')) as unknown as (uow: RuntimeUnitOfWork) => string), 'INVALID_INPUT');
+      await expectCode(() => store.transaction(((uow) => { uow.sessions.insert(session()); return Promise.resolve('bad'); }) as unknown as (uow: RuntimeUnitOfWork) => string), 'INVALID_INPUT');
+      expect(await store.getSession('session-1')).toBeNull();
     });
 
     it('并发领取不会重复，另一个 work item 仍可后续领取', async () => {
@@ -98,6 +99,13 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual(['a', 'b', 'expired']);
     });
 
+    it('使用原始 UTF-16 顺序稳定领取和恢复任务', async () => {
+      const store = await open(); const first = 'e\u0301'; const second = 'é';
+      await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work(second, 'run-accent-2', at(2))); uow.workItems.insert(work(first, 'run-accent-1', at(2))); });
+      expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual([first, second]);
+      expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe(first);
+    });
+
     it('事件 cursor、冲突与事务内 run 更新一起回滚', async () => {
       const store = await open(); await store.transaction((uow) => { expect(uow.events.nextSequence('run-1')).toBe(1); createRun(uow); uow.events.append(event(1)); uow.events.append(event(2)); expect(uow.events.nextSequence('run-1')).toBe(3); });
       expect((await store.listEvents('run-1', 1, 1)).map((item) => item.sequence)).toEqual([2]);
@@ -106,28 +114,44 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       expect((await store.getRun('run-1'))?.status).toBe('queued'); expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual([1, 2]);
     });
 
+    it('默认最多读取 100 个 event，并保持 eventId 全局唯一', async () => {
+      const store = await open(); await store.transaction((uow) => { createRun(uow); for (let sequence = 1; sequence <= 101; sequence += 1) uow.events.append(event(sequence)); });
+      expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));
+      await expectCode(() => store.transaction((uow) => uow.events.append({ ...event(1), runId: 'run-2', eventId: 'event-1' })), 'STORAGE_CONFLICT');
+    });
+
     it('session entry、artifact 与 tool invocation 可往返且隔离别名', async () => {
       const store = await open(); const laterEntry = { ...entry(), entryId: 'entry-2', sequence: 2 };
-      await store.transaction((uow) => { createRun(uow); uow.sessions.appendEntries([laterEntry, entry()]); uow.artifacts.insert(artifact()); uow.toolInvocations.insert(invocation()); });
-      await store.transaction((uow) => { const entries = uow.sessions.listEntries('session-1'); entries[0].metadata = { changed: true }; entries[0].message = { role: 'assistant', content: 'changed' } as RuntimeSessionEntry['message']; const item = uow.toolInvocations.get('invocation-1'); (item!.input as { nested: { value: number } }).nested.value = 2; });
+      await store.transaction((uow) => { createRun(uow); uow.sessions.appendEntries([laterEntry, entry()]); uow.workItems.insert(work()); uow.artifacts.insert(artifact()); uow.toolInvocations.insert(invocation()); });
+      await store.transaction((uow) => { const entries = uow.sessions.listEntries('session-1'); entries[0].metadata = { changed: true }; entries[0].message = { role: 'assistant', content: 'changed' } as RuntimeSessionEntry['message']; const item = uow.toolInvocations.get('invocation-1'); (item!.input as { nested: { value: number } }).nested.value = 2; uow.toolInvocations.update({ ...invocation(), status: 'succeeded', result: { nested: { value: 1 } }, updatedAt: at(8) }); uow.workItems.update({ ...work(), status: 'completed', updatedAt: at(9) }); });
       const [storedArtifact] = await store.listArtifacts('run-1'); storedArtifact.metadata!.nested = { value: 9 };
-      await store.transaction((uow) => { expect(uow.sessions.listEntries('session-1')).toEqual([entry(), laterEntry]); expect(uow.toolInvocations.listByRun('run-1')).toEqual([invocation()]); });
+      await store.transaction((uow) => { const stored = uow.toolInvocations.get('invocation-1')!; (stored.result as { nested: { value: number } }).nested.value = 2; const storedWork = uow.workItems.getByRun('run-1')!; storedWork.status = 'failed'; expect(uow.sessions.listEntries('session-1')).toEqual([entry(), laterEntry]); expect(uow.toolInvocations.listByRun('run-1')).toEqual([{ ...invocation(), status: 'succeeded', result: { nested: { value: 1 } }, updatedAt: at(8) }]); expect(uow.workItems.getByRun('run-1')).toEqual({ ...work(), status: 'completed', updatedAt: at(9) }); });
       expect((await store.listArtifacts('run-1'))[0].metadata).toEqual({ nested: { value: 1 } });
+    });
+
+    it('tool invocation 的 runId 与 toolCallId 组合必须唯一', async () => {
+      const store = await open(); await store.transaction((uow) => { createRun(uow); uow.toolInvocations.insert(invocation()); });
+      await expectCode(() => store.transaction((uow) => uow.toolInvocations.insert({ ...invocation(), invocationId: 'invocation-other' })), 'STORAGE_CONFLICT');
     });
 
     it('所有存储冲突与非法参数返回对应 code', async () => {
       const store = await open(); await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work()); });
       await expectCode(() => store.transaction((uow) => uow.sessions.insert(session())), 'STORAGE_CONFLICT');
+      await expectCode(() => store.transaction((uow) => uow.runs.insert(run())), 'STORAGE_CONFLICT');
       await expectCode(() => store.transaction((uow) => uow.runs.update(run('missing'))), 'STORAGE_CONFLICT');
-      await expectCode(() => store.transaction((uow) => uow.sessions.appendEntries([entry(), entry()])), 'STORAGE_CONFLICT');
+      await expectCode(() => store.transaction((uow) => uow.workItems.insert(work('work-other', 'run-1'))), 'STORAGE_CONFLICT');
+      await expectCode(() => store.transaction((uow) => uow.sessions.appendEntries([entry(), { ...entry(), entryId: 'entry-other' }])), 'STORAGE_CONFLICT');
       await store.transaction((uow) => { uow.events.append(event(1)); uow.artifacts.insert(artifact()); uow.toolInvocations.insert(invocation()); uow.idempotency.insert({ tenantId: 'tenant-1', operation: 'start-run', idempotencyKey: 'key-1', requestHash: 'hash', resourceId: 'run-1', createdAt: at(1) }); });
       await expectCode(() => store.transaction((uow) => uow.events.append(event(2, 'event-1'))), 'STORAGE_CONFLICT');
       await expectCode(() => store.transaction((uow) => uow.artifacts.insert(artifact())), 'STORAGE_CONFLICT');
       await expectCode(() => store.transaction((uow) => uow.toolInvocations.insert(invocation())), 'STORAGE_CONFLICT');
+      await expectCode(() => store.transaction((uow) => uow.workItems.update(work('missing-work', 'run-missing'))), 'STORAGE_CONFLICT');
+      await expectCode(() => store.transaction((uow) => uow.toolInvocations.update({ ...invocation(), invocationId: 'missing-invocation' })), 'STORAGE_CONFLICT');
       await expectCode(() => store.transaction((uow) => uow.idempotency.insert({ tenantId: 'tenant-1', operation: 'start-run', idempotencyKey: 'key-1', requestHash: 'hash', resourceId: 'run-1', createdAt: at(1) })), 'STORAGE_CONFLICT');
-      await expectCode(() => store.claimWorkItem('', at(10), 1), 'INVALID_INPUT');
-      await expectCode(() => store.claimWorkItem('a', at(10), 0), 'INVALID_INPUT');
-      await expectCode(() => store.listEvents('run-1', 0, 0), 'INVALID_INPUT');
+      for (const owner of ['', '   ']) await expectCode(() => store.claimWorkItem(owner, at(10), 1), 'INVALID_INPUT');
+      for (const leaseMs of [Number.NaN, Infinity, 0, -1, Number.MAX_VALUE]) await expectCode(() => store.claimWorkItem('a', at(10), leaseMs), 'INVALID_INPUT');
+      for (const limit of [Number.NaN, Infinity, 0, -1]) await expectCode(() => store.listEvents('run-1', 0, limit), 'INVALID_INPUT');
+      await expectCode(() => store.listEvents('run-1', Number.NaN), 'INVALID_INPUT');
     });
   });
 }

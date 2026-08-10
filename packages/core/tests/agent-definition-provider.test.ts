@@ -110,7 +110,7 @@ describe('StaticAgentDefinitionProvider', () => {
     await expect(provider.get('support', '')).resolves.toMatchObject({ revision: '' });
   });
 
-  it('uses a lexical tiebreaker for numerically equal revisions', async () => {
+  it('uses original UTF-16 ordering to break numeric revision ties', async () => {
     const revisionTwo = { ...definitions[0]!, revision: '2' };
     const revisionZeroTwo = { ...definitions[0]!, revision: '02' };
     const firstProvider = new StaticAgentDefinitionProvider([revisionTwo, revisionZeroTwo]);
@@ -118,6 +118,19 @@ describe('StaticAgentDefinitionProvider', () => {
 
     const firstCurrent = await firstProvider.get('support');
     const secondCurrent = await secondProvider.get('support');
+    expect(firstCurrent?.revision).toBe('2');
+    expect(firstCurrent?.revision).toBe(secondCurrent?.revision);
+  });
+
+  it('uses original UTF-16 ordering for canonically equivalent Unicode revisions', async () => {
+    const composedRevision = { ...definitions[0]!, revision: 'é2' };
+    const decomposedRevision = { ...definitions[0]!, revision: 'e\u03012' };
+    const firstProvider = new StaticAgentDefinitionProvider([composedRevision, decomposedRevision]);
+    const secondProvider = new StaticAgentDefinitionProvider([decomposedRevision, composedRevision]);
+
+    const firstCurrent = await firstProvider.get('support');
+    const secondCurrent = await secondProvider.get('support');
+    expect(firstCurrent?.revision).toBe('é2');
     expect(firstCurrent?.revision).toBe(secondCurrent?.revision);
   });
 

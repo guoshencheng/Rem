@@ -42,7 +42,8 @@ export class StaticAgentDefinitionProvider implements AgentDefinitionProvider {
     const latestRevision = [...revisions.keys()]
       .sort((left, right) => {
         const numericComparison = left.localeCompare(right, undefined, { numeric: true });
-        return numericComparison || left.localeCompare(right);
+        if (numericComparison) return numericComparison;
+        return left === right ? 0 : left < right ? -1 : 1;
       })
       .at(-1);
     const definition = latestRevision !== undefined ? revisions.get(latestRevision) : undefined;

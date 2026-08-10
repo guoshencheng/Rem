@@ -1,12 +1,52 @@
-import type { AgentDefinition } from '../src/domain/agent-definition/types.js';
+import type { AgentDefinition, ContextTypeConstraint, RunTriggerType } from '../src/domain/agent-definition/types.js';
+import type { RuntimeErrorCode } from '../src/application/runtime/runtime-error.js';
 import { describe, expect, it } from 'vitest';
 import { RuntimeError } from '../src/application/runtime/runtime-error.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/index.js';
 
+const runtimeErrorCodes = [
+  'INVALID_INPUT',
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
+  'AGENT_NOT_FOUND',
+  'AGENT_REVISION_NOT_FOUND',
+  'TRIGGER_NOT_SUPPORTED',
+  'SESSION_NOT_FOUND',
+  'RUN_NOT_FOUND',
+  'RUN_CONFLICT',
+  'RUN_ALREADY_TERMINAL',
+  'CONTEXT_TYPE_NOT_FOUND',
+  'CONTEXT_INVALID',
+  'CONTEXT_CONFLICT',
+  'CONTEXT_UNAUTHORIZED',
+  'PLUGIN_DEPENDENCY_MISSING',
+  'TOOL_NOT_FOUND',
+  'TOOL_DENIED',
+  'TOOL_EXECUTION_FAILED',
+  'TOOL_RESULT_UNKNOWN',
+  'MODEL_UNAVAILABLE',
+  'MODEL_EXECUTION_FAILED',
+  'STORAGE_CONFLICT',
+  'STORAGE_UNAVAILABLE',
+  'IDEMPOTENCY_CONFLICT',
+  'EXECUTION_TIMEOUT',
+  'EXECUTION_CANCELLED',
+  'INTERNAL_ERROR',
+] as const satisfies readonly RuntimeErrorCode[];
+
+type PlannedRuntimeErrorCode = (typeof runtimeErrorCodes)[number];
+type AssertNever<Value extends never> = Value;
+type RuntimeErrorCodeSetMatchesPlan = [
+  AssertNever<Exclude<RuntimeErrorCode, PlannedRuntimeErrorCode>>,
+  AssertNever<Exclude<PlannedRuntimeErrorCode, RuntimeErrorCode>>,
+];
+
+void (undefined as unknown as RuntimeErrorCodeSetMatchesPlan);
+
 const definitions: AgentDefinition[] = [
   {
     agentId: 'support',
-    revision: '1',
+    revision: '2',
     name: 'Support',
     instructions: 'Help',
     modelId: 'default',
@@ -19,7 +59,7 @@ const definitions: AgentDefinition[] = [
   },
   {
     agentId: 'support',
-    revision: '2',
+    revision: '10',
     name: 'Support',
     instructions: 'Help better',
     modelId: 'default',
@@ -29,17 +69,48 @@ const definitions: AgentDefinition[] = [
   },
 ];
 
+type MutableDefinition = {
+  toolNames: string[];
+  acceptedTriggers: RunTriggerType[];
+  requiredContexts?: ContextTypeConstraint[];
+  optionalContexts?: ContextTypeConstraint[];
+  overridableContexts?: string[];
+  execution: { type: string };
+};
+
+function mutateDefinition(definition: AgentDefinition, marker: string): void {
+  const mutable = definition as unknown as MutableDefinition;
+  mutable.toolNames.push(`${marker}-tool`);
+  mutable.acceptedTriggers.push('task');
+  mutable.requiredContexts?.[0] && (mutable.requiredContexts[0].type = `${marker}-required`);
+  mutable.optionalContexts?.[0] && (mutable.optionalContexts[0].type = `${marker}-optional`);
+  mutable.overridableContexts?.push(`${marker}-context`);
+  mutable.execution.type = `${marker}-execution`;
+}
+
+function expectOriginalDefinition(definition: AgentDefinition | null): void {
+  expect(definition).toMatchObject({
+    name: 'Support',
+    toolNames: [],
+    acceptedTriggers: ['message'],
+    requiredContexts: [{ type: 'customer', min: 1 }],
+    optionalContexts: [{ type: 'order', max: 2 }],
+    overridableContexts: ['locale'],
+    execution: { type: 'single-agent' },
+  });
+}
+
 describe('StaticAgentDefinitionProvider', () => {
   it('returns the highest numeric revision when revision is omitted', async () => {
     const provider = new StaticAgentDefinitionProvider(definitions);
 
-    await expect(provider.get('support')).resolves.toMatchObject({ revision: '2' });
+    await expect(provider.get('support')).resolves.toMatchObject({ revision: '10' });
   });
 
   it('returns the requested fixed revision', async () => {
     const provider = new StaticAgentDefinitionProvider(definitions);
 
-    await expect(provider.get('support', '1')).resolves.toMatchObject({ revision: '1' });
+    await expect(provider.get('support', '2')).resolves.toMatchObject({ revision: '2' });
   });
 
   it('returns null for unknown agents and revisions', async () => {
@@ -59,28 +130,28 @@ describe('StaticAgentDefinitionProvider', () => {
     const input = structuredClone(definitions);
     const provider = new StaticAgentDefinitionProvider(input);
     input[0]!.name = 'Mutated input';
-    input[0]!.toolNames.push('mutated-input-tool');
-    input[0]!.requiredContexts?.[0] && (input[0]!.requiredContexts[0].type = 'mutated-context');
+    mutateDefinition(input[0]!, 'input');
+    expectOriginalDefinition(await provider.get('support', '2'));
 
     const listed = await provider.list();
-    listed[0]!.name = 'Mutated list';
-    listed[0]!.toolNames.push('mutated-list-tool');
-    listed[0]!.requiredContexts?.[0] && (listed[0]!.requiredContexts[0].type = 'mutated-list-context');
-    listed[0]!.execution.type = 'single-agent';
+    const fetched = await provider.get('support', '2');
+    expect(listed[0]).not.toBe(fetched);
+    expect(listed[0]!.toolNames).not.toBe(fetched!.toolNames);
+    expect(listed[0]!.acceptedTriggers).not.toBe(fetched!.acceptedTriggers);
+    expect(listed[0]!.requiredContexts).not.toBe(fetched!.requiredContexts);
+    expect(listed[0]!.requiredContexts?.[0]).not.toBe(fetched!.requiredContexts?.[0]);
+    expect(listed[0]!.optionalContexts).not.toBe(fetched!.optionalContexts);
+    expect(listed[0]!.optionalContexts?.[0]).not.toBe(fetched!.optionalContexts?.[0]);
+    expect(listed[0]!.overridableContexts).not.toBe(fetched!.overridableContexts);
+    expect(listed[0]!.execution).not.toBe(fetched!.execution);
 
-    const fetched = await provider.get('support', '1');
-    fetched!.name = 'Mutated get';
-    fetched!.overridableContexts?.push('mutated-get-context');
+    mutateDefinition(listed[0]!, 'list');
+    mutateDefinition(fetched!, 'get');
 
     const listedAgain = await provider.list();
-    const fetchedAgain = await provider.get('support', '1');
-    expect(listedAgain[0]).toMatchObject({
-      name: 'Support',
-      toolNames: [],
-      requiredContexts: [{ type: 'customer', min: 1 }],
-      overridableContexts: ['locale'],
-    });
-    expect(fetchedAgain).toMatchObject({ name: 'Support', overridableContexts: ['locale'] });
+    const fetchedAgain = await provider.get('support', '2');
+    expectOriginalDefinition(listedAgain[0]!);
+    expectOriginalDefinition(fetchedAgain);
   });
 
   it('keeps list order and supports repeated initialization', async () => {
@@ -89,11 +160,18 @@ describe('StaticAgentDefinitionProvider', () => {
     await provider.init();
     await provider.init();
 
-    await expect(provider.list()).resolves.toMatchObject([{ revision: '1' }, { revision: '2' }]);
+    await expect(provider.list()).resolves.toMatchObject([{ revision: '2' }, { revision: '10' }]);
   });
 });
 
 describe('RuntimeError', () => {
+  it('matches the planned error code set', () => {
+    expect(runtimeErrorCodes).toHaveLength(27);
+    expect(runtimeErrorCodes).toContain('AGENT_NOT_FOUND');
+    expect(runtimeErrorCodes).toContain('STORAGE_UNAVAILABLE');
+    expect(runtimeErrorCodes).toContain('INTERNAL_ERROR');
+  });
+
   it('preserves stable error metadata and cause', () => {
     const cause = new Error('database unavailable');
     const details = { operation: 'write' };

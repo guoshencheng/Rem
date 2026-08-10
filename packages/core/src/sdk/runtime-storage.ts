@@ -9,8 +9,14 @@ export type { IdempotencyRecord, RuntimeArtifactRepository, RuntimeEventReposito
   RuntimeToolInvocationRepository, RuntimeUnitOfWork, RuntimeWorkItemRepository,
 } from './runtime-storage-repositories.js';
 
+export type RuntimeTransactionCallback = (uow: RuntimeUnitOfWork) => unknown;
+export type SynchronousRuntimeTransactionCallback<T extends RuntimeTransactionCallback> =
+  T & (ReturnType<T> extends PromiseLike<unknown> ? never : unknown);
+
 export interface RuntimeStorage {
-  transaction<T>(operation: (uow: RuntimeUnitOfWork) => T): Promise<T>;
+  transaction<T extends RuntimeTransactionCallback>(
+    operation: SynchronousRuntimeTransactionCallback<T>,
+  ): Promise<ReturnType<T>>;
   getSession(sessionId: string): Promise<AgentSession | null>;
   getRun(runId: string): Promise<AgentRun | null>;
   listEvents(runId: string, afterSequence?: number, limit?: number): Promise<RunEvent[]>;

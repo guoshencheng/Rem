@@ -2,7 +2,7 @@ import type { Artifact } from '../../src/domain/artifact/types.js';
 import type { RunEvent } from '../../src/domain/event/types.js';
 import type { AgentRun, ToolInvocation, WorkItem } from '../../src/domain/run/types.js';
 import type { AgentSession, RuntimeSessionEntry } from '../../src/domain/session/types.js';
-import type { IdempotencyRecord, RuntimeStorage, RuntimeUnitOfWork } from '../../src/sdk/runtime-storage.js';
+import type { IdempotencyRecord, RuntimeStorage, RuntimeTransactionCallback, RuntimeUnitOfWork, SynchronousRuntimeTransactionCallback } from '../../src/sdk/runtime-storage.js';
 import { RuntimeError } from '../../src/application/runtime/runtime-error.js';
 
 interface State {
@@ -115,7 +115,9 @@ class FakeRuntimeStore implements RuntimeStorage {
   private state = emptyState();
   private tail = Promise.resolve();
 
-  async transaction<T>(operation: (uow: RuntimeUnitOfWork) => T): Promise<T> {
+  async transaction<T extends RuntimeTransactionCallback>(
+    operation: SynchronousRuntimeTransactionCallback<T>,
+  ): Promise<ReturnType<T>> {
     return this.lock(() => {
       const next = clone(this.state);
       const result = operation(createUnitOfWork(next));
@@ -134,7 +136,7 @@ class FakeRuntimeStore implements RuntimeStorage {
     const leaseOwner = owner.trim();
     const expiresAt = new Date(now.getTime() + leaseMs);
     if (!leaseOwner) invalid('Lease owner is required');
-    if (!Number.isFinite(leaseMs) || leaseMs <= 0 || !Number.isFinite(now.getTime()) || !Number.isFinite(expiresAt.getTime())) invalid('Lease duration must produce a valid expiry');
+    if (!Number.isSafeInteger(leaseMs) || leaseMs <= 0 || !Number.isFinite(now.getTime()) || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= now.getTime()) invalid('Lease duration must produce a valid expiry');
     return this.lock(() => {
       const item = [...this.state.workItems.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'leased' && (candidate.leaseExpiresAt?.getTime() ?? Infinity) <= now.getTime()).sort(compareWork)[0];
       if (!item) return null;
@@ -145,6 +147,7 @@ class FakeRuntimeStore implements RuntimeStorage {
   }
 
   async listRecoverableWorkItems(now: Date): Promise<WorkItem[]> {
+    if (!Number.isFinite(now.getTime())) invalid('Recovery time must be valid');
     return clone([...this.state.workItems.values()].filter((item) => item.status === 'queued' || item.status === 'leased' && (item.leaseExpiresAt?.getTime() ?? Infinity) <= now.getTime()).sort(compareWork));
   }
 

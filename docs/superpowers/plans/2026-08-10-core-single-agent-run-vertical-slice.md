@@ -751,6 +751,8 @@ runtimeStorageContract(async () => {
 });
 ```
 
+除复用上述单 Store 契约外，新增跨连接竞争测试：对同一个临时 SQLite 文件分别打开两个独立 `Database` / `SqliteRuntimeStore`，用可控 barrier、`BEGIN IMMEDIATE` 或等价同步方式让两个 `claimWorkItem()` 竞争同一记录，断言恰好一个领取成功。单连接 `Promise.all` 只覆盖内存 Fake 的接口级串行化，不能替代此 SQLite 跨连接测试。
+
 - [ ] **Step 2: 运行测试确认失败**
 
 Run: `pnpm exec vitest run packages/core/tests/sqlite-runtime-store.test.ts`

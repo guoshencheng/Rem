@@ -21,9 +21,13 @@ async function expectCode(action: () => unknown | Promise<unknown>, code: Runtim
   await expect(action()).rejects.toMatchObject({ code });
 }
 
-function createRun(uow: RuntimeUnitOfWork, runId = 'run-1'): void {
-  uow.sessions.insert(session());
-  uow.runs.insert(run(runId));
+function createRun(uow: RuntimeUnitOfWork, runId = 'run-1', sessionId = 'session-1'): void {
+  uow.sessions.insert({ ...session(), sessionId });
+  uow.runs.insert({ ...run(runId), sessionId });
+}
+
+function createWorkItemRuns(uow: RuntimeUnitOfWork, runIds: string[]): void {
+  for (const runId of runIds) createRun(uow, runId, `session-${runId}`);
 }
 
 async function startRun(store: RuntimeStorage, requestHash: string, tenantId = 'tenant-1', key = 'key-1'): Promise<string> {
@@ -74,15 +78,18 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
 
     it('拒绝被绕过类型系统的异步 transaction callback', async () => {
       const store = await open();
-      await expectCode(() => store.transaction(((uow) => { uow.sessions.insert(session()); return Promise.resolve('bad'); }) as unknown as (uow: RuntimeUnitOfWork) => string), 'INVALID_INPUT');
+      await expectCode(() => store.transaction(((uow) => { uow.sessions.insert(session()); return Promise.reject(new Error('async failure')); }) as unknown as (uow: RuntimeUnitOfWork) => string), 'INVALID_INPUT');
       expect(await store.getSession('session-1')).toBeNull();
+      await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work()); });
+      expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe('work-1');
     });
 
     it('并发领取不会重复，另一个 work item 仍可后续领取', async () => {
       const store = await open(); await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work('work-1')); });
+      // 内存 Fake 只验证单实例串行化；Task 5 另测 SQLite 跨连接竞争。
       const claims = await Promise.all([store.claimWorkItem('a', at(10), 100), store.claimWorkItem('b', at(10), 100)]);
       expect(claims.filter(Boolean)).toHaveLength(1);
-      await store.transaction((uow) => uow.workItems.insert(work('work-2', 'run-2')));
+      await store.transaction((uow) => { createRun(uow, 'run-2', 'session-2'); uow.workItems.insert(work('work-2', 'run-2')); });
       expect((await store.claimWorkItem('c', at(10), 100))?.workItemId).toBe('work-2');
     });
 
@@ -95,14 +102,14 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
     });
 
     it('全局按创建时间排序恢复任务，claim 选择同一首项', async () => {
-      const store = await open(); await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work('queued', 'run-queued', at(3))); uow.workItems.insert({ ...work('expired', 'run-expired', at(2)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(9) }); uow.workItems.insert({ ...work('active', 'run-active', at(1)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(11) }); uow.workItems.insert({ ...work('completed', 'run-completed', at(1)), status: 'completed' }); uow.workItems.insert({ ...work('failed', 'run-failed', at(1)), status: 'failed' }); });
+      const store = await open(); await store.transaction((uow) => { createWorkItemRuns(uow, ['run-queued', 'run-expired', 'run-active', 'run-completed', 'run-failed']); uow.workItems.insert(work('queued', 'run-queued', at(3))); uow.workItems.insert({ ...work('expired', 'run-expired', at(2)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(9) }); uow.workItems.insert({ ...work('active', 'run-active', at(1)), status: 'leased', leaseOwner: 'x', leaseExpiresAt: at(11) }); uow.workItems.insert({ ...work('completed', 'run-completed', at(1)), status: 'completed' }); uow.workItems.insert({ ...work('failed', 'run-failed', at(1)), status: 'failed' }); });
       expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual(['expired', 'queued']);
       expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe('expired');
     });
 
     it('使用原始 UTF-16 顺序稳定领取和恢复任务', async () => {
       const store = await open(); const first = 'e\u0301'; const second = 'é';
-      await store.transaction((uow) => { createRun(uow); uow.workItems.insert(work(second, 'run-accent-2', at(2))); uow.workItems.insert(work(first, 'run-accent-1', at(2))); });
+      await store.transaction((uow) => { createWorkItemRuns(uow, ['run-accent-2', 'run-accent-1']); uow.workItems.insert(work(second, 'run-accent-2', at(2))); uow.workItems.insert(work(first, 'run-accent-1', at(2))); });
       expect((await store.listRecoverableWorkItems(at(10))).map((item) => item.workItemId)).toEqual([first, second]);
       expect((await store.claimWorkItem('owner', at(10), 1))?.workItemId).toBe(first);
     });
@@ -153,9 +160,11 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       await expectCode(() => store.transaction((uow) => uow.toolInvocations.update({ ...invocation(), invocationId: 'missing-invocation' })), 'STORAGE_CONFLICT');
       await expectCode(() => store.transaction((uow) => uow.idempotency.insert({ tenantId: 'tenant-1', operation: 'start-run', idempotencyKey: 'key-1', requestHash: 'hash', resourceId: 'run-1', createdAt: at(1) })), 'STORAGE_CONFLICT');
       for (const owner of ['', '   ']) await expectCode(() => store.claimWorkItem(owner, at(10), 1), 'INVALID_INPUT');
-      for (const leaseMs of [Number.NaN, Infinity, 0, -1, Number.MAX_VALUE]) await expectCode(() => store.claimWorkItem('a', at(10), leaseMs), 'INVALID_INPUT');
+      for (const leaseMs of [0.5, Number.NaN, Infinity, 0, -1, Number.MAX_VALUE]) await expectCode(() => store.claimWorkItem('a', at(10), leaseMs), 'INVALID_INPUT');
       for (const limit of [Number.NaN, Infinity, 0, -1]) await expectCode(() => store.listEvents('run-1', 0, limit), 'INVALID_INPUT');
       await expectCode(() => store.listEvents('run-1', Number.NaN), 'INVALID_INPUT');
+      await expectCode(() => store.claimWorkItem('a', new Date(Number.NaN), 1), 'INVALID_INPUT');
+      await expectCode(() => store.listRecoverableWorkItems(new Date(Number.NaN)), 'INVALID_INPUT');
     });
   });
 }

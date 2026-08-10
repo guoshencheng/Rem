@@ -17,6 +17,8 @@ const runtimeErrorCodes = [
   'CONTEXT_TYPE_NOT_FOUND',
   'CONTEXT_INVALID',
   'CONTEXT_CONFLICT',
+  'CONTEXT_REQUIRED',
+  'CONTEXT_LIMIT_EXCEEDED',
   'CONTEXT_UNAUTHORIZED',
   'PLUGIN_DEPENDENCY_MISSING',
   'TOOL_NOT_FOUND',
@@ -188,7 +190,7 @@ describe('StaticAgentDefinitionProvider', () => {
 describe('RuntimeError', () => {
   it('matches the planned error code set', () => {
     expect(RUNTIME_ERROR_CODES).toEqual(runtimeErrorCodes);
-    expect(runtimeErrorCodes).toHaveLength(27);
+    expect(runtimeErrorCodes).toHaveLength(29);
     expect(runtimeErrorCodes).toContain('AGENT_NOT_FOUND');
     expect(runtimeErrorCodes).toContain('STORAGE_UNAVAILABLE');
     expect(runtimeErrorCodes).toContain('INTERNAL_ERROR');

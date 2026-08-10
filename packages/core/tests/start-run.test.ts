@@ -136,10 +136,10 @@ describe('StartRunUsecase', () => {
     const call = (bindings: ContextBinding[]) => start.execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null }, contexts: { add: bindings },
     });
-    await expectCode(() => call([]), 'CONTEXT_INVALID');
-    await expectCode(() => call([binding('customer', '1'), binding('customer', '2'), binding('customer', '3')]), 'CONTEXT_INVALID');
-    await expectCode(() => call([binding('customer', '1'), binding('note', '1'), binding('note', '2')]), 'CONTEXT_INVALID');
-    await expectCode(() => call([binding('customer', '1'), binding('extra', '1')]), 'CONTEXT_INVALID');
+    await expectCode(() => call([]), 'CONTEXT_REQUIRED');
+    await expectCode(() => call([binding('customer', '1'), binding('customer', '2'), binding('customer', '3')]), 'CONTEXT_LIMIT_EXCEEDED');
+    await expectCode(() => call([binding('customer', '1'), binding('note', '1'), binding('note', '2')]), 'CONTEXT_LIMIT_EXCEEDED');
+    await expectCode(() => call([binding('customer', '1'), binding('extra', '1')]), 'CONTEXT_CONFLICT');
   });
 
   it('optional Context 未出现时不执行显式 min，出现后执行 min/max', async () => {
@@ -151,7 +151,7 @@ describe('StartRunUsecase', () => {
     await expectCode(() => start.execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null },
       contexts: { add: [binding('note', '1')] },
-    }), 'CONTEXT_INVALID');
+    }), 'CONTEXT_REQUIRED');
   });
 
   it.each([

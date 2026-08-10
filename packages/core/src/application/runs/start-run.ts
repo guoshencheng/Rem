@@ -1,13 +1,14 @@
-import type { ContextPatch, ContextSet } from '../../domain/context/types.js';
+import type { ContextSet } from '../../domain/context/types.js';
 import type { RuntimeRequestContext } from '../../domain/identity/types.js';
-import type { AgentRun, RunTrigger, WorkItem } from '../../domain/run/types.js';
+import type { AgentRun, WorkItem } from '../../domain/run/types.js';
 import type { AgentSession } from '../../domain/session/types.js';
 import type { RuntimeUnitOfWork } from '../../sdk/runtime-storage.js';
 import type { StartRunDeps, StartRunInput } from './types.js';
-import { cloneCanonicalJson, hashCanonicalJson } from '../contexts/canonical-json.js';
+import { hashCanonicalJson } from '../contexts/canonical-json.js';
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { generateId as defaultGenerateId } from '../../shared/generate-id.js';
 import { hashStartRunRequest } from './start-run-hash.js';
+import { validateStartRunInput } from './validate-start-run-input.js';
 import { validateRunContexts } from './validate-run-contexts.js';
 
 export type { StartRunDeps, StartRunInput } from './types.js';
@@ -29,11 +30,10 @@ export class StartRunUsecase {
   }
 
   async execute(request: RuntimeRequestContext, input: StartRunInput): Promise<AgentRun> {
-    validateInput(request, input);
+    const normalized = validateStartRunInput(request, input);
     const tenantId = request.tenantId;
     const principalId = request.principal.principalId;
     const occurredAt = new Date(this.now().getTime());
-    const normalized = normalizeInput(input);
     const requestHash = hashStartRunRequest(request, normalized);
     const existing = await this.readIdempotentRun(tenantId, normalized.idempotencyKey, requestHash);
     if (existing) return existing;
@@ -43,9 +43,8 @@ export class StartRunUsecase {
       const code = normalized.agentRevision === undefined ? 'AGENT_NOT_FOUND' : 'AGENT_REVISION_NOT_FOUND';
       throw new RuntimeError(code, `Agent definition not found: ${normalized.agentId}`);
     }
-    const triggerType = readTriggerType(normalized.trigger);
-    if (!definition.acceptedTriggers.includes(triggerType)) {
-      throw new RuntimeError('TRIGGER_NOT_SUPPORTED', `Trigger is not supported: ${triggerType}`);
+    if (!definition.acceptedTriggers.includes(normalized.trigger.type)) {
+      throw new RuntimeError('TRIGGER_NOT_SUPPORTED', `Trigger is not supported: ${normalized.trigger.type}`);
     }
 
     const storedSession = normalized.sessionId === undefined
@@ -123,32 +122,6 @@ export class StartRunUsecase {
   }
 }
 
-function validateInput(request: RuntimeRequestContext, input: StartRunInput): void {
-  if (typeof request?.tenantId !== 'string' || !request.tenantId.trim()
-    || typeof request?.principal?.principalId !== 'string' || !request.principal.principalId.trim()
-    || !Array.isArray(request.principal.roles)
-    || typeof input?.agentId !== 'string' || !input.agentId.trim()
-    || input.idempotencyKey !== undefined
-      && (typeof input.idempotencyKey !== 'string' || !input.idempotencyKey.trim())) {
-    throw new RuntimeError('INVALID_INPUT', 'Invalid start run input');
-  }
-}
-
-function normalizeInput(input: StartRunInput): StartRunInput {
-  try {
-    return {
-      agentId: input.agentId,
-      ...(input.agentRevision === undefined ? {} : { agentRevision: input.agentRevision }),
-      ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-      trigger: cloneCanonicalJson(input.trigger) as RunTrigger,
-      ...(input.contexts === undefined ? {} : { contexts: cloneCanonicalJson(input.contexts) as ContextPatch }),
-      ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
-    };
-  } catch (cause) {
-    throw new RuntimeError('INVALID_INPUT', 'Start run request must be JSON-compatible', false, undefined, { cause });
-  }
-}
-
 function readIdempotentRun(
   uow: RuntimeUnitOfWork,
   tenantId: string,
@@ -174,10 +147,3 @@ function assertSessionUnchanged(uow: RuntimeUnitOfWork, expected: AgentSession):
 }
 
 const cloneDate = (value: Date): Date => new Date(value.getTime());
-
-function readTriggerType(trigger: RunTrigger): 'message' | 'task' {
-  if (trigger && typeof trigger === 'object' && (trigger.type === 'message' || trigger.type === 'task')) {
-    return trigger.type;
-  }
-  throw new RuntimeError('TRIGGER_NOT_SUPPORTED', 'Trigger is not supported');
-}

@@ -40,11 +40,20 @@ async function expectInvalid(
   action: () => unknown | Promise<unknown>,
   cause = false,
 ): Promise<void> {
+  await expectFailure(storage, action, 'INVALID_INPUT', cause);
+}
+
+async function expectFailure(
+  storage: RuntimeStorage,
+  action: () => unknown | Promise<unknown>,
+  code: string,
+  cause = false,
+): Promise<void> {
   let error: RuntimeError;
   try { await action(); throw new Error('Expected RuntimeError'); }
   catch (caught) { error = caught as RuntimeError; }
   expect(error).toBeInstanceOf(RuntimeError);
-  expect(error.code).toBe('INVALID_INPUT');
+  expect(error.code).toBe(code);
   if (cause) expect(error.cause).toBeTruthy();
   expect(await storage.getSession('session-1')).toBeNull();
   expect(await storage.getRun('run-1')).toBeNull();
@@ -120,7 +129,12 @@ describe('StartRun Definition 与 ContextPatch 形状校验', () => {
     { overridableContexts: ['customer', 'customer'] },
   ])('拒绝畸形 Definition Context 配置 %#', async (change) => {
     const { store } = await createFakeRuntimeStore();
-    await expectInvalid(store, () => usecase(store, definition(change as never)).execute(request(), validInput()));
+    await expectFailure(
+      store,
+      () => usecase(store, definition(change as never)).execute(request(), validInput()),
+      'INTERNAL_ERROR',
+      true,
+    );
   });
 
   it.each([

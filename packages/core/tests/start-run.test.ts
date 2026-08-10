@@ -136,9 +136,20 @@ describe('StartRunUsecase', () => {
     const call = (bindings: ContextBinding[]) => start.execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null }, contexts: { add: bindings },
     });
-    await expectCode(() => call([]), 'CONTEXT_REQUIRED');
-    await expectCode(() => call([binding('customer', '1'), binding('customer', '2'), binding('customer', '3')]), 'CONTEXT_LIMIT_EXCEEDED');
-    await expectCode(() => call([binding('customer', '1'), binding('note', '1'), binding('note', '2')]), 'CONTEXT_LIMIT_EXCEEDED');
+    await expect(call([])).rejects.toMatchObject({
+      code: 'CONTEXT_CONFLICT',
+      details: { reason: 'required', type: 'customer', min: 1, max: 2, actual: 0 },
+    });
+    await expect(call([binding('customer', '1'), binding('customer', '2'), binding('customer', '3')]))
+      .rejects.toMatchObject({
+        code: 'CONTEXT_CONFLICT',
+        details: { reason: 'limit', type: 'customer', min: 1, max: 2, actual: 3 },
+      });
+    await expect(call([binding('customer', '1'), binding('note', '1'), binding('note', '2')]))
+      .rejects.toMatchObject({
+        code: 'CONTEXT_CONFLICT',
+        details: { reason: 'limit', type: 'note', min: 0, max: 1, actual: 2 },
+      });
     await expectCode(() => call([binding('customer', '1'), binding('extra', '1')]), 'CONTEXT_CONFLICT');
   });
 
@@ -148,10 +159,13 @@ describe('StartRunUsecase', () => {
     await expect(start.execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null },
     })).resolves.toMatchObject({ status: 'queued' });
-    await expectCode(() => start.execute(request(), {
+    await expect(start.execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null },
       contexts: { add: [binding('note', '1')] },
-    }), 'CONTEXT_REQUIRED');
+    })).rejects.toMatchObject({
+      code: 'CONTEXT_CONFLICT',
+      details: { reason: 'required', type: 'note', min: 2, max: 3, actual: 1 },
+    });
   });
 
   it.each([
@@ -164,7 +178,7 @@ describe('StartRunUsecase', () => {
     const { store } = await createFakeRuntimeStore();
     await expectCode(() => usecase(store, definition(constraints), ['x']).execute(request(), {
       agentId: 'assistant', trigger: { type: 'task', input: null }, contexts: { add: [binding('x', '1')] },
-    }), 'INVALID_INPUT');
+    }), 'INTERNAL_ERROR');
   });
 
   it('ContextResolver 失败时不创建任何资源', async () => {

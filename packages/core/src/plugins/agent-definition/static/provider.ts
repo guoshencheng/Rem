@@ -56,13 +56,18 @@ export class StaticAgentDefinitionProvider implements AgentDefinitionProvider {
   }
 
   private cloneDefinition(definition: AgentDefinition): AgentDefinition {
+    const requiredContexts = this.cloneContexts(definition.requiredContexts);
+    const optionalContexts = this.cloneContexts(definition.optionalContexts);
+    const overridableContexts = definition.overridableContexts
+      ? [...definition.overridableContexts]
+      : undefined;
     return {
       ...definition,
       toolNames: [...definition.toolNames],
       acceptedTriggers: [...definition.acceptedTriggers],
-      requiredContexts: this.cloneContexts(definition.requiredContexts),
-      optionalContexts: this.cloneContexts(definition.optionalContexts),
-      overridableContexts: definition.overridableContexts ? [...definition.overridableContexts] : undefined,
+      ...(requiredContexts === undefined ? {} : { requiredContexts }),
+      ...(optionalContexts === undefined ? {} : { optionalContexts }),
+      ...(overridableContexts === undefined ? {} : { overridableContexts }),
       execution: { ...definition.execution },
     };
   }

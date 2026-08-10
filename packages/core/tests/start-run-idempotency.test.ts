@@ -93,6 +93,15 @@ describe('StartRun 幂等与原子边界', () => {
     expect(await store.listEvents(retried.runId)).toHaveLength(1);
   });
 
+  it('幂等预检命中时不读取 clock', async () => {
+    const { store } = await createFakeRuntimeStore();
+    let calls = 0;
+    const usecase = start(store, { now: () => { calls += 1; return instant; } });
+    await usecase.execute(request(), input());
+    await usecase.execute(request(), input());
+    expect(calls).toBe(1);
+  });
+
   it('同 key 不同请求冲突，记录指向缺失 run 时报告存储不可用', async () => {
     const { store } = await createFakeRuntimeStore();
     await start(store).execute(request(), input());

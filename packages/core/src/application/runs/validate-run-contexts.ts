@@ -39,13 +39,42 @@ export function validateRunContexts(
     const count = counts.get(constraint.type) ?? 0;
     if (constraint.optional && count === 0) continue;
     if (count < constraint.min) {
-      throw new RuntimeError('CONTEXT_REQUIRED', `Context requirement is not met: ${constraint.type}`);
+      throw new RuntimeError(
+        'CONTEXT_CONFLICT',
+        `Context requirement is not met: ${constraint.type}`,
+        false,
+        constraintDetails('required', constraint, count),
+      );
     }
     if (count > constraint.max) {
-      throw new RuntimeError('CONTEXT_LIMIT_EXCEEDED', `Context limit is exceeded: ${constraint.type}`);
+      throw new RuntimeError(
+        'CONTEXT_CONFLICT',
+        `Context limit is exceeded: ${constraint.type}`,
+        false,
+        constraintDetails('limit', constraint, count),
+      );
     }
   }
   return result;
+}
+
+export function assertAgentDefinitionContextConfiguration(definition: AgentDefinition): void {
+  normalizeConstraints(definition);
+  normalizeOverridable(definition.overridableContexts);
+}
+
+function constraintDetails(
+  reason: 'required' | 'limit',
+  constraint: NormalizedConstraint,
+  actual: number,
+): Record<string, unknown> {
+  return {
+    reason,
+    type: constraint.type,
+    min: constraint.min,
+    max: Number.isFinite(constraint.max) ? constraint.max : null,
+    actual,
+  };
 }
 
 export function assertContextPatchShape(value: unknown): asserts value is ContextPatch {

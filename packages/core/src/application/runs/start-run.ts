@@ -7,6 +7,7 @@ import type { StartRunDeps, StartRunInput } from './types.js';
 import { hashCanonicalJson } from '../contexts/canonical-json.js';
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { generateId as defaultGenerateId } from '../../shared/generate-id.js';
+import { normalizeAgentDefinition } from './normalize-agent-definition.js';
 import { hashStartRunRequest } from './start-run-hash.js';
 import { validateStartRunInput } from './validate-start-run-input.js';
 import { validateRunContexts } from './validate-run-contexts.js';
@@ -34,16 +35,16 @@ export class StartRunUsecase {
     const runInput = normalized.input;
     const tenantId = runRequest.tenantId;
     const principalId = runRequest.principal.principalId;
-    const occurredAt = new Date(this.now().getTime());
     const requestHash = hashStartRunRequest(runRequest, runInput);
     const existing = await this.readIdempotentRun(tenantId, runInput.idempotencyKey, requestHash);
     if (existing) return existing;
 
-    const definition = await this.deps.agentDefinitions.get(runInput.agentId, runInput.agentRevision);
-    if (!definition) {
+    const receivedDefinition = await this.deps.agentDefinitions.get(runInput.agentId, runInput.agentRevision);
+    if (!receivedDefinition) {
       const code = runInput.agentRevision === undefined ? 'AGENT_NOT_FOUND' : 'AGENT_REVISION_NOT_FOUND';
       throw new RuntimeError(code, `Agent definition not found: ${runInput.agentId}`);
     }
+    const definition = normalizeAgentDefinition(receivedDefinition, runInput.agentId, runInput.agentRevision);
     if (!definition.acceptedTriggers.includes(runInput.trigger.type)) {
       throw new RuntimeError('TRIGGER_NOT_SUPPORTED', `Trigger is not supported: ${runInput.trigger.type}`);
     }
@@ -54,6 +55,7 @@ export class StartRunUsecase {
     const base = storedSession?.contexts ?? { bindings: [] };
     const finalContexts = validateRunContexts(definition, base, runInput.contexts);
     const resolved = await this.deps.contextResolver.resolve(finalContexts, runRequest);
+    const occurredAt = new Date(this.now().getTime());
     const prepared = this.prepareRecords(
       tenantId, principalId, runInput, definition.revision, finalContexts, resolved.snapshot, occurredAt,
     );

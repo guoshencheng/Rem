@@ -2,10 +2,13 @@
 // packages/core 结构检查：依赖方向、文件行数上限、kebab-case、.js 扩展名。
 // 用法: node packages/core/scripts/check-structure.mjs（任意目录下可运行）
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, relative, sep } from 'node:path';
+import { join, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
+const configuredSrcRoot = process.argv.find((arg) => arg.startsWith('--src-root='));
+const srcRoot = configuredSrcRoot
+  ? resolve(configuredSrcRoot.slice('--src-root='.length))
+  : join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
 const DOMAINS = [
   'agent', 'agent-profile', 'application', 'assembly', 'capabilities', 'delegation',
@@ -16,8 +19,8 @@ const DOMAINS = [
 
 // 规格第 7 节硬约束（只列禁止边；未列出的边不限制）
 const FORBIDDEN = [
-  ['domain', DOMAINS.filter((d) => d !== 'domain')],
-  ['sdk', ['application', 'execution', 'plugins', 'assembly']],
+  ['domain', [...DOMAINS.filter((d) => d !== 'domain'), '(root)']],
+  ['sdk', ['(root)', 'application', 'execution', 'plugins', 'assembly']],
   ['agent', ['plugins']],
   ['shared', DOMAINS.filter((d) => d !== 'shared')],
   ['plugins', ['assembly']],

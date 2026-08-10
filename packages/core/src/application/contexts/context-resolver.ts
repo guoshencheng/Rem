@@ -9,60 +9,49 @@ export class ContextResolver {
   constructor(private readonly host: RuntimePluginHost) {}
 
   async resolve(contextSet: ContextSet, request: RuntimeRequestContext): Promise<ResolvedRuntimeContext> {
-    const items: ResolvedContextItem[] = [];
-    const configLayers: ResolvedContextSnapshot['configLayers'] = [];
-    const promptSections: ResolvedContextSnapshot['promptSections'] = [];
-    const tools: RuntimeToolContribution[] = [];
-    const names = { config: new Set<string>(), prompt: new Set<string>(), tool: new Set<string>() };
+    return this.normalize(async () => {
+      const items: ResolvedContextItem[] = [];
+      const configLayers: ResolvedContextSnapshot['configLayers'] = [];
+      const promptSections: ResolvedContextSnapshot['promptSections'] = [];
+      const tools: RuntimeToolContribution[] = [];
+      const names = { config: new Set<string>(), prompt: new Set<string>(), tool: new Set<string>() };
 
-    for (const binding of contextSet.bindings) {
-      const registered = this.host.getContextType(binding.type);
-      const resolution = await this.invoke(
-        () => registered.contribution.resolve({ binding, request }),
-      );
-      const contribution = await this.invoke(
-        () => registered.contribution.materialize(resolution.snapshot),
-      );
-      const item = this.createItem(binding, registered.pluginId, registered.pluginVersion, resolution.snapshot);
-      items.push(item);
-      this.collectContributions(contribution, registered.pluginId, configLayers, promptSections, tools, names);
-    }
+      for (const binding of contextSet.bindings) {
+        await this.resolveBinding(binding, request, items, configLayers, promptSections, tools, names);
+      }
 
-    configLayers.sort((left, right) => left.priority - right.priority);
-    promptSections.sort((left, right) => left.priority - right.priority);
-    return { snapshot: { items, configLayers, promptSections }, tools };
+      configLayers.sort((left, right) => left.priority - right.priority);
+      promptSections.sort((left, right) => left.priority - right.priority);
+      return { snapshot: { items, configLayers, promptSections }, tools };
+    });
   }
 
-  private async invoke<T>(action: () => Promise<T>): Promise<T> {
-    try {
-      return await action();
-    } catch (error) {
-      if (error instanceof RuntimeError) throw error;
-      throw new RuntimeError('CONTEXT_INVALID', 'Context resolution failed', false, undefined, { cause: error });
-    }
+  private async resolveBinding(
+    binding: ContextBinding,
+    request: RuntimeRequestContext,
+    items: ResolvedContextItem[],
+    configLayers: ResolvedContextSnapshot['configLayers'],
+    promptSections: ResolvedContextSnapshot['promptSections'],
+    tools: RuntimeToolContribution[],
+    names: { config: Set<string>; prompt: Set<string>; tool: Set<string> },
+  ): Promise<void> {
+    const registered = this.host.getContextType(binding.type);
+    const resolution = await registered.contribution.resolve({ binding, request });
+    const contribution = await registered.contribution.materialize(resolution.snapshot);
+    items.push(this.createItem(binding, registered.pluginId, registered.pluginVersion, resolution.snapshot));
+    this.collectContributions(contribution, registered.pluginId, configLayers, promptSections, tools, names);
   }
 
-  private createItem(binding: ResolvedContextItem['binding'], pluginId: string, pluginVersion: string, snapshot: unknown): ResolvedContextItem {
-    try {
-      const copiedBinding = this.copyBinding(binding);
-      const copiedSnapshot = cloneCanonicalJson(snapshot);
-      return {
-        binding: copiedBinding,
-        pluginId,
-        pluginVersion,
-        snapshot: copiedSnapshot,
-        snapshotHash: hashCanonicalJson({ binding: copiedBinding, pluginId, pluginVersion, snapshot: copiedSnapshot }),
-      };
-    } catch (error) {
-      throw new RuntimeError('CONTEXT_INVALID', 'Context snapshot is not JSON-compatible', false, undefined, { cause: error });
-    }
-  }
-
-  private copyBinding(binding: ContextBinding): ContextBinding {
-    const copied: ContextBinding = { type: binding.type, contextId: binding.contextId };
-    if (binding.revision !== undefined) copied.revision = binding.revision;
-    if (binding.input !== undefined) copied.input = cloneCanonicalJson(binding.input);
-    return copied;
+  private createItem(binding: ContextBinding, pluginId: string, pluginVersion: string, snapshot: unknown): ResolvedContextItem {
+    const copiedBinding = cloneCanonicalJson(binding) as ContextBinding;
+    const copiedSnapshot = cloneCanonicalJson(snapshot);
+    return {
+      binding: copiedBinding,
+      pluginId,
+      pluginVersion,
+      snapshot: copiedSnapshot,
+      snapshotHash: hashCanonicalJson({ binding: copiedBinding, pluginId, pluginVersion, snapshot: copiedSnapshot }),
+    };
   }
 
   private collectContributions(
@@ -90,15 +79,20 @@ export class ContextResolver {
   }
 
   private copySnapshotValue(value: unknown): unknown {
-    try {
-      return cloneCanonicalJson(value);
-    } catch (error) {
-      throw new RuntimeError('CONTEXT_INVALID', 'Context contribution is not JSON-compatible', false, undefined, { cause: error });
-    }
+    return cloneCanonicalJson(value);
   }
 
   private assertUnique(names: Set<string>, name: string, label: string): void {
     if (names.has(name)) throw new RuntimeError('CONTEXT_CONFLICT', `${label} already contributed: ${name}`);
     names.add(name);
+  }
+
+  private async normalize<T>(action: () => T | Promise<T>): Promise<T> {
+    try {
+      return await action();
+    } catch (error) {
+      if (error instanceof RuntimeError) throw error;
+      throw new RuntimeError('CONTEXT_INVALID', 'Context resolution failed', false, undefined, { cause: error });
+    }
   }
 }

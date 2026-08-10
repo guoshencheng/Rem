@@ -12,7 +12,11 @@ import { RuntimeError } from '../src/application/runtime/runtime-error.js';
 import { RuntimePluginHost } from '../src/plugin-system/runtime-plugin-host.js';
 
 const request = { tenantId: 'tenant', principal: { principalId: 'principal', roles: [] } };
-const binding = (type: string, input?: unknown): ContextBinding => ({ type, contextId: `${type}-id`, input });
+function binding(type: string, ...input: [] | [unknown]): ContextBinding {
+  const result: ContextBinding = { type, contextId: `${type}-id` };
+  if (input.length > 0) result.input = input[0];
+  return result;
+}
 
 function tool(name: string): RuntimeToolContribution {
   return {
@@ -94,26 +98,29 @@ describe('RuntimePluginHost 与 ContextResolver', () => {
     expect(first.snapshot.items[0]?.snapshotHash).not.toBe(reordered.snapshot.items[0]?.snapshotHash);
   });
 
-  it('拒绝重复 Context type，且整批注册不会污染既有状态', () => {
+  it('拒绝重复 Context type，且整批注册不会污染既有状态', async () => {
     const host = new RuntimePluginHost([plugin('acme/base', '1', 'acme/base')]);
 
     expect(() => host.registerAll([
       plugin('acme/new', '1', 'acme/new'),
       plugin('acme/duplicate', '1', 'acme/base'),
     ])).toThrow('Context type already registered');
-    expect(() => host.getContextType('acme/new')).toThrow(RuntimeError);
+    await expectCode(() => host.getContextType('acme/new'), 'CONTEXT_TYPE_NOT_FOUND');
     expect(host.getContextType('acme/base').pluginId).toBe('acme/base');
   });
 
-  it('在依赖、插件 ID 和注册失败时保持原子性', () => {
+  it('在依赖、插件 ID 和注册失败时保持原子性', async () => {
     const host = new RuntimePluginHost([plugin('acme/base', '1', 'acme/base')]);
     expect(() => host.registerAll([plugin('acme/missing', '1', 'acme/missing', { dependencies: ['absent'] })])).toThrow();
+    await expectCode(() => host.getContextType('acme/missing'), 'CONTEXT_TYPE_NOT_FOUND');
     expect(() => host.registerAll([plugin('acme/base', '2', 'acme/other')])).toThrow();
+    await expectCode(() => host.getContextType('acme/other'), 'CONTEXT_TYPE_NOT_FOUND');
     expect(() => host.registerAll([{
       manifest: { pluginId: 'acme/broken', version: '1' },
       register: ({ addContextType }) => { addContextType({ type: 'acme/temp', resolve: async () => ({ snapshot: {} }), materialize: async () => ({}) }); throw new Error('broken'); },
     }])).toThrow('broken');
-    expect(() => host.getContextType('acme/temp')).toThrow(RuntimeError);
+    await expectCode(() => host.getContextType('acme/temp'), 'CONTEXT_TYPE_NOT_FOUND');
+    expect(host.getContextType('acme/base').pluginId).toBe('acme/base');
   });
 
   it('保留授权错误，并将普通解析错误包为 CONTEXT_INVALID', async () => {
@@ -125,7 +132,8 @@ describe('RuntimePluginHost 与 ContextResolver', () => {
     ]);
     const resolver = new ContextResolver(host);
 
-    await expectCode(() => resolver.resolve({ bindings: [binding('acme/auth')] }, request), 'CONTEXT_UNAUTHORIZED');
+    const authError = await expectCode(() => resolver.resolve({ bindings: [binding('acme/auth')] }, request), 'CONTEXT_UNAUTHORIZED');
+    expect(authError).toBe(unauthorized);
     const error = await expectCode(() => resolver.resolve({ bindings: [binding('acme/broken')] }, request), 'CONTEXT_INVALID');
     expect(error.cause).toBeInstanceOf(Error);
     const materializeError = await expectCode(() => resolver.resolve({ bindings: [binding('acme/materialize')] }, request), 'CONTEXT_INVALID');
@@ -174,12 +182,35 @@ describe('RuntimePluginHost 与 ContextResolver', () => {
   it('拒绝不可 JSON 序列化与循环快照', async () => {
     const circular: { self?: unknown } = {};
     circular.self = circular;
+    const invalidSnapshots: Array<[string, unknown]> = [
+      ['undefined', { value: undefined }],
+      ['function', { value: () => 'invalid' }],
+      ['symbol', { value: Symbol('invalid') }],
+      ['bigint', { value: 1n }],
+      ['cycle', circular],
+    ];
+    const resolver = new ContextResolver(new RuntimePluginHost(invalidSnapshots.map(([name, snapshot]) => (
+      plugin(`acme/${name}`, '1', `acme/${name}`, { resolve: async () => ({ snapshot }) })
+    ))));
+
+    for (const [name] of invalidSnapshots) {
+      const error = await expectCode(() => resolver.resolve({ bindings: [binding(`acme/${name}`)] }, request), 'CONTEXT_INVALID');
+      expect(error.cause).toBeInstanceOf(Error);
+    }
+  });
+
+  it('拒绝 binding 的显式 undefined，并包装贡献 getter 的普通异常', async () => {
+    const getterError = new Error('tools getter failed');
     const resolver = new ContextResolver(new RuntimePluginHost([
-      plugin('acme/invalid', '1', 'acme/invalid', { resolve: async () => ({ snapshot: { value: undefined } }) }),
-      plugin('acme/cycle', '1', 'acme/cycle', { resolve: async () => ({ snapshot: circular }) }),
+      plugin('acme/binding', '1', 'acme/binding'),
+      plugin('acme/getter', '1', 'acme/getter', {
+        materialize: async () => Object.defineProperty({}, 'tools', { get: () => { throw getterError; } }) as ContextRuntimeContributions,
+      }),
     ]));
 
-    await expectCode(() => resolver.resolve({ bindings: [binding('acme/invalid')] }, request), 'CONTEXT_INVALID');
-    await expectCode(() => resolver.resolve({ bindings: [binding('acme/cycle')] }, request), 'CONTEXT_INVALID');
+    const bindingError = await expectCode(() => resolver.resolve({ bindings: [binding('acme/binding', undefined)] }, request), 'CONTEXT_INVALID');
+    expect(bindingError.cause).toBeInstanceOf(Error);
+    const contributionError = await expectCode(() => resolver.resolve({ bindings: [binding('acme/getter')] }, request), 'CONTEXT_INVALID');
+    expect(contributionError.cause).toBe(getterError);
   });
 });

@@ -72,16 +72,20 @@ describe('RuntimePluginHost recovery boundaries', () => {
   it('将 replay 普通异常归一化，同时保留既有 RuntimeError', async () => {
     const materializeError = new Error('materialize failed');
     const getterError = new Error('tools getter failed');
-    const nameError = new Error('tool name failed');
     const cases: Array<[string, (snapshot: unknown) => Promise<ContextRuntimeContributions>, Error]> = [
       ['throw', async () => { throw materializeError; }, materializeError],
       ['getter', async () => Object.defineProperty({}, 'tools', { get: () => { throw getterError; } }) as ContextRuntimeContributions, getterError],
-      ['name', async () => ({ tools: [{ definition: Object.defineProperty({}, 'name', { get: () => { throw nameError; } }), executor: async () => ({ output: '' }) } as RuntimeToolContribution] }), nameError],
     ];
     for (const [type, materialize, cause] of cases) {
       const error = await expectCode(() => new RuntimePluginHost([plugin(type, materialize)]).materializeSnapshot(snapshot(type)), 'CONTEXT_INVALID');
       expect(error.cause).toBe(cause);
     }
+    let nameReads = 0;
+    await expectCode(() => new RuntimePluginHost([plugin('name', async () => ({ tools: [{
+      definition: Object.defineProperty({}, 'name', { get: () => { nameReads += 1; return 'unsafe'; } }),
+      executor: async () => ({ output: '' }),
+    } as RuntimeToolContribution] }))]).materializeSnapshot(snapshot('name')), 'CONTEXT_INVALID');
+    expect(nameReads).toBe(0);
 
     const preserved = new RuntimeError('CONTEXT_UNAUTHORIZED', 'preserve me');
     const preservedError = await expectCode(

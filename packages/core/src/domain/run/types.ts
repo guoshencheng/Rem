@@ -1,10 +1,10 @@
-import type { Message } from '@earendil-works/pi-ai';
 import type { ResolvedContextSnapshot } from '../context/types.js';
+import type { UserMessageContent } from './message-trigger-content.js';
 
 export type RunStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 
 export type RunTrigger =
-  | { type: 'message'; content: Message['content'] }
+  | { type: 'message'; content: UserMessageContent }
   | { type: 'task'; input: unknown };
 
 export interface AgentRun {

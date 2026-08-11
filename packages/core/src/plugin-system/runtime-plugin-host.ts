@@ -87,7 +87,7 @@ export class RuntimePluginHost {
         }
         const contributions = await registered.contribution.materialize(cloneCanonicalJson(item.snapshot));
         for (const tool of contributions.tools ?? []) {
-          const name = tool.definition.name;
+          const name = readToolName(tool);
           if (names.has(name)) throw new RuntimeError('CONTEXT_CONFLICT', `Tool already contributed: ${name}`);
           names.add(name);
           tools.push(tool);
@@ -131,4 +131,17 @@ export class RuntimePluginHost {
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (typeof value === 'object' || typeof value === 'function') && value !== null
     && typeof (value as { then?: unknown }).then === 'function';
+}
+
+function readToolName(value: unknown): string {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid runtime tool contribution');
+  const definitionDescriptor = Object.getOwnPropertyDescriptor(value, 'definition');
+  if (!definitionDescriptor || !('value' in definitionDescriptor)) throw new Error('Invalid runtime tool definition');
+  const definition = definitionDescriptor.value;
+  if (typeof definition !== 'object' || definition === null || Array.isArray(definition)) throw new Error('Invalid runtime tool definition');
+  const nameDescriptor = Object.getOwnPropertyDescriptor(definition, 'name');
+  if (!nameDescriptor || !('value' in nameDescriptor) || typeof nameDescriptor.value !== 'string' || !nameDescriptor.value.trim()) {
+    throw new Error('Invalid runtime tool name');
+  }
+  return nameDescriptor.value;
 }

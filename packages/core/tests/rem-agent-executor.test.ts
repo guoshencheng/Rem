@@ -103,6 +103,21 @@ describe('RecordingToolProvider', () => {
       expect((await store.listEvents('r')).map((event) => event.type)).toEqual(['tool.started', 'tool.succeeded']);
     } finally { db.close(); }
   });
+
+  it('persists invalid SQLite tool results as failed, never executing', async () => {
+    const db = new Database(':memory:'); db.pragma('foreign_keys = ON'); new SqliteSchemaManager(db).migrate();
+    const store = new SqliteRuntimeStore(db);
+    try {
+      await seed(store);
+      const base = new StaticToolProvider([{ definition: { name: 'acme_lookup', description: 'x', parameters: Type.Object({}) },
+        executor: async () => ({ output: 'x', details: new Date() }) }]);
+      const provider = new RecordingToolProvider({ storage: store, provider: base, run, allowedToolNames: ['acme_lookup'] });
+      await expect(provider.execute([{ toolCallId: 'invalid', toolName: 'acme_lookup', input: {} }], { cwd: '/', workspaceRoot: '/' }))
+        .rejects.toMatchObject({ code: 'TOOL_EXECUTION_FAILED' });
+      expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'failed', error: 'Tool result is invalid' }]);
+      expect((await store.listEvents('r')).map((event) => event.type)).toEqual(['tool.started', 'tool.failed']);
+    } finally { db.close(); }
+  });
 });
 
 describe('REMAgentRunExecutor', () => {
@@ -177,5 +192,25 @@ describe('REMAgentRunExecutor', () => {
     await expect(executor.execute({ run, session, signal: new AbortController().signal }))
       .rejects.toMatchObject({ code: 'AGENT_REVISION_NOT_FOUND' });
     expect(scripted.state.callCount).toBe(0);
+  });
+
+  it('rejects malicious plugin tool definitions before model or tool execution', async () => {
+    const scripted = createScriptedModels([fauxAssistantMessage('unused')]);
+    const assembly = await createFakeAssembly({ models: scripted.models });
+    const { store } = await createFakeRuntimeStore(); await seed(store);
+    let getterReads = 0; let toolCalls = 0;
+    const malicious = {};
+    Object.defineProperty(malicious, 'definition', { enumerable: true, get: () => { getterReads += 1; return {}; } });
+    Object.defineProperty(malicious, 'executor', { enumerable: true, value: async () => { toolCalls += 1; return { output: 'x' }; } });
+    const plugin: RuntimePlugin = { manifest: { pluginId: 'bad', version: '1' }, register(registrar) { registrar.addContextType({
+      type: 'bad/context', resolve: async () => ({ snapshot: {} }), materialize: async () => ({ tools: [malicious as never] }),
+    }); } };
+    const badRun = { ...run, contextSnapshot: { ...run.contextSnapshot, items: [{ binding: { type: 'bad/context', contextId: '1' }, pluginId: 'bad', pluginVersion: '1', snapshot: {}, snapshotHash: 'x' }] } };
+    const executor = new REMAgentRunExecutor({ assembly, storage: store,
+      agentDefinitions: new StaticAgentDefinitionProvider([definition]), pluginHost: new RuntimePluginHost([plugin]) });
+    await expect(executor.execute({ run: badRun, session, signal: new AbortController().signal }))
+      .rejects.toMatchObject({ code: 'CONTEXT_INVALID' });
+    expect({ getterReads, toolCalls, modelCalls: scripted.state.callCount }).toEqual({ getterReads: 0, toolCalls: 0, modelCalls: 0 });
+    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toEqual([]);
   });
 });

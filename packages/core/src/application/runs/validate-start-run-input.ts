@@ -5,6 +5,7 @@ import type { NormalizedStartRunRequest, StartRunInput } from './types.js';
 import { cloneCanonicalJson } from '../contexts/canonical-json.js';
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { assertContextPatchShape } from './validate-run-contexts.js';
+import { isUserMessageContent } from '../../domain/run/message-trigger-content.js';
 
 type RecordValue = Record<string, unknown>;
 
@@ -64,13 +65,9 @@ function assertTrigger(trigger: unknown): asserts trigger is RunTrigger {
 }
 
 function assertMessageContent(content: unknown): void {
+  if (!isUserMessageContent(content)) invalid('message trigger content must contain only user text/image blocks');
   if (typeof content === 'string') return;
-  if (!Array.isArray(content)) invalid('message trigger content must be a string or content block array');
   const records = content.map((block, index) => requireRecord(block, `message content[${index}]`));
-  const types = records.map((block) => block.type);
-  const userBlocks = types.every((type) => type === 'text' || type === 'image');
-  const assistantBlocks = types.every((type) => type === 'text' || type === 'thinking' || type === 'toolCall');
-  if (!userBlocks && !assistantBlocks) invalid('message trigger content mixes incompatible block types');
   records.forEach(assertContentBlock);
 }
 
@@ -82,18 +79,6 @@ function assertContentBlock(value: RecordValue): void {
   if (value.type === 'image') {
     assertKeys(value, ['type', 'data', 'mimeType'], [], 'image block');
     requireText(value.data, 'image block.data'); requireText(value.mimeType, 'image block.mimeType'); return;
-  }
-  if (value.type === 'thinking') {
-    assertKeys(value, ['type', 'thinking'], ['thinkingSignature', 'redacted'], 'thinking block');
-    requireText(value.thinking, 'thinking block.thinking'); optionalText(value.thinkingSignature, 'thinking block.thinkingSignature');
-    if (value.redacted !== undefined && typeof value.redacted !== 'boolean') invalid('thinking block.redacted must be a boolean');
-    return;
-  }
-  if (value.type === 'toolCall') {
-    assertKeys(value, ['type', 'id', 'name', 'arguments'], ['thoughtSignature'], 'toolCall block');
-    requireNonEmptyText(value.id, 'toolCall block.id'); requireNonEmptyText(value.name, 'toolCall block.name');
-    requireRecord(value.arguments, 'toolCall block.arguments'); optionalText(value.thoughtSignature, 'toolCall block.thoughtSignature');
-    return;
   }
   invalid('Unknown message content block type');
 }

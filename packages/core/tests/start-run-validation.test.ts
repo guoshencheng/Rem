@@ -89,8 +89,9 @@ describe('StartRun 外部输入运行时校验', () => {
     { type: 'message', content: null },
     { type: 'message', content: [{ type: 'text' }] },
     { type: 'message', content: [{ type: 'image', data: 'x' }] },
-    { type: 'message', content: [{ type: 'thinking', thinking: 1 }] },
-    { type: 'message', content: [{ type: 'toolCall', id: '1', name: 'tool', arguments: [] }] },
+    { type: 'message', content: [{ type: 'thinking', thinking: 'secret' }] },
+    { type: 'message', content: [{ type: 'toolCall', id: '1', name: 'tool', arguments: {} }] },
+    { type: 'message', content: [{ type: 'text', text: 'hi' }, { type: 'thinking', thinking: 'secret' }] },
   ])('拒绝畸形 trigger %#', async (trigger) => {
     const { store } = await createFakeRuntimeStore();
     await expectInvalid(store, () => usecase(store).execute(request(), { ...validInput(), trigger } as never));

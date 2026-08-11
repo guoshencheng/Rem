@@ -48,12 +48,14 @@ export class RecordingToolProvider implements ToolProvider {
   }
 
   async execute(calls: ToolCall[], context: ToolContext): Promise<ToolResult[]> {
+    assertToolNotAborted(context.signal);
     const results: ToolResult[] = [];
     for (const call of calls) results.push(await this._executeOne(call, context));
     return results;
   }
 
   private async _executeOne(call: ToolCall, context: ToolContext): Promise<ToolResult> {
+    assertToolNotAborted(context.signal);
     const definition = this._assertAvailable(call.toolName);
     const input = this._clone(call.input, 'Tool input is not JSON-compatible');
     const invocationId = this.id();
@@ -67,12 +69,17 @@ export class RecordingToolProvider implements ToolProvider {
       input, createdAt, updatedAt: createdAt,
     };
     await this.options.storage.transaction((uow) => {
+      assertToolNotAborted(context.signal);
       uow.toolInvocations.insert({ ...invocation, status: 'planned' });
       uow.toolInvocations.update(invocation);
       uow.events.append(this._event(uow.events.nextSequence(invocation.runId), 'tool.started', {
         invocationId, toolCallId: call.toolCallId, toolName: call.toolName,
       }));
     });
+    if (context.signal?.aborted) {
+      await this._finish(invocation, 'failed', undefined, 'Tool execution cancelled', 'tool.failed', 'EXECUTION_CANCELLED');
+      throw new RuntimeError('EXECUTION_CANCELLED', 'Tool execution cancelled');
+    }
 
     let result: ToolResult;
     try {
@@ -95,17 +102,37 @@ export class RecordingToolProvider implements ToolProvider {
       await this._finish(invocation, 'failed', undefined, 'Tool execution failed', 'tool.failed');
       return { toolCallId: call.toolCallId, toolName: call.toolName, output: '', error: 'Tool execution failed' };
     }
-    const persisted = this._clone({ output: result.output, ...(result.details === undefined ? {} : { details: result.details }) }, 'Tool result is not JSON-compatible');
-    await this._finish(invocation, 'succeeded', persisted, undefined, 'tool.succeeded');
-    return this._clone({ toolCallId: result.toolCallId, toolName: result.toolName, output: result.output,
-      ...(result.details === undefined ? {} : { details: result.details }) }, 'Tool result is not JSON-compatible');
+    let persisted: unknown;
+    let returned: ToolResult;
+    try {
+      persisted = cloneCanonicalJson({ output: result.output, ...(result.details === undefined ? {} : { details: result.details }) });
+      returned = cloneCanonicalJson({ toolCallId: result.toolCallId, toolName: result.toolName, output: result.output,
+        ...(result.details === undefined ? {} : { details: result.details }) }) as ToolResult;
+    } catch (error) {
+      await this._finish(invocation, 'failed', undefined, 'Tool result is invalid', 'tool.failed', 'TOOL_EXECUTION_FAILED');
+      throw new RuntimeError('TOOL_EXECUTION_FAILED', 'Tool result is invalid', false, undefined, { cause: error });
+    }
+    await this._finishSuccess(invocation, persisted, context.signal);
+    return returned;
   }
 
-  private async _finish(invocation: ToolInvocation, status: 'succeeded' | 'failed', result: unknown, error: string | undefined, eventType: string): Promise<void> {
+  private async _finish(invocation: ToolInvocation, status: 'succeeded' | 'failed', result: unknown, error: string | undefined, eventType: string, errorCode?: string): Promise<void> {
     const updatedAt = this.now();
     await this.options.storage.transaction((uow) => {
       uow.toolInvocations.update({ ...invocation, status, result, error, updatedAt });
       uow.events.append(this._event(uow.events.nextSequence(invocation.runId), eventType, {
+        invocationId: invocation.invocationId, toolCallId: invocation.toolCallId, toolName: invocation.toolName,
+        ...(errorCode === undefined ? {} : { errorCode }),
+      }));
+    });
+  }
+
+  private async _finishSuccess(invocation: ToolInvocation, result: unknown, signal?: AbortSignal): Promise<void> {
+    const updatedAt = this.now();
+    await this.options.storage.transaction((uow) => {
+      assertToolNotAborted(signal);
+      uow.toolInvocations.update({ ...invocation, status: 'succeeded', result, updatedAt });
+      uow.events.append(this._event(uow.events.nextSequence(invocation.runId), 'tool.succeeded', {
         invocationId: invocation.invocationId, toolCallId: invocation.toolCallId, toolName: invocation.toolName,
       }));
     });
@@ -131,3 +158,6 @@ export class RecordingToolProvider implements ToolProvider {
 }
 
 function safeText(value: string): string { return value.replace(/[\r\n\t]/g, ' ').slice(0, 500); }
+function assertToolNotAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new RuntimeError('EXECUTION_CANCELLED', 'Tool execution cancelled');
+}

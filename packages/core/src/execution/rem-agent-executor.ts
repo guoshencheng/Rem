@@ -8,13 +8,14 @@ import type { AgentRun } from '../domain/run/types.js';
 import type { AgentSession, RuntimeSessionEntry } from '../domain/session/types.js';
 import type { AgentDefinitionProvider } from '../sdk/agent-definition-provider.js';
 import type { RuntimeStorage } from '../sdk/runtime-storage.js';
-import type { ToolDefinition } from '../sdk/tool-provider.js';
 import { REMAgent } from '../agent/rem-agent.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
 import { normalizeAgentDefinition } from '../application/runs/normalize-agent-definition.js';
 import { RuntimePluginHost } from '../plugin-system/runtime-plugin-host.js';
 import { StaticToolProvider } from '../plugins/tool/static/index.js';
 import { RecordingToolProvider } from './recording-tool-provider.js';
+import { normalizeRuntimeToolContribution } from './runtime-tool-definition.js';
+import { isUserMessageContent } from '../domain/run/message-trigger-content.js';
 import type { RunExecutionResult, RunExecutor } from './run-executor.js';
 
 export interface REMAgentRunExecutorOptions {
@@ -30,15 +31,23 @@ export class REMAgentRunExecutor implements RunExecutor {
 
   async execute(input: { run: AgentRun; session: AgentSession; signal: AbortSignal }): Promise<RunExecutionResult> {
     const { run, session, signal } = input;
+    assertNotAborted(signal);
     this._validateOwnership(run, session);
     const definition = await this._loadDefinition(run);
+    assertNotAborted(signal);
     const entries = await this.options.storage.transaction(
       (uow) => uow.sessions.listEntries(session.sessionId),
     );
+    assertNotAborted(signal);
     const tools = await this.options.pluginHost.materializeSnapshot(structuredClone(run.contextSnapshot));
-    const provider = new StaticToolProvider(tools.map((tool) => ({
-      definition: cloneToolDefinition(tool.definition), executor: tool.executor,
-    })));
+    assertNotAborted(signal);
+    const normalizedTools = tools.map((tool) => normalizeRuntimeToolContribution(tool));
+    const toolNames = new Set<string>();
+    for (const tool of normalizedTools) {
+      if (toolNames.has(tool.definition.name)) throw new RuntimeError('CONTEXT_CONFLICT', `Tool already contributed: ${tool.definition.name}`);
+      toolNames.add(tool.definition.name);
+    }
+    const provider = new StaticToolProvider(normalizedTools);
     const recording = new RecordingToolProvider({
       storage: this.options.storage, provider, run: structuredClone(run),
       allowedToolNames: definition.toolNames,
@@ -46,6 +55,7 @@ export class REMAgentRunExecutor implements RunExecutor {
     const systemPrompt = this._systemPrompt(definition, run);
     const executionRoot = this._executionRoot(run);
     const configProvider = this._configProvider(definition);
+    assertNotAborted(signal);
     const agent = new REMAgent({
       agentId: run.agentId, sessionId: session.sessionId,
       di: { ...this.options.assembly.di, configProvider, toolProvider: recording },
@@ -57,6 +67,7 @@ export class REMAgentRunExecutor implements RunExecutor {
     const sessionEntries: RunExecutionResult['sessionEntries'] = [];
     let artifact: ArtifactDraft | undefined;
     let modelError: string | undefined;
+    assertNotAborted(signal);
     for await (const event of agent.run({ content: this._triggerContent(run) })) {
       if (event.type === 'message-persist') {
         sessionEntries.push({ message: structuredClone(event.message) });
@@ -136,9 +147,7 @@ export class REMAgentRunExecutor implements RunExecutor {
   private _triggerContent(run: AgentRun): UserInputContent {
     if (run.trigger.type === 'message') {
       const content = structuredClone(run.trigger.content);
-      if (typeof content === 'string' || Array.isArray(content) && content.every(
-        (part) => part.type === 'text' || part.type === 'image',
-      )) return content as UserInputContent;
+      if (isUserMessageContent(content)) return content as UserInputContent;
       throw new RuntimeError('INVALID_INPUT', 'Message trigger content is not valid user input');
     }
     try { return JSON.stringify(run.trigger.input); }
@@ -156,31 +165,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function cloneToolDefinition(definition: ToolDefinition) {
-  if (!definition || typeof definition.name !== 'string' || !definition.name.trim()
-    || typeof definition.description !== 'string' || !isRecord(definition.parameters)) {
-    throw new RuntimeError('CONTEXT_INVALID', 'Runtime plugin returned an invalid tool definition');
-  }
-  try {
-    return { ...definition, parameters: cloneToolSchema(definition.parameters) as typeof definition.parameters };
-  } catch (error) {
-    throw new RuntimeError('CONTEXT_INVALID', 'Runtime plugin returned an invalid tool definition', false, undefined, { cause: error });
-  }
-}
-
-function cloneToolSchema(value: unknown, ancestors = new WeakSet<object>()): unknown {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value !== 'object' || ancestors.has(value)) throw new Error('Invalid tool schema');
-  ancestors.add(value);
-  try {
-    if (Array.isArray(value)) return value.map((item) => cloneToolSchema(item, ancestors));
-    const output: Record<string, unknown> = {};
-    for (const key of Object.keys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !('value' in descriptor)) throw new Error('Tool schema accessors are not allowed');
-      output[key] = cloneToolSchema(descriptor.value, ancestors);
-    }
-    return output;
-  } finally { ancestors.delete(value); }
+function assertNotAborted(signal: AbortSignal): void {
+  if (signal.aborted) throw new RuntimeError('EXECUTION_CANCELLED', 'Run execution cancelled');
 }

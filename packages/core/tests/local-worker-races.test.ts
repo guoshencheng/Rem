@@ -74,7 +74,7 @@ describe('LocalRunWorker 竞争与计时', () => {
       uow.workItems.update({ ...work, leaseOwner: 'new-owner', leaseExpiresAt: new Date(0), attempt: work.attempt + 1 });
     });
     result.resolve(successResult);
-    await drain;
+    await expect(drain).rejects.toMatchObject({ code: 'RUN_CONFLICT', retryable: true });
 
     expect(await store.getRun('run-1')).toMatchObject({ status: 'running' });
     expect(await store.listArtifacts('run-1')).toEqual([]);
@@ -97,7 +97,7 @@ describe('LocalRunWorker 竞争与计时', () => {
     await entered.promise;
     const stop = worker.stop();
     expect(signal?.aborted).toBe(false);
-    expect(scheduler.pending).toBe(1);
+    expect(scheduler.pending).toBe(2);
     result.resolve(successResult);
     await stop;
 
@@ -155,7 +155,7 @@ describe('LocalRunWorker 竞争与计时', () => {
       const drain = worker.drainOne(); await entered.promise;
       if (mode === 'cancel') await worker.cancel('run-1');
       await drain;
-      expect(scheduler.clearCalls).toBe(1);
+      expect(scheduler.clearCalls).toBe(2);
     },
   );
 
@@ -167,7 +167,7 @@ describe('LocalRunWorker 竞争与计时', () => {
     const drain = worker.drainOne();
     await entered.promise;
     scheduler.fire(50); await drain;
-    expect(scheduler.clearCalls).toBe(0);
+    expect(scheduler.clearCalls).toBe(1);
   });
 
   it('poll handle 为 undefined 时 stop 仍恰好 clear 一次且失效 callback 不 claim', async () => {

@@ -49,6 +49,10 @@ function createUnitOfWork(state: State): RuntimeUnitOfWork {
         }
         for (const entry of entries) state.entries.set(entry.sessionId, [...(state.entries.get(entry.sessionId) ?? []), clone(entry)]);
       },
+      nextEntrySequence(sessionId) {
+        const entries = state.entries.get(sessionId) ?? [];
+        return entries.length === 0 ? 1 : Math.max(...entries.map((entry) => entry.sequence)) + 1;
+      },
       listEntries(sessionId) { return clone([...(state.entries.get(sessionId) ?? [])].sort((left, right) => left.sequence - right.sequence)); },
     },
     runs: {

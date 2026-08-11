@@ -7,6 +7,7 @@ export interface RuntimeSessionRepository {
   insert(session: AgentSession): void;
   get(sessionId: string): AgentSession | null;
   appendEntries(entries: RuntimeSessionEntry[]): void;
+  nextEntrySequence(sessionId: string): number;
   listEntries(sessionId: string): RuntimeSessionEntry[];
 }
 

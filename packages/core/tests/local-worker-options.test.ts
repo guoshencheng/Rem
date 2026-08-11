@@ -6,6 +6,7 @@ describe('LocalRunWorker options', () => {
   it.each([
     { owner: '' }, { owner: '   ' }, { leaseMs: 0 }, { leaseMs: 0.5 }, { leaseMs: Number.MAX_VALUE },
     { pollMs: Number.NaN }, { pollMs: -1 }, { runTimeoutMs: Number.POSITIVE_INFINITY },
+    { heartbeatMs: 0 }, { leaseMs: 10, heartbeatMs: 11 },
   ])('拒绝非法配置 %#', async (change) => {
     const store = await fakeStore();
     expect(() => new LocalRunWorker(store, { execute: async () => successResult }, {

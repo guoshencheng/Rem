@@ -30,7 +30,7 @@ export class RunCompletion {
     return this.storage.transaction((uow): ClaimedRunStart => {
       const liveWork = uow.workItems.getByRun(claimed.runId);
       if (!liveWork) throw unavailable('Claimed work item is missing');
-      if (!ownsLease(liveWork, claimed, this.options.owner)) return { kind: 'skip' };
+      if (!ownsLease(liveWork, claimed, this.options.owner, at)) return { kind: 'skip' };
       const run = uow.runs.get(claimed.runId);
       if (!run) {
         uow.workItems.update(finishWork(liveWork, 'failed', at));
@@ -70,7 +70,7 @@ export class RunCompletion {
   succeed(claimed: WorkItem, output: ValidatedRunOutput): Promise<boolean> {
     const at = readWorkerNow(this.options.now);
     return this.storage.transaction((uow) => {
-      const state = ownedState(uow, claimed, this.options.owner);
+      const state = ownedState(uow, claimed, this.options.owner, at);
       if (!state) return false;
       const { run, work } = state;
       if (isTerminalRunStatus(run.status)) return false;
@@ -84,8 +84,7 @@ export class RunCompletion {
         finishRun(uow, run, work, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
         return true;
       }
-      const existing = uow.sessions.listEntries(session.sessionId);
-      let sequence = existing.reduce((maximum, entry) => Math.max(maximum, entry.sequence), 0);
+      let sequence = uow.sessions.nextEntrySequence(session.sessionId) - 1;
       const entries: RuntimeSessionEntry[] = output.sessionEntries.map((entry) => ({
         entryId: nextWorkerId(this.options.generateId), tenantId: run.tenantId,
         sessionId: run.sessionId, runId: run.runId, sequence: ++sequence,
@@ -119,7 +118,7 @@ export class RunCompletion {
   fail(claimed: WorkItem, failure: RunFailure): Promise<boolean> {
     const at = readWorkerNow(this.options.now);
     return this.storage.transaction((uow) => {
-      const state = ownedState(uow, claimed, this.options.owner);
+      const state = ownedState(uow, claimed, this.options.owner, at);
       if (!state || isTerminalRunStatus(state.run.status)) return false;
       const cancelled = state.run.cancellationRequestedAt !== undefined || failure.cancelled;
       finishRun(uow, state.run, state.work, cancelled
@@ -130,18 +129,19 @@ export class RunCompletion {
   }
 }
 
-function ownedState(uow: RuntimeUnitOfWork, claimed: WorkItem, owner: string): { run: AgentRun; work: WorkItem } | null {
+function ownedState(uow: RuntimeUnitOfWork, claimed: WorkItem, owner: string, at: Date): { run: AgentRun; work: WorkItem } | null {
   const work = uow.workItems.getByRun(claimed.runId);
-  if (!work || !ownsLease(work, claimed, owner)) return null;
+  if (!work || !ownsLease(work, claimed, owner, at)) return null;
   const run = uow.runs.get(claimed.runId);
   if (!run) throw unavailable('Claimed run is missing');
   return { run, work };
 }
 
-function ownsLease(live: WorkItem, claimed: WorkItem, owner: string): boolean {
+function ownsLease(live: WorkItem, claimed: WorkItem, owner: string, at: Date): boolean {
   return live.workItemId === claimed.workItemId && live.status === 'leased'
     && live.leaseOwner === owner && live.attempt === claimed.attempt
-    && live.leaseExpiresAt?.getTime() === claimed.leaseExpiresAt?.getTime();
+    && live.leaseExpiresAt?.getTime() === claimed.leaseExpiresAt?.getTime()
+    && (live.leaseExpiresAt?.getTime() ?? Number.NEGATIVE_INFINITY) > at.getTime();
 }
 
 function finishRun(uow: RuntimeUnitOfWork, run: AgentRun, work: WorkItem, failure: RunFailure, at: Date, options: ResolvedLocalRunWorkerOptions): void {

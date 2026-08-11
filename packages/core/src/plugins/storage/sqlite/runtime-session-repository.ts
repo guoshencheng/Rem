@@ -35,6 +35,16 @@ export class SqliteRuntimeSessionRepository implements RuntimeSessionRepository 
     });
   }
 
+  nextEntrySequence(sessionId: string): number {
+    return sqliteAction('reading runtime session entry sequence', () => {
+      const row = this.db.prepare(`
+        SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence
+        FROM runtime_session_entries WHERE session_id = ?
+      `).get(sessionId) as { sequence: number };
+      return row.sequence;
+    });
+  }
+
   listEntries(sessionId: string): RuntimeSessionEntry[] {
     return sqliteAction('listing runtime session entries', () => {
       const rows = this.db.prepare(`

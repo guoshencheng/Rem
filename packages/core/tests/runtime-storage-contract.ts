@@ -124,6 +124,16 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
       expect(await store.getRun('run-1')).toMatchObject({ status: 'running', startedAt: at(4) }); expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual([1, 2, 3, 4]);
     });
 
+    it('SessionEntry next sequence 从 1 开始并在事务内连续递增', async () => {
+      const store = await open();
+      await store.transaction((uow) => {
+        createRun(uow);
+        expect(uow.sessions.nextEntrySequence('session-1')).toBe(1);
+        uow.sessions.appendEntries([entry()]);
+        expect(uow.sessions.nextEntrySequence('session-1')).toBe(2);
+      });
+    });
+
     it('默认最多读取 100 个 event，并保持 eventId 全局唯一', async () => {
       const store = await open(); await store.transaction((uow) => { createRun(uow); for (let sequence = 101; sequence >= 1; sequence -= 1) uow.events.append(event(sequence)); });
       expect((await store.listEvents('run-1')).map((item) => item.sequence)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));

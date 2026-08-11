@@ -12,9 +12,11 @@ export interface LocalRunWorkerOptions {
   leaseMs: number;
   pollMs: number;
   runTimeoutMs: number;
+  heartbeatMs?: number;
   now?: () => Date;
   generateId?: () => string;
   scheduler?: WorkerScheduler;
+  onPollError?: (error: RuntimeError) => void;
 }
 
 export interface ResolvedLocalRunWorkerOptions {
@@ -22,9 +24,11 @@ export interface ResolvedLocalRunWorkerOptions {
   leaseMs: number;
   pollMs: number;
   runTimeoutMs: number;
+  heartbeatMs: number;
   now: () => Date;
   generateId: () => string;
   scheduler: WorkerScheduler;
+  onPollError?: (error: RuntimeError) => void;
 }
 
 const defaultScheduler: WorkerScheduler = {
@@ -50,15 +54,23 @@ function resolveOptions(value: unknown): ResolvedLocalRunWorkerOptions {
   const leaseMs = positiveInteger(ownValue(options, 'leaseMs'), 'leaseMs');
   const pollMs = positiveInteger(ownValue(options, 'pollMs'), 'pollMs');
   const runTimeoutMs = positiveInteger(ownValue(options, 'runTimeoutMs'), 'runTimeoutMs');
+  const heartbeatValue = ownValue(options, 'heartbeatMs');
+  const heartbeatMs = heartbeatValue === undefined
+    ? Math.max(1, Math.floor(leaseMs / 3))
+    : positiveInteger(heartbeatValue, 'heartbeatMs');
+  if (heartbeatMs > leaseMs) invalid('heartbeatMs cannot exceed leaseMs');
   if (!Number.isFinite(new Date(leaseMs).getTime())) invalid('leaseMs must produce a finite Date duration');
   const now = optionalFunction<() => Date>(ownValue(options, 'now'), 'now') ?? (() => new Date());
   const generateId = optionalFunction<() => string>(ownValue(options, 'generateId'), 'generateId') ?? defaultGenerateId;
   const schedulerValue = ownValue(options, 'scheduler');
   const scheduler = schedulerValue === undefined ? defaultScheduler : normalizeScheduler(schedulerValue);
-  if (schedulerValue === undefined && (pollMs > MAX_NODE_TIMER_DELAY_MS || runTimeoutMs > MAX_NODE_TIMER_DELAY_MS)) {
+  const onPollError = optionalFunction<(error: RuntimeError) => void>(ownValue(options, 'onPollError'), 'onPollError');
+  if (schedulerValue === undefined
+    && [pollMs, runTimeoutMs, heartbeatMs].some((delay) => delay > MAX_NODE_TIMER_DELAY_MS)) {
     invalid(`Default scheduler delays cannot exceed ${MAX_NODE_TIMER_DELAY_MS}`);
   }
-  return { owner, leaseMs, pollMs, runTimeoutMs, now, generateId, scheduler };
+  return { owner, leaseMs, pollMs, runTimeoutMs, heartbeatMs, now, generateId, scheduler,
+    ...(onPollError === undefined ? {} : { onPollError }) };
 }
 
 function optionsRecord(value: unknown): Record<string, unknown> {

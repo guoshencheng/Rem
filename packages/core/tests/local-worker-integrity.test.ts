@@ -56,7 +56,8 @@ describe('LocalRunWorker 完整性与隔离', () => {
         return claimed;
       },
     };
-    await createWorker(storage, { execute: async () => { calls += 1; return successResult; } }).drainOne();
+    await expect(createWorker(storage, { execute: async () => { calls += 1; return successResult; } }).drainOne())
+      .rejects.toMatchObject({ code: 'RUN_CONFLICT' });
     expect(calls).toBe(0);
     expect((await base.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created']);
   });

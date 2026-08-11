@@ -1,3 +1,4 @@
+import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { describe, expect, it } from 'vitest';
 import { createWorker, deferred, fakeStore, seedRun, successResult } from './helpers/local-worker-fixture.js';
 
@@ -75,4 +76,44 @@ describe('LocalRunWorker 取消', () => {
     expect(other).not.toHaveProperty('cancellationRequestedAt');
     expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created']);
   });
+
+  it('claim 后 start transaction 返回前取消，不调用 executor', async () => {
+    const base = await fakeStore(); await seedRun(base);
+    const startEntered = deferred<void>(); const releaseStart = deferred<void>();
+    const storage = delaySecondTransaction(base, startEntered, releaseStart);
+    let calls = 0;
+    const worker = createWorker(storage, { execute: async () => { calls += 1; return successResult; } });
+
+    const drain = worker.drainOne();
+    await startEntered.promise;
+    await worker.cancel('run-1');
+    releaseStart.resolve();
+    await drain;
+
+    expect(calls).toBe(0);
+    expect(await base.getRun('run-1')).toMatchObject({ status: 'cancelled', errorCode: 'EXECUTION_CANCELLED' });
+    expect((await base.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created', 'run.cancelled']);
+  });
 });
+
+function delaySecondTransaction(
+  storage: RuntimeStorage,
+  entered: ReturnType<typeof deferred<void>>,
+  release: ReturnType<typeof deferred<void>>,
+): RuntimeStorage {
+  let calls = 0;
+  return {
+    transaction: ((operation) => {
+      calls += 1;
+      if (calls !== 2) return storage.transaction(operation);
+      entered.resolve();
+      return release.promise.then(() => storage.transaction(operation));
+    }) as RuntimeStorage['transaction'],
+    getSession: (id) => storage.getSession(id), getRun: (id) => storage.getRun(id),
+    listEvents: (id, after, limit) => storage.listEvents(id, after, limit),
+    listArtifacts: (id) => storage.listArtifacts(id),
+    claimWorkItem: (owner, now, lease) => storage.claimWorkItem(owner, now, lease),
+    listRecoverableWorkItems: (now) => storage.listRecoverableWorkItems(now),
+  };
+}
+import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';

@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox';
+import { Hint, Kind, Modifier, Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { REMAgentRunExecutor } from '../src/execution/rem-agent-executor.js';
@@ -226,6 +226,49 @@ describe('Runtime plugin tool definition boundary', () => {
     }, executor: async () => ({ output: 'x' }) });
     expect(normalized.definition.derivePatterns!({})).toEqual(['ok']);
     expect(seenThis).toBeUndefined();
+    expect(() => normalized.definition.deriveAlwaysOptions!({})).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
+  });
+
+  it.each([Kind, Modifier, Hint, Symbol('arbitrary')])('rejects derive input symbol %s', (symbol) => {
+    let called = 0;
+    const normalized = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      derivePatterns: () => { called += 1; return ['unsafe']; },
+    }, executor: async () => ({ output: 'x' }) });
+    const input = { value: true } as Record<PropertyKey, unknown>; input[symbol] = 'forbidden';
+    expect(() => normalized.definition.derivePatterns!(input)).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
+    expect(called).toBe(0);
+  });
+
+  it.each([Kind, Modifier, Hint, Symbol('arbitrary')])('rejects derive output symbol %s', (symbol) => {
+    const patterns = ['unsafe'] as unknown[] & Record<PropertyKey, unknown>; patterns[symbol] = 'forbidden';
+    const options = [{ label: 'Allow', rule: { permission: 'tool', pattern: '*', action: 'allow' } }] as unknown[] & Record<PropertyKey, unknown>;
+    options[symbol] = 'forbidden';
+    const normalizedPatterns = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      derivePatterns: () => patterns,
+    }, executor: async () => ({ output: 'x' }) });
+    const normalizedOptions = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      deriveAlwaysOptions: () => options,
+    }, executor: async () => ({ output: 'x' }) });
+    expect(() => normalizedPatterns.definition.derivePatterns!({})).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
+    expect(() => normalizedOptions.definition.deriveAlwaysOptions!({})).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
+  });
+
+  it('rejects derive input getters without executing either getter or derive', () => {
+    let reads = 0; let calls = 0; const input = {};
+    Object.defineProperty(input, 'secret', { enumerable: true, get: () => { reads += 1; return 'x'; } });
+    const normalized = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      derivePatterns: () => { calls += 1; return ['unsafe']; },
+    }, executor: async () => ({ output: 'x' }) });
+    expect(() => normalized.definition.derivePatterns!(input)).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
+    expect({ reads, calls }).toEqual({ reads: 0, calls: 0 });
+  });
+
+  it('rejects hidden symbols inside derived option rules', () => {
+    const rule = { permission: 'tool', pattern: '*', action: 'allow' } as Record<PropertyKey, unknown>;
+    rule[Kind] = 'forbidden';
+    const normalized = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      deriveAlwaysOptions: () => [{ label: 'Allow', rule }],
+    }, executor: async () => ({ output: 'x' }) });
     expect(() => normalized.definition.deriveAlwaysOptions!({})).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
   });
 });

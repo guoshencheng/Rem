@@ -4,6 +4,7 @@ import type { ToolDefinition, ToolExecutor } from '../../sdk/tool-provider.js';
 import { Hint, Kind, Modifier } from '@sinclair/typebox';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import { RuntimeError } from '../runtime/runtime-error.js';
+import { cloneCanonicalJson } from './canonical-json.js';
 
 const DEFINITION_KEYS = new Set([
   'name', 'description', 'parameters', 'category', 'dangerous', 'readOnly', 'sideEffect',
@@ -114,7 +115,7 @@ function nonEmpty(value: unknown, label: string): string {
 }
 
 function cloneJson<T>(value: T): T {
-  try { return cloneSchema(value) as T; }
+  try { return cloneCanonicalJson(value) as T; }
   catch (cause) { throw new RuntimeError('CONTEXT_INVALID', 'Tool derive function used an invalid value', false, undefined, { cause }); }
 }
 

@@ -14,7 +14,7 @@ import { normalizeAgentDefinition } from '../application/runs/normalize-agent-de
 import { RuntimePluginHost } from '../plugin-system/runtime-plugin-host.js';
 import { StaticToolProvider } from '../plugins/tool/static/index.js';
 import { RecordingToolProvider } from './recording-tool-provider.js';
-import { normalizeRuntimeToolContribution } from './runtime-tool-definition.js';
+import { normalizeRuntimeToolContribution } from '../application/contexts/runtime-tool-definition.js';
 import { isUserMessageContent } from '../domain/run/message-trigger-content.js';
 import type { RunExecutionResult, RunExecutor } from './run-executor.js';
 
@@ -35,9 +35,10 @@ export class REMAgentRunExecutor implements RunExecutor {
     this._validateOwnership(run, session);
     const definition = await this._loadDefinition(run);
     assertNotAborted(signal);
-    const entries = await this.options.storage.transaction(
-      (uow) => uow.sessions.listEntries(session.sessionId),
-    );
+    const entries = await this.options.storage.transaction((uow) => {
+      assertNotAborted(signal);
+      return uow.sessions.listEntries(session.sessionId);
+    });
     assertNotAborted(signal);
     const tools = await this.options.pluginHost.materializeSnapshot(structuredClone(run.contextSnapshot));
     assertNotAborted(signal);

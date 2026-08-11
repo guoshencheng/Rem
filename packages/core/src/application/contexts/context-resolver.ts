@@ -4,6 +4,7 @@ import type { ContextRuntimeContributions, ResolvedRuntimeContext, RuntimeToolCo
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { RuntimePluginHost } from '../../plugin-system/runtime-plugin-host.js';
 import { cloneCanonicalJson, hashCanonicalJson } from './canonical-json.js';
+import { normalizeRuntimeToolContribution } from './runtime-tool-definition.js';
 
 export class ContextResolver {
   constructor(private readonly host: RuntimePluginHost) {}
@@ -85,8 +86,9 @@ export class ContextResolver {
       }) as ResolvedContextSnapshot['promptSections'][number]);
     }
     for (const tool of contribution.tools ?? []) {
-      this.assertUnique(names.tool, tool.definition.name, 'Tool');
-      tools.push(tool);
+      const normalized = normalizeRuntimeToolContribution(tool);
+      this.assertUnique(names.tool, normalized.definition.name, 'Tool');
+      tools.push(normalized);
     }
   }
 

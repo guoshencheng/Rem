@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { REMAgentRunExecutor } from '../src/execution/rem-agent-executor.js';
 import { RecordingToolProvider } from '../src/execution/recording-tool-provider.js';
-import { normalizeRuntimeToolContribution } from '../src/execution/runtime-tool-definition.js';
+import { normalizeRuntimeToolContribution } from '../src/application/contexts/runtime-tool-definition.js';
 import { StaticToolProvider } from '../src/plugins/tool/static/index.js';
 import { createFakeRuntimeStore } from './helpers/fake-runtime-store.js';
 
@@ -95,6 +95,26 @@ describe('Runtime abort boundaries', () => {
       .rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
     expect(storage).toBe(0);
   });
+
+  it('checks abort inside the history transaction before reading entries', async () => {
+    const base = await prepared(); const controller = new AbortController();
+    let release!: () => void; let entryReads = 0; let pluginCalls = 0;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const storage = { ...base, transaction: async (operation: (uow: unknown) => unknown) => {
+      await gate;
+      return base.transaction(((uow) => operation({ ...uow, sessions: { ...uow.sessions,
+        listEntries: (id: string) => { entryReads += 1; return uow.sessions.listEntries(id); },
+      } })) as never);
+    } } as RuntimeStorage;
+    const executor = new REMAgentRunExecutor({ assembly: {} as never,
+      agentDefinitions: { init: async () => {}, list: async () => [], get: async () => ({
+        agentId: 'a', revision: '1', name: 'a', instructions: 'a', modelId: 'm', toolNames: [], acceptedTriggers: ['message'], execution: { type: 'single-agent' },
+      }) }, storage, pluginHost: { materializeSnapshot: async () => { pluginCalls += 1; return []; } } as never });
+    const pending = executor.execute({ run, session: { sessionId: 's', tenantId: 't', contexts: { bindings: [] }, createdAt: at, updatedAt: at }, signal: controller.signal });
+    controller.abort(); release();
+    await expect(pending).rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
+    expect({ entryReads, pluginCalls }).toEqual({ entryReads: 0, pluginCalls: 0 });
+  });
 });
 
 describe('Runtime tool result boundary', () => {
@@ -176,5 +196,36 @@ describe('Runtime plugin tool definition boundary', () => {
     expect(() => normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: schema }, executor: async () => ({ output: 'x' }) }))
       .toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
     expect(reads).toBe(0);
+  });
+
+  it('captures derive functions once and isolates concurrent run snapshots', async () => {
+    const sharedPatterns = ['one'];
+    const sharedOptions = [{ label: 'Allow', rule: { permission: 'tool', pattern: 'one', action: 'allow' as const } }];
+    const definition = { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      derivePatterns: () => sharedPatterns, deriveAlwaysOptions: () => sharedOptions };
+    const first = normalizeRuntimeToolContribution({ definition, executor: async () => ({ output: 'x' }) });
+    const second = normalizeRuntimeToolContribution({ definition, executor: async () => ({ output: 'x' }) });
+    definition.derivePatterns = () => ['replaced']; delete (definition as { deriveAlwaysOptions?: unknown }).deriveAlwaysOptions;
+    const [firstPatterns, secondPatterns] = await Promise.all([
+      Promise.resolve().then(() => first.definition.derivePatterns!({})),
+      Promise.resolve().then(() => second.definition.derivePatterns!({})),
+    ]);
+    firstPatterns.push('mutated'); secondPatterns.push('other');
+    const firstOptions = first.definition.deriveAlwaysOptions!({}); firstOptions[0]!.label = 'mutated';
+    expect(first.definition.derivePatterns!({})).toEqual(['one']);
+    expect(second.definition.derivePatterns!({})).toEqual(['one']);
+    expect(first.definition.deriveAlwaysOptions!({})).toEqual(sharedOptions);
+    expect(second.definition.deriveAlwaysOptions!({})).toEqual(sharedOptions);
+  });
+
+  it('invokes derives with undefined this and rejects thenable results', () => {
+    let seenThis: unknown = 'unset';
+    const normalized = normalizeRuntimeToolContribution({ definition: { name: 'tool', description: 'tool', parameters: Type.Object({}),
+      derivePatterns: function () { seenThis = this; return ['ok']; },
+      deriveAlwaysOptions: () => Promise.resolve([]),
+    }, executor: async () => ({ output: 'x' }) });
+    expect(normalized.definition.derivePatterns!({})).toEqual(['ok']);
+    expect(seenThis).toBeUndefined();
+    expect(() => normalized.definition.deriveAlwaysOptions!({})).toThrow(expect.objectContaining({ code: 'CONTEXT_INVALID' }));
   });
 });

@@ -1,9 +1,9 @@
 import type { TObject } from '@sinclair/typebox';
-import type { RuntimeToolContribution } from '../sdk/runtime-plugin.js';
-import type { ToolDefinition, ToolExecutor } from '../sdk/tool-provider.js';
+import type { RuntimeToolContribution } from '../../sdk/runtime-plugin.js';
+import type { ToolDefinition, ToolExecutor } from '../../sdk/tool-provider.js';
 import { Hint, Kind, Modifier } from '@sinclair/typebox';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
-import { RuntimeError } from '../application/runtime/runtime-error.js';
+import { RuntimeError } from '../runtime/runtime-error.js';
 
 const DEFINITION_KEYS = new Set([
   'name', 'description', 'parameters', 'category', 'dangerous', 'readOnly', 'sideEffect',
@@ -44,18 +44,23 @@ function normalizeDefinition(value: unknown): ToolDefinition {
     const current = optional(key);
     if (current !== undefined && typeof current !== 'function') throw new Error(`${key} must be a function`);
   }
+  const dangerous = optional<boolean>('dangerous');
+  const readOnly = optional<boolean>('readOnly');
+  const supportsIdempotencyKey = optional<boolean>('supportsIdempotencyKey');
+  const derivePatterns = optional<ToolDefinition['derivePatterns']>('derivePatterns');
+  const deriveAlwaysOptions = optional<ToolDefinition['deriveAlwaysOptions']>('deriveAlwaysOptions');
   return {
     name, description, parameters,
     ...(category === undefined ? {} : { category: category as ToolDefinition['category'] }),
-    ...(optional<boolean>('dangerous') === undefined ? {} : { dangerous: optional<boolean>('dangerous') }),
-    ...(optional<boolean>('readOnly') === undefined ? {} : { readOnly: optional<boolean>('readOnly') }),
+    ...(dangerous === undefined ? {} : { dangerous }),
+    ...(readOnly === undefined ? {} : { readOnly }),
     ...(sideEffect === undefined ? {} : { sideEffect: sideEffect as ToolDefinition['sideEffect'] }),
-    ...(optional<boolean>('supportsIdempotencyKey') === undefined ? {} : { supportsIdempotencyKey: optional<boolean>('supportsIdempotencyKey') }),
-    ...(optional<ToolDefinition['derivePatterns']>('derivePatterns') === undefined ? {} : {
-      derivePatterns: (input: never) => optional<ToolDefinition['derivePatterns']>('derivePatterns')!(input),
+    ...(supportsIdempotencyKey === undefined ? {} : { supportsIdempotencyKey }),
+    ...(derivePatterns === undefined ? {} : {
+      derivePatterns: (input: never) => normalizePatterns(derivePatterns.call(undefined, cloneJson(input))),
     }),
-    ...(optional<ToolDefinition['deriveAlwaysOptions']>('deriveAlwaysOptions') === undefined ? {} : {
-      deriveAlwaysOptions: (input: never) => optional<ToolDefinition['deriveAlwaysOptions']>('deriveAlwaysOptions')!(input),
+    ...(deriveAlwaysOptions === undefined ? {} : {
+      deriveAlwaysOptions: (input: never) => normalizeAlwaysOptions(deriveAlwaysOptions.call(undefined, cloneJson(input))),
     }),
   } as ToolDefinition;
 }
@@ -106,4 +111,35 @@ function assertOnlyKeys(record: Record<string, unknown>, allowed: Set<string>): 
 function nonEmpty(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} must be non-empty`);
   return value;
+}
+
+function cloneJson<T>(value: T): T {
+  try { return cloneSchema(value) as T; }
+  catch (cause) { throw new RuntimeError('CONTEXT_INVALID', 'Tool derive function used an invalid value', false, undefined, { cause }); }
+}
+
+function normalizePatterns(value: unknown): string[] {
+  const cloned = cloneJson(value);
+  if (!Array.isArray(cloned) || cloned.some((pattern) => typeof pattern !== 'string' || !pattern.trim())) {
+    throw new RuntimeError('CONTEXT_INVALID', 'Tool derivePatterns returned an invalid result');
+  }
+  return cloned as string[];
+}
+
+function normalizeAlwaysOptions(value: unknown): ReturnType<NonNullable<ToolDefinition['deriveAlwaysOptions']>> {
+  const cloned = cloneJson(value);
+  if (!Array.isArray(cloned) || cloned.some((option) => {
+    if (typeof option !== 'object' || option === null || Array.isArray(option)) return true;
+    const record = option as Record<string, unknown>;
+    const rule = record.rule;
+    return Object.keys(record).some((key) => key !== 'label' && key !== 'rule')
+      || typeof record.label !== 'string' || !record.label.trim()
+      || typeof rule !== 'object' || rule === null || Array.isArray(rule)
+      || Object.keys(rule).some((key) => !['permission', 'pattern', 'action', 'outside'].includes(key))
+      || typeof (rule as Record<string, unknown>).permission !== 'string' || !(rule as Record<string, string>).permission.trim()
+      || typeof (rule as Record<string, unknown>).pattern !== 'string' || !(rule as Record<string, string>).pattern.trim()
+      || !['allow', 'deny', 'ask'].includes((rule as Record<string, unknown>).action as string)
+      || ((rule as Record<string, unknown>).outside !== undefined && typeof (rule as Record<string, unknown>).outside !== 'boolean');
+  })) throw new RuntimeError('CONTEXT_INVALID', 'Tool deriveAlwaysOptions returned an invalid result');
+  return cloned as ReturnType<NonNullable<ToolDefinition['deriveAlwaysOptions']>>;
 }

@@ -113,6 +113,24 @@ describe('StartRun 外部输入运行时校验', () => {
       ...validInput(), trigger: { type: 'task', input: circular },
     }), true);
   });
+
+  it('完整 startRun 路径不执行恶意插件工具 getter且零写入', async () => {
+    const { store } = await createFakeRuntimeStore(); let getterReads = 0; let toolCalls = 0;
+    const malicious = {};
+    Object.defineProperty(malicious, 'definition', { enumerable: true, value: Object.defineProperty({}, 'name', {
+      enumerable: true, get: () => { getterReads += 1; return 'unsafe'; },
+    }) });
+    Object.defineProperty(malicious, 'executor', { enumerable: true, value: async () => { toolCalls += 1; return { output: 'x' }; } });
+    const host = new RuntimePluginHost([{ manifest: { pluginId: 'bad', version: '1' }, register(registrar) { registrar.addContextType({
+      type: 'bad/context', resolve: async () => ({ snapshot: {} }), materialize: async () => ({ tools: [malicious as never] }),
+    }); } }]);
+    const start = new StartRunUsecase({ storage: store, agentDefinitions: unsafeProvider(definition()), contextResolver: new ContextResolver(host) });
+    await expectFailure(store, () => start.execute(request(), {
+      agentId: 'assistant', trigger: { type: 'task', input: {} }, contexts: { add: [{ type: 'bad/context', contextId: '1' }] },
+    }), 'CONTEXT_INVALID', true);
+    expect({ getterReads, toolCalls }).toEqual({ getterReads: 0, toolCalls: 0 });
+    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toEqual([]);
+  });
 });
 
 describe('StartRun Definition 与 ContextPatch 形状校验', () => {

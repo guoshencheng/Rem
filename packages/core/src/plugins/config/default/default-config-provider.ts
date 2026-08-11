@@ -130,8 +130,15 @@ export class DefaultConfigProvider implements ConfigProvider {
 
   getModelConfig(modelId?: string): ResolvedModelConfig {
     const cfg = this.getRawConfig();
-    const id = modelId ?? cfg.activeModel ?? 'default';
-    const model = cfg.models?.[id] ?? cfg.model ?? { provider: 'openai', model: '' };
+    let model;
+    if (modelId !== undefined) {
+      const models = cfg.models;
+      if (!models || !Object.hasOwn(models, modelId)) throw new Error(`Unknown model: ${safeModelId(modelId)}`);
+      model = models[modelId];
+    } else {
+      const id = cfg.activeModel ?? 'default';
+      model = cfg.models && Object.hasOwn(cfg.models, id) ? cfg.models[id] : cfg.model ?? { provider: 'openai', model: '' };
+    }
     return resolveModelConfig(model, this.env);
   }
 
@@ -186,3 +193,5 @@ export class DefaultConfigProvider implements ConfigProvider {
     };
   }
 }
+
+function safeModelId(value: string): string { return value.replace(/[\r\n\t]/g, ' ').slice(0, 200); }

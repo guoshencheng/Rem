@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DefaultConfigProvider } from '../src/plugins/config/default/index.js';
 import { createDefaultAgentPaths } from '../src/infrastructure/config/paths.js';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const paths = createDefaultAgentPaths({
   agentDir: '/tmp/rem-agent-test-nonexistent',
@@ -52,5 +55,19 @@ describe('DefaultConfigProvider', () => {
   it('listTeams returns configured teams with organizer and members', () => {
     const provider = new DefaultConfigProvider({ env: {} as NodeJS.ProcessEnv, paths });
     expect(provider.listTeams()).toEqual([]);
+  });
+
+  it('strictly resolves explicit named models while omitted uses the active model', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'rem-config-model-'));
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ activeModel: 'active', models: {
+      active: { provider: 'openai', model: 'active-model' }, named: { provider: 'anthropic', model: 'named-model' },
+    }, model: { provider: 'openai', model: 'fallback' } }));
+    const provider = new DefaultConfigProvider({ env: {} as NodeJS.ProcessEnv,
+      paths: createDefaultAgentPaths({ agentDir: dir, homeAgentDir: dir, env: {} }) });
+    expect(provider.getModelConfig().model).toBe('active-model');
+    expect(provider.getModelConfig('named')).toMatchObject({ provider: 'anthropic', model: 'named-model' });
+    expect(() => provider.getModelConfig('missing')).toThrow('Unknown model: missing');
+    expect(() => provider.getModelConfig('__proto__')).toThrow('Unknown model: __proto__');
+    expect(() => provider.getModelConfig('constructor')).toThrow('Unknown model: constructor');
   });
 });

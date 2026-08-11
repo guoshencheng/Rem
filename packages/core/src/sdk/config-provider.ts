@@ -85,6 +85,7 @@ export interface ConfigProvider {
   /** 初始化/重新加载配置。实现必须保证幂等。 */
   init(): Promise<void>;
   getConfig(): ResolvedAgentConfig;
+  /** Omitted resolves the configured default; an explicit ID must name cfg.models own entry. */
   getModelConfig(modelId?: string): ResolvedModelConfig;
   getToolConfig(): AgentToolConfig;
   getBehaviorConfig(): Required<AgentBehaviorConfig>;

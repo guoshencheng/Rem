@@ -64,7 +64,7 @@ describe('RecordingToolProvider', () => {
       .rejects.toMatchObject({ code: 'TOOL_NOT_FOUND' });
   });
 
-  it('leaves an ignored-abort side effect executing for Task 11 recovery', async () => {
+  it('marks an ignored-abort side effect unknown for deterministic recovery', async () => {
     const { store } = await createFakeRuntimeStore();
     await seed(store);
     const controller = new AbortController();
@@ -73,7 +73,8 @@ describe('RecordingToolProvider', () => {
     const provider = new RecordingToolProvider({ storage: store, provider: base, run, allowedToolNames: ['acme_lookup'] });
     await expect(provider.execute([{ toolCallId: 'c', toolName: 'acme_lookup', input: {} }], { cwd: '/', workspaceRoot: '/', signal: controller.signal }))
       .rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
-    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'executing', sideEffect: 'non-idempotent' }]);
+    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'unknown', sideEffect: 'non-idempotent' }]);
+    expect((await store.listEvents('r')).map((event) => event.type)).toEqual(['tool.started', 'tool.result_unknown']);
   });
 
   it('records explicit tool failures without leaking provider errors', async () => {

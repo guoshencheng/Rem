@@ -16,6 +16,9 @@ import { StaticToolProvider } from '../plugins/tool/static/index.js';
 import { RecordingToolProvider } from './recording-tool-provider.js';
 import { normalizeRuntimeToolContribution } from '../application/contexts/runtime-tool-definition.js';
 import { isUserMessageContent } from '../domain/run/message-trigger-content.js';
+import { LinkedAbortController } from './linked-abort-controller.js';
+import { NoOpRuntimeCompressor } from './noop-runtime-compressor.js';
+import { ToolFatalState } from './tool-fatal-state.js';
 import type { RunExecutionResult, RunExecutor } from './run-executor.js';
 
 export interface REMAgentRunExecutorOptions {
@@ -30,7 +33,17 @@ export class REMAgentRunExecutor implements RunExecutor {
   constructor(private readonly options: REMAgentRunExecutorOptions) {}
 
   async execute(input: { run: AgentRun; session: AgentSession; signal: AbortSignal }): Promise<RunExecutionResult> {
-    const { run, session, signal } = input;
+    const linked = new LinkedAbortController(input.signal);
+    const fatal = new ToolFatalState(() => linked.controller.abort());
+    try { return await this._execute(input.run, input.session, linked.controller.signal, fatal); }
+    catch (error) {
+      if (fatal.error) throw fatal.error;
+      if (input.signal.aborted) throw new RuntimeError('EXECUTION_CANCELLED', 'Run execution cancelled');
+      throw error;
+    } finally { linked.dispose(); }
+  }
+
+  private async _execute(run: AgentRun, session: AgentSession, signal: AbortSignal, fatal: ToolFatalState): Promise<RunExecutionResult> {
     assertNotAborted(signal);
     this._validateOwnership(run, session);
     const definition = await this._loadDefinition(run);
@@ -51,7 +64,7 @@ export class REMAgentRunExecutor implements RunExecutor {
     const provider = new StaticToolProvider(normalizedTools);
     const recording = new RecordingToolProvider({
       storage: this.options.storage, provider, run: structuredClone(run),
-      allowedToolNames: definition.toolNames,
+      allowedToolNames: definition.toolNames, fatalState: fatal,
     });
     const systemPrompt = this._systemPrompt(definition, run);
     const executionRoot = this._executionRoot(run);
@@ -59,7 +72,7 @@ export class REMAgentRunExecutor implements RunExecutor {
     assertNotAborted(signal);
     const agent = new REMAgent({
       agentId: run.agentId, sessionId: session.sessionId,
-      di: { ...this.options.assembly.di, configProvider, toolProvider: recording },
+      di: { ...this.options.assembly.di, configProvider, toolProvider: recording, compressor: new NoOpRuntimeCompressor() },
       runtimeConfig: this.options.assembly.runtimeConfig,
       session: this._legacySession(session, entries),
       workspace: executionRoot, workspaceRoot: executionRoot, systemPrompt,
@@ -78,6 +91,7 @@ export class REMAgentRunExecutor implements RunExecutor {
         modelError = event.error.message;
       }
     }
+    fatal.assertHealthy();
     if (signal.aborted) throw new RuntimeError('EXECUTION_CANCELLED', 'Run execution cancelled');
     if (modelError) throw new RuntimeError('MODEL_EXECUTION_FAILED', 'Model execution failed', false, undefined, {
       cause: new Error(modelError),
@@ -119,13 +133,20 @@ export class REMAgentRunExecutor implements RunExecutor {
 
   private _configProvider(definition: AgentDefinition): ConfigProvider {
     const base = this.options.assembly.di.configProvider;
+    const model = resolveRuntimeModel(base, definition.modelId);
+    const compression = { ...base.getCompressionConfig(), enabled: false };
+    const behavior = { ...base.getBehaviorConfig(), compression };
     let scoped!: ConfigProvider;
     scoped = new Proxy(base, {
       get(target, property) {
         if (property === 'resolveAgent') return () => ({
           id: definition.agentId, name: definition.name, corePrompt: definition.instructions,
-          model: target.getModelConfig(definition.modelId),
+          model,
         });
+        if (property === 'getCompressionConfig') return () => ({ ...compression });
+        if (property === 'getBehaviorConfig') return () => ({ ...behavior, compression: { ...compression } });
+        if (property === 'getConfig') return () => ({ ...behavior, compression: { ...compression },
+          policy: target.getToolConfig().policy, model });
         // The persisted snapshot, not a mutable filesystem scope, defines this run.
         if (property === 'forWorkspace') return () => scoped;
         const value = Reflect.get(target, property, target) as unknown;
@@ -168,4 +189,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function assertNotAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new RuntimeError('EXECUTION_CANCELLED', 'Run execution cancelled');
+}
+
+function resolveRuntimeModel(provider: ConfigProvider, modelId: string) {
+  try { return provider.getModelConfig(modelId); }
+  catch (cause) { throw new RuntimeError('MODEL_UNAVAILABLE', 'Configured model is unavailable', false, undefined, { cause }); }
 }

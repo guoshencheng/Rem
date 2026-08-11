@@ -68,7 +68,7 @@ describe('Runtime abort boundaries', () => {
     expect(await base.listEvents('r')).toMatchObject([{ type: 'tool.started' }, { type: 'tool.failed', data: { errorCode: 'EXECUTION_CANCELLED' } }]);
   });
 
-  it('abort after the provider returns but before success commit leaves executing', async () => {
+  it('abort after the provider returns but before success commit marks unknown', async () => {
     const base = await prepared();
     const controller = new AbortController(); let transactions = 0; let called = 0;
     const wrapped = { ...base, transaction: async (operation: never) => {
@@ -80,8 +80,8 @@ describe('Runtime abort boundaries', () => {
       .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/', signal: controller.signal }))
       .rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
     expect(called).toBe(1);
-    expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'executing' }]);
-    expect((await base.listEvents('r')).map((event) => event.type)).toEqual(['tool.started']);
+    expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'unknown' }]);
+    expect((await base.listEvents('r')).map((event) => event.type)).toEqual(['tool.started', 'tool.result_unknown']);
   });
 
   it('rechecks cancellation after definition loading before storage access', async () => {
@@ -154,7 +154,7 @@ describe('Runtime tool result boundary', () => {
     } } as RuntimeStorage;
     await expect(recorder(wrapped, async () => ({ output: 'x', details: new Date() })).execute(
       [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/' },
-    )).rejects.toThrow('storage unavailable');
+    )).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE', retryable: true, cause: expect.any(Error) });
     expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'executing' }]);
   });
 });

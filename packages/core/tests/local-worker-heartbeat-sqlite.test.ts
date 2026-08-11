@@ -12,7 +12,7 @@ describe('LocalRunWorker SQLite heartbeat fencing', () => {
   const paths: string[] = [];
   afterEach(() => { for (const path of paths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
-  it('长执行续租阻止另一 store 领取，soft expiry 未被抢时可续租后完成', async () => {
+  it('时钟回拨不缩短 lease，前跳越过 soft expiry 后 token 未变仍可单调续租', async () => {
     const opened = openPair(paths); const scheduler = new ManualScheduler();
     let now = baseTime; const entered = deferred<void>(); const result = deferred<typeof successResult>();
     try {
@@ -20,16 +20,16 @@ describe('LocalRunWorker SQLite heartbeat fencing', () => {
       const worker = createSqliteWorker(opened.storeA, scheduler, () => now, entered, result, 'worker-a');
       const drain = worker.drainOne(); await entered.promise;
 
-      now = new Date(baseTime.getTime() + 30);
+      now = new Date(baseTime.getTime() - 50);
       scheduler.runDelay(30);
-      await waitForExpiry(opened.storeA, baseTime.getTime() + 120);
-      now = new Date(baseTime.getTime() + 100);
+      await waitForLease(opened.storeA, baseTime.getTime() + 90, baseTime.getTime());
+      now = new Date(baseTime.getTime() + 80);
       await expect(opened.storeB.claimWorkItem('worker-b', now, 90)).resolves.toBeNull();
 
-      // A later heartbeat can renew even after its soft expiry when no newer fencing token exists.
       now = new Date(baseTime.getTime() + 130);
       scheduler.runDelay(30);
-      await waitForExpiry(opened.storeA, baseTime.getTime() + 220);
+      await waitForLease(opened.storeA, baseTime.getTime() + 220, baseTime.getTime() + 130);
+      await expect(opened.storeB.claimWorkItem('worker-b', now, 90)).resolves.toBeNull();
       result.resolve(successResult); await drain;
       expect(await opened.storeA.getRun('run-1')).toMatchObject({ status: 'completed' });
     } finally { opened.close(); }
@@ -85,11 +85,11 @@ function createSqliteWorker(
     scheduler, now, generateId: () => `${owner}-${++id}` });
 }
 
-async function waitForExpiry(store: SqliteRuntimeStore, expected: number): Promise<void> {
+async function waitForLease(store: SqliteRuntimeStore, expectedExpiry: number, expectedUpdatedAt: number): Promise<void> {
   for (let index = 0; index < 20; index += 1) {
-    const expiry = await store.transaction((uow) => uow.workItems.getByRun('run-1')?.leaseExpiresAt?.getTime());
-    if (expiry === expected) return;
+    const work = await store.transaction((uow) => uow.workItems.getByRun('run-1'));
+    if (work?.leaseExpiresAt?.getTime() === expectedExpiry && work.updatedAt.getTime() === expectedUpdatedAt) return;
     await Promise.resolve();
   }
-  throw new Error(`Lease expiry did not reach ${expected}`);
+  throw new Error(`Lease did not reach expiry=${expectedExpiry}, updatedAt=${expectedUpdatedAt}`);
 }

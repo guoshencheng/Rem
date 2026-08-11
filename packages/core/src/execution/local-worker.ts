@@ -1,21 +1,16 @@
 import type { RuntimeStorage } from '../sdk/runtime-storage.js';
-import type { WorkItem } from '../domain/run/types.js';
-import type { RunExecutor, RunExecutionResult } from './run-executor.js';
+import type { RunExecutor } from './run-executor.js';
 import type { LocalRunWorkerOptions, ResolvedLocalRunWorkerOptions } from './local-worker-options.js';
-import type { InterruptReason } from './run-execution-control.js';
+import type { ExecutionOutcome } from './run-outcome-types.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
 import { RunCancellation } from './run-cancellation.js';
 import { RunCompletion } from './run-completion.js';
 import { RunExecutionControl } from './run-execution-control.js';
 import { RunLease } from './run-lease.js';
-import { executionFailure, readWorkerNow, resolveWorkerOptions, storageFailure } from './local-worker-options.js';
-import { validateRunOutput } from './run-output-validation.js';
+import { readWorkerNow, resolveWorkerOptions, storageFailure } from './local-worker-options.js';
+import { RunOutcomePersistence } from './run-outcome-persistence.js';
+import { releaseWorkClaimAfterFailure } from './work-claim-release.js';
 import { WorkerPollLoop } from './worker-poll-loop.js';
-
-type ExecutionOutcome =
-  | { kind: 'success'; result: RunExecutionResult }
-  | { kind: 'error'; error: unknown }
-  | { kind: 'interrupt'; reason: InterruptReason };
 
 interface ActiveExecution { control: RunExecutionControl; lease: RunLease }
 export interface LocalRunWorkerHealth { lastPollError?: RuntimeError }
@@ -23,6 +18,7 @@ export interface LocalRunWorkerHealth { lastPollError?: RuntimeError }
 export class LocalRunWorker {
   private readonly options: ResolvedLocalRunWorkerOptions;
   private readonly completion: RunCompletion;
+  private readonly outcomePersistence: RunOutcomePersistence;
   private readonly cancellation: RunCancellation;
   private readonly pollLoop: WorkerPollLoop;
   private readonly active = new Map<string, ActiveExecution>();
@@ -42,6 +38,7 @@ export class LocalRunWorker {
       throw new TypeError('A RunExecutor is required');
     }
     this.completion = new RunCompletion(storage, this.options);
+    this.outcomePersistence = new RunOutcomePersistence(this.completion);
     this.cancellation = new RunCancellation(storage, this.options);
     this.pollLoop = new WorkerPollLoop(this.options, () => this.drainOne(), stableWorkerError);
   }
@@ -66,6 +63,8 @@ export class LocalRunWorker {
     return this.pollLoop.health;
   }
 
+  resetHealth(): void { this.pollLoop.resetHealth(); }
+
   start(): void { this.pollLoop.start(); }
 
   async stop(): Promise<void> {
@@ -82,16 +81,21 @@ export class LocalRunWorker {
 
   private async _performDrain(): Promise<boolean> {
     let claimed;
+    const claimAt = readWorkerNow(this.options.now);
     try {
       claimed = await this.storage.claimWorkItem(
-        this.options.owner, readWorkerNow(this.options.now), this.options.leaseMs,
+        this.options.owner, claimAt, this.options.leaseMs,
       );
     } catch (error) { throw storageFailure(error); }
     if (!claimed) return false;
 
     let control: RunExecutionControl;
     try { control = new RunExecutionControl(this.options.scheduler, this.options.runTimeoutMs); }
-    catch (error) { throw stableWorkerError(error); }
+    catch (error) {
+      return releaseWorkClaimAfterFailure(
+        this.storage, claimed, this.options.owner, claimAt, stableWorkerError(error),
+      );
+    }
     let leaseError: RuntimeError | undefined;
     const lease = new RunLease(this.storage, claimed, this.options, (error) => {
       leaseError = error; control.interruptLeaseLost(); this.pollLoop.recordError(error);
@@ -137,7 +141,7 @@ export class LocalRunWorker {
         }
       }
       if (leaseError) throw leaseError;
-      await this._persistOutcome(lease.current(), outcome);
+      await this.outcomePersistence.persist(lease.current(), outcome);
       if (timerError) { this.pollLoop.recordError(timerError); throw timerError; }
       return true;
     } catch (error) {
@@ -151,39 +155,6 @@ export class LocalRunWorker {
     }
   }
 
-  private async _persistOutcome(claimed: WorkItem, outcome: ExecutionOutcome): Promise<void> {
-    if (outcome.kind === 'success') {
-      let output;
-      try {
-        output = validateRunOutput(outcome.result);
-      } catch {
-        try {
-          const applied = await this.completion.fail(claimed, { code: 'INTERNAL_ERROR', retryable: false });
-          if (!applied) throw leaseConflict();
-        }
-        catch (failureError) { throw storageFailure(failureError); }
-        return;
-      }
-      try {
-        const applied = await this.completion.succeed(claimed, output);
-        if (!applied) throw leaseConflict();
-      }
-      catch (error) { throw storageFailure(error); }
-      return;
-    }
-    const executorFailure = outcome.kind === 'error' ? executionFailure(outcome.error) : undefined;
-    const failure = outcome.kind === 'interrupt'
-      ? { code: outcome.reason === 'timeout' ? 'EXECUTION_TIMEOUT' as const
-          : outcome.reason === 'cancelled' ? 'EXECUTION_CANCELLED' as const : 'RUN_CONFLICT' as const,
-          retryable: outcome.reason === 'lease-lost', cancelled: outcome.reason === 'cancelled' }
-      : { ...executorFailure!, cancelled: executorFailure!.code === 'EXECUTION_CANCELLED' };
-    try {
-      const applied = await this.completion.fail(claimed, failure);
-      if (!applied) throw leaseConflict();
-    }
-    catch (error) { throw storageFailure(error); }
-  }
-
 }
 
 export type { LocalRunWorkerOptions, WorkerScheduler } from './local-worker-options.js';
@@ -193,5 +164,3 @@ function stableWorkerError(error: unknown): RuntimeError {
     ? error
     : new RuntimeError('INTERNAL_ERROR', 'Local worker operation failed', false, undefined, { cause: error });
 }
-
-const leaseConflict = (): RuntimeError => new RuntimeError('RUN_CONFLICT', 'Execution lease is no longer valid', true);

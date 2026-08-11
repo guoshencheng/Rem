@@ -1,3 +1,4 @@
+import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { describe, expect, it } from 'vitest';
 import { createWorker, deferred, fakeStore, ManualScheduler, seedRun, successResult } from './helpers/local-worker-fixture.js';
 
@@ -51,13 +52,34 @@ describe('LocalRunWorker shutdown 与 scheduler 异常', () => {
     expect(result.error).toMatchObject({ code: 'RUN_CONFLICT' });
   });
 
-  it('execution timer setTimeout 抛错时保持 queued 且无 started 事件', async () => {
+  it('execution timer setTimeout 抛错时归还 claim，允许立即重试', async () => {
     const store = await fakeStore(); await seedRun(store);
-    const scheduler = new ThrowingScheduler('set');
-    const worker = createWorker(store, { execute: async () => successResult }, { scheduler });
+    const scheduler = new ThrowingScheduler('set-once'); let calls = 0;
+    const worker = createWorker(store, { execute: async () => { calls += 1; return successResult; } }, { scheduler });
     await expect(worker.drainOne()).rejects.toMatchObject({ code: 'INTERNAL_ERROR' });
     expect(await store.getRun('run-1')).toMatchObject({ status: 'queued' });
     expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created']);
+    await store.transaction((uow) => {
+      const work = uow.workItems.getByRun('run-1')!;
+      expect(work).toMatchObject({ status: 'queued', attempt: 1 });
+      expect(work.leaseOwner).toBeUndefined(); expect(work.leaseExpiresAt).toBeUndefined();
+    });
+    await expect(worker.drainOne()).resolves.toBe(true);
+    expect(calls).toBe(1);
+    await store.transaction((uow) => expect(uow.workItems.getByRun('run-1'))
+      .toMatchObject({ status: 'completed', attempt: 2 }));
+  });
+
+  it('timer arm 失败后的 claim 已被新 token 取代时不覆盖并报告冲突', async () => {
+    const base = await fakeStore(); await seedRun(base);
+    const storage = replaceLeaseAfterClaim(base);
+    const worker = createWorker(storage, { execute: async () => successResult }, {
+      scheduler: new ThrowingScheduler('set'),
+    });
+    await expect(worker.drainOne()).rejects.toMatchObject({ code: 'RUN_CONFLICT', retryable: true });
+    await base.transaction((uow) => expect(uow.workItems.getByRun('run-1'))
+      .toMatchObject({ status: 'leased', leaseOwner: 'worker-b', attempt: 2 }));
+    expect((await base.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created']);
   });
 
   it('start 调度失败可重试；clearTimeout 失败在成功持久化后暴露', async () => {
@@ -107,4 +129,21 @@ class ThrowingScheduler {
     if (!found) throw new Error(`No timer scheduled for ${delayMs}ms`);
     this.tasks.delete(found[0]); found[1].callback();
   }
+}
+
+function replaceLeaseAfterClaim(storage: RuntimeStorage): RuntimeStorage {
+  return {
+    transaction: (operation) => storage.transaction(operation),
+    getSession: (id) => storage.getSession(id), getRun: (id) => storage.getRun(id),
+    listEvents: (id, after, limit) => storage.listEvents(id, after, limit),
+    listArtifacts: (id) => storage.listArtifacts(id),
+    claimWorkItem: async (owner, now, lease) => {
+      const claimed = await storage.claimWorkItem(owner, now, lease);
+      if (claimed) await storage.transaction((uow) => uow.workItems.update({
+        ...claimed, leaseOwner: 'worker-b', attempt: claimed.attempt + 1,
+      }));
+      return claimed;
+    },
+    listRecoverableWorkItems: (now) => storage.listRecoverableWorkItems(now),
+  };
 }

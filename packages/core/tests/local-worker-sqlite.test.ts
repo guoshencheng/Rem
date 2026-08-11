@@ -105,4 +105,38 @@ describe('LocalRunWorker SQLite 组合边界', () => {
       expect(await store.getRun('run-1')).toMatchObject({ status: 'failed', startedAt: baseTime, finishedAt: baseTime });
     } finally { db.close(); }
   });
+
+  it('execution timer 首次 arm 失败后 CAS 归还 claim，下一次立即以 attempt 2 执行', async () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON'); new SqliteSchemaManager(db).migrate();
+    const store = new SqliteRuntimeStore(db); const scheduler = new FailOnceScheduler();
+    try {
+      await seedRun(store); let calls = 0;
+      const worker = new LocalRunWorker(store, { execute: async () => { calls += 1; return successResult; } }, {
+        owner: 'sqlite-worker', leaseMs: 1_000, pollMs: 10, runTimeoutMs: 5_000,
+        now: () => baseTime, generateId: (() => { let id = 0; return () => `retry-${++id}`; })(), scheduler,
+      });
+      await expect(worker.drainOne()).rejects.toMatchObject({ code: 'INTERNAL_ERROR' });
+      await store.transaction((uow) => {
+        const work = uow.workItems.getByRun('run-1')!;
+        expect(work).toMatchObject({ status: 'queued', attempt: 1, updatedAt: baseTime });
+        expect(work.leaseOwner).toBeUndefined(); expect(work.leaseExpiresAt).toBeUndefined();
+      });
+
+      await expect(worker.drainOne()).resolves.toBe(true);
+      expect(calls).toBe(1);
+      await store.transaction((uow) => expect(uow.workItems.getByRun('run-1'))
+        .toMatchObject({ status: 'completed', attempt: 2 }));
+    } finally { db.close(); }
+  });
 });
+
+class FailOnceScheduler {
+  private calls = 0;
+  setTimeout(): number {
+    this.calls += 1;
+    if (this.calls === 1) throw new Error('first timer failed');
+    return this.calls;
+  }
+  clearTimeout(): void {}
+}

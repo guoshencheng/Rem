@@ -6,12 +6,22 @@ describe('LocalRunWorker options', () => {
   it.each([
     { owner: '' }, { owner: '   ' }, { leaseMs: 0 }, { leaseMs: 0.5 }, { leaseMs: Number.MAX_VALUE },
     { pollMs: Number.NaN }, { pollMs: -1 }, { runTimeoutMs: Number.POSITIVE_INFINITY },
-    { heartbeatMs: 0 }, { leaseMs: 10, heartbeatMs: 11 },
+    { heartbeatMs: 0 }, { leaseMs: 1 }, { leaseMs: 10, heartbeatMs: 6 },
   ])('拒绝非法配置 %#', async (change) => {
     const store = await fakeStore();
     expect(() => new LocalRunWorker(store, { execute: async () => successResult }, {
-      owner: 'worker', leaseMs: 1, pollMs: 1, runTimeoutMs: 1, ...change,
+      owner: 'worker', leaseMs: 2, pollMs: 1, runTimeoutMs: 1, ...change,
     })).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+  });
+
+  it('最小 lease 2ms 的默认 heartbeat 安全，且显式 heartbeat 允许到 lease 一半', async () => {
+    const store = await fakeStore(); const scheduler = { setTimeout: () => 1, clearTimeout: () => {} };
+    expect(() => new LocalRunWorker(store, { execute: async () => successResult }, {
+      owner: 'worker', leaseMs: 2, pollMs: 1, runTimeoutMs: 1, scheduler,
+    })).not.toThrow();
+    expect(() => new LocalRunWorker(store, { execute: async () => successResult }, {
+      owner: 'worker', leaseMs: 10, heartbeatMs: 5, pollMs: 1, runTimeoutMs: 1, scheduler,
+    })).not.toThrow();
   });
 
   it('每次运行时拒绝无效 clock 值', async () => {
@@ -44,14 +54,14 @@ describe('LocalRunWorker options', () => {
     '非法 scheduler %# 映射 INVALID_INPUT', async (scheduler) => {
       const store = await fakeStore();
       expect(() => new LocalRunWorker(store, { execute: async () => successResult }, {
-        owner: 'worker', leaseMs: 1, pollMs: 1, runTimeoutMs: 1, scheduler: scheduler as never,
+        owner: 'worker', leaseMs: 2, pollMs: 1, runTimeoutMs: 1, scheduler: scheduler as never,
       })).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
     },
   );
 
   it('拒绝 options/scheduler accessor 且不执行 getter', async () => {
     const store = await fakeStore(); let reads = 0;
-    const options = { owner: 'worker', leaseMs: 1, pollMs: 1, runTimeoutMs: 1 };
+    const options = { owner: 'worker', leaseMs: 2, pollMs: 1, runTimeoutMs: 1 };
     Object.defineProperty(options, 'scheduler', { enumerable: true, get: () => { reads += 1; return null; } });
     expect(() => new LocalRunWorker(store, { execute: async () => successResult }, options))
       .toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));

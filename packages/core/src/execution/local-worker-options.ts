@@ -16,7 +16,7 @@ export interface LocalRunWorkerOptions {
   now?: () => Date;
   generateId?: () => string;
   scheduler?: WorkerScheduler;
-  onPollError?: (error: RuntimeError) => void;
+  onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
 }
 
 export interface ResolvedLocalRunWorkerOptions {
@@ -28,7 +28,7 @@ export interface ResolvedLocalRunWorkerOptions {
   now: () => Date;
   generateId: () => string;
   scheduler: WorkerScheduler;
-  onPollError?: (error: RuntimeError) => void;
+  onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
 }
 
 const defaultScheduler: WorkerScheduler = {
@@ -55,16 +55,20 @@ function resolveOptions(value: unknown): ResolvedLocalRunWorkerOptions {
   const pollMs = positiveInteger(ownValue(options, 'pollMs'), 'pollMs');
   const runTimeoutMs = positiveInteger(ownValue(options, 'runTimeoutMs'), 'runTimeoutMs');
   const heartbeatValue = ownValue(options, 'heartbeatMs');
+  const heartbeatLimit = Math.floor(leaseMs / 2);
+  if (heartbeatLimit < 1) invalid('leaseMs must be at least 2');
   const heartbeatMs = heartbeatValue === undefined
     ? Math.max(1, Math.floor(leaseMs / 3))
     : positiveInteger(heartbeatValue, 'heartbeatMs');
-  if (heartbeatMs > leaseMs) invalid('heartbeatMs cannot exceed leaseMs');
+  if (heartbeatMs > heartbeatLimit) invalid('heartbeatMs cannot exceed half of leaseMs');
   if (!Number.isFinite(new Date(leaseMs).getTime())) invalid('leaseMs must produce a finite Date duration');
   const now = optionalFunction<() => Date>(ownValue(options, 'now'), 'now') ?? (() => new Date());
   const generateId = optionalFunction<() => string>(ownValue(options, 'generateId'), 'generateId') ?? defaultGenerateId;
   const schedulerValue = ownValue(options, 'scheduler');
   const scheduler = schedulerValue === undefined ? defaultScheduler : normalizeScheduler(schedulerValue);
-  const onPollError = optionalFunction<(error: RuntimeError) => void>(ownValue(options, 'onPollError'), 'onPollError');
+  const onPollError = optionalFunction<(error: RuntimeError) => void | PromiseLike<void>>(
+    ownValue(options, 'onPollError'), 'onPollError',
+  );
   if (schedulerValue === undefined
     && [pollMs, runTimeoutMs, heartbeatMs].some((delay) => delay > MAX_NODE_TIMER_DELAY_MS)) {
     invalid(`Default scheduler delays cannot exceed ${MAX_NODE_TIMER_DELAY_MS}`);

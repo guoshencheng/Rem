@@ -4,6 +4,7 @@ import type { RuntimeStorage } from '../sdk/runtime-storage.js';
 import type { ResolvedLocalRunWorkerOptions } from './local-worker-options.js';
 import { RuntimeError as StableRuntimeError } from '../application/runtime/runtime-error.js';
 import { readWorkerNow, storageFailure } from './local-worker-options.js';
+import { latestValidDate, sameWorkLease, workLeaseConflict } from './work-lease-token.js';
 import { clearWorkerTimer, scheduleWorkerTimer } from './worker-timer.js';
 
 export class RunLease {
@@ -24,8 +25,8 @@ export class RunLease {
 
   async renew(): Promise<void> {
     const at = readWorkerNow(this.options.now);
-    const expiresAt = new Date(at.getTime() + this.options.leaseMs);
-    if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= at.getTime()) {
+    const proposedExpiry = new Date(at.getTime() + this.options.leaseMs);
+    if (!Number.isFinite(proposedExpiry.getTime()) || proposedExpiry.getTime() <= at.getTime()) {
       throw new StableRuntimeError('INVALID_INPUT', 'Lease renewal must produce a valid expiry');
     }
     let renewed: WorkItem | 'missing' | null;
@@ -33,8 +34,12 @@ export class RunLease {
       renewed = await this.storage.transaction((uow) => {
         const live = uow.workItems.getByRun(this.token.runId);
         if (!live) return 'missing';
-        if (!sameLease(live, this.token, this.options.owner)) return null;
-        const next = { ...live, leaseExpiresAt: expiresAt, updatedAt: at };
+        if (!sameWorkLease(live, this.token, this.options.owner)) return null;
+        const next = {
+          ...live,
+          leaseExpiresAt: latestValidDate(live.leaseExpiresAt!, proposedExpiry),
+          updatedAt: latestValidDate(live.updatedAt, at),
+        };
         uow.workItems.update(next);
         return structuredClone(next);
       });
@@ -42,7 +47,7 @@ export class RunLease {
     if (renewed === 'missing') {
       throw new StableRuntimeError('STORAGE_UNAVAILABLE', 'Claimed work item is missing', true);
     }
-    if (!renewed) throw leaseLost();
+    if (!renewed) throw workLeaseConflict();
     this.token = renewed;
   }
 
@@ -89,12 +94,3 @@ export class RunLease {
     } finally { this.renewal = undefined; }
   }
 }
-
-function sameLease(live: WorkItem, token: WorkItem, owner: string): boolean {
-  return live.workItemId === token.workItemId && live.runId === token.runId
-    && live.status === 'leased' && live.leaseOwner === owner && live.attempt === token.attempt
-    && live.leaseExpiresAt?.getTime() === token.leaseExpiresAt?.getTime();
-}
-
-const leaseLost = (): StableRuntimeError =>
-  new StableRuntimeError('RUN_CONFLICT', 'Execution lease was lost', true);

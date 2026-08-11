@@ -116,4 +116,3 @@ function delaySecondTransaction(
     listRecoverableWorkItems: (now) => storage.listRecoverableWorkItems(now),
   };
 }
-import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';

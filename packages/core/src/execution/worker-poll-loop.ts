@@ -38,9 +38,15 @@ export class WorkerPollLoop {
   }
 
   recordError(error: RuntimeError): void {
+    if (this.lastError === error) return;
     this.lastError = error;
-    try { this.options.onPollError?.(error); } catch { /* Keep the original health failure. */ }
+    let hookResult: void | PromiseLike<void>;
+    try { hookResult = this.options.onPollError?.(error); }
+    catch { return; }
+    if (hookResult !== undefined) void Promise.resolve(hookResult).catch(() => {});
   }
+
+  resetHealth(): void { this.lastError = undefined; }
 
   private _schedule(delayMs: number, generation: number): void {
     if (!this.started || generation !== this.generation) return;
@@ -63,8 +69,11 @@ export class WorkerPollLoop {
   }
 
   private async _poll(generation: number): Promise<void> {
-    try { await this.drain(); this.lastError = undefined; }
-    catch (error) { this.recordError(this.normalizeError(error)); }
+    try { if (await this.drain()) this.resetHealth(); }
+    catch (error) {
+      const stable = this.normalizeError(error);
+      if (this.lastError !== stable) this.recordError(stable);
+    }
     finally {
       if (this.started && generation === this.generation) {
         try { this._schedule(this.options.pollMs, generation); }

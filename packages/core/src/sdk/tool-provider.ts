@@ -18,6 +18,11 @@ export interface ToolContext {
   sessionId?: string;
   toolCallId?: string;
   outsideAllowed?: boolean;
+  tenantId?: string;
+  principalId?: string;
+  runId?: string;
+  invocationId?: string;
+  idempotencyKey?: string;
 }
 
 export interface ToolDefinition<T extends TObject = TObject> {
@@ -27,6 +32,8 @@ export interface ToolDefinition<T extends TObject = TObject> {
   category?: 'filesystem' | 'shell' | 'search';
   dangerous?: boolean;
   readOnly?: boolean;
+  sideEffect?: 'none' | 'idempotent' | 'non-idempotent';
+  supportsIdempotencyKey?: boolean;
   /** Derive rule patterns from a tool call input. */
   derivePatterns?: (input: Static<T>) => string[];
   /** Generate always-options for the approval UI. */

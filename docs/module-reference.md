@@ -25,7 +25,7 @@
 
 ### `execution/`
 
-`LocalRunWorker`（轮询、lease、恢复、取消）与 `REMAgentRunExecutor`（持久化 Run 到 REMAgent loop 的 legacy adapter）。`RecordingToolProvider` 记录 ToolInvocation 与 tool.* 事件；`run-completion.ts` 与 `run-outcome-persistence.ts` 负责输出校验和事务式收尾。
+`LocalRunWorker`（轮询、lease、恢复、取消）与 `REMAgentRunExecutor`（持久化 Run 到 REMAgent loop 的 legacy adapter）。`RecordingToolProvider` 记录 ToolInvocation 与 tool.* 事件；`run-output-validation.ts` 校验执行器输出，`run-outcome-persistence.ts` 与 `run-completion.ts` 负责事务式收尾。
 
 ### `runtime-events/`
 

@@ -38,6 +38,7 @@ async function createRuntime(
     owner: 'worker-1', leaseMs: 1_000, pollMs: 60_000, runTimeoutMs: 5_000,
     now: () => instant, generateId: () => `generated-${++id}`,
     scheduler: new ManualScheduler(),
+    // workerChanges 传入 onEventCommitted: undefined 可断开 Signal 接线，模拟 Signal 全部丢失。
     onEventCommitted: (event) => signals.publishEvent(event),
     ...workerChanges,
   });
@@ -172,6 +173,35 @@ describe('AgentRuntime', () => {
     await worker.drainOne();
     await expect(waiting).resolves.toMatchObject({ runId: run.runId, status: 'completed' });
     await expect(scoped.runs.waitForCompletion(run.runId)).resolves.toMatchObject({ status: 'completed' });
+    await runtime.shutdown();
+  });
+
+  it('waitForCompletion 在 pending Signal 未兑现时 abort 也能 settle', async () => {
+    const { runtime } = await createRuntime();
+    await runtime.initialize();
+    const scoped = runtime.as(context());
+    const run = await scoped.runs.start({ agentId: 'assistant', trigger: taskTrigger });
+
+    const controller = new AbortController();
+    const waiting = scoped.runs.waitForCompletion(run.runId, controller.signal);
+    const settled = waiting.then(() => 'settled', () => 'settled');
+    await tick(); // 让 wait 进入 parked next()（pending in flight）
+    controller.abort();
+    await expect(Promise.race([settled, tick(200).then(() => 'timeout')])).resolves.toBe('settled');
+    await expect(waiting).rejects.toThrow();
+    await runtime.shutdown();
+  });
+
+  it('waitForCompletion 在 Signal 全部丢失时通过轮询兜底检测到终态', async () => {
+    const { runtime, worker } = await createRuntime(successExecutor, { onEventCommitted: undefined });
+    await runtime.initialize();
+    const scoped = runtime.as(context());
+    const run = await scoped.runs.start({ agentId: 'assistant', trigger: taskTrigger });
+
+    const waiting = scoped.runs.waitForCompletion(run.runId);
+    await tick();
+    await worker.drainOne(); // 终态已提交，但没有任何 Signal 送达
+    await expect(waiting).resolves.toMatchObject({ runId: run.runId, status: 'completed' });
     await runtime.shutdown();
   });
 

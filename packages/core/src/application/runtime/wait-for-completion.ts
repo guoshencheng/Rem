@@ -33,6 +33,10 @@ export async function waitForRunCompletion(
       if (outcome.kind === 'signal') pending = undefined;
     }
   } finally {
+    // 先 close() 再 return()：此时可能还有 in-flight 的 pending = iterator.next()，
+    // 生成器停在 hub 的 waiter 上；close() 会 resolve waiter 让生成器恢复并自然结束，
+    // 否则排队的 return() 永远无法被处理（死锁）。close 后 parked next() 以 done 兑现，不产生 rejection。
+    subscription.close();
     await iterator.return?.();
   }
 }

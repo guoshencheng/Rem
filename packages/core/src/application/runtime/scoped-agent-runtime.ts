@@ -37,6 +37,8 @@ export class ScopedAgentRuntimeImpl implements ScopedAgentRuntime {
     start: async (input: StartRunInput): Promise<AgentRun> => {
       this.deps.ensureReady();
       const run = await this.deps.startRun.execute(this.deps.context, input);
+      // 幂等重放返回已有 Run 时也会再发一次 run.created；Signal 只是可丢失的 hint，
+      // 订阅方以持久化状态为准，重复提示不影响正确性。
       this.deps.signals.publish({ runId: run.runId, type: 'run.created', occurredAt: run.createdAt });
       return run;
     },

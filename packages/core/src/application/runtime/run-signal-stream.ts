@@ -32,6 +32,8 @@ async function* iterate(deps: StreamDeps, runId: string, signal?: AbortSignal): 
   signal?.addEventListener('abort', onAbort);
   try {
     // 订阅与首次读取之间存在终态窗口；此时 Signal 已错过，直接结束。
+    // 窗口内的非终态 Signal（如 run.started）同样可能丢失——Signal 本就是可丢失的 hint，
+    // 需要完整事件序列的消费者应改用 listEvents 的持久化游标。
     const current = await getScopedRun(deps.storage, tenantId, runId);
     if (isTerminalRunStatus(current.status)) return;
     for await (const runSignal of subscription) {

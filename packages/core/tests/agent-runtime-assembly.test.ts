@@ -6,8 +6,10 @@ import { createAgentRuntime, createAgentRuntimeFromEnv } from '../src/assembly/a
 import type { AgentDefinition } from '../src/domain/agent-definition/types.js';
 import type { RunSignal } from '../src/domain/event/types.js';
 import type { RuntimeRequestContext } from '../src/domain/identity/types.js';
+import { LocalRunWorker } from '../src/execution/local-worker.js';
 import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/index.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/provider.js';
+import type { AgentDefinitionProvider } from '../src/sdk/agent-definition-provider.js';
 import type { RuntimePlugin } from '../src/sdk/runtime-plugin.js';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import type { StorageProvider } from '../src/sdk/storage-provider.js';
@@ -99,6 +101,27 @@ describe('createAgentRuntime', () => {
     await runtime.shutdown();
     expect(assemblyStorageClose).not.toHaveBeenCalled();
   });
+
+  it('Worker stop 抛错时自建 Storage 仍被关闭，且 Worker 错误优先抛出', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'runtime-shutdown-failure-'));
+    vi.stubEnv('REM_AGENT_HOME', dir);
+    vi.stubEnv('HOME', dir);
+    const closeSpy = vi.spyOn(SqliteStorageProvider.prototype, 'close');
+    const stopFailure = new Error('worker stop boom');
+    // 不注入 assembly/storage：Runtime 自建默认装配，Storage 归 Runtime 所有
+    const runtime = createAgentRuntime({
+      agentDefinitions: new StaticAgentDefinitionProvider([definition()]),
+      worker: { pollMs: 60_000 },
+    });
+    await runtime.initialize();
+
+    vi.spyOn(LocalRunWorker.prototype, 'stop').mockRejectedValueOnce(stopFailure);
+    await expect(runtime.shutdown()).rejects.toBe(stopFailure);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    // shutdown 已终态，重试不再重复关闭
+    await runtime.shutdown();
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  }, 15000);
 });
 
 describe('createAgentRuntimeFromEnv', () => {
@@ -123,5 +146,24 @@ describe('createAgentRuntimeFromEnv', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1); // 仅关闭 Runtime 自建的默认 Storage
     expect(() => runtime.as(context())).toThrowError(expect.objectContaining({ code: 'INVALID_INPUT' }));
     await expect(runtime.initialize()).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  }, 15000);
+
+  it('初始化中途失败时关闭自建 Storage 并抛出原始错误', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'runtime-init-failure-'));
+    vi.stubEnv('REM_AGENT_HOME', dir);
+    vi.stubEnv('HOME', dir);
+    const closeSpy = vi.spyOn(SqliteStorageProvider.prototype, 'close');
+    // initializeAgentDI 打开 SQLite 之后，agentDefinitions.init() 抛错，调用方拿不到 runtime 句柄
+    const initFailure = new Error('definitions init boom');
+    const inner = new StaticAgentDefinitionProvider([definition()]);
+    const failing: AgentDefinitionProvider = {
+      init: async () => { throw initFailure; },
+      get: (agentId, revision) => inner.get(agentId, revision),
+      list: () => inner.list(),
+    };
+
+    await expect(createAgentRuntimeFromEnv({ agentDefinitions: failing, worker: { pollMs: 60_000 } }))
+      .rejects.toBe(initFailure);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
   }, 15000);
 });

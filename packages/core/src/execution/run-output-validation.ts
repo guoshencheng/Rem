@@ -13,7 +13,9 @@ export interface ValidatedRunOutput {
 
 export function validateRunOutput(value: unknown): ValidatedRunOutput {
   let cloned: unknown;
-  try { cloned = cloneCanonicalJson(value); }
+  // 模型消息的可选字段常携带显式 undefined own 属性（如 pi-ai 的 errorMessage）；
+  // 持久化按 JSON 语义将其视为缺席，校验克隆须采用同一语义。
+  try { cloned = cloneCanonicalJson(value, { omitUndefinedProperties: true }); }
   catch (cause) { return invalid('Executor result must be JSON-compatible', cause); }
   const result = record(cloned, 'executor result');
   if (!Array.isArray(result.sessionEntries) || !Array.isArray(result.artifacts)) {

@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 
-export function cloneCanonicalJson(value: unknown): unknown {
-  return canonicalize(value, new WeakSet<object>());
+export function cloneCanonicalJson(value: unknown, options?: { omitUndefinedProperties?: boolean }): unknown {
+  return canonicalize(value, new WeakSet<object>(), options?.omitUndefinedProperties === true);
 }
 
 export function hashCanonicalJson(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(cloneCanonicalJson(value))).digest('hex');
 }
 
-function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
+function canonicalize(value: unknown, ancestors: WeakSet<object>, omitUndefinedProperties: boolean): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new Error('Non-finite numbers are not JSON-compatible');
@@ -29,7 +29,7 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
         const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
         if (!descriptor) throw new Error('Sparse arrays are not JSON-compatible');
         if (!('value' in descriptor)) throw new Error('Accessor properties are not JSON-compatible');
-        result.push(canonicalize(descriptor.value, ancestors));
+        result.push(canonicalize(descriptor.value, ancestors, omitUndefinedProperties));
       }
       return result;
     } finally {
@@ -49,8 +49,10 @@ function canonicalize(value: unknown, ancestors: WeakSet<object>): unknown {
     for (const key of Object.keys(value).sort()) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !('value' in descriptor)) throw new Error('Accessor properties are not JSON-compatible');
+      // 与 JSON.stringify 一致：值为 undefined 的 own 属性视为缺席（仅显式开启时）。
+      if (omitUndefinedProperties && descriptor.value === undefined) continue;
       Object.defineProperty(result, key, {
-        value: canonicalize(descriptor.value, ancestors),
+        value: canonicalize(descriptor.value, ancestors, omitUndefinedProperties),
         enumerable: true,
         writable: true,
         configurable: true,

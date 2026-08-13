@@ -75,6 +75,7 @@ export class REMAgentRunExecutor implements RunExecutor {
       di: { ...this.options.assembly.di, configProvider, toolProvider: recording, compressor: new NoOpRuntimeCompressor() },
       runtimeConfig: this.options.assembly.runtimeConfig,
       session: this._legacySession(session, entries),
+      // legacy adapter 过渡字段：REMAgent 构造要求 workspace scope；新模型的执行范围由持久化快照定义。
       workspace: executionRoot, workspaceRoot: executionRoot, systemPrompt,
       toolCapabilities: { readSkill: false, delegateTask: false, todoWrite: false }, signal,
     });

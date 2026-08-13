@@ -107,6 +107,40 @@ Delivery 记录 message/resume、批次、请求方、目标 Thread、深度与�
 
 Core 暴露与传输无关的 `AgentSystem` 门面，覆盖 Session 创建/查询、消息发送、中止、Thread 列表、中心聊天投影、单 Thread 模型上下文和系统事件订阅。接入层无需指定由哪个 Agent 响应。
 
+## 持久化 Agent Runtime（新执行模型）
+
+在旧 `AgentSystem` 之外，Core 新增了一个以持久化 Run 为中心的执行模型，入口为 `createAgentRuntime`（`src/assembly/agent-runtime-assembly.ts`）。它由 `domain/`（纯类型与状态机）、`application/`（用例）、`execution/`（Worker 与执行器）三层组成，通过 `sdk/runtime-plugin.ts` 的 RuntimePlugin 贡献 Context 类型、Prompt section 与工具。
+
+### 请求路径
+
+```text
+runtime.as(requestContext).runs.start(input)
+        ↓
+StartRunUsecase：校验输入与 trigger、加载 AgentDefinition、
+应用 Session contexts + Run 级 ContextPatch、ContextResolver 解析快照
+        ↓
+单事务写入：Session（新建时）+ Run(queued) + run.created 事件 + WorkItem + 幂等记录
+        ↓
+LocalRunWorker 轮询 claim（lease）→ run.started
+        ↓
+REMAgentRunExecutor：从持久化快照 materialize 工具，桥接到 REMAgent 无状态 loop
+        ↓
+RecordingToolProvider：每次工具调用记录 ToolInvocation 与 tool.* 事件
+        ↓
+RunOutcomePersistence：校验输出后单事务提交 session entries + artifacts + run.completed
+```
+
+### 事务边界
+
+- start-run：Session、Run、首个事件、WorkItem、幂等记录在同一事务提交；带已有 Session 时用 `updatedAt` + contexts 哈希做乐观并发校验。
+- 工具生命周期：planned→executing 与 `tool.started` 一个事务；结果与 `tool.succeeded`/`tool.failed`/`tool.result_unknown` 一个事务。非幂等工具在崩溃恢复时标记 unknown 并把 Run 转 waiting，绝不重放。
+- Run 完成：session entries、artifacts、`run.completed` 与 WorkItem 收尾在同一事务；事件与状态变化永远同事务提交，事件流是唯一事实来源。
+- 运行时 Signal 只是可丢失的提示，订阅方以持久化事件与 Run 状态为准。
+
+### 与旧 AgentSystem 的关系
+
+旧 `AgentSystem`（`system/`、`orchestration/`、`session/`）继续服务现有接入层，两者并存。`REMAgentRunExecutor` 是 legacy adapter：它把不可变的持久化 Run 桥接到现有 REMAgent loop，不共享可变 DI，也不复用旧 Session 模型；旧路径的 `workspace` 概念不进入新领域模型，仅 executor 内的执行根目录是过渡字段。后续接入层迁移到 `AgentRuntime` 后，旧 AgentSystem 路径再逐步下线。
+
 ## 当前持久化模型
 
 - Session schema 使用 v2 tree entry；SQLite schema 当前为 v11。

@@ -11,8 +11,31 @@
 | `src/index.ts` | Core 公共 barrel 导出 |
 | `src/assembly/agent-factory.ts` | 从 Core 配置环境装配 Agent |
 | `src/assembly/agent-assembly.ts` | 同步构造 AgentDI 与 runtime config |
+| `src/assembly/agent-runtime-assembly.ts` | 装配持久化 AgentRuntime（`createAgentRuntime` / `createAgentRuntimeFromEnv`） |
 
-## 当前目录
+## 新执行模型目录
+
+### `domain/`
+
+新 Runtime 的纯领域类型与状态机，不含 I/O：`agent-definition/`、`run/`（Run/WorkItem/ToolInvocation 与 run-state）、`session/`、`context/`（ContextSet/Patch 与 apply）、`event/`、`artifact/`、`identity/`（RuntimeRequestContext）。
+
+### `application/`
+
+用例层。`runs/` 是 start-run 用例（输入校验、Context 校验、幂等哈希、单事务写入）与 Run 查询；`contexts/` 是 ContextResolver 与 canonical JSON；`runtime/` 是 `AgentRuntime` 门面、scoped 查询、事件订阅与 `waitForCompletion`。
+
+### `execution/`
+
+`LocalRunWorker`（轮询、lease、恢复、取消）与 `REMAgentRunExecutor`（持久化 Run 到 REMAgent loop 的 legacy adapter）。`RecordingToolProvider` 记录 ToolInvocation 与 tool.* 事件；`run-completion.ts` 与 `run-outcome-persistence.ts` 负责输出校验和事务式收尾。
+
+### `runtime-events/`
+
+`RunSignalHub`：进程内 Run 信号发布，只是可丢失的提示，事实以持久化事件为准。
+
+### `plugins/agent-definition/`
+
+AgentDefinitionProvider 内置实现。当前只有 `static/`：静态定义集，revision 省略时取 numeric 最大版本。
+
+## 当前目录（旧 AgentSystem 路径）
 
 ### `agent/`
 
@@ -32,7 +55,7 @@
 
 ### `plugins/`
 
-SDK 默认实现：budget、compressor、config、error、memory、session、skill、storage、title 和 tool。SQLite schema、SessionStore、archive、todo、workspace 存储位于 `plugins/storage/sqlite/`。
+SDK 默认实现：budget、compressor、config、error、memory、session、skill、storage、title 和 tool。SQLite schema、SessionStore、archive、todo、workspace 存储位于 `plugins/storage/sqlite/`；新 Runtime 的 `SqliteRuntimeStore`（sessions/runs/events/work items/tool invocations/artifacts/idempotency）与 `SqliteStorageProvider` 也在该目录。AgentDefinitionProvider 内置实现位于 `plugins/agent-definition/`。
 
 ### `plugin-system/`
 
@@ -44,7 +67,7 @@ REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-trans
 
 ### `sdk/`
 
-稳定抽象接口。当前包括 Agent role、budget、compressor、config、error、session、skill、storage、system prompt、title、tool policy 和 tool provider。插件相关稳定接口包括 `AgentPlugin`、`PromptSectionRegistry` 和 `SystemPromptAssembler`。
+稳定抽象接口。当前包括 Agent role、budget、compressor、config、error、session、skill、storage、system prompt、title、tool policy 和 tool provider。插件相关稳定接口包括 `AgentPlugin`、`PromptSectionRegistry` 和 `SystemPromptAssembler`。新 Runtime 的稳定接口为 `runtime-plugin.ts`（RuntimePlugin 与 ContextTypeContribution）、`runtime-storage.ts`（RuntimeStorage/UnitOfWork）和 `agent-definition-provider.ts`。
 
 ### `security/`
 

@@ -47,7 +47,8 @@ export class RunCompletion {
         return { kind: 'skip' };
       }
       if (run.status === 'running') {
-        // Tool-level recovery is Task 11. Never replay an execution whose side effects are uncertain.
+        // 重启恢复已在 initialize 完成（recover-runtime.ts）；此处仅剩运行期 lease 被接管，
+        // 副作用不确定的执行绝不重放。
         finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options, committed);
         return { kind: 'skip' };
       }

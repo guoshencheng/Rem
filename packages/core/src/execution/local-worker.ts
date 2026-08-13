@@ -8,6 +8,7 @@ import { RunCompletion } from './run-completion.js';
 import { RunExecutionControl } from './run-execution-control.js';
 import { RunLease } from './run-lease.js';
 import { readWorkerNow, resolveWorkerOptions, storageFailure } from './local-worker-options.js';
+import { recoverInterruptedRuns } from './recover-runtime.js';
 import { RunOutcomePersistence } from './run-outcome-persistence.js';
 import { releaseWorkClaimAfterFailure } from './work-claim-release.js';
 import { WorkerPollLoop } from './worker-poll-loop.js';
@@ -66,6 +67,17 @@ export class LocalRunWorker {
   resetHealth(): void { this.pollLoop.resetHealth(); }
 
   start(): void { this.pollLoop.start(); }
+
+  /** 重启恢复审计；须在 start() 前完成，避免 Worker 领取到崩溃残留的执行。 */
+  async recover(): Promise<void> {
+    try {
+      await recoverInterruptedRuns(this.storage, {
+        now: this.options.now,
+        generateId: this.options.generateId,
+        onEventCommitted: this.options.onEventCommitted,
+      });
+    } catch (error) { throw storageFailure(error); }
+  }
 
   async stop(): Promise<void> {
     const clearError = this.pollLoop.stop();

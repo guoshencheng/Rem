@@ -16,6 +16,8 @@ export class AgentRuntimeImpl implements AgentRuntime {
     if (this.state === 'ready') return;
     if (this.state === 'shutdown') throw new RuntimeError('INVALID_INPUT', 'AgentRuntime has been shut down');
     await this.deps.agentDefinitions.init();
+    // 恢复审计必须在 Worker start 前完成，否则崩溃残留的 running Run 会被直接判失败。
+    await this.deps.worker.recover();
     this.deps.worker.start();
     this.state = 'ready';
   }

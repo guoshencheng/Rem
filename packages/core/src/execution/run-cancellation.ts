@@ -1,3 +1,4 @@
+import type { RunEvent } from '../domain/event/types.js';
 import type { AgentRun, WorkItem } from '../domain/run/types.js';
 import type { RuntimeStorage, RuntimeUnitOfWork } from '../sdk/runtime-storage.js';
 import type { ResolvedLocalRunWorkerOptions } from './local-worker-options.js';
@@ -16,6 +17,7 @@ export class RunCancellation {
       return Promise.reject(new RuntimeError('INVALID_INPUT', 'runId must be a non-empty string'));
     }
     const at = readWorkerNow(this.options.now);
+    const committed: RunEvent[] = [];
     return this.storage.transaction((uow) => {
       const run = uow.runs.get(runId);
       if (!run) throw new RuntimeError('RUN_NOT_FOUND', 'Run not found');
@@ -34,13 +36,19 @@ export class RunCancellation {
         finishedAt: cloneDate(at), updatedAt: cloneDate(at),
       };
       uow.runs.update(cancelled);
-      uow.events.append({
+      const event: RunEvent = {
         eventId: nextWorkerId(this.options.generateId), sequence: uow.events.nextSequence(runId), schemaVersion: 1,
         tenantId: run.tenantId, sessionId: run.sessionId, runId, type: 'run.cancelled',
         data: { errorCode: 'EXECUTION_CANCELLED', retryable: false }, occurredAt: cloneDate(at),
-      });
+      };
+      uow.events.append(event);
+      committed.push(event);
       uow.workItems.update(finishWork(work, at));
       return structuredClone(cancelled);
+    }).then((run) => {
+      const emit = this.options.onEventCommitted;
+      if (emit) for (const event of committed) emit(event);
+      return run;
     });
   }
 }

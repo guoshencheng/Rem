@@ -1,4 +1,5 @@
 import type { RuntimeErrorCode } from '../application/runtime/runtime-error.js';
+import type { RunEvent } from '../domain/event/types.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
 import { generateId as defaultGenerateId } from '../shared/generate-id.js';
 
@@ -17,6 +18,8 @@ export interface LocalRunWorkerOptions {
   generateId?: () => string;
   scheduler?: WorkerScheduler;
   onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
+  /** 事务提交后按提交顺序回调新写入的 RunEvent；用于进程内 Signal fan-out。 */
+  onEventCommitted?: (event: RunEvent) => void;
 }
 
 export interface ResolvedLocalRunWorkerOptions {
@@ -29,6 +32,7 @@ export interface ResolvedLocalRunWorkerOptions {
   generateId: () => string;
   scheduler: WorkerScheduler;
   onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
+  onEventCommitted?: (event: RunEvent) => void;
 }
 
 const defaultScheduler: WorkerScheduler = {
@@ -69,12 +73,16 @@ function resolveOptions(value: unknown): ResolvedLocalRunWorkerOptions {
   const onPollError = optionalFunction<(error: RuntimeError) => void | PromiseLike<void>>(
     ownValue(options, 'onPollError'), 'onPollError',
   );
+  const onEventCommitted = optionalFunction<(event: RunEvent) => void>(
+    ownValue(options, 'onEventCommitted'), 'onEventCommitted',
+  );
   if (schedulerValue === undefined
     && [pollMs, runTimeoutMs, heartbeatMs].some((delay) => delay > MAX_NODE_TIMER_DELAY_MS)) {
     invalid(`Default scheduler delays cannot exceed ${MAX_NODE_TIMER_DELAY_MS}`);
   }
   return { owner, leaseMs, pollMs, runTimeoutMs, heartbeatMs, now, generateId, scheduler,
-    ...(onPollError === undefined ? {} : { onPollError }) };
+    ...(onPollError === undefined ? {} : { onPollError }),
+    ...(onEventCommitted === undefined ? {} : { onEventCommitted }) };
 }
 
 function optionsRecord(value: unknown): Record<string, unknown> {

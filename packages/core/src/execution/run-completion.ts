@@ -1,5 +1,6 @@
 import type { RuntimeErrorCode } from '../application/runtime/runtime-error.js';
 import type { Artifact } from '../domain/artifact/types.js';
+import type { RunEvent } from '../domain/event/types.js';
 import type { AgentRun, WorkItem } from '../domain/run/types.js';
 import type { AgentSession, RuntimeSessionEntry } from '../domain/session/types.js';
 import type { RuntimeStorage, RuntimeUnitOfWork } from '../sdk/runtime-storage.js';
@@ -27,6 +28,7 @@ export class RunCompletion {
 
   start(claimed: WorkItem): Promise<ClaimedRunStart> {
     const at = readWorkerNow(this.options.now);
+    const committed: RunEvent[] = [];
     return this.storage.transaction((uow): ClaimedRunStart => {
       const liveWork = uow.workItems.getByRun(claimed.runId);
       if (!liveWork) throw unavailable('Claimed work item is missing');
@@ -41,47 +43,51 @@ export class RunCompletion {
         return { kind: 'skip' };
       }
       if (run.cancellationRequestedAt) {
-        finishRun(uow, run, liveWork, { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }, at, this.options);
+        finishRun(uow, run, liveWork, { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }, at, this.options, committed);
         return { kind: 'skip' };
       }
       if (run.status === 'running') {
         // Tool-level recovery is Task 11. Never replay an execution whose side effects are uncertain.
-        finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
+        finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options, committed);
         return { kind: 'skip' };
       }
       if (run.status !== 'queued') {
-        finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
+        finishRun(uow, run, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options, committed);
         return { kind: 'skip' };
       }
       const running: AgentRun = {
         ...run, status: transitionRun(run.status, 'running'), startedAt: cloneDate(at), updatedAt: cloneDate(at),
       };
       uow.runs.update(running);
-      appendEvent(uow, running, 'run.started', { attempt: liveWork.attempt }, at, this.options);
+      appendEvent(uow, running, 'run.started', { attempt: liveWork.attempt }, at, this.options, committed);
       const session = uow.sessions.get(running.sessionId);
       if (!session || session.tenantId !== running.tenantId) {
-        finishRun(uow, running, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
+        finishRun(uow, running, liveWork, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options, committed);
         return { kind: 'skip' };
       }
       return { kind: 'execute', run: structuredClone(running), session: structuredClone(session) };
+    }).then((result) => {
+      this.emitCommitted(committed);
+      return result;
     });
   }
 
   succeed(claimed: WorkItem, output: ValidatedRunOutput): Promise<boolean> {
     const at = readWorkerNow(this.options.now);
+    const committed: RunEvent[] = [];
     return this.storage.transaction((uow) => {
       const state = ownedState(uow, claimed, this.options.owner, at);
       if (!state) return false;
       const { run, work } = state;
       if (isTerminalRunStatus(run.status)) return false;
       if (run.cancellationRequestedAt) {
-        finishRun(uow, run, work, { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }, at, this.options);
+        finishRun(uow, run, work, { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }, at, this.options, committed);
         return true;
       }
       if (run.status !== 'running') return false;
       const session = uow.sessions.get(run.sessionId);
       if (!session || session.tenantId !== run.tenantId) {
-        finishRun(uow, run, work, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options);
+        finishRun(uow, run, work, { code: 'INTERNAL_ERROR', retryable: false }, at, this.options, committed);
         return true;
       }
       let sequence = uow.sessions.nextEntrySequence(session.sessionId) - 1;
@@ -101,7 +107,7 @@ export class RunCompletion {
         uow.artifacts.insert(artifact);
         appendEvent(uow, run, 'artifact.created', {
           artifactId: artifact.artifactId, type: artifact.type, mediaType: artifact.mediaType, name: artifact.name,
-        }, at, this.options);
+        }, at, this.options, committed);
       }
       const completed: AgentRun = {
         ...run, status: transitionRun(run.status, 'completed'), finishedAt: cloneDate(at), updatedAt: cloneDate(at),
@@ -109,23 +115,36 @@ export class RunCompletion {
       uow.runs.update(completed);
       appendEvent(uow, completed, 'run.completed', {
         sessionEntryCount: entries.length, artifactCount: output.artifacts.length,
-      }, at, this.options);
+      }, at, this.options, committed);
       uow.workItems.update(finishWork(work, 'completed', at));
       return true;
+    }).then((result) => {
+      this.emitCommitted(committed);
+      return result;
     });
   }
 
   fail(claimed: WorkItem, failure: RunFailure): Promise<boolean> {
     const at = readWorkerNow(this.options.now);
+    const committed: RunEvent[] = [];
     return this.storage.transaction((uow) => {
       const state = ownedState(uow, claimed, this.options.owner, at);
       if (!state || isTerminalRunStatus(state.run.status)) return false;
       const cancelled = state.run.cancellationRequestedAt !== undefined || failure.cancelled;
       finishRun(uow, state.run, state.work, cancelled
         ? { code: 'EXECUTION_CANCELLED', retryable: false, cancelled: true }
-        : failure, at, this.options);
+        : failure, at, this.options, committed);
       return true;
+    }).then((result) => {
+      this.emitCommitted(committed);
+      return result;
     });
+  }
+
+  private emitCommitted(events: RunEvent[]): void {
+    const emit = this.options.onEventCommitted;
+    if (!emit) return;
+    for (const event of events) emit(event);
   }
 }
 
@@ -144,13 +163,13 @@ function ownsLease(live: WorkItem, claimed: WorkItem, owner: string, at: Date): 
     && (live.leaseExpiresAt?.getTime() ?? Number.NEGATIVE_INFINITY) > at.getTime();
 }
 
-function finishRun(uow: RuntimeUnitOfWork, run: AgentRun, work: WorkItem, failure: RunFailure, at: Date, options: ResolvedLocalRunWorkerOptions): void {
+function finishRun(uow: RuntimeUnitOfWork, run: AgentRun, work: WorkItem, failure: RunFailure, at: Date, options: ResolvedLocalRunWorkerOptions, committed: RunEvent[]): void {
   const status = failure.cancelled ? 'cancelled' : 'failed';
   const finished: AgentRun = { ...run, status: transitionRun(run.status, status), errorCode: failure.code,
     finishedAt: cloneDate(at), updatedAt: cloneDate(at) };
   uow.runs.update(finished);
   appendEvent(uow, finished, failure.cancelled ? 'run.cancelled' : 'run.failed',
-    { errorCode: failure.code, retryable: failure.retryable }, at, options);
+    { errorCode: failure.code, retryable: failure.retryable }, at, options, committed);
   uow.workItems.update(finishWork(work, 'failed', at));
 }
 
@@ -159,10 +178,12 @@ function finishWork(work: WorkItem, status: 'completed' | 'failed', at: Date): W
   return { ...rest, status, updatedAt: cloneDate(at) };
 }
 
-function appendEvent(uow: RuntimeUnitOfWork, run: AgentRun, type: string, data: unknown, at: Date, options: ResolvedLocalRunWorkerOptions): void {
-  uow.events.append({ eventId: nextWorkerId(options.generateId), sequence: uow.events.nextSequence(run.runId), schemaVersion: 1,
+function appendEvent(uow: RuntimeUnitOfWork, run: AgentRun, type: string, data: unknown, at: Date, options: ResolvedLocalRunWorkerOptions, committed: RunEvent[]): void {
+  const event: RunEvent = { eventId: nextWorkerId(options.generateId), sequence: uow.events.nextSequence(run.runId), schemaVersion: 1,
     tenantId: run.tenantId, sessionId: run.sessionId, runId: run.runId, type,
-    data: structuredClone(data), occurredAt: cloneDate(at) });
+    data: structuredClone(data), occurredAt: cloneDate(at) };
+  uow.events.append(event);
+  committed.push(event);
 }
 
 const cloneDate = (value: Date): Date => new Date(value.getTime());

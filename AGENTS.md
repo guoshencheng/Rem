@@ -75,13 +75,15 @@ Core 不依赖 `ai` 包。推理循环复用 `@earendil-works/pi-agent-core` 的
 
 | 文件 | 用途 |
 |---|---|
-| `packages/core/src/assembly/agent-factory.ts` | `createAgentFromEnv` |
-| `packages/core/src/assembly/agent-assembly.ts` | `createAgentAssembly` |
+| `packages/core/src/assembly/agent-runtime-assembly.ts` | `createAgentRuntime` / `createAgentRuntimeFromEnv`（新持久化 Runtime 入口） |
+| `packages/core/src/application/runtime/agent-runtime.ts` | AgentRuntime scoped facade（租户隔离的 runs/sessions/artifacts API） |
+| `packages/core/src/assembly/agent-factory.ts` | `createAgentFromEnv`（旧 AgentSystem 入口） |
+| `packages/core/src/assembly/agent-assembly.ts` | `createAgentAssembly`（旧 AgentSystem 装配） |
 | `packages/core/src/agent/rem-agent.ts` | 当前单 Agent 执行单元 |
 | `packages/core/src/orchestration/agent-coordinator-types.ts` | AgentCoordinator 接口（按 Session mode 分发单/多 Agent 实现） |
-| `packages/core/src/session/model.ts` | 当前持久化 Session 模型 |
-| `packages/core/src/sdk/storage-provider.ts` | Storage Provider 稳定接口 |
-| `packages/core/src/plugins/storage/sqlite/` | 默认 SQLite 存储实现 |
+| `packages/core/src/session/model.ts` | 旧持久化 Session 模型（新 Runtime 用 `domain/session/types.ts`） |
+| `packages/core/src/sdk/storage-provider.ts` | Storage Provider 稳定接口（含 `runtimeStore`） |
+| `packages/core/src/plugins/storage/sqlite/` | 默认 SQLite 存储实现（含 runtime 表 v12+） |
 
 ## 深入文档
 

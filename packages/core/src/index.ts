@@ -9,6 +9,7 @@ export type { AgentDefinition, ContextTypeConstraint, RunTriggerType } from './d
 export type { RunEvent, RunSignal } from './domain/event/types.js'
 export type { Artifact, ArtifactDraft } from './domain/artifact/types.js'
 export type { Principal, RuntimeRequestContext } from './domain/identity/types.js'
+export type { ContextBinding, ContextPatch, ContextSet, ResolvedContextSnapshot } from './domain/context/types.js'
 export type { AgentDefinitionProvider } from './sdk/agent-definition-provider.js'
 export type {
   RuntimePlugin,

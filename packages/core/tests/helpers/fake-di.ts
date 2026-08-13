@@ -1,4 +1,5 @@
-import type { AgentDI, AgentPlugin, AgentRuntimeConfig, Session } from 'rem-agent-core';
+import type { AgentDI, AgentPlugin, AgentRuntimeConfig } from 'rem-agent-core';
+import type { Session } from '../../src/session/model.js';
 import { createAgentAssembly, createDefaultAgentPaths, initializeAgentDI } from 'rem-agent-core';
 import type { ConfigProvider, ResolvedAgentConfig, ResolvedAgentRole, ResolvedModelConfig, AgentBehaviorConfig, AgentToolConfig, CompressionConfig, ToolProvider, ResolvedTeam, ResolvedOrchestrationConfig, TeamInfo } from 'rem-agent-core';
 import type { Models } from '@earendil-works/pi-ai';

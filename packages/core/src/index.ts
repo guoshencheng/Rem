@@ -1,8 +1,32 @@
-// ═══ 稳定 API：Agent 工厂、Agent/Session 核心类型、SDK 接口、装配入口 ═══
-export * from './agent/types.js'
+// ═══ 稳定公开 API：AgentRuntime 装配入口、领域类型、Runtime SDK 接口 ═══
+export { createAgentRuntime, createAgentRuntimeFromEnv, type CreateAgentRuntimeOptions } from './assembly/agent-runtime-assembly.js'
+export type { AgentRuntime, ScopedAgentRuntime, StartRunInput } from './application/runtime/index.js'
+export { RuntimeError, RUNTIME_ERROR_CODES, type RuntimeErrorCode } from './application/runtime/index.js'
 export type { Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage, AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
+export type { AgentSession as Session } from './domain/session/types.js'
+export type { AgentRun as Run, RunStatus, RunTrigger } from './domain/run/types.js'
+export type { AgentDefinition, ContextTypeConstraint, RunTriggerType } from './domain/agent-definition/types.js'
+export type { RunEvent, RunSignal } from './domain/event/types.js'
+export type { Artifact, ArtifactDraft } from './domain/artifact/types.js'
+export type { Principal, RuntimeRequestContext } from './domain/identity/types.js'
+export type { AgentDefinitionProvider } from './sdk/agent-definition-provider.js'
+export type {
+  RuntimePlugin,
+  RuntimePluginRegistrar,
+  RuntimeToolContribution,
+  ContextTypeContribution,
+  ContextResolution,
+  ContextResolutionInput,
+  ContextRuntimeContributions,
+  ResolvedRuntimeContext,
+} from './sdk/runtime-plugin.js'
+export type { RuntimeStorage } from './sdk/runtime-storage.js'
+
+// ═══ Legacy internal compatibility exports ═══
+// 旧实现（REMAgent/Session/orchestration 等）的内部兼容出口，不属于稳定公开 API；
+// 新代码应使用上方稳定区域，旧代码迁移前暂时保留。
+export * from './agent/types.js'
 export type { AgentEvent } from '@earendil-works/pi-agent-core'
-export * from './session/model.js'
 export * from './sdk/index.js'
 export * from './plugins/index.js'
 export * from './plugin-system/errors.js'
@@ -64,8 +88,6 @@ export * from './infrastructure/observability/debug-log.js'
 export { createCoreModels, type CreateCoreModelsOptions } from './infrastructure/llm/models.js'
 export * from './infrastructure/llm/context-window.js'
 export { generateId } from './shared/generate-id.js'
-
-// ═══ 高级 API：工具编排、安全规则、运行时桥接 ═══
 export * from './tools/registry.js'
 export { composeToolProviders } from './tools/composer.js'
 export { ToolOverlay, defineOverlayTool, type ToolOverlayEntry } from './tools/overlay.js'

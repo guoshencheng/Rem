@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RuntimeError } from '../src/application/runtime/runtime-error.js';
-import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/provider.js';
+import { SqliteRuntimeStorageProvider } from '../src/plugins/storage/sqlite/runtime-provider.js';
 import { SqliteRuntimeStore } from '../src/plugins/storage/sqlite/runtime-store.js';
 import { CURRENT_SCHEMA_VERSION, SqliteSchemaManager } from '../src/plugins/storage/sqlite/schema.js';
 import { createClaimWorker } from './helpers/sqlite-claim-worker-client.js';
@@ -15,7 +15,8 @@ import { runtimeStorageContract } from './runtime-storage-contract.js';
 const RUNTIME_TABLES = [
   'runtime_sessions', 'runtime_runs', 'runtime_events', 'runtime_work_items',
   'runtime_session_entries', 'runtime_artifacts', 'runtime_idempotency',
-  'runtime_tool_invocations',
+  'runtime_tool_invocations', 'runtime_execution_nodes', 'runtime_execution_entries',
+  'runtime_deliveries', 'runtime_execution_budgets',
 ] as const;
 
 const at = (second: number) => new Date(`2026-08-10T00:00:${String(second).padStart(2, '0')}.000Z`);
@@ -42,11 +43,11 @@ describe('SqliteRuntimeStore', () => {
   const paths: string[] = [];
   afterEach(() => { for (const path of paths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
-  it('fresh schema 为 v12，重复迁移保留数据，v11 升级只新增 runtime 表', () => {
+  it('fresh schema 为 v14，重复迁移保留数据，v11 升级只新增 runtime 表', () => {
     const fresh = new Database(':memory:');
     const manager = new SqliteSchemaManager(fresh);
     manager.migrate();
-    expect((fresh.prepare('SELECT version FROM schema_version').get() as { version: number }).version).toBe(12);
+    expect((fresh.prepare('SELECT version FROM schema_version').get() as { version: number }).version).toBe(14);
     const tables = () => (fresh.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(({ name }) => name);
     for (const table of RUNTIME_TABLES) expect(tables()).toContain(table);
     fresh.prepare("INSERT INTO runtime_sessions VALUES ('s', 't', '{}', ?, ?)").run(at(1).toISOString(), at(1).toISOString());
@@ -265,9 +266,9 @@ describe('SqliteRuntimeStore', () => {
 
   it('Provider 的 runtimeStore 随 open/close/init 生命周期变化', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rem-runtime-provider-')); paths.push(dir);
-    const provider = new SqliteStorageProvider({ dbPath: join(dir, 'provider.db') });
+    const provider = new SqliteRuntimeStorageProvider({ dbPath: join(dir, 'provider.db') });
     expect(provider.runtimeStore).toBeInstanceOf(SqliteRuntimeStore);
-    await provider.close(); expect(() => provider.runtimeStore).toThrow('StorageProvider not initialized');
+    await provider.close(); expect(() => provider.runtimeStore).toThrow('RuntimeStorageProvider not initialized');
     await provider.init(); expect(provider.runtimeStore).toBeInstanceOf(SqliteRuntimeStore);
     await provider.close();
   });

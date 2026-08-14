@@ -49,6 +49,28 @@ export function runtimeStorageContract(createStore: RuntimeStoreFactory): void {
   const open = async (): Promise<RuntimeStorage> => { const created = await createStore(); close = created.close; return created.store; };
 
   describe('RuntimeStorage 契约', () => {
+    it('Session 列表一次返回用户与助手消息计数，并隔离租户', async () => {
+      const store = await open();
+      await store.transaction((uow) => {
+        uow.sessions.insert(session());
+        uow.sessions.insert({ ...session(), sessionId: 'session-empty', updatedAt: at(9) });
+        uow.sessions.insert({ ...session(), sessionId: 'session-other', tenantId: 'tenant-other' });
+        uow.runs.insert(run());
+        uow.sessions.appendEntries([
+          entry(),
+          { ...entry(), entryId: 'entry-assistant', sequence: 2, message: { role: 'assistant', content: 'answer' } as never },
+          { ...entry(), entryId: 'entry-tool', sequence: 3, message: { role: 'toolResult', toolCallId: 'call', toolName: 'lookup', content: 'result', isError: false } as never },
+        ]);
+      });
+      await expect(store.listSessions('tenant-1')).resolves.toEqual([
+        expect.objectContaining({ sessionId: 'session-empty', messageCount: 0 }),
+        expect.objectContaining({ sessionId: 'session-1', messageCount: 2 }),
+      ]);
+      await expect(store.listSessions('tenant-other')).resolves.toEqual([
+        expect.objectContaining({ sessionId: 'session-other', messageCount: 0 }),
+      ]);
+    });
+
     it('原子创建运行所需记录并逐项读回', async () => {
       const store = await open();
       await store.transaction((uow) => { createRun(uow); uow.events.append(event(1)); uow.workItems.insert(work()); uow.idempotency.insert({ tenantId: 'tenant-1', operation: 'start-run', idempotencyKey: 'key-1', requestHash: 'hash-1', resourceId: 'run-1', createdAt: at(1) }); });

@@ -37,8 +37,29 @@ export interface RuntimeIdempotencyRow {
 }
 
 export interface RuntimeToolInvocationRow {
-  id: string; tenant_id: string; session_id: string; run_id: string; tool_call_id: string;
+  id: string; tenant_id: string; session_id: string; run_id: string; node_id: string; tool_call_id: string;
   tool_name: string; status: string; side_effect: string; supports_idempotency_key: number;
   input_json: string; result_json: string | null; error: string | null;
   created_at: string; updated_at: string;
+}
+
+export interface RuntimeExecutionNodeRow {
+  id: string; tenant_id: string; run_id: string; parent_node_id: string | null;
+  kind: string; role: string; agent_id: string; agent_revision: string; status: string;
+  depth: number; created_at: string; started_at: string | null; finished_at: string | null; updated_at: string;
+}
+
+export interface RuntimeExecutionEntryRow {
+  id: string; tenant_id: string; run_id: string; node_id: string; sequence: number; kind: string;
+  message_json: string | null; data_json: string | null; audience: string; visibility: string; created_at: string;
+}
+
+export interface RuntimeDeliveryRow {
+  id: string; tenant_id: string; run_id: string; node_id: string; kind: string; batch_id: string;
+  depth: number; status: string; requested_by_node_id: string | null; source_entry_id: string | null;
+  result_entry_id: string | null; attempt: number; error_code: string | null; created_at: string; updated_at: string;
+}
+
+export interface RuntimeExecutionBudgetRow {
+  tenant_id: string; run_id: string; agent_runs: number; messages: number; tokens: number; updated_at: string;
 }

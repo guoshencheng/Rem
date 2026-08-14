@@ -7,14 +7,14 @@ import type { AgentDefinition } from '../src/domain/agent-definition/types.js';
 import type { RunSignal } from '../src/domain/event/types.js';
 import type { RuntimeRequestContext } from '../src/domain/identity/types.js';
 import { LocalRunWorker } from '../src/execution/local-worker.js';
-import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/index.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/provider.js';
 import type { AgentDefinitionProvider } from '../src/sdk/agent-definition-provider.js';
 import type { RuntimePlugin } from '../src/sdk/runtime-plugin.js';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
-import type { StorageProvider } from '../src/sdk/storage-provider.js';
+import type { RuntimeStorageProvider } from '../src/sdk/runtime-storage-provider.js';
 import { createFakeAssembly } from './helpers/fake-di.js';
 import { createFakeRuntimeStore } from './helpers/fake-runtime-store.js';
+import { SqliteRuntimeStorageProvider } from '../src/plugins/storage/sqlite/runtime-provider.js';
 
 const context = (): RuntimeRequestContext => ({
   tenantId: 'tenant-1', principal: { principalId: 'user-1', roles: ['member'] },
@@ -28,8 +28,9 @@ const taskTrigger = { type: 'task' as const, input: { text: 'hi' } };
 function injectedStorage(store: RuntimeStorage) {
   const close = vi.fn(async () => {});
   const init = vi.fn(async () => {});
-  const provider = { init, close, runtimeStore: store } as unknown as StorageProvider;
-  return { provider, close, init };
+  const checkHealth = vi.fn(async () => {});
+  const provider = { init, close, checkHealth, runtimeStore: store } as unknown as RuntimeStorageProvider;
+  return { provider, close, init, checkHealth };
 }
 
 async function collect(stream: AsyncIterable<RunSignal>): Promise<string[]> {
@@ -55,7 +56,9 @@ describe('createAgentRuntime', () => {
       agentDefinitions: new StaticAgentDefinitionProvider([definition()]),
       plugins: [plugin],
       storage,
-      assembly,
+      models: assembly.models,
+      config: assembly.runtimeConfigProvider,
+      executionRoot: assembly.executionRoot,
       worker: { owner: 'test-worker', pollMs: 10 },
     });
     expect(register).toHaveBeenCalledTimes(1);
@@ -70,7 +73,10 @@ describe('createAgentRuntime', () => {
     const reading = collect(scoped.runs.subscribe(run.runId));
     const finished = await scoped.runs.waitForCompletion(run.runId);
     expect(finished).toMatchObject({ runId: run.runId, status: 'completed' });
-    expect(await reading).toEqual(['run.started', 'artifact.created', 'run.completed']);
+    expect(await reading).toEqual([
+      'run.started', 'assistant.message.started', 'assistant.message.completed',
+      'artifact.created', 'run.completed',
+    ]);
     expect(await scoped.artifacts.listByRun(run.runId)).toHaveLength(1);
 
     await runtime.shutdown();
@@ -86,27 +92,24 @@ describe('createAgentRuntime', () => {
       .toThrowError(expect.objectContaining({ code: 'INVALID_INPUT' }));
   });
 
-  it('注入的 assembly 其 Storage 也不由 Runtime 关闭', async () => {
+  it('注入的 Runtime Storage 由调用方管理', async () => {
     const { store } = await createFakeRuntimeStore();
     const { provider: storage } = injectedStorage(store);
-    const assembly = await createFakeAssembly();
-    const assemblyStorageClose = vi.spyOn(assembly.di.storage, 'close');
     const runtime = createAgentRuntime({
       agentDefinitions: new StaticAgentDefinitionProvider([definition()]),
       storage,
-      assembly,
       worker: { pollMs: 60_000 },
     });
     await runtime.initialize();
     await runtime.shutdown();
-    expect(assemblyStorageClose).not.toHaveBeenCalled();
+    expect(storage.close).not.toHaveBeenCalled();
   });
 
   it('Worker stop 抛错时自建 Storage 仍被关闭，且 Worker 错误优先抛出', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'runtime-shutdown-failure-'));
     vi.stubEnv('REM_AGENT_HOME', dir);
     vi.stubEnv('HOME', dir);
-    const closeSpy = vi.spyOn(SqliteStorageProvider.prototype, 'close');
+    const closeSpy = vi.spyOn(SqliteRuntimeStorageProvider.prototype, 'close');
     const stopFailure = new Error('worker stop boom');
     // 不注入 assembly/storage：Runtime 自建默认装配，Storage 归 Runtime 所有
     const runtime = createAgentRuntime({
@@ -129,14 +132,14 @@ describe('createAgentRuntimeFromEnv', () => {
     const dir = await mkdtemp(join(tmpdir(), 'runtime-from-env-'));
     vi.stubEnv('REM_AGENT_HOME', dir);
     vi.stubEnv('HOME', dir); // 让 homedir() 解析到临时目录，避免读取真实 ~/.rem-agent 配置
-    const closeSpy = vi.spyOn(SqliteStorageProvider.prototype, 'close');
+    const closeSpy = vi.spyOn(SqliteRuntimeStorageProvider.prototype, 'close');
 
     const runtime = await createAgentRuntimeFromEnv({
       agentDefinitions: new StaticAgentDefinitionProvider([definition()]),
       worker: { pollMs: 60_000 },
     });
 
-    // FromEnv 已完成旧 AgentAssembly 初始化与 Runtime 初始化，立即可用
+    // FromEnv 已完成配置、Storage 和 Runtime 初始化，立即可用
     const scoped = runtime.as(context());
     expect(await scoped.agents.list()).toHaveLength(1);
     expect(await scoped.agents.get('assistant')).toMatchObject({ agentId: 'assistant', revision: '1' });
@@ -152,7 +155,7 @@ describe('createAgentRuntimeFromEnv', () => {
     const dir = await mkdtemp(join(tmpdir(), 'runtime-init-failure-'));
     vi.stubEnv('REM_AGENT_HOME', dir);
     vi.stubEnv('HOME', dir);
-    const closeSpy = vi.spyOn(SqliteStorageProvider.prototype, 'close');
+    const closeSpy = vi.spyOn(SqliteRuntimeStorageProvider.prototype, 'close');
     // initializeAgentDI 打开 SQLite 之后，agentDefinitions.init() 抛错，调用方拿不到 runtime 句柄
     const initFailure = new Error('definitions init boom');
     const inner = new StaticAgentDefinitionProvider([definition()]);

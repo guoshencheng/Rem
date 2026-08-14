@@ -3,13 +3,18 @@ import { describe, expect, it } from 'vitest';
 import type { AgentDefinition } from '../src/domain/agent-definition/types.js';
 import type { RuntimePlugin } from '../src/sdk/runtime-plugin.js';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
-import { REMAgentRunExecutor } from '../src/execution/rem-agent-executor.js';
+import { SingleAgentRunExecutor, type SingleAgentRunExecutorOptions } from '../src/execution/single-agent-run-executor.js';
 import { RuntimePluginHost } from '../src/plugin-system/runtime-plugin-host.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/provider.js';
 import { createFakeAssembly } from './helpers/fake-di.js';
 import { createFakeRuntimeStore } from './helpers/fake-runtime-store.js';
 import { createWorker } from './helpers/local-worker-fixture.js';
 import { createScriptedModels, fauxAssistantMessage, fauxToolCall } from './helpers/scripted-models.js';
+
+type TestExecutorOptions = Omit<SingleAgentRunExecutorOptions, 'models' | 'config' | 'executionRoot'>;
+function makeExecutor(assembly: Awaited<ReturnType<typeof createFakeAssembly>>, options: TestExecutorOptions): SingleAgentRunExecutor {
+  return new SingleAgentRunExecutor({ ...options, models: assembly.models, config: assembly.runtimeConfigProvider, executionRoot: assembly.executionRoot });
+}
 
 const at = new Date('2026-08-11T00:00:00Z');
 const session = { sessionId: 's', tenantId: 't', contexts: { bindings: [] }, createdAt: at, updatedAt: at };
@@ -54,7 +59,7 @@ function failTerminalTransaction(base: RuntimeStorage): RuntimeStorage {
   }) as RuntimeStorage['transaction'] } as RuntimeStorage;
 }
 
-describe('REMAgent fatal tool persistence channel', () => {
+describe('Single-agent fatal tool persistence channel', () => {
   it.each(['success', 'failure'])('poisons the run when %s terminal persistence fails', async (kind) => {
     const store = await seed(); let toolCalls = 0;
     const scripted = createScriptedModels([
@@ -63,7 +68,7 @@ describe('REMAgent fatal tool persistence channel', () => {
       fauxAssistantMessage('must not complete'),
     ]);
     const assembly = await createFakeAssembly({ models: scripted.models });
-    const executor = new REMAgentRunExecutor({ assembly, storage: failTerminalTransaction(store),
+    const executor = makeExecutor(assembly, { storage: failTerminalTransaction(store),
       agentDefinitions: new StaticAgentDefinitionProvider([definition]), pluginHost: new RuntimePluginHost([plugin(async () => {
         toolCalls += 1;
         if (kind === 'failure') throw new Error('ordinary tool failure');
@@ -84,7 +89,7 @@ describe('REMAgent fatal tool persistence channel', () => {
     const scripted = createScriptedModels([fauxAssistantMessage([fauxToolCall('tool', {})]), fauxAssistantMessage('must not complete')]);
     const assembly = await createFakeAssembly({ models: scripted.models });
     let started!: () => void; const began = new Promise<void>((resolve) => { started = resolve; });
-    const executor = new REMAgentRunExecutor({ assembly, storage: store,
+    const executor = makeExecutor(assembly, { storage: store,
       agentDefinitions: new StaticAgentDefinitionProvider([definition]), pluginHost: new RuntimePluginHost([plugin(async () => { started(); return pendingTool; })]) });
     const execution = executor.execute({ run, session, signal: controller.signal });
     await began; controller.abort();
@@ -101,7 +106,7 @@ describe('REMAgent fatal tool persistence channel', () => {
     const scripted = createScriptedModels([fauxAssistantMessage([fauxToolCall('tool', {})])]);
     const assembly = await createFakeAssembly({ models: scripted.models });
     let started!: () => void; const began = new Promise<void>((resolve) => { started = resolve; });
-    const executor = new REMAgentRunExecutor({ assembly, storage: store,
+    const executor = makeExecutor(assembly, { storage: store,
       agentDefinitions: new StaticAgentDefinitionProvider([definition]), pluginHost: new RuntimePluginHost([plugin(async () => {
         started(); return pendingTool;
       })]) });
@@ -113,7 +118,7 @@ describe('REMAgent fatal tool persistence channel', () => {
     await expect(worker.stop()).resolves.toBeUndefined();
     await expect(draining).resolves.toBe(true);
 
-    expect(await store.getRun('r')).toMatchObject({ status: 'cancelled', errorCode: 'EXECUTION_CANCELLED' });
+    expect(await store.getRun('r')).toMatchObject({ status: 'waiting', errorCode: 'TOOL_RESULT_UNKNOWN', waitingReason: 'tool-result-unknown' });
     expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'unknown' }]);
   });
 
@@ -121,10 +126,6 @@ describe('REMAgent fatal tool persistence channel', () => {
     const store = await seed();
     const scripted = createScriptedModels([fauxAssistantMessage('completed')]);
     const assembly = await createFakeAssembly({ models: scripted.models });
-    let shouldCalls = 0; let compressCalls = 0;
-    const shared = { shouldCompress: () => { shouldCalls += 1; return true; },
-      compress: async (messages: never[]) => { compressCalls += 1; return messages; } };
-    assembly.di.compressor = shared;
     await store.transaction((uow) => {
       const entries = Array.from({ length: 40 }, (_, index) => ({ entryId: `e-${index}`, tenantId: 't', sessionId: 's', runId: 'old',
         sequence: index + 1, message: { role: 'user' as const, content: `history-${index}`, timestamp: index }, createdAt: at }));
@@ -132,28 +133,25 @@ describe('REMAgent fatal tool persistence channel', () => {
     });
     const plainRun = { ...run, contextSnapshot: { items: [], configLayers: [], promptSections: [] } };
     const plainDefinition = { ...definition, toolNames: [] };
-    const executor = new REMAgentRunExecutor({ assembly, storage: store,
+    const executor = makeExecutor(assembly, { storage: store,
       agentDefinitions: new StaticAgentDefinitionProvider([plainDefinition]), pluginHost: new RuntimePluginHost() });
     await expect(executor.execute({ run: plainRun, session, signal: new AbortController().signal }))
       .resolves.toMatchObject({ artifacts: [{ data: 'completed' }] });
-    expect({ shouldCalls, compressCalls }).toEqual({ shouldCalls: 0, compressCalls: 0 });
-    expect(assembly.di.compressor).toBe(shared);
   });
 
   it('maps strict model resolution failures before starting the model', async () => {
     const store = await seed(); const scripted = createScriptedModels([fauxAssistantMessage('unused')]);
     const assembly = await createFakeAssembly({ models: scripted.models });
-    const base = assembly.di.configProvider;
-    assembly.di.configProvider = new Proxy(base, { get(target, property) {
-      if (property === 'getModelConfig') return (id?: string) => {
-        if (id !== undefined) throw new Error('missing named model');
-        return target.getModelConfig();
+    const base = assembly.runtimeConfigProvider;
+    const config = new Proxy(base, { get(target, property, receiver) {
+      if (property === 'resolveModel') return () => {
+        throw new Error('missing named model');
       };
-      const value = Reflect.get(target, property, target) as unknown;
+      const value = Reflect.get(target, property, receiver) as unknown;
       return typeof value === 'function' ? value.bind(target) : value;
     } });
     const plainRun = { ...run, contextSnapshot: { items: [], configLayers: [], promptSections: [] } };
-    const executor = new REMAgentRunExecutor({ assembly, storage: store,
+    const executor = new SingleAgentRunExecutor({ models: assembly.models, config, executionRoot: assembly.executionRoot, storage: store,
       agentDefinitions: new StaticAgentDefinitionProvider([{ ...definition, toolNames: [] }]), pluginHost: new RuntimePluginHost() });
     await expect(executor.execute({ run: plainRun, session, signal: new AbortController().signal }))
       .rejects.toMatchObject({ code: 'MODEL_UNAVAILABLE', cause: expect.any(Error) });

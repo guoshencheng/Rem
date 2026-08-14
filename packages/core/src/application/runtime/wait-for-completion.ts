@@ -23,8 +23,8 @@ export async function waitForRunCompletion(
   try {
     for (;;) {
       const run = await getScopedRun(deps.storage, deps.context.tenantId, runId);
-      if (isTerminalRunStatus(run.status)) return run;
       signal?.throwIfAborted();
+      if (isTerminalRunStatus(run.status)) return run;
       pending ??= iterator.next();
       const outcome = await Promise.race([
         pending.then((result) => ({ kind: 'signal' as const, result })),

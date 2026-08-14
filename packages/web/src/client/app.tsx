@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/api/client';
-import { startEventBus } from '@/api/bus';
-import type { SseConnectionState } from '@/api/bus';
+import type { ConnectionState } from '@/types';
 import { useStreamStore } from '@/state/stream-store';
 import { TopBar } from '@/components/top-bar';
 import { StatusBar } from '@/components/status-bar';
 import { SessionList } from '@/components/session-list';
 import { NewSessionDialog } from '@/components/new-session-dialog';
 import { ChatView } from '@/components/chat-view';
-import { CollaborationInspector } from '@/components/collaboration-inspector';
+import { RuntimeExecutionInspector } from '@/components/runtime-execution-inspector';
 import { WorkbenchShell } from '@/components/workbench-shell';
 
 export function App() {
@@ -18,26 +17,29 @@ export function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [connection, setConnection] = useState<SseConnectionState>('connecting');
-  const [selectedThreads, setSelectedThreads] = useState<Record<string, string>>({});
+  const [connection, setConnection] = useState<ConnectionState>('connecting');
+  const [agentId, setAgentId] = useState(() => {
+    try { return globalThis.localStorage?.getItem('rem-agent.selected-agent') ?? api.defaultAgentId; }
+    catch { return api.defaultAgentId; }
+  });
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(new Set());
+  const pendingSessionLoads = useRef(new Set<string>());
+  const skipNextChatRefresh = useRef(new Set<string>());
 
   const current = sessions.find((s) => s.sessionId === sessionId);
   const currentState = sessionId ? bySession[sessionId] : undefined;
-  const running = current?.activity !== undefined && current.activity !== 'idle';
+  const running = sessionId !== undefined && runningSessionIds.has(sessionId);
 
   const loadSession = useCallback(async (id: string) => {
-    const [chat, threads] = await Promise.all([api.getChat(id), api.getThreads(id)]);
-    useStreamStore.getState().setChat(id, chat);
-    useStreamStore.getState().setThreads(id, threads);
-    const primary = threads.find((t) => t.role === 'primary' || t.role === 'organizer');
-    if (primary) {
-      setSelectedThreads((current) => ({
-        ...current,
-        [id]: current[id] ?? primary.agentThreadId,
-      }));
-      const messages = await api.getThreadMessages(id, primary.agentThreadId);
-      useStreamStore.getState().setThreadMessages(
-        { sessionId: id, threadId: primary.agentThreadId }, messages);
+    pendingSessionLoads.current.add(id);
+    let loaded = false;
+    try {
+      const chat = await api.getChat(id);
+      useStreamStore.getState().setChat(id, chat);
+      loaded = true;
+    } finally {
+      pendingSessionLoads.current.delete(id);
+      if (loaded) skipNextChatRefresh.current.add(id);
     }
   }, []);
 
@@ -46,70 +48,75 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const updateConnection = (event: Event) => {
-      setConnection((event as CustomEvent<SseConnectionState>).detail);
-    };
-    window.addEventListener('rem:sse-state', updateConnection);
-    void refreshSessions();
-    const stop = startEventBus({
-      onEvent: (event) => useStreamStore.getState().applyEvent(event),
-      onReconnect: () => {
-        void refreshSessions();
-        if (sessionId) void loadSession(sessionId);
-      },
-    });
-    return () => {
-      window.removeEventListener('rem:sse-state', updateConnection);
-      stop();
-    };
-  }, [refreshSessions, loadSession, sessionId]);
+    void refreshSessions()
+      .then(() => setConnection('connected'))
+      .catch(() => setConnection('reconnecting'));
+  }, [refreshSessions]);
 
   useEffect(() => {
     if (sessionId) void loadSession(sessionId);
   }, [sessionId, loadSession]);
 
   useEffect(() => {
-    if (!sessionId || !currentState) return;
+    // `loadSession` hydrates the initial chat. Only a positive stream version
+    // represents a later event-driven refresh; otherwise selection would
+    // immediately issue a second `/entries` request.
+    if (!sessionId || !currentState || currentState.chatVersion === 0) return;
+    if (pendingSessionLoads.current.has(sessionId)) return;
+    if (skipNextChatRefresh.current.delete(sessionId)) return;
     void api.getChat(sessionId).then((chat) =>
       useStreamStore.getState().setChat(sessionId, chat));
   }, [sessionId, currentState?.chatVersion]);
 
-  useEffect(() => {
-    if (!sessionId || !currentState) return;
-    const entries = Object.entries(currentState.threadVersions);
-    for (const [threadId, version] of entries) {
-      if (version > 0) {
-        void api.getThreadMessages(sessionId, threadId).then((messages) =>
-          useStreamStore.getState().setThreadMessages({ sessionId, threadId }, messages));
-      }
-    }
-  }, [sessionId, currentState?.threadVersions]);
-
   const send = async (content: string) => {
     if (!sessionId) return;
-    await api.sendMessage(sessionId, content);
-    const chat = await api.getChat(sessionId);
-    useStreamStore.getState().setChat(sessionId, chat);
+    const sendingSessionId = sessionId;
+    let runId: string | undefined;
+    setRunningSessionIds((current) => new Set(current).add(sessionId));
+    useStreamStore.getState().setError(sessionId, undefined);
+    try {
+      const completed = await api.sendMessage(sessionId, content, agentId, {
+        onStarted: (run) => {
+          runId = run.runId;
+          useStreamStore.getState().beginRuntimeRun(sendingSessionId, run.runId, content);
+        },
+        onSignal: (signal) => useStreamStore.getState().applyRuntimeSignal(sendingSessionId, signal),
+      });
+      if (completed.status === 'completed') {
+        const chat = await api.getChat(sendingSessionId);
+        useStreamStore.getState().setChat(sendingSessionId, chat);
+        await refreshSessions();
+      } else if (runId) {
+        useStreamStore.getState().failRuntimeRun(sendingSessionId, runId, '运行已取消', 'cancelled');
+        useStreamStore.getState().setError(sendingSessionId, '运行已取消');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (runId) useStreamStore.getState().failRuntimeRun(sendingSessionId, runId, message);
+      useStreamStore.getState().setError(sendingSessionId, message);
+    } finally {
+      setRunningSessionIds((current) => {
+        const next = new Set(current); next.delete(sendingSessionId); return next;
+      });
+    }
   };
 
-  const hasInspector = sessionId !== undefined && current?.mode === 'multi-agent';
+  const hasInspector = sessionId !== undefined;
   const selectSession = (id: string) => {
+    if (id === sessionId) {
+      setSessionOpen(false);
+      return;
+    }
+    pendingSessionLoads.current.add(id);
     setSessionId(id);
     setSessionOpen(false);
   };
-  const selectThread = (threadId: string) => {
-    if (!sessionId) return;
-    setSelectedThreads((current) => ({ ...current, [sessionId]: threadId }));
-    void api.getThreadMessages(sessionId, threadId).then((messages) => {
-      useStreamStore.getState().setThreadMessages({ sessionId, threadId }, messages);
-    });
-  };
-
   return (
     <>
       <WorkbenchShell
         topBar={<TopBar
         session={current}
+        agentId={agentId}
         running={running}
         hasInspector={hasInspector}
         onInterrupt={() => sessionId && void api.interrupt(sessionId)}
@@ -117,18 +124,14 @@ export function App() {
         onOpenSessions={() => setSessionOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
       />}
-        sessionPanel={<SessionList sessions={sessions} currentId={sessionId} onSelect={selectSession} />}
-        inspector={hasInspector && sessionId ? (
-          <CollaborationInspector
-            sessionId={sessionId}
-            selectedThreadId={selectedThreads[sessionId]}
-            onSelectedThreadChange={selectThread}
-          />
-        ) : undefined}
+        sessionPanel={<SessionList sessions={sessions} currentId={sessionId} runningSessionIds={runningSessionIds} onSelect={selectSession} />}
+        inspector={hasInspector && sessionId ? <RuntimeExecutionInspector
+          sessionId={sessionId}
+          onResolved={async () => { await loadSession(sessionId); await refreshSessions(); }}
+        /> : undefined}
         statusBar={<StatusBar
         session={current}
-        threadCount={currentState?.threads.length ?? 0}
-        runningThreads={Object.keys(currentState?.streaming ?? {}).length}
+        runningRuns={running ? 1 : 0}
         connection={connection}
       />}
         sessionOpen={sessionOpen}
@@ -149,7 +152,12 @@ export function App() {
         onOpenChange={setDialogOpen}
         onCreated={(id) => {
           setDialogOpen(false);
-          setSessionId(id);
+          void refreshSessions().then(() => selectSession(id));
+        }}
+        agentId={agentId}
+        onAgentChange={(next) => {
+          setAgentId(next);
+          try { globalThis.localStorage?.setItem('rem-agent.selected-agent', next); } catch { /* unavailable in SSR */ }
         }}
       />
     </>

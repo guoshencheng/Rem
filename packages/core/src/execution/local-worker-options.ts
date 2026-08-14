@@ -1,5 +1,6 @@
 import type { RuntimeErrorCode } from '../application/runtime/runtime-error.js';
-import type { RunEvent } from '../domain/event/types.js';
+import type { RunEvent, RunSignal } from '../domain/event/types.js';
+import type { RuntimeObservationSink } from '../sdk/runtime-observer.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
 import { generateId as defaultGenerateId } from '../shared/generate-id.js';
 
@@ -20,6 +21,10 @@ export interface LocalRunWorkerOptions {
   onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
   /** 事务提交后按提交顺序回调新写入的 RunEvent；用于进程内 Signal fan-out。 */
   onEventCommitted?: (event: RunEvent) => void;
+  /** 高频执行 Signal 的进程内投影；异常不能影响 Run 执行。 */
+  onSignal?: (signal: RunSignal) => void;
+  /** Best-effort host observation sink; failures must never affect execution. */
+  onObservation?: RuntimeObservationSink;
 }
 
 export interface ResolvedLocalRunWorkerOptions {
@@ -33,6 +38,8 @@ export interface ResolvedLocalRunWorkerOptions {
   scheduler: WorkerScheduler;
   onPollError?: (error: RuntimeError) => void | PromiseLike<void>;
   onEventCommitted?: (event: RunEvent) => void;
+  onSignal?: (signal: RunSignal) => void;
+  onObservation?: RuntimeObservationSink;
 }
 
 const defaultScheduler: WorkerScheduler = {
@@ -76,13 +83,21 @@ function resolveOptions(value: unknown): ResolvedLocalRunWorkerOptions {
   const onEventCommitted = optionalFunction<(event: RunEvent) => void>(
     ownValue(options, 'onEventCommitted'), 'onEventCommitted',
   );
+  const onSignal = optionalFunction<(signal: RunSignal) => void>(
+    ownValue(options, 'onSignal'), 'onSignal',
+  );
+  const onObservation = optionalFunction<RuntimeObservationSink>(
+    ownValue(options, 'onObservation'), 'onObservation',
+  );
   if (schedulerValue === undefined
     && [pollMs, runTimeoutMs, heartbeatMs].some((delay) => delay > MAX_NODE_TIMER_DELAY_MS)) {
     invalid(`Default scheduler delays cannot exceed ${MAX_NODE_TIMER_DELAY_MS}`);
   }
   return { owner, leaseMs, pollMs, runTimeoutMs, heartbeatMs, now, generateId, scheduler,
     ...(onPollError === undefined ? {} : { onPollError }),
-    ...(onEventCommitted === undefined ? {} : { onEventCommitted }) };
+    ...(onEventCommitted === undefined ? {} : { onEventCommitted }),
+    ...(onSignal === undefined ? {} : { onSignal }),
+    ...(onObservation === undefined ? {} : { onObservation }) };
 }
 
 function optionsRecord(value: unknown): Record<string, unknown> {

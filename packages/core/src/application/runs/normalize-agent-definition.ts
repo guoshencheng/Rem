@@ -1,13 +1,15 @@
 import type { AgentDefinition, RunTriggerType } from '../../domain/agent-definition/types.js';
+import type { AgentRef, DelegationDefinition } from '../../domain/agent-definition/execution-types.js';
 import { cloneCanonicalJson } from '../contexts/canonical-json.js';
 import { RuntimeError } from '../runtime/runtime-error.js';
 import { assertAgentDefinitionContextConfiguration } from './validate-run-contexts.js';
+import { normalizeJsonSchema } from './json-schema-validation.js';
 
 type RecordValue = Record<string, unknown>;
 
 const ALLOWED_FIELDS = [
   'agentId', 'revision', 'name', 'instructions', 'modelId', 'toolNames', 'acceptedTriggers',
-  'requiredContexts', 'optionalContexts', 'overridableContexts', 'execution',
+  'requiredContexts', 'optionalContexts', 'overridableContexts', 'inputSchema', 'outputSchema', 'execution',
 ] as const;
 const TRIGGERS = new Set<RunTriggerType>(['message', 'task']);
 
@@ -26,6 +28,8 @@ export function normalizeAgentDefinition(
     requireNonEmptyText(definition.modelId, 'AgentDefinition.modelId');
     assertUniqueTextArray(definition.toolNames, 'AgentDefinition.toolNames');
     assertTriggers(definition.acceptedTriggers);
+    if (definition.inputSchema !== undefined) definition.inputSchema = normalizeJsonSchema(definition.inputSchema, 'AgentDefinition.inputSchema');
+    if (definition.outputSchema !== undefined) definition.outputSchema = normalizeJsonSchema(definition.outputSchema, 'AgentDefinition.outputSchema');
     assertExecution(definition.execution);
     if (agentId !== expectedAgentId) invalid('AgentDefinition.agentId does not match request');
     if (expectedRevision !== undefined && revision !== expectedRevision) {
@@ -62,8 +66,43 @@ function assertUniqueTextArray(value: unknown, label: string): void {
 
 function assertExecution(value: unknown): void {
   const execution = requireRecord(value, 'AgentDefinition.execution');
-  assertAllowedKeys(execution, ['type'], 'AgentDefinition.execution');
-  if (execution.type !== 'single-agent') invalid('AgentDefinition.execution.type must be single-agent');
+  if (execution.type === 'single-agent') {
+    assertAllowedKeys(execution, ['type', 'delegation'], 'AgentDefinition.execution');
+    if (execution.delegation !== undefined) assertDelegation(execution.delegation);
+    return;
+  }
+  if (execution.type !== 'team') invalid('AgentDefinition.execution.type must be single-agent or team');
+  assertAllowedKeys(execution, ['type', 'members', 'limits', 'delegation'], 'AgentDefinition.execution');
+  if (!Array.isArray(execution.members) || execution.members.length === 0) invalid('AgentDefinition.execution.members must be non-empty');
+  const seen = new Set<string>();
+  execution.members.forEach((member, index) => {
+    const value = requireRecord(member, `AgentDefinition.execution.members[${index}]`);
+    assertAllowedKeys(value, ['agentId', 'revision'], `AgentDefinition.execution.members[${index}]`);
+    const agentId = requireNonEmptyText(value.agentId, `AgentDefinition.execution.members[${index}].agentId`);
+    const revision = value.revision === undefined ? undefined : requireNonEmptyText(value.revision, `AgentDefinition.execution.members[${index}].revision`);
+    const key = `${agentId}\u0000${revision ?? ''}`;
+    if (seen.has(key)) invalid('AgentDefinition.execution.members must be unique');
+    seen.add(key);
+  });
+  if (execution.limits !== undefined) {
+    const limits = requireRecord(execution.limits, 'AgentDefinition.execution.limits');
+    for (const key of ['maxAgentRuns', 'maxMessages', 'maxDepth', 'timeoutMs', 'maxTokens', 'maxParallelAgents']) {
+      if (limits[key] !== undefined && (!Number.isSafeInteger(limits[key]) || (limits[key] as number) <= 0)) {
+        invalid(`AgentDefinition.execution.limits.${key} must be a positive integer`);
+      }
+    }
+  }
+  if (execution.delegation !== undefined) assertDelegation(execution.delegation);
+}
+
+function assertDelegation(value: unknown): asserts value is DelegationDefinition {
+  const delegation = requireRecord(value, 'AgentDefinition.execution.delegation');
+  assertAllowedKeys(delegation, ['enabled', 'maxDepth'], 'AgentDefinition.execution.delegation');
+  if (typeof delegation.enabled !== 'boolean') invalid('AgentDefinition.execution.delegation.enabled must be boolean');
+  const maxDepth = delegation.maxDepth;
+  if (maxDepth !== undefined && (!Number.isSafeInteger(maxDepth) || (maxDepth as number) < 1 || (maxDepth as number) > 16)) {
+    invalid('AgentDefinition.execution.delegation.maxDepth must be an integer from 1 to 16');
+  }
 }
 
 function requireRecord(value: unknown, label: string): RecordValue {

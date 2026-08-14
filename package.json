@@ -7,13 +7,10 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "build": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-web build",
-    "test": "vitest run packages/core/tests && pnpm --filter rem-agent-web test",
+    "build": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-service build && pnpm --filter rem-agent-client build && pnpm --filter rem-agent-web build",
+    "test": "vitest run packages/core/tests && pnpm --filter rem-agent-service test && pnpm --filter rem-agent-client test && pnpm --filter rem-agent-web test",
     "test:watch": "vitest packages/core/tests",
-    "test:agent:live": "pnpm --filter rem-agent-core exec tsx scripts/run-live-agent.ts",
-    "test:agent:multi": "pnpm --filter rem-agent-core exec tsx scripts/run-multi-agent.ts",
-    "test:agent:multi:live": "pnpm --filter rem-agent-core exec tsx scripts/run-live-multi-agent.ts",
-    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-web typecheck",
+    "typecheck": "pnpm --filter rem-agent-core build && pnpm --filter rem-agent-core typecheck && pnpm --filter rem-agent-service typecheck && pnpm --filter rem-agent-client typecheck && pnpm --filter rem-agent-web typecheck",
     "dev:web": "pnpm --filter rem-agent-web dev",
     "check:structure": "pnpm --filter rem-agent-core check-structure"
   },

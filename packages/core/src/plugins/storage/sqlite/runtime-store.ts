@@ -2,7 +2,8 @@ import type Database from 'better-sqlite3';
 import type { Artifact } from '../../../domain/artifact/types.js';
 import type { RunEvent } from '../../../domain/event/types.js';
 import type { AgentRun, WorkItem } from '../../../domain/run/types.js';
-import type { AgentSession } from '../../../domain/session/types.js';
+import type { RunExecutionEntry, RunExecutionNode, RunDelivery, RunListOptions, ExecutionEntryListOptions } from '../../../domain/run/execution-models.js';
+import type { AgentSession, RuntimeSessionEntry, RuntimeSessionSummary } from '../../../domain/session/types.js';
 import type { RuntimeStorage, RuntimeTransactionCallback, SynchronousRuntimeTransactionCallback } from '../../../sdk/runtime-storage.js';
 import type { RuntimeArtifactRow, RuntimeRunRow, RuntimeSessionRow } from './runtime-row-types.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -11,6 +12,9 @@ import { invalidRuntimeInput, mapSqliteFailure, rejectedRuntimeInput, sqliteActi
 import { createSqliteRuntimeUnitOfWork } from './runtime-unit-of-work.js';
 import { SqliteRuntimeEventRepository } from './runtime-event-repository.js';
 import { SqliteRuntimeWorkItemRepository } from './runtime-work-item-repository.js';
+import { SqliteRuntimeSessionRepository } from './runtime-session-repository.js';
+import { SqliteRuntimeRunRepository } from './runtime-run-repository.js';
+import { SqliteRuntimeDeliveryRepository, SqliteRuntimeExecutionEntryRepository, SqliteRuntimeExecutionNodeRepository } from './runtime-execution-repositories.js';
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   ((typeof value === 'object' && value !== null) || typeof value === 'function')
@@ -64,6 +68,21 @@ export class SqliteRuntimeStore implements RuntimeStorage {
     }));
   }
 
+  listSessions(tenantId: string): Promise<RuntimeSessionSummary[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listSessions');
+    return this.lock(() => new SqliteRuntimeSessionRepository(this.db).listByTenant(tenantId));
+  }
+
+  listSessionEntries(sessionId: string): Promise<RuntimeSessionEntry[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listSessionEntries');
+    return this.lock(() => new SqliteRuntimeSessionRepository(this.db).listEntries(sessionId));
+  }
+
+  listRuns(tenantId: string, options?: RunListOptions): Promise<AgentRun[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listRuns');
+    return this.lock(() => new SqliteRuntimeRunRepository(this.db).listByTenant(tenantId, options));
+  }
+
   getRun(runId: string): Promise<AgentRun | null> {
     if (this.isCallbackContext()) return this.rejectReentrant('getRun');
     return this.lock(() => sqliteAction('reading runtime run', () => {
@@ -83,6 +102,29 @@ export class SqliteRuntimeStore implements RuntimeStorage {
       const rows = this.db.prepare('SELECT * FROM runtime_artifacts WHERE run_id = ? ORDER BY created_at, id').all(runId) as RuntimeArtifactRow[];
       return rows.map(mapArtifactRow);
     }));
+  }
+
+  getArtifact(artifactId: string): Promise<Artifact | null> {
+    if (this.isCallbackContext()) return this.rejectReentrant('getArtifact');
+    return this.lock(() => sqliteAction('reading runtime artifact', () => {
+      const row = this.db.prepare('SELECT * FROM runtime_artifacts WHERE id = ?').get(artifactId) as RuntimeArtifactRow | undefined;
+      return row ? mapArtifactRow(row) : null;
+    }));
+  }
+
+  listExecutionNodes(runId: string): Promise<RunExecutionNode[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listExecutionNodes');
+    return this.lock(() => new SqliteRuntimeExecutionNodeRepository(this.db).listByRun(runId));
+  }
+
+  listExecutionEntries(runId: string, options: ExecutionEntryListOptions = {}): Promise<RunExecutionEntry[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listExecutionEntries');
+    return this.lock(() => new SqliteRuntimeExecutionEntryRepository(this.db).listByRun(runId, options.afterSequence ?? 0, Math.min(options.limit ?? 100, 1000)));
+  }
+
+  listDeliveries(runId: string): Promise<RunDelivery[]> {
+    if (this.isCallbackContext()) return this.rejectReentrant('listDeliveries');
+    return this.lock(() => new SqliteRuntimeDeliveryRepository(this.db).listByRun(runId));
   }
 
   claimWorkItem(owner: string, now: Date, leaseMs: number): Promise<WorkItem | null> {

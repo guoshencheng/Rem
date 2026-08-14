@@ -1,8 +1,7 @@
 import { Bot } from 'lucide-react';
-import type { SessionInfo } from 'rem-agent-core';
+import type { WorkbenchSession } from '@/types';
 import { SectionLabel } from '@/components/section-label';
 import { StatusDot } from '@/components/status-dot';
-import { Badge } from '@/components/ui/badge';
 import {
   Empty,
   EmptyDescription,
@@ -13,21 +12,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 interface SessionListProps {
-  sessions: SessionInfo[];
+  sessions: WorkbenchSession[];
   currentId?: string;
+  runningSessionIds?: ReadonlySet<string>;
   onSelect: (sessionId: string) => void;
 }
 
-const activityLabels: Record<NonNullable<SessionInfo['activity']>, string> = {
+const activityLabels: Record<NonNullable<WorkbenchSession['activity']>, string> = {
   idle: '空闲',
-  pending: '等待运行',
-  thinking: '思考中',
-  'calling-function': '调用工具',
-  outputting: '输出中',
-  compressing: '压缩上下文',
+  running: '运行中',
 };
 
-export function SessionList({ sessions, currentId, onSelect }: SessionListProps) {
+export function SessionList({ sessions, currentId, runningSessionIds, onSelect }: SessionListProps) {
   return (
     <div className="flex h-full min-h-0 flex-col p-[var(--ds-space-panel)]">
       <SectionLabel className="mx-[var(--ds-space-tree)] mb-[var(--ds-space-card)]">
@@ -45,7 +41,8 @@ export function SessionList({ sessions, currentId, onSelect }: SessionListProps)
           <div className="grid gap-[var(--ds-space-tree)] pr-[var(--ds-space-tree)]">
             {sessions.map((session) => {
               const selected = session.sessionId === currentId;
-              const active = session.activity !== undefined && session.activity !== 'idle';
+              const active = runningSessionIds?.has(session.sessionId)
+                || (session.activity !== undefined && session.activity !== 'idle');
               return (
                 <button
                   key={session.sessionId}
@@ -53,7 +50,7 @@ export function SessionList({ sessions, currentId, onSelect }: SessionListProps)
                   data-selected={selected}
                   onClick={() => onSelect(session.sessionId)}
                   className={cn(
-                    'grid h-[var(--ds-row-md-height)] w-full grid-cols-[var(--ds-icon-sm)_minmax(0,1fr)_auto] items-center gap-[var(--ds-space-row-gap)] rounded-md border border-transparent px-[var(--ds-space-row-x)] text-left text-control leading-compact text-secondary-foreground transition-colors hover:bg-hover',
+                    'grid h-[var(--ds-row-md-height)] w-full grid-cols-[var(--ds-icon-sm)_minmax(0,1fr)] items-center gap-[var(--ds-space-row-gap)] rounded-md border border-transparent px-[var(--ds-space-row-x)] text-left text-control leading-compact text-secondary-foreground transition-colors hover:bg-hover',
                     selected && 'border-selected-border bg-selected-bg',
                   )}
                 >
@@ -69,12 +66,6 @@ export function SessionList({ sessions, currentId, onSelect }: SessionListProps)
                       {session.activity ? activityLabels[session.activity] : `${session.messageCount} 条消息`}
                     </small>
                   </span>
-                  <Badge
-                    size="tag"
-                    variant={session.mode === 'multi-agent' ? 'composite' : 'secondary'}
-                  >
-                    {session.mode === 'multi-agent' ? '多 Agent' : '单 Agent'}
-                  </Badge>
                 </button>
               );
             })}

@@ -6,7 +6,9 @@ import { SqliteRuntimeIdempotencyRepository } from './runtime-idempotency-reposi
 import { SqliteRuntimeRunRepository } from './runtime-run-repository.js';
 import { SqliteRuntimeSessionRepository } from './runtime-session-repository.js';
 import { SqliteRuntimeToolInvocationRepository } from './runtime-tool-invocation-repository.js';
+import { SqliteRuntimeExecutionBudgetRepository } from './runtime-execution-budget-repository.js';
 import { SqliteRuntimeWorkItemRepository } from './runtime-work-item-repository.js';
+import { SqliteRuntimeDeliveryRepository, SqliteRuntimeExecutionEntryRepository, SqliteRuntimeExecutionNodeRepository } from './runtime-execution-repositories.js';
 import { invalidRuntimeInput } from './runtime-sqlite-error.js';
 
 export interface RuntimeTransactionGuard { active: boolean }
@@ -36,5 +38,9 @@ export function createSqliteRuntimeUnitOfWork(
     artifacts: guardRepository(new SqliteRuntimeArtifactRepository(db), guard),
     idempotency: guardRepository(new SqliteRuntimeIdempotencyRepository(db), guard),
     toolInvocations: guardRepository(new SqliteRuntimeToolInvocationRepository(db), guard),
+    executionBudgets: guardRepository(new SqliteRuntimeExecutionBudgetRepository(db), guard),
+    executionNodes: guardRepository(new SqliteRuntimeExecutionNodeRepository(db), guard),
+    executionEntries: guardRepository(new SqliteRuntimeExecutionEntryRepository(db), guard),
+    deliveries: guardRepository(new SqliteRuntimeDeliveryRepository(db), guard),
   };
 }

@@ -8,7 +8,7 @@ import type { AgentDefinition } from '../src/domain/agent-definition/types.js';
 import type { RuntimeRequestContext } from '../src/domain/identity/types.js';
 import type { RuntimePlugin } from '../src/sdk/runtime-plugin.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/provider.js';
-import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/index.js';
+import { SqliteRuntimeStorageProvider } from '../src/plugins/storage/sqlite/runtime-provider.js';
 import { createFakeAssembly } from './helpers/fake-di.js';
 import { createScriptedModels, fauxAssistantMessage, fauxToolCall } from './helpers/scripted-models.js';
 
@@ -72,8 +72,8 @@ describe('AgentRuntime 纵向切片验收', () => {
     const agentDefinitions = new StaticAgentDefinitionProvider([definition]);
     const plugins = [customerPlugin, repositoryPlugin];
 
-    const storageA = new SqliteStorageProvider({ dbPath });
-    const runtime = createAgentRuntime({ agentDefinitions, plugins, storage: storageA, assembly, worker: { pollMs: 10 } });
+    const storageA = new SqliteRuntimeStorageProvider({ dbPath });
+    const runtime = createAgentRuntime({ agentDefinitions, plugins, storage: storageA, models: assembly.models, config: assembly.runtimeConfigProvider, executionRoot: assembly.executionRoot, worker: { pollMs: 10 } });
     await runtime.initialize();
     const scoped = runtime.as(request);
 
@@ -113,8 +113,8 @@ describe('AgentRuntime 纵向切片验收', () => {
     await storageA.close();
 
     // 重开同一 SQLite 文件的全新 Runtime，验证持久化切片可读
-    const storageB = new SqliteStorageProvider({ dbPath });
-    const reopened = createAgentRuntime({ agentDefinitions, plugins, storage: storageB, assembly, worker: { pollMs: 10 } });
+    const storageB = new SqliteRuntimeStorageProvider({ dbPath });
+    const reopened = createAgentRuntime({ agentDefinitions, plugins, storage: storageB, models: assembly.models, config: assembly.runtimeConfigProvider, executionRoot: assembly.executionRoot, worker: { pollMs: 10 } });
     await reopened.initialize();
     const reopenedRun = await reopened.as(request).runs.get(run.runId);
     expect(reopenedRun.status).toBe('completed');

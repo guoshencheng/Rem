@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createAgentRuntime } from '../src/assembly/agent-runtime-assembly.js';
 import type { AgentRuntime } from '../src/application/runtime/types.js';
 import { StaticAgentDefinitionProvider } from '../src/plugins/agent-definition/static/provider.js';
-import { SqliteStorageProvider } from '../src/plugins/storage/sqlite/index.js';
+import { SqliteRuntimeStorageProvider } from '../src/plugins/storage/sqlite/runtime-provider.js';
 import { createFakeAssembly } from './helpers/fake-di.js';
 
 const base = new Date('2026-08-12T00:00:00.000Z');
@@ -30,16 +30,16 @@ describe('AgentRuntime 重启恢复', () => {
     const definitions = new StaticAgentDefinitionProvider([definition]);
 
     // 第一个 Runtime 正常运行过，随后在不同执行位置“崩溃”（直接落库残留状态）
-    const providerA = new SqliteStorageProvider({ dbPath });
-    const first = createAgentRuntime({ agentDefinitions: definitions, storage: providerA, assembly, worker: { pollMs: 10 } });
+    const providerA = new SqliteRuntimeStorageProvider({ dbPath });
+    const first = createAgentRuntime({ agentDefinitions: definitions, storage: providerA, models: assembly.models, config: assembly.runtimeConfigProvider, executionRoot: assembly.executionRoot, worker: { pollMs: 10 } });
     await first.initialize();
     await first.shutdown();
     await seedCrashState(providerA.runtimeStore);
     await providerA.close();
 
     // 第二个 Runtime 打开同一数据库文件，initialize 必须先恢复再启动 Worker
-    const providerB = new SqliteStorageProvider({ dbPath });
-    const second = createAgentRuntime({ agentDefinitions: definitions, storage: providerB, assembly, worker: { pollMs: 10 } });
+    const providerB = new SqliteRuntimeStorageProvider({ dbPath });
+    const second = createAgentRuntime({ agentDefinitions: definitions, storage: providerB, models: assembly.models, config: assembly.runtimeConfigProvider, executionRoot: assembly.executionRoot, worker: { pollMs: 10 } });
     await second.initialize();
 
     // non-idempotent executing ToolInvocation：标记 unknown，Run 转 waiting，不再被调度

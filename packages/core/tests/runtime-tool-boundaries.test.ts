@@ -1,11 +1,14 @@
 import { Hint, Kind, Modifier, Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
-import { REMAgentRunExecutor } from '../src/execution/rem-agent-executor.js';
+import type { ToolProvider } from '../src/sdk/tool-provider.js';
+import { SingleAgentRunExecutor } from '../src/execution/single-agent-run-executor.js';
 import { RecordingToolProvider } from '../src/execution/recording-tool-provider.js';
 import { normalizeRuntimeToolContribution } from '../src/application/contexts/runtime-tool-definition.js';
 import { StaticToolProvider } from '../src/plugins/tool/static/index.js';
 import { createFakeRuntimeStore } from './helpers/fake-runtime-store.js';
+import { createMockModels } from './helpers/mock-models.js';
+import { fakeRuntimeConfigProvider } from './helpers/fake-di.js';
 
 const at = new Date('2026-08-11T00:00:00Z');
 const run = { runId: 'r', tenantId: 't', principalId: 'p', sessionId: 's', agentId: 'a', agentRevision: '1', status: 'running' as const,
@@ -30,7 +33,7 @@ describe('Runtime abort boundaries', () => {
   it('pre-aborted executor touches no dependency', async () => {
     const controller = new AbortController(); controller.abort();
     let definitions = 0; let storage = 0; let plugins = 0;
-    const executor = new REMAgentRunExecutor({ assembly: {} as never,
+    const executor = new SingleAgentRunExecutor({ models: createMockModels({ name: 'boundary' }), config: fakeRuntimeConfigProvider(), executionRoot: '/',
       agentDefinitions: { init: async () => {}, list: async () => [], get: async () => { definitions += 1; return null; } },
       storage: { transaction: async () => { storage += 1; return undefined; } } as never,
       pluginHost: { materializeSnapshot: async () => { plugins += 1; return []; } } as never });
@@ -45,7 +48,7 @@ describe('Runtime abort boundaries', () => {
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const blocked = { ...base, transaction: async (operation: never) => { await gate; return base.transaction(operation); } } as RuntimeStorage;
     const pending = recorder(blocked, async () => { called += 1; return { output: 'no' }; })
-      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/', signal: controller.signal });
+      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/', signal: controller.signal });
     controller.abort(); release();
     await expect(pending).rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
     expect(called).toBe(0);
@@ -61,7 +64,7 @@ describe('Runtime abort boundaries', () => {
       return value;
     } } as RuntimeStorage;
     await expect(recorder(wrapped, async () => { called += 1; return { output: 'no' }; })
-      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/', signal: controller.signal }))
+      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/', signal: controller.signal }))
       .rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
     expect(called).toBe(0);
     expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'failed', error: 'Tool execution cancelled' }]);
@@ -77,7 +80,7 @@ describe('Runtime abort boundaries', () => {
       return base.transaction(operation);
     } } as RuntimeStorage;
     await expect(recorder(wrapped, async () => { called += 1; return { output: 'done' }; })
-      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/', signal: controller.signal }))
+      .execute([{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/', signal: controller.signal }))
       .rejects.toMatchObject({ code: 'EXECUTION_CANCELLED' });
     expect(called).toBe(1);
     expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'unknown' }]);
@@ -86,7 +89,7 @@ describe('Runtime abort boundaries', () => {
 
   it('rechecks cancellation after definition loading before storage access', async () => {
     const controller = new AbortController(); let storage = 0;
-    const executor = new REMAgentRunExecutor({ assembly: {} as never,
+    const executor = new SingleAgentRunExecutor({ models: createMockModels({ name: 'boundary' }), config: fakeRuntimeConfigProvider(), executionRoot: '/',
       agentDefinitions: { init: async () => {}, list: async () => [], get: async () => { controller.abort(); return {
         agentId: 'a', revision: '1', name: 'a', instructions: 'a', modelId: 'm', toolNames: [], acceptedTriggers: ['message'], execution: { type: 'single-agent' },
       }; } }, storage: { transaction: async () => { storage += 1; } } as never,
@@ -106,7 +109,7 @@ describe('Runtime abort boundaries', () => {
         listEntries: (id: string) => { entryReads += 1; return uow.sessions.listEntries(id); },
       } })) as never);
     } } as RuntimeStorage;
-    const executor = new REMAgentRunExecutor({ assembly: {} as never,
+    const executor = new SingleAgentRunExecutor({ models: createMockModels({ name: 'boundary' }), config: fakeRuntimeConfigProvider(), executionRoot: '/',
       agentDefinitions: { init: async () => {}, list: async () => [], get: async () => ({
         agentId: 'a', revision: '1', name: 'a', instructions: 'a', modelId: 'm', toolNames: [], acceptedTriggers: ['message'], execution: { type: 'single-agent' },
       }) }, storage, pluginHost: { materializeSnapshot: async () => { pluginCalls += 1; return []; } } as never });
@@ -130,7 +133,7 @@ describe('Runtime tool result boundary', () => {
   ])('marks invalid %s results failed', async (_name, makeResult) => {
     const store = await prepared();
     await expect(recorder(store, async () => makeResult()).execute(
-      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/' },
+      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' },
     )).rejects.toMatchObject({ code: 'TOOL_EXECUTION_FAILED' });
     expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'failed', error: 'Tool result is invalid' }]);
     expect((await store.listEvents('r')).map((event) => event.type)).toEqual(['tool.started', 'tool.failed']);
@@ -140,9 +143,51 @@ describe('Runtime tool result boundary', () => {
     const store = await prepared(); let reads = 0;
     const details = {}; Object.defineProperty(details, 'secret', { enumerable: true, get: () => { reads += 1; return 'x'; } });
     await expect(recorder(store, async () => ({ output: 'x', details })).execute(
-      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/' },
+      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' },
     )).rejects.toMatchObject({ code: 'TOOL_EXECUTION_FAILED' });
     expect(reads).toBe(0);
+  });
+
+  it('rejects a top-level result accessor without executing it', async () => {
+    const store = await prepared(); let reads = 0;
+    const result = { toolCallId: 'c', toolName: 'tool', output: 'x' } as Record<string, unknown>;
+    Object.defineProperty(result, 'details', { enumerable: true, get: () => { reads += 1; return { ok: true }; } });
+    const provider: ToolProvider = {
+      register: () => {}, getToolSet: () => [], getToolDefinition: () => ({ name: 'tool', description: 'tool', parameters: Type.Object({}) }),
+      execute: async () => [result as never], isDangerous: () => false,
+    };
+    await expect(new RecordingToolProvider({ storage: store, provider, run, allowedToolNames: ['tool'] }).execute(
+      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' },
+    )).rejects.toMatchObject({ code: 'TOOL_EXECUTION_FAILED' });
+    expect(reads).toBe(0);
+  });
+
+  it.each([
+    ['wrong call ID', { toolCallId: 'other', toolName: 'tool', output: 'x' }],
+    ['wrong tool name', { toolCallId: 'c', toolName: 'other', output: 'x' }],
+    ['non-string output', { toolCallId: 'c', toolName: 'tool', output: 42 }],
+  ])('rejects a result with %s', async (_name, result) => {
+    const store = await prepared();
+    const provider: ToolProvider = {
+      register: () => {}, getToolSet: () => [], getToolDefinition: () => ({ name: 'tool', description: 'tool', parameters: Type.Object({}) }),
+      execute: async () => [result as never], isDangerous: () => false,
+    };
+    await expect(new RecordingToolProvider({ storage: store, provider, run, allowedToolNames: ['tool'] }).execute(
+      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' },
+    )).rejects.toMatchObject({ code: 'TOOL_EXECUTION_FAILED' });
+    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'failed' }]);
+  });
+
+  it('validates model tool input before invoking the plugin executor', async () => {
+    const store = await prepared(); let calls = 0;
+    const provider = new StaticToolProvider([{ definition: {
+      name: 'tool', description: 'tool', parameters: Type.Object({ required: Type.String() }),
+    }, executor: async () => { calls += 1; return { output: 'must not run' }; } }]);
+    const recording = new RecordingToolProvider({ storage: store, provider, run, allowedToolNames: ['tool'] });
+    await expect(recording.execute([{ toolCallId: 'invalid-input', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' }))
+      .resolves.toMatchObject([{ error: expect.stringContaining('required') }]);
+    expect(calls).toBe(0);
+    expect(await store.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'failed' }]);
   });
 
   it('keeps storage failure precedence while finalizing an invalid result', async () => {
@@ -153,7 +198,7 @@ describe('Runtime tool result boundary', () => {
       return base.transaction(operation);
     } } as RuntimeStorage;
     await expect(recorder(wrapped, async () => ({ output: 'x', details: new Date() })).execute(
-      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', workspaceRoot: '/' },
+      [{ toolCallId: 'c', toolName: 'tool', input: {} }], { cwd: '/', executionRoot: '/' },
     )).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE', retryable: true, cause: expect.any(Error) });
     expect(await base.transaction((uow) => uow.toolInvocations.listByRun('r'))).toMatchObject([{ status: 'executing' }]);
   });

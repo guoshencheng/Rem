@@ -50,7 +50,7 @@ async function createRuntime(
   const runtime = new AgentRuntimeImpl({
     storage: store, agentDefinitions, startRun, worker, signals, waitPollMs: 5,
   });
-  return { store, runtime, worker };
+  return { store, runtime, worker, signals };
 }
 
 async function collect(stream: AsyncIterable<RunSignal>): Promise<string[]> {
@@ -131,6 +131,23 @@ describe('AgentRuntime', () => {
     await runtime.shutdown();
   });
 
+  it('runs.list 对非法 cursor 返回稳定 INVALID_INPUT', async () => {
+    const { runtime } = await createRuntime();
+    await runtime.initialize();
+    await expect(runtime.as(context()).runs.list({ cursor: 'not-a-cursor' }))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await runtime.shutdown();
+  });
+
+  it('分页参数在 Runtime 边界拒绝非法值', async () => {
+    const { runtime } = await createRuntime();
+    await runtime.initialize();
+    const scoped = runtime.as(context());
+    await expect(scoped.runs.list({ limit: 0 })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(scoped.runs.listEvents('missing', -1)).rejects.toMatchObject({ code: 'RUN_NOT_FOUND' });
+    await runtime.shutdown();
+  });
+
   it('subscribe 收到 run.started 与终态 Signal 后结束', async () => {
     const { runtime, worker } = await createRuntime();
     await runtime.initialize();
@@ -141,6 +158,31 @@ describe('AgentRuntime', () => {
     await tick();
     await worker.drainOne();
     expect(await reading).toEqual(['run.started', 'artifact.created', 'run.completed']);
+    await runtime.shutdown();
+  });
+
+  it('实时增量先于终态 Signal 到达，且不写入持久化 RunEvent', async () => {
+    const executor: RunExecutor = {
+      execute: async ({ emitSignal }) => {
+        emitSignal?.({ type: 'assistant.text.delta', data: {
+          messageIndex: 0, contentIndex: 0, delta: 'live',
+        } });
+        return structuredClone(successResult);
+      },
+    };
+    const { runtime, worker, store, signals } = await createRuntime(executor, {
+      onSignal: (signal) => signals.publish(signal),
+    });
+    await runtime.initialize();
+    const scoped = runtime.as(context());
+    const run = await scoped.runs.start({ agentId: 'assistant', trigger: taskTrigger });
+    const reading = collect(scoped.runs.subscribe(run.runId));
+    await worker.drainOne();
+
+    await expect(reading).resolves.toEqual([
+      'run.started', 'assistant.text.delta', 'artifact.created', 'run.completed',
+    ]);
+    expect((await store.listEvents(run.runId)).some((event) => event.type === 'assistant.text.delta')).toBe(false);
     await runtime.shutdown();
   });
 

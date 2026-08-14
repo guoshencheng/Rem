@@ -1,14 +1,11 @@
 import Database from 'better-sqlite3';
-import { SESSION_DDL } from './schema/session-ddl.js';
-import { TODO_DDL } from './schema/todo-ddl.js';
-import { ARCHIVE_DDL } from './schema/archive-ddl.js';
-import { WORKSPACE_DDL } from './schema/workspace-ddl.js';
-import { runMigrations } from './schema/migrations.js';
-import { AGENT_DDL } from './schema/agent-ddl.js';
-import { DELIVERY_DDL } from './schema/delivery-ddl.js';
 import { RUNTIME_DDL } from './runtime-ddl.js';
+import { RUNTIME_EXECUTION_DDL, RUNTIME_EXECUTION_GRAPH_INDEX_DDL } from './runtime-execution-ddl.js';
+import { migrateRuntimeToolInvocationNode } from './schema/runtime-tool-invocation-migration.js';
+import { migrateRuntimeExecutionBudgets } from './schema/runtime-execution-budget-migration.js';
+import { migrateRuntimeExecutionGraph } from './schema/runtime-execution-graph-migration.js';
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 14;
 
 export class SqliteSchemaManager {
   constructor(private db: Database.Database) {}
@@ -25,18 +22,12 @@ export class SqliteSchemaManager {
     if (existing && existing.version > CURRENT_SCHEMA_VERSION) {
       throw new Error(`Unsupported schema version: ${existing.version}`);
     }
-    if (existing?.version === 10) {
-      runMigrations(this.db, existing.version);
-      this.db.prepare('UPDATE schema_version SET version = ?').run(CURRENT_SCHEMA_VERSION);
-    }
-
-    this.db.exec(SESSION_DDL);
-    this.db.exec(TODO_DDL);
-    this.db.exec(ARCHIVE_DDL);
-    this.db.exec(WORKSPACE_DDL);
-    this.db.exec(AGENT_DDL);
-    this.db.exec(DELIVERY_DDL);
     this.db.exec(RUNTIME_DDL);
+    migrateRuntimeToolInvocationNode(this.db);
+    this.db.exec(RUNTIME_EXECUTION_DDL);
+    migrateRuntimeExecutionGraph(this.db);
+    this.db.exec(RUNTIME_EXECUTION_GRAPH_INDEX_DDL);
+    migrateRuntimeExecutionBudgets(this.db);
 
     const row = this.db.prepare('SELECT version FROM schema_version').get() as
       | { version: number }
@@ -48,7 +39,6 @@ export class SqliteSchemaManager {
     }
 
     if (row.version === CURRENT_SCHEMA_VERSION) return;
-    runMigrations(this.db, row.version);
     this.db.prepare('UPDATE schema_version SET version = ?').run(CURRENT_SCHEMA_VERSION);
   }
 }

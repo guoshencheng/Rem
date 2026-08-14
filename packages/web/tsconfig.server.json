@@ -10,7 +10,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "rem-agent-core": ["../core/dist/index.d.ts"]
+      "rem-agent-core": ["../core/dist/index.d.ts"],
+      "rem-agent-service": ["../service/dist/index.d.ts"]
     }
   },
   "include": ["src/server"]

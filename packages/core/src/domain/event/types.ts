@@ -10,9 +10,17 @@ export interface RunEvent {
   occurredAt: Date;
 }
 
+/** Optional execution-graph origin for signals emitted by Team/member nodes. */
+export interface RunSignalSource {
+  nodeId: string;
+  agentId: string;
+  role: string;
+}
+
 export interface RunSignal {
   runId: string;
   type: string;
   data?: unknown;
+  source?: RunSignalSource;
   occurredAt: Date;
 }

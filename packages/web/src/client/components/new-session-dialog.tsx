@@ -1,78 +1,58 @@
 import { useEffect, useState } from 'react';
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import type { AgentDefinition } from 'rem-agent-core';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { api } from '@/api/client';
-import type { TeamInfo } from 'rem-agent-core';
-
-const SINGLE = '__single__';
 
 interface NewSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (sessionId: string) => void;
+  agentId: string;
+  onAgentChange: (agentId: string) => void;
 }
 
-export function NewSessionDialog({ open, onOpenChange, onCreated }: NewSessionDialogProps) {
-  const [teams, setTeams] = useState<TeamInfo[]>([]);
-  const [teamId, setTeamId] = useState(SINGLE);
+export function NewSessionDialog({
+  open, onOpenChange, onCreated, agentId, onAgentChange,
+}: NewSessionDialogProps) {
+  const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [error, setError] = useState<string>();
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (open) void api.listTeams().then(setTeams).catch((e: Error) => setError(e.message));
+    if (!open) return;
+    void api.listAgents().then((items) => {
+      setAgents(items);
+      if (items.length > 0 && !items.some((item) => item.agentId === agentId)) onAgentChange(items[0].agentId);
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
   }, [open]);
 
   const create = async () => {
-    setCreating(true);
-    setError(undefined);
+    setCreating(true); setError(undefined);
     try {
-      const info = await api.createSession(teamId === SINGLE ? undefined : teamId);
-      onOpenChange(false);
-      onCreated(info.sessionId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setCreating(false);
-    }
+      const info = await api.createSession();
+      onOpenChange(false); onCreated(info.sessionId);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally { setCreating(false); }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>新建 Session</DialogTitle>
-        </DialogHeader>
-        <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger>
-            <SelectValue placeholder="选择类型" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={SINGLE}>单 Agent</SelectItem>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  Team: {t.id}（{t.organizer} + {t.members.length} 成员）
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
+        <DialogHeader><DialogTitle>新建 Session</DialogTitle></DialogHeader>
+        <Select value={agentId} onValueChange={onAgentChange}>
+          <SelectTrigger><SelectValue placeholder="选择 Agent" /></SelectTrigger>
+          <SelectContent>{agents.map((agent) => (
+            <SelectItem key={`${agent.agentId}:${agent.revision}`} value={agent.agentId}>
+              {agent.name} · {agent.agentId}
+            </SelectItem>
+          ))}</SelectContent>
         </Select>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <DialogFooter>
-          <Button onClick={create} disabled={creating}>
-            {creating ? '创建中…' : '创建'}
-          </Button>
-        </DialogFooter>
+        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        <DialogFooter><Button onClick={create} disabled={creating}>{creating ? '创建中…' : '创建'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

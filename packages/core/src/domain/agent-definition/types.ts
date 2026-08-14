@@ -1,5 +1,9 @@
 export type RunTriggerType = 'message' | 'task';
 
+export type { AgentRef, DelegationDefinition, ExecutionStrategyDefinition, OrchestrationLimits } from './execution-types.js';
+import type { ExecutionStrategyDefinition } from './execution-types.js';
+import type { JsonSchema } from '../json/types.js';
+
 export interface ContextTypeConstraint {
   type: string;
   min?: number;
@@ -14,8 +18,10 @@ export interface AgentDefinition {
   modelId: string;
   toolNames: readonly string[];
   acceptedTriggers: readonly RunTriggerType[];
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
   requiredContexts?: readonly ContextTypeConstraint[];
   optionalContexts?: readonly ContextTypeConstraint[];
   overridableContexts?: readonly string[];
-  execution: { type: 'single-agent' };
+  execution: ExecutionStrategyDefinition;
 }

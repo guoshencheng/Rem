@@ -24,6 +24,38 @@ async function expectCode(action: () => unknown | Promise<unknown>, code: Runtim
 }
 
 describe('SQLite runtime 关系完整性', () => {
+  it('为旧 runtime_tool_invocations 表补 node_id 并恢复按节点复用 call id', () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    db.exec(`
+      CREATE TABLE schema_version(version INTEGER PRIMARY KEY);
+      INSERT INTO schema_version VALUES(12);
+      CREATE TABLE runtime_tool_invocations (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        run_id TEXT NOT NULL, tool_call_id TEXT NOT NULL, tool_name TEXT NOT NULL,
+        status TEXT NOT NULL, side_effect TEXT NOT NULL, supports_idempotency_key INTEGER NOT NULL,
+        input_json TEXT NOT NULL, result_json TEXT, error TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        UNIQUE (run_id, tool_call_id)
+      );
+    `);
+    new SqliteSchemaManager(db).migrate();
+    const columns = db.prepare('PRAGMA table_info(runtime_tool_invocations)').all() as Array<{ name: string }>;
+    expect(columns.map(({ name }) => name)).toContain('node_id');
+    db.exec(`
+      INSERT INTO runtime_sessions VALUES ('s', 't', '{"bindings":[]}', '2026-08-14T00:00:00.000Z', '2026-08-14T00:00:00.000Z');
+      INSERT INTO runtime_runs VALUES ('r', 't', 'p', 's', 'a', '1', 'queued', '{"type":"task","input":null}', '{"items":[],"configLayers":[],"promptSections":[]}', NULL, NULL, NULL, '2026-08-14T00:00:00.000Z', NULL, NULL, '2026-08-14T00:00:00.000Z');
+      INSERT INTO runtime_tool_invocations
+        (id, tenant_id, session_id, run_id, node_id, tool_call_id, tool_name, status, side_effect, supports_idempotency_key, input_json, created_at, updated_at)
+        VALUES ('i1', 't', 's', 'r', 'root', 'call', 'tool', 'succeeded', 'none', 0, 'null', '2026-08-14T00:00:00.000Z', '2026-08-14T00:00:00.000Z');
+      INSERT INTO runtime_tool_invocations
+        (id, tenant_id, session_id, run_id, node_id, tool_call_id, tool_name, status, side_effect, supports_idempotency_key, input_json, created_at, updated_at)
+        VALUES ('i2', 't', 's', 'r', 'member:1', 'call', 'tool', 'succeeded', 'none', 0, 'null', '2026-08-14T00:00:00.000Z', '2026-08-14T00:00:00.000Z');
+    `);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM runtime_tool_invocations').get()).toEqual({ count: 2 });
+    db.close();
+  });
+
   it('v11 升级直接创建最终复合外键，不兼容未发布的临时 v12 形状', () => {
     const db = new Database(':memory:');
     db.exec('CREATE TABLE schema_version(version INTEGER PRIMARY KEY); INSERT INTO schema_version VALUES(11)');
@@ -57,6 +89,23 @@ describe('SQLite runtime 关系完整性', () => {
     for (const write of invalidChildren) await expectCode(() => store.transaction(write), 'STORAGE_CONFLICT');
     db.prepare("DELETE FROM runtime_sessions WHERE id='s2'").run();
     expect(await store.getRun('r1')).not.toBeNull();
+    db.close();
+  });
+
+  it('执行图子记录拒绝跨 tenant 的 run ownership', async () => {
+    const { db, store } = openStore();
+    await store.transaction((uow) => {
+      uow.sessions.insert(session('graph-session', 't1'));
+      uow.runs.insert(run('graph-run', 't1', 'graph-session'));
+    });
+    await expectCode(() => store.transaction((uow) => uow.executionNodes.insert({
+      nodeId: 'bad-node', runId: 'graph-run', tenantId: 't2', kind: 'root', role: 'root',
+      agentId: 'agent', agentRevision: '1', status: 'queued', depth: 0, createdAt: at(2), updatedAt: at(2),
+    })), 'STORAGE_CONFLICT');
+    await expectCode(() => store.transaction((uow) => uow.deliveries.insert({
+      deliveryId: 'bad-delivery', runId: 'graph-run', tenantId: 't2', nodeId: 'bad-node',
+      kind: 'message', batchId: 'batch', depth: 0, status: 'queued', attempt: 0, createdAt: at(2), updatedAt: at(2),
+    })), 'STORAGE_CONFLICT');
     db.close();
   });
 });

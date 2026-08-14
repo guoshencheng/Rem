@@ -1,8 +1,11 @@
-import type { SessionChatMessage } from 'rem-agent-core';
-import { MarkdownContent } from '@/components/markdown-content';
+import type { Message } from 'rem-agent-core';
+import { RuntimeMessageContent } from '@/components/runtime-message-content';
+import type { RuntimeChatMessage } from '@/types';
+import type { ContentBlock } from '@/state/runtime-stream-projection';
+import type { RuntimeToolResult } from '@/state/runtime-stream-projection';
 import { cn } from '@/lib/utils';
 
-export function messageText(message: SessionChatMessage['message']): string {
+export function messageText(message: Message): string {
   const content = message.content;
   if (typeof content === 'string') return content;
   return content
@@ -11,10 +14,16 @@ export function messageText(message: SessionChatMessage['message']): string {
     .join('\n');
 }
 
-export function MessageItem({ item }: { item: SessionChatMessage }) {
+export function MessageItem({
+  item,
+  toolResults = {},
+}: {
+  item: RuntimeChatMessage;
+  toolResults?: Record<string, RuntimeToolResult>;
+}) {
   const isUser = item.message.role === 'user';
   const text = messageText(item.message);
-  if (!text) return null;
+  if (!text && item.message.role === 'user') return null;
 
   return (
     <article className={cn('max-w-[78%] text-body leading-body', isUser && 'max-w-[68%] self-end')}>
@@ -25,9 +34,12 @@ export function MessageItem({ item }: { item: SessionChatMessage }) {
       ) : (
         <div className="border-l-2 border-selected-border pl-[var(--ds-space-card)] text-secondary-foreground">
           <div className="mb-[var(--ds-space-tree)] text-label font-extrabold uppercase leading-control tracking-[0.1em] text-muted-foreground">
-            REM{item.authorThreadId ? ` · ${item.authorThreadId}` : ''}
+            REM
           </div>
-          <MarkdownContent text={text} />
+          <RuntimeMessageContent
+            parts={item.message.content as ContentBlock[]}
+            toolResults={toolResults}
+          />
         </div>
       )}
     </article>

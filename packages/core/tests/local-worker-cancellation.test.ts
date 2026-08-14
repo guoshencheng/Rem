@@ -1,6 +1,6 @@
 import type { RuntimeStorage } from '../src/sdk/runtime-storage.js';
 import { describe, expect, it } from 'vitest';
-import { createWorker, deferred, fakeStore, seedRun, successResult } from './helpers/local-worker-fixture.js';
+import { baseTime, createWorker, deferred, fakeStore, seedRun, successResult } from './helpers/local-worker-fixture.js';
 
 describe('LocalRunWorker 取消', () => {
   it('queued run 直接取消、清理 lease，并保持幂等', async () => {
@@ -75,6 +75,19 @@ describe('LocalRunWorker 取消', () => {
     expect(other).toMatchObject({ status: 'queued' });
     expect(other).not.toHaveProperty('cancellationRequestedAt');
     expect((await store.listEvents('run-1')).map((event) => event.type)).toEqual(['run.created']);
+  });
+
+  it('waiting Run 拒绝普通取消，必须先处置 unknown invocation', async () => {
+    const store = await fakeStore();
+    await seedRun(store, { status: 'waiting', workStatus: 'failed' });
+    await store.transaction((uow) => uow.toolInvocations.insert({
+      invocationId: 'unknown-invocation', tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1',
+      nodeId: 'run-1:root', toolCallId: 'call-1', toolName: 'charge', status: 'unknown',
+      sideEffect: 'non-idempotent', supportsIdempotencyKey: false, input: {}, createdAt: baseTime, updatedAt: baseTime,
+    }));
+    const worker = createWorker(store, { execute: async () => successResult });
+    await expect(worker.cancel('run-1')).rejects.toMatchObject({ code: 'TOOL_RESULT_UNKNOWN' });
+    expect(await store.getRun('run-1')).toMatchObject({ status: 'waiting' });
   });
 
   it('claim 后 start transaction 返回前取消，不调用 executor', async () => {

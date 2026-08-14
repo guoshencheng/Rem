@@ -27,6 +27,28 @@ describe('LocalRunWorker 竞争与计时', () => {
     ]);
   });
 
+  it('使用 ExecutionPlanSnapshot 的 timeoutMs 覆盖 Worker 默认上限', async () => {
+    const store = await fakeStore(); await seedRun(store);
+    await store.transaction((uow) => {
+      const run = uow.runs.get('run-1')!;
+      uow.runs.update({ ...run, executionType: 'single-agent', executionPlanSnapshot: {
+        executionType: 'single-agent', participants: [{ agentId: 'agent-1', revision: '1', role: 'root' }],
+        participantSnapshots: [{ agentId: 'agent-1', revision: '1', role: 'root', name: 'Agent', instructions: '', modelId: 'mock', toolNames: [], acceptedTriggers: ['task'] }],
+        modelId: 'mock', instructions: '', toolNames: [], limits: {
+          maxAgentRuns: 20, maxMessages: 50, maxDepth: 8, timeoutMs: 50, maxTokens: 200_000, maxParallelAgents: 4,
+        }, hash: 'a'.repeat(64),
+      } });
+    });
+    const scheduler = new ManualScheduler();
+    const entered = deferred<void>(); const result = deferred<typeof successResult>();
+    const worker = createWorker(store, { execute: async () => { entered.resolve(); return result.promise; } }, { scheduler, runTimeoutMs: 5_000 });
+    const drain = worker.drainOne(); await entered.promise;
+    expect(scheduler.pendingDelays).toContain(50);
+    scheduler.runDelay(50); await drain;
+    expect(await store.getRun('run-1')).toMatchObject({ status: 'failed', errorCode: 'EXECUTION_TIMEOUT' });
+    result.resolve(successResult);
+  });
+
   it('两个 worker 竞争只执行一次，同实例并发 drain 不重入', async () => {
     const store = await fakeStore(); await seedRun(store);
     const entered = deferred<void>();

@@ -1,10 +1,11 @@
 import { PanelLeft, PanelRight, Plus, Square } from 'lucide-react';
-import type { SessionInfo } from 'rem-agent-core';
+import type { WorkbenchSession } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 interface TopBarProps {
-  session?: SessionInfo;
+  session?: WorkbenchSession;
+  agentId: string;
   running: boolean;
   hasInspector: boolean;
   onInterrupt: () => void;
@@ -15,6 +16,7 @@ interface TopBarProps {
 
 export function TopBar({
   session,
+  agentId,
   running,
   hasInspector,
   onInterrupt,
@@ -41,15 +43,13 @@ export function TopBar({
           {session?.title ?? session?.sessionId ?? '未选择 Session'}
         </span>
         {session && (
-          <Badge variant={session.mode === 'multi-agent' ? 'secondary' : 'outline'}>
-            {session.mode === 'multi-agent' ? 'multi-agent' : 'single'}
-          </Badge>
+          <Badge variant="outline">{agentId}</Badge>
         )}
       </div>
       <div className="ml-auto flex items-center gap-[var(--ds-space-actions)]">
         {hasInspector && (
           <Button
-            aria-label="打开 Threads"
+            aria-label="打开运行检查器"
             className="min-[900px]:hidden"
             variant="ghost"
             size="icon-sm"

@@ -127,3 +127,44 @@ export function validateContextSnapshot(value: unknown, column: string): void {
     runtimeText(section.content, `${sectionColumn}.content`, true);
   });
 }
+
+export function validateExecutionPlanSnapshot(value: unknown, column: string): void {
+  requirePlainObject(value, column);
+  if (value.orchestrationVersion !== undefined) runtimeIntegerEnum(value.orchestrationVersion, `${column}.orchestrationVersion`, [1] as const);
+  runtimeEnum(value.executionType, `${column}.executionType`, ['single-agent', 'team'] as const);
+  runtimeText(value.modelId, `${column}.modelId`); runtimeText(value.instructions, `${column}.instructions`, true);
+  requireArray(value.participants, `${column}.participants`);
+  value.participants.forEach((participant, index) => validatePlanParticipant(participant, `${column}.participants[${index}]`));
+  if (value.participantSnapshots !== undefined) {
+    requireArray(value.participantSnapshots, `${column}.participantSnapshots`);
+    value.participantSnapshots.forEach((participant, index) => validatePlanParticipant(participant, `${column}.participantSnapshots[${index}]`));
+  }
+  requireArray(value.toolNames, `${column}.toolNames`);
+  value.toolNames.forEach((tool, index) => runtimeText(tool, `${column}.toolNames[${index}]`));
+  requirePlainObject(value.limits, `${column}.limits`);
+  for (const key of ['maxAgentRuns', 'maxMessages', 'maxDepth', 'timeoutMs', 'maxTokens', 'maxParallelAgents']) {
+    runtimeInteger(value.limits[key], `${column}.limits.${key}`, 1);
+  }
+  if (typeof value.hash !== 'string' || !/^[0-9a-f]{64}$/i.test(value.hash)) return fail(`${column}.hash`, 'a 64-character hash', value.hash);
+}
+
+function validatePlanParticipant(value: unknown, column: string): void {
+  requirePlainObject(value, column); runtimeText(value.agentId, `${column}.agentId`); runtimeText(value.revision, `${column}.revision`);
+  runtimeEnum(value.role, `${column}.role`, ['root', 'organizer', 'member'] as const);
+  if (value.name !== undefined) runtimeText(value.name, `${column}.name`);
+  if (value.instructions !== undefined) runtimeText(value.instructions, `${column}.instructions`, true);
+  if (value.modelId !== undefined) runtimeText(value.modelId, `${column}.modelId`);
+  if (value.toolNames !== undefined) {
+    requireArray(value.toolNames, `${column}.toolNames`);
+    value.toolNames.forEach((tool: unknown, index: number) => runtimeText(tool, `${column}.toolNames[${index}]`));
+  }
+  if (value.acceptedTriggers !== undefined) {
+    requireArray(value.acceptedTriggers, `${column}.acceptedTriggers`);
+    value.acceptedTriggers.forEach((trigger: unknown, index: number) => runtimeEnum(trigger, `${column}.acceptedTriggers[${index}]`, ['message', 'task'] as const));
+  }
+  if (value.delegation !== undefined) {
+    requirePlainObject(value.delegation, `${column}.delegation`);
+    if (typeof value.delegation.enabled !== 'boolean') fail(`${column}.delegation.enabled`, 'a boolean', value.delegation.enabled);
+    if (value.delegation.maxDepth !== undefined) runtimeInteger(value.delegation.maxDepth, `${column}.delegation.maxDepth`, 1);
+  }
+}

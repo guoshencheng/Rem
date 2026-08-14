@@ -10,7 +10,6 @@ const MAX_BUFFER_SIZE = 1000;
 /** 日志上下文，会自动拼接到消息里 */
 export interface LogContext {
   sessionId?: string;
-  workspace?: string;
   step?: number;
   messageId?: string;
   chunkType?: string;
@@ -106,6 +105,16 @@ export function log(tag: string, message: string, context?: LogContext): void {
   const fileLine = `[${timestamp()}] [${tag}]${ctx} ${message}\n`;
   writeToFile(fileLine);
   writeToConsole(tag, message, context);
+}
+
+/** Write a bounded, structured JSON line without exposing execution content. */
+export function logStructured(tag: string, value: Record<string, unknown>): void {
+  const line = JSON.stringify({ timestamp: new Date().toISOString(), tag, ...value });
+  writeToFile(`${line}\n`);
+  if (consoleOutputEnabled) {
+    // eslint-disable-next-line no-console
+    console.log(line);
+  }
 }
 
 /**

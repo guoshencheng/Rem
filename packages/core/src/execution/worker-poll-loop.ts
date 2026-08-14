@@ -20,6 +20,8 @@ export class WorkerPollLoop {
     return this.lastError ? { lastPollError: this.lastError } : {};
   }
 
+  get running(): boolean { return this.started; }
+
   start(): void {
     if (this.started) return;
     this.started = true;
@@ -40,6 +42,7 @@ export class WorkerPollLoop {
   recordError(error: RuntimeError): void {
     if (this.lastError === error) return;
     this.lastError = error;
+    this.options.onObservation?.({ type: 'worker.poll.failed', occurredAt: new Date(), errorCode: error.code, retryable: error.retryable });
     let hookResult: void | PromiseLike<void>;
     try { hookResult = this.options.onPollError?.(error); }
     catch { return; }

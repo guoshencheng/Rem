@@ -1,105 +1,62 @@
-// ═══ 稳定公开 API：AgentRuntime 装配入口、领域类型、Runtime SDK 接口 ═══
-export { createAgentRuntime, createAgentRuntimeFromEnv, type CreateAgentRuntimeOptions } from './assembly/agent-runtime-assembly.js'
-export type { AgentRuntime, ScopedAgentRuntime, StartRunInput } from './application/runtime/index.js'
-export { RuntimeError, RUNTIME_ERROR_CODES, type RuntimeErrorCode } from './application/runtime/index.js'
-export type { Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage, AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
-export type { AgentSession as Session } from './domain/session/types.js'
-export type { AgentRun as Run, RunStatus, RunTrigger } from './domain/run/types.js'
-export type { AgentDefinition, ContextTypeConstraint, RunTriggerType } from './domain/agent-definition/types.js'
-export type { RunEvent, RunSignal } from './domain/event/types.js'
-export type { Artifact, ArtifactDraft } from './domain/artifact/types.js'
-export type { Principal, RuntimeRequestContext } from './domain/identity/types.js'
-export type { ContextBinding, ContextPatch, ContextSet, ResolvedContextSnapshot } from './domain/context/types.js'
-export type { AgentDefinitionProvider } from './sdk/agent-definition-provider.js'
-export type {
-  RuntimePlugin,
-  RuntimePluginRegistrar,
-  RuntimeToolContribution,
-  ContextTypeContribution,
-  ContextResolution,
-  ContextResolutionInput,
-  ContextRuntimeContributions,
-  ResolvedRuntimeContext,
-} from './sdk/runtime-plugin.js'
-export type { RuntimeStorage } from './sdk/runtime-storage.js'
+export {
+  createAgentRuntime,
+  createAgentRuntimeFromEnv,
+  type CreateAgentRuntimeOptions,
+} from './assembly/agent-runtime-assembly.js';
+export type { AgentRuntime, ScopedAgentRuntime, StartRunInput } from './application/runtime/index.js';
+export { RuntimeError, RUNTIME_ERROR_CODES, type RuntimeErrorCode } from './application/runtime/index.js';
 
-// ═══ Legacy internal compatibility exports ═══
-// 旧实现（REMAgent/Session/orchestration 等）的内部兼容出口，不属于稳定公开 API；
-// 新代码应使用上方稳定区域，旧代码迁移前暂时保留。
-export * from './agent/types.js'
-export type { AgentEvent } from '@earendil-works/pi-agent-core'
-export * from './sdk/index.js'
-export * from './plugins/index.js'
-export * from './plugin-system/errors.js'
-export { createAgentFromEnv, type CreateAgentOptions } from './assembly/agent-factory.js'
-export { createAgentAssembly, type AgentContextBuildOptions } from './assembly/agent-assembly.js'
-export type { AgentDI } from './assembly/agent-di.js'
-export type { AgentRuntimeConfig, AgentRuntimeInfo } from './assembly/runtime-config.js'
-export type { AgentAssembly } from './assembly/types.js'
-export { initializeAgentDI } from './assembly/agent-context-assembler.js'
-export { REMAgent } from './agent/rem-agent.js'
-export type { REMAgentStatus, REMAgentParams } from './agent/rem-agent-params.js'
-export type { REMAgentEvent } from './agent/agent-event.js'
-export * from './agent/bus-events.js'
-export * from './agent/broadcast-bus.js'
-export * from './agent/budget.js'
-export * from './agent/token-usage/index.js'
-export * from './agent/event-aggregators.js'
-export * from './session/manager/index.js'
-export { SessionRuntime, type SessionRuntimeParams, type SessionRuntimeStatus } from './session/runtime.js'
-export { SessionRuntimeRegistry } from './session/runtime-registry.js'
-export * from './session/agent-thread-runtime.js'
-export * from './session/agent-thread-runtime-registry.js'
-export { SessionUsecase } from './session/session-usecase.js'
-export { SessionAgentContextUsecase, type SessionAgentContextUsecaseDeps } from './session/session-agent-context-usecase.js'
-export type { AgentSystemEvent } from './agent/bus-events.js'
-export * from './system/index.js'
-export * from './delegation/index.js'
-export * from './session/agent-thread/model.js'
-export * from './session/agent-thread/store.js'
-export * from './session/agent-thread/agent-thread-usecase.js'
-export * from './session/messages/index.js'
-export * from './orchestration/delivery-model.js'
-export * from './orchestration/delivery-store.js'
-export * from './orchestration/delivery-errors.js'
-export * from './orchestration/delivery-usecase.js'
-export * from './orchestration/discussion-runtime.js'
-export * from './orchestration/discussion-budget.js'
-export * from './orchestration/orchestration-actions.js'
-export * from './orchestration/send-message-tool.js'
-export * from './orchestration/finish-discussion-tool.js'
-export * from './orchestration/communication-message.js'
-export * from './orchestration/scheduler.js'
-export * from './orchestration/scheduler-types.js'
-export * from './orchestration/delivery-executor.js'
-export * from './orchestration/batch-completion.js'
-export * from './orchestration/concurrency-limiter.js'
-export * from './orchestration/synthetic-result-message.js'
-export * from './orchestration/agent-thread-event-driver.js'
-export * from './orchestration/multi-agent-actions.js'
-export * from './orchestration/orchestration-action-binding.js'
-export * from './orchestration/multi-agent-coordinator.js'
-export * from './orchestration/multi-agent-coordinator-types.js'
-export * from './orchestration/multi-agent-event-handler.js'
-export * from './capabilities/todo/types.js'
-export * from './capabilities/todo/errors.js'
-export * from './capabilities/todo/todo-usecase.js'
-export * from './infrastructure/config/paths.js'
-export * from './infrastructure/observability/debug-log.js'
-export { createCoreModels, type CreateCoreModelsOptions } from './infrastructure/llm/models.js'
-export * from './infrastructure/llm/context-window.js'
-export { generateId } from './shared/generate-id.js'
-export * from './tools/registry.js'
-export { composeToolProviders } from './tools/composer.js'
-export { ToolOverlay, defineOverlayTool, type ToolOverlayEntry } from './tools/overlay.js'
-export type { Rule, RuleAction, RuleSource } from './security/rules/rule.js'
-export { classifyCommand } from './security/permissions/exec-classifier.js'
-export { ApprovalEngine, type ApprovalResolution } from './security/approval/approval-engine.js'
-export { createAgentTools, type AgentToolsParams, type AgentTools } from './runtime/agent-tools.js'
-export { createCompressionTransform } from './runtime/compression-transform.js'
-export type { AgentContext, AgentLoopConfig, AgentTool, AgentToolResult, StreamFn } from '@earendil-works/pi-agent-core'
-export { EventQueue } from './agent/event-queue.js'
-export * from './runtime/agent-tool-capabilities.js'
-export { createTodoWriteToolDefinition, createTodoWriteToolExecutor } from './capabilities/todo/tool.js'
-export { formatTaskResult } from './capabilities/sub-agent/format-task-result.js'
-export { createDelegateTaskExecutor, createDelegateTaskToolDefinition, type DelegateTaskInput } from './capabilities/sub-agent/delegate-task.js'
+export type {
+  Message, TextContent, ImageContent, ThinkingContent, ToolCall, Usage,
+  AssistantMessage, AssistantMessageEvent,
+} from '@earendil-works/pi-ai';
+export type { AgentRun as Run, RunStatus, RunTrigger, RuntimeToolInvocation } from './domain/run/types.js';
+export type { AgentSession as Session, RuntimeSessionEntry, RuntimeSessionSummary } from './domain/session/types.js';
+export type {
+  AgentDefinition, AgentRef, ContextTypeConstraint, ExecutionStrategyDefinition,
+  OrchestrationLimits, RunTriggerType,
+} from './domain/agent-definition/types.js';
+export type { JsonSchema, JsonValue } from './domain/json/types.js';
+export type {
+  StartTaskInput, ExecuteTaskOptions, TaskResult, TaskOutcome, RuntimeTaskOperations,
+} from './domain/task/types.js';
+export type { AgentPlanParticipantSnapshot, ExecutionPlanSnapshot } from './domain/agent-definition/execution-types.js';
+export type {
+  RunExecutionNode, RunExecutionEntry, RunDelivery, RunExecutionBudget, ExecutionNodeStatus, DeliveryStatus, RunListOptions,
+  ExecutionEntryListOptions, ToolInvocationResolution,
+} from './domain/run/execution-models.js';
+export type { RunEvent, RunSignal, RunSignalSource } from './domain/event/types.js';
+export type { RuntimeObserver, RuntimeObservation, RuntimeObservationSink } from './sdk/runtime-observer.js';
+export {
+  isRunLiveSignal, RUN_LIVE_SIGNAL_TYPES,
+  type RunLiveSignal, type RunLiveSignalDraft, type RunLiveSignalType, type RunSignalOf,
+} from './domain/event/live-signals.js';
+export type { Artifact, ArtifactDraft } from './domain/artifact/types.js';
+export type { Principal, RuntimeRequestContext } from './domain/identity/types.js';
+export type { ContextBinding, ContextPatch, ContextSet, ResolvedContextSnapshot } from './domain/context/types.js';
+
+export type { AgentDefinitionProvider } from './sdk/agent-definition-provider.js';
+export type {
+  RuntimePlugin, RuntimePluginRegistrar, RuntimeToolContribution, ContextTypeContribution,
+  ContextResolution, ContextResolutionInput, ContextRuntimeContributions, ResolvedRuntimeContext,
+} from './sdk/runtime-plugin.js';
+export type {
+  ToolContext, ToolDefinition, ToolExecutor, ToolProvider, ToolCall as RuntimeToolCall,
+  ToolResult, ToolSet,
+} from './sdk/tool-provider.js';
+export type { RuntimeStorage } from './sdk/runtime-storage.js';
+export type {
+  RuntimeConfigProvider, RuntimeDefaults, RuntimeBehaviorDefaults,
+  RuntimeModelConfig, ResolvedRuntimeModelConfig, RuntimeToolDefaults,
+  RuntimeCompressionDefaults, RuntimeOrchestrationDefaults,
+} from './sdk/runtime-config-provider.js';
+export type { RuntimeStorageProvider } from './sdk/runtime-storage-provider.js';
+export type { RuntimeHealth } from './sdk/runtime-health.js';
+export type { RuntimeWorkerOptions } from './sdk/runtime-worker.js';
+
+export { StaticAgentDefinitionProvider } from './plugins/agent-definition/static/provider.js';
+export { SqliteRuntimeStorageProvider } from './plugins/storage/sqlite/runtime-provider.js';
+export { DefaultRuntimeConfigProvider } from './plugins/config/default/default-runtime-config-provider.js';
+export { createDefaultAgentPaths, type AgentPaths } from './infrastructure/config/paths.js';
+export { createCoreModels, type CreateCoreModelsOptions } from './infrastructure/llm/models.js';
+export { generateId } from './shared/generate-id.js';

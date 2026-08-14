@@ -7,6 +7,10 @@ export const RUNTIME_TABLE_NAMES = [
   'runtime_artifacts',
   'runtime_idempotency',
   'runtime_tool_invocations',
+  'runtime_execution_nodes',
+  'runtime_execution_entries',
+  'runtime_deliveries',
+  'runtime_execution_budgets',
 ] as const;
 
 export type RuntimeTableName = (typeof RUNTIME_TABLE_NAMES)[number];
@@ -129,6 +133,7 @@ export const RUNTIME_DDL = `
     tenant_id TEXT NOT NULL,
     session_id TEXT NOT NULL,
     run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL DEFAULT 'root',
     tool_call_id TEXT NOT NULL,
     tool_name TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -139,11 +144,18 @@ export const RUNTIME_DDL = `
     error TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE (run_id, tool_call_id),
+    UNIQUE (run_id, node_id, tool_call_id),
     FOREIGN KEY (tenant_id, session_id, run_id)
       REFERENCES runtime_runs(tenant_id, session_id, id) ON DELETE CASCADE
   );
 
   CREATE INDEX IF NOT EXISTS idx_runtime_tool_invocations_run
     ON runtime_tool_invocations(run_id);
+
+  CREATE TABLE IF NOT EXISTS runtime_execution_budgets (
+    tenant_id TEXT NOT NULL, run_id TEXT PRIMARY KEY, agent_runs INTEGER NOT NULL,
+    messages INTEGER NOT NULL, tokens INTEGER NOT NULL, updated_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runtime_runs(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_runtime_execution_budgets_tenant ON runtime_execution_budgets(tenant_id, run_id);
 `;

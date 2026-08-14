@@ -51,4 +51,26 @@ describe('LocalRunWorker', () => {
       tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', data: 'done',
     }]);
   });
+
+  it('实时 Signal 发布失败不会令 Run 执行失败', async () => {
+    const { store } = await createFakeRuntimeStore();
+    await store.transaction((uow) => {
+      uow.sessions.insert({ sessionId: 'session-1', tenantId: 'tenant-1', contexts: { bindings: [] }, createdAt: instant, updatedAt: instant });
+      uow.runs.insert({ runId: 'run-1', tenantId: 'tenant-1', principalId: 'user-1', sessionId: 'session-1', agentId: 'agent-1', agentRevision: '1', status: 'queued', trigger: { type: 'task', input: null }, contextSnapshot: { items: [], configLayers: [], promptSections: [] }, createdAt: instant, updatedAt: instant });
+      uow.events.append({ eventId: 'event-created', sequence: 1, schemaVersion: 1, tenantId: 'tenant-1', sessionId: 'session-1', runId: 'run-1', type: 'run.created', data: {}, occurredAt: instant });
+      uow.workItems.insert({ workItemId: 'work-1', runId: 'run-1', status: 'queued', attempt: 0, createdAt: instant, updatedAt: instant });
+    });
+    let id = 0;
+    const worker = new LocalRunWorker(store, {
+      execute: async ({ emitSignal }) => {
+        emitSignal?.({ type: 'assistant.text.delta', data: { messageIndex: 0, contentIndex: 0, delta: 'x' } });
+        return { sessionEntries: [], artifacts: [] };
+      },
+    }, {
+      owner: 'worker-1', leaseMs: 1_000, pollMs: 10, runTimeoutMs: 5_000,
+      now: () => instant, generateId: () => `generated-${++id}`, onSignal: () => { throw new Error('subscriber closed'); },
+    });
+    await expect(worker.drainOne()).resolves.toBe(true);
+    expect(await store.getRun('run-1')).toMatchObject({ status: 'completed' });
+  });
 });

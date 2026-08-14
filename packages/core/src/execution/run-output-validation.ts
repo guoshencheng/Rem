@@ -9,6 +9,7 @@ type JsonRecord = Record<string, unknown>;
 export interface ValidatedRunOutput {
   sessionEntries: Array<{ message: Message; metadata?: Record<string, unknown> }>;
   artifacts: ArtifactDraft[];
+  journaled?: boolean;
 }
 
 export function validateRunOutput(value: unknown): ValidatedRunOutput {
@@ -30,7 +31,7 @@ export function validateRunOutput(value: unknown): ValidatedRunOutput {
     return { message: entry.message as Message, ...(metadata === undefined ? {} : { metadata }) };
   });
   const artifacts = result.artifacts.map((item, index) => validateArtifact(item, index));
-  return { sessionEntries, artifacts };
+  return { sessionEntries, artifacts, ...(result.journaled === true ? { journaled: true } : {}) };
 }
 
 function validateArtifact(value: unknown, index: number): ArtifactDraft {

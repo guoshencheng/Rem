@@ -36,7 +36,16 @@ async function* iterate(deps: StreamDeps, runId: string, signal?: AbortSignal): 
     // 需要完整事件序列的消费者应改用 listEvents 的持久化游标。
     const current = await getScopedRun(deps.storage, tenantId, runId);
     if (isTerminalRunStatus(current.status)) return;
+    if (current.status === 'waiting') {
+      yield {
+        runId: current.runId,
+        type: 'run.waiting',
+        data: { waitingReason: current.waitingReason },
+        occurredAt: current.updatedAt,
+      };
+    }
     for await (const runSignal of subscription) {
+      if (signal?.aborted) return;
       yield runSignal;
       if (isTerminalRunSignal(runSignal.type)) return;
     }

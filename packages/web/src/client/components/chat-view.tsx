@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Composer } from '@/components/composer';
-import { MarkdownContent } from '@/components/markdown-content';
 import { MessageItem } from '@/components/message-item';
+import { RuntimeMessageContent } from '@/components/runtime-message-content';
 import { SectionLabel } from '@/components/section-label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -22,22 +22,16 @@ interface ChatViewProps {
 
 export function ChatView({ sessionId, running, onSend }: ChatViewProps) {
   const session = useStreamStore((state) => state.bySession[sessionId]);
-  const primaryThread = session?.threads.find(
-    (thread) => thread.role === 'primary' || thread.role === 'organizer',
-  );
-  const streaming = primaryThread ? session?.streaming[primaryThread.agentThreadId] : undefined;
+  const runtimeRun = session?.runtimeRun;
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
-  }, [session?.chat.length, streaming]);
+  }, [session?.chat?.length, runtimeRun]);
 
-  const streamText = (streaming ?? [])
-    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
-    .join('');
   const messages = session?.chat ?? [];
-  const empty = messages.length === 0 && !streamText && !session?.error;
+  const empty = messages.length === 0
+    && (runtimeRun?.messages.length ?? 0) === 0 && !session?.error;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -57,13 +51,23 @@ export function ChatView({ sessionId, running, onSend }: ChatViewProps) {
               </EmptyHeader>
             </Empty>
           )}
-          {messages.map((item) => <MessageItem key={item.messageId} item={item} />)}
-          {streamText && (
-            <MarkdownContent
-              text={`${streamText}\u258c`}
-              className="border-l-2 border-selected-border pl-[var(--ds-space-card)] text-body leading-body"
-            />
-          )}
+          {messages.map((item) => (
+            <MessageItem key={item.messageId} item={item} toolResults={session?.toolResults} />
+          ))}
+          {runtimeRun?.messages.map((message) => (
+            <article
+              key={`runtime:${runtimeRun.runId}:${message.messageIndex}`}
+              className="max-w-[78%] border-l-2 border-selected-border pl-[var(--ds-space-card)] text-secondary-foreground"
+            >
+              <div className="mb-[var(--ds-space-tree)] text-label font-extrabold uppercase leading-control tracking-[0.1em] text-muted-foreground">
+                REM · 实时
+              </div>
+              <RuntimeMessageContent parts={message.parts} toolResults={runtimeRun.toolResults} />
+              {runtimeRun.status === 'running' && !message.completed && (
+                <span className="text-selected-foreground" aria-label="正在生成">▍</span>
+              )}
+            </article>
+          ))}
           {session?.error && (
             <Alert variant="destructive">
               <AlertCircle />

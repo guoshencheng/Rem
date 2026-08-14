@@ -1,4 +1,5 @@
 import { RuntimeError } from '../../../application/runtime/runtime-error.js';
+import { InvalidRunCursorError } from '../../../domain/run/run-cursor.js';
 
 interface SqliteFailure { code: string }
 
@@ -9,6 +10,9 @@ export function isSqliteFailure(error: unknown): error is SqliteFailure {
 }
 
 export function mapSqliteFailure(error: unknown, action: string): never {
+  if (error instanceof InvalidRunCursorError) {
+    throw new RuntimeError('INVALID_INPUT', 'Invalid run cursor', false, undefined, { cause: error });
+  }
   if (error instanceof RuntimeError) throw error;
   const code = isSqliteFailure(error) ? error.code : undefined;
   const conflict = code?.startsWith('SQLITE_CONSTRAINT') ?? false;

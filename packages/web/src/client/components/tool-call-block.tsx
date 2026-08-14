@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils';
 export interface ToolResultInfo {
   output?: string;
   error?: string;
+  details?: unknown;
+  partialResult?: unknown;
+  pending?: boolean;
 }
 
 interface ToolCallBlockProps {
@@ -17,9 +20,11 @@ interface ToolCallBlockProps {
 
 export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false);
-  const tone: StatusTone = !result ? 'running' : result.error ? 'error' : 'success';
+  const tone: StatusTone = !result || result.pending ? 'running' : result.error ? 'error' : 'success';
   const statusText = !result
     ? '执行中…'
+    : result.pending
+      ? `执行中… ${JSON.stringify(result.partialResult ?? '').slice(0, 48)}`
     : result.error
       ? '执行失败'
       : (result.output?.slice(0, 60) ?? '完成');
@@ -55,14 +60,19 @@ export function ToolCallBlock({ tool, result }: ToolCallBlockProps) {
           {result && (
             <>
               <div className="mb-[var(--ds-space-tree)] mt-[var(--ds-space-inner)] font-medium text-muted-foreground">
-                {result.error ? '错误' : '出参'}
+                {result.pending ? '实时结果' : result.error ? '错误' : '出参'}
               </div>
               <pre className={cn(
                 'max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-meta',
                 result.error ? 'text-destructive' : 'text-foreground',
               )}>
-                {result.error ?? result.output}
+                {result.error ?? result.output ?? JSON.stringify(result.partialResult, null, 2)}
               </pre>
+              {result.details !== undefined && (
+                <pre className="mt-[var(--ds-space-tree)] max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-meta text-foreground">
+                  {JSON.stringify(result.details, null, 2)}
+                </pre>
+              )}
             </>
           )}
         </div>

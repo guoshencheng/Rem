@@ -11,10 +11,8 @@ const srcRoot = configuredSrcRoot
   : join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
 const DOMAINS = [
-  'agent', 'agent-profile', 'application', 'assembly', 'capabilities', 'delegation',
-  'domain', 'execution', 'infrastructure', 'orchestration', 'plugin-system', 'plugins',
-  'runtime', 'runtime-events', 'sdk', 'security', 'session', 'shared', 'system',
-  'system-prompt', 'testing', 'tools',
+  'application', 'assembly', 'domain', 'execution', 'infrastructure', 'plugin-system',
+  'plugins', 'runtime-events', 'sdk', 'security', 'shared',
 ];
 
 // 规格第 7 节硬约束（只列禁止边；未列出的边不限制）
@@ -47,11 +45,18 @@ const domainOf = (abs) => {
 
 const errors = [];
 const importRe = /(?:from|import\s*\()\s*['"](\.[^'"]+)['"]/g;
+const FORBIDDEN_RUNTIME_TEXT = [
+  /AgentSystem/, /SessionRuntime/, /\/api\/rem/, /workspace/i,
+];
 
 for (const file of files) {
   const content = readFileSync(file, 'utf8');
   const rel = relative(srcRoot, file);
   const base = file.split(sep).pop();
+
+  for (const pattern of FORBIDDEN_RUNTIME_TEXT) {
+    if (pattern.test(content)) errors.push(`${rel}: 活动 Runtime 源码包含禁止旧概念 ${pattern}`);
+  }
 
   // kebab-case
   if (!/^[a-z0-9.-]+\.ts$/.test(base)) {

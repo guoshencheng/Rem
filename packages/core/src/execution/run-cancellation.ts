@@ -5,6 +5,7 @@ import type { ResolvedLocalRunWorkerOptions } from './local-worker-options.js';
 import { RuntimeError } from '../application/runtime/runtime-error.js';
 import { isTerminalRunStatus, transitionRun } from '../domain/run/run-state.js';
 import { nextWorkerId, readWorkerNow } from './local-worker-options.js';
+import { finishExecutionGraph } from './run-completion-node.js';
 
 export class RunCancellation {
   constructor(
@@ -22,6 +23,9 @@ export class RunCancellation {
       const run = uow.runs.get(runId);
       if (!run) throw new RuntimeError('RUN_NOT_FOUND', 'Run not found');
       if (isTerminalRunStatus(run.status)) return structuredClone(run);
+      if (run.status === 'waiting') {
+        throw new RuntimeError('TOOL_RESULT_UNKNOWN', 'Waiting Run requires tool invocation resolution before cancellation');
+      }
       const work = uow.workItems.getByRun(runId);
       if (!work) throw new RuntimeError('STORAGE_UNAVAILABLE', 'Run work item is missing', true);
       const requested: AgentRun = {
@@ -36,6 +40,7 @@ export class RunCancellation {
         finishedAt: cloneDate(at), updatedAt: cloneDate(at),
       };
       uow.runs.update(cancelled);
+      finishExecutionGraph(uow, cancelled.runId, 'cancelled', at);
       const event: RunEvent = {
         eventId: nextWorkerId(this.options.generateId), sequence: uow.events.nextSequence(runId), schemaVersion: 1,
         tenantId: run.tenantId, sessionId: run.sessionId, runId, type: 'run.cancelled',

@@ -1,10 +1,12 @@
 import type Database from 'better-sqlite3';
 import type { AgentRun } from '../../../domain/run/types.js';
 import type { RuntimeRunRepository } from '../../../sdk/runtime-storage.js';
+import type { RunListOptions } from '../../../domain/run/execution-models.js';
 import type { RuntimeRunRow } from './runtime-row-types.js';
 import { mapRunRow } from './runtime-row-mappers.js';
 import { runToRow } from './runtime-row-serializers.js';
 import { runtimeConflict, sqliteAction } from './runtime-sqlite-error.js';
+import { decodeRunCursor } from '../../../domain/run/run-cursor.js';
 
 export class SqliteRuntimeRunRepository implements RuntimeRunRepository {
   constructor(private readonly db: Database.Database) {}
@@ -42,6 +44,23 @@ export class SqliteRuntimeRunRepository implements RuntimeRunRepository {
         WHERE id=@id
       `).run(row);
       if (result.changes !== 1) runtimeConflict('Runtime run does not exist');
+    });
+  }
+
+  listByTenant(tenantId: string, options: RunListOptions = {}): AgentRun[] {
+    return sqliteAction('listing runtime runs', () => {
+      const conditions = ['tenant_id = @tenant_id'];
+      const values: Record<string, unknown> = { tenant_id: tenantId };
+      if (options.sessionId) { conditions.push('session_id = @session_id'); values.session_id = options.sessionId; }
+      if (options.status) { conditions.push('status = @status'); values.status = options.status; }
+      if (options.cursor) {
+        const cursor = decodeRunCursor(options.cursor);
+        conditions.push('(created_at < @cursor_created OR (created_at = @cursor_created AND id < @cursor_id))');
+        values.cursor_created = cursor.createdAt; values.cursor_id = cursor.runId;
+      }
+      const limit = Math.min(options.limit ?? 100, 1000);
+      const rows = this.db.prepare(`SELECT * FROM runtime_runs WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT @limit`).all({ ...values, limit }) as RuntimeRunRow[];
+      return rows.map(mapRunRow);
     });
   }
 }

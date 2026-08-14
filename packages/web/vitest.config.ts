@@ -10,7 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(import.meta.dirname, 'src/client'),
+      'rem-agent-core/live-signals': resolve(import.meta.dirname, '../core/src/domain/event/live-signals.ts'),
       'rem-agent-core': resolve(import.meta.dirname, '../core/src/index.ts'),
+      'rem-agent-client': resolve(import.meta.dirname, '../client/src/index.ts'),
+      'rem-agent-service': resolve(import.meta.dirname, '../service/src/index.ts'),
     },
   },
 });

@@ -1,41 +1,35 @@
 import { create } from 'zustand';
-import type {
-  AgentSystemEvent, AgentThread, Message, SessionChatMessage, SessionInfo,
-} from 'rem-agent-core';
-import { reduceStreamEvent, type ContentBlock } from './stream-reducer';
+import type { RunSignal } from 'rem-agent-core';
+import type { RuntimeChatMessage, WorkbenchSession } from '@/types';
+import {
+  applyRuntimeRunSignal, createRuntimeRunProjection, type RuntimeChat,
+  type RuntimeRunProjection, type RuntimeToolResult,
+} from './runtime-stream-projection';
 
 export interface SessionState {
-  chat: SessionChatMessage[];
-  threads: AgentThread[];
-  threadMessages: Record<string, Message[]>;
-  streaming: Record<string, ContentBlock[]>;
+  chat: RuntimeChatMessage[];
+  toolResults: Record<string, RuntimeToolResult>;
   chatVersion: number;
-  threadVersions: Record<string, number>;
+  runtimeRun?: RuntimeRunProjection;
   error?: string;
 }
 
 interface StreamStore {
-  sessions: SessionInfo[];
+  sessions: WorkbenchSession[];
   bySession: Record<string, SessionState>;
-  setSessions: (sessions: SessionInfo[]) => void;
-  setChat: (sessionId: string, chat: SessionChatMessage[]) => void;
-  setThreads: (sessionId: string, threads: AgentThread[]) => void;
-  setThreadMessages: (key: { sessionId: string; threadId: string }, messages: Message[]) => void;
-  applyEvent: (event: AgentSystemEvent) => void;
+  setSessions: (sessions: WorkbenchSession[]) => void;
+  setChat: (sessionId: string, chat: RuntimeChat) => void;
+  beginRuntimeRun: (sessionId: string, runId: string, content: string) => void;
+  applyRuntimeSignal: (sessionId: string, signal: RunSignal) => void;
+  failRuntimeRun: (sessionId: string, runId: string, error: string, status?: 'failed' | 'cancelled') => void;
+  setError: (sessionId: string, error?: string) => void;
   reset: () => void;
 }
 
-const emptySessionState = (): SessionState => ({
-  chat: [],
-  threads: [],
-  threadMessages: {},
-  streaming: {},
-  chatVersion: 0,
-  threadVersions: {},
-});
+const emptySessionState = (): SessionState => ({ chat: [], toolResults: {}, chatVersion: 0 });
 
 export const useStreamStore = create<StreamStore>((set) => {
-  const patchSession = (sessionId: string, patch: (s: SessionState) => Partial<SessionState>) =>
+  const patchSession = (sessionId: string, patch: (state: SessionState) => Partial<SessionState>) =>
     set((state) => {
       const current = state.bySession[sessionId] ?? emptySessionState();
       return { bySession: { ...state.bySession, [sessionId]: { ...current, ...patch(current) } } };
@@ -45,59 +39,27 @@ export const useStreamStore = create<StreamStore>((set) => {
     sessions: [],
     bySession: {},
     setSessions: (sessions) => set({ sessions }),
-    setChat: (sessionId, chat) => patchSession(sessionId, () => ({ chat })),
-    setThreads: (sessionId, threads) => patchSession(sessionId, () => ({ threads })),
-    setThreadMessages: ({ sessionId, threadId }, messages) =>
-      patchSession(sessionId, (s) => ({
-        threadMessages: { ...s.threadMessages, [threadId]: messages },
-      })),
-    applyEvent: (event) => {
-      switch (event.type) {
-        case 'chunk': {
-          const threadId = event.agentThreadId ?? 'primary';
-          const chunk = event.chunk;
-          if (chunk.type === 'message_update') {
-            patchSession(event.sessionId, (s) => ({
-              streaming: {
-                ...s.streaming,
-                [threadId]: reduceStreamEvent(
-                  s.streaming[threadId] ?? [],
-                  chunk.assistantMessageEvent,
-                ),
-              },
-            }));
-          } else if (chunk.type === 'message_end' || chunk.type === 'finish') {
-            patchSession(event.sessionId, (s) => {
-              const streaming = { ...s.streaming };
-              delete streaming[threadId];
-              return {
-                streaming,
-                chatVersion: s.chatVersion + 1,
-                threadVersions: {
-                  ...s.threadVersions,
-                  [threadId]: (s.threadVersions[threadId] ?? 0) + 1,
-                },
-              };
-            });
-          }
-          break;
-        }
-        case 'activity-change':
-          set((state) => ({
-            sessions: state.sessions.map((s) =>
-              s.sessionId === event.sessionId ? { ...s, activity: event.activity } : s),
-          }));
-          break;
-        case 'session-end':
-          patchSession(event.sessionId, (s) => ({ chatVersion: s.chatVersion + 1 }));
-          break;
-        case 'session-error':
-          patchSession(event.sessionId, () => ({ error: event.error }));
-          break;
-        default:
-          break;
-      }
-    },
+    setChat: (sessionId, chat) => patchSession(sessionId, () => ({
+      chat: chat.messages, toolResults: chat.toolResults, runtimeRun: undefined, chatVersion: 0,
+    })),
+    beginRuntimeRun: (sessionId, runId, content) => patchSession(sessionId, (state) => ({
+      chat: [...state.chat, {
+        messageId: `runtime:${runId}:user`,
+        message: { role: 'user', content, timestamp: Date.now() },
+      }],
+      runtimeRun: createRuntimeRunProjection(runId), error: undefined,
+    })),
+    applyRuntimeSignal: (sessionId, signal) => patchSession(sessionId, (state) => {
+      if (!state.runtimeRun || state.runtimeRun.runId !== signal.runId) return {};
+      return { runtimeRun: applyRuntimeRunSignal(state.runtimeRun, signal) };
+    }),
+    failRuntimeRun: (sessionId, runId, error, status = 'failed') => patchSession(sessionId, (state) => ({
+      error,
+      ...(state.runtimeRun?.runId === runId
+      ? { runtimeRun: { ...state.runtimeRun, status, error } }
+        : {}),
+    })),
+    setError: (sessionId, error) => patchSession(sessionId, () => ({ error })),
     reset: () => set({ sessions: [], bySession: {} }),
   };
 });

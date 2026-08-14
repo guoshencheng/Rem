@@ -1,6 +1,5 @@
 import type { Tool } from '@earendil-works/pi-ai';
 import type { Static, TObject } from '@sinclair/typebox';
-import type { Rule } from '../security/rules/rule.js';
 
 export interface ToolSchema {
   description: string;
@@ -11,13 +10,12 @@ export type ToolSet = Tool[];
 
 export interface ToolContext {
   cwd: string;
-  workspaceRoot: string;
+  executionRoot: string;
   signal?: AbortSignal;
   agentName?: string;
   readOnly?: boolean;
   sessionId?: string;
   toolCallId?: string;
-  outsideAllowed?: boolean;
   tenantId?: string;
   principalId?: string;
   runId?: string;
@@ -37,7 +35,7 @@ export interface ToolDefinition<T extends TObject = TObject> {
   /** Derive rule patterns from a tool call input. */
   derivePatterns?: (input: Static<T>) => string[];
   /** Generate always-options for the approval UI. */
-  deriveAlwaysOptions?: (input: Static<T>) => Array<{ label: string; rule: Omit<Rule, 'source'> }>;
+  deriveAlwaysOptions?: (input: Static<T>) => Array<{ label: string; rule: Record<string, unknown> }>;
 }
 
 export interface ToolExecutorResult {

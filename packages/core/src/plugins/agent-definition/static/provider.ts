@@ -1,5 +1,6 @@
 import type { AgentDefinition, ContextTypeConstraint } from '../../../domain/agent-definition/types.js';
 import type { AgentDefinitionProvider } from '../../../sdk/agent-definition-provider.js';
+import { cloneCanonicalJson } from '../../../application/contexts/canonical-json.js';
 
 /**
  * 静态定义 Provider：当前版本取 numeric localeCompare 最大的 revision，
@@ -65,10 +66,22 @@ export class StaticAgentDefinitionProvider implements AgentDefinitionProvider {
       ...definition,
       toolNames: [...definition.toolNames],
       acceptedTriggers: [...definition.acceptedTriggers],
+      ...(definition.inputSchema === undefined ? {} : { inputSchema: cloneCanonicalJson(definition.inputSchema) as AgentDefinition['inputSchema'] }),
+      ...(definition.outputSchema === undefined ? {} : { outputSchema: cloneCanonicalJson(definition.outputSchema) as AgentDefinition['outputSchema'] }),
       ...(requiredContexts === undefined ? {} : { requiredContexts }),
       ...(optionalContexts === undefined ? {} : { optionalContexts }),
       ...(overridableContexts === undefined ? {} : { overridableContexts }),
-      execution: { ...definition.execution },
+      execution: this.cloneExecution(definition),
+    };
+  }
+
+  private cloneExecution(definition: AgentDefinition): AgentDefinition['execution'] {
+    const execution = definition.execution;
+    const delegation = execution.delegation === undefined ? {} : { delegation: { ...execution.delegation } };
+    if (execution.type === 'single-agent') return { type: 'single-agent', ...delegation };
+    return {
+      type: 'team', members: execution.members.map((member) => ({ ...member })),
+      ...(execution.limits === undefined ? {} : { limits: { ...execution.limits } }), ...delegation,
     };
   }
 

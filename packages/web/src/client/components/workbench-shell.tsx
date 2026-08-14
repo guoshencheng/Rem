@@ -50,7 +50,7 @@ export function WorkbenchShell({
           <aside className="min-h-0 overflow-hidden border-r border-border bg-panel">
             {sessionPanel}
           </aside>
-          <main className="min-w-0 bg-surface">{children}</main>
+          <main className="min-h-0 min-w-0 bg-surface">{children}</main>
           {inspector && (
             <aside className="min-h-0 overflow-hidden border-l border-border bg-panel">
               {inspector}
@@ -78,7 +78,7 @@ export function WorkbenchShell({
             <Sheet open={inspectorOpen} onOpenChange={onInspectorOpenChange}>
               <SheetContent side="right">
                 <SheetHeader className="sr-only">
-                  <SheetTitle>Threads</SheetTitle>
+                  <SheetTitle>执行检查器</SheetTitle>
                 </SheetHeader>
                 {inspector}
               </SheetContent>

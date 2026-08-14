@@ -6,6 +6,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['packages/core/**/*.test.ts'],
+    // better-sqlite3 is a native module; one fork keeps the Core contract suite
+    // deterministic and avoids concurrent native handles corrupting the process.
+    pool: 'forks',
+    poolOptions: { forks: { singleFork: true } },
     setupFiles: ['packages/core/tests/setup.ts'],
     coverage: {
       include: ['packages/core/src/**/*.ts'],

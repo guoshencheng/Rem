@@ -2,6 +2,7 @@ import type { RunEvent, RunSignal } from '../domain/event/types.js';
 
 export const TERMINAL_RUN_SIGNAL_TYPES: readonly string[] = ['run.completed', 'run.failed', 'run.cancelled'];
 export const isTerminalRunSignal = (type: string): boolean => TERMINAL_RUN_SIGNAL_TYPES.includes(type);
+export const MAX_PENDING_RUN_SIGNALS = 512;
 
 type SignalListener = (signal: RunSignal) => void;
 
@@ -32,12 +33,17 @@ export class RunSignalHub {
     let closed = false;
     const listener: SignalListener = (signal) => {
       if (closed) return;
+      if (queue.length >= MAX_PENDING_RUN_SIGNALS) {
+        close();
+        return;
+      }
       queue.push(signal);
       waiter?.();
     };
     const close = (): void => {
       if (closed) return;
       closed = true;
+      queue.length = 0;
       this.removeListener(runId, listener);
       waiter?.();
     };
@@ -48,9 +54,9 @@ export class RunSignalHub {
         return (async function* (): AsyncGenerator<RunSignal> {
           try {
             for (;;) {
+              if (closed) return;
               const signal = queue.shift();
               if (signal !== undefined) { yield signal; continue; }
-              if (closed) return;
               await new Promise<void>((resolve) => { waiter = resolve; });
               waiter = undefined;
             }

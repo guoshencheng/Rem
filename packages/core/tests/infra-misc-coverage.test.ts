@@ -173,7 +173,6 @@ describe('createDefaultAgentPaths', () => {
   it('creates default paths', () => {
     const paths = createDefaultAgentPaths();
     expect(paths.agentDir).toBeDefined();
-    expect(paths.homeSkillsDir).toBeDefined();
     expect(paths.debugLogFile).toBeDefined();
   });
 
@@ -197,9 +196,9 @@ describe('createDefaultAgentPaths', () => {
     expect(paths.agentDir).toBe(join(homedir(), 'my-agent'));
   });
 
-  it('uses custom homeAgentDir and homeSkillsDir', () => {
-    const paths = createDefaultAgentPaths({ homeAgentDir: '/home/custom', homeSkillsDir: '/home/skills' });
-    expect(paths.homeSkillsDir).toBe('/home/skills');
+  it('uses custom homeAgentDir', () => {
+    const paths = createDefaultAgentPaths({ homeAgentDir: '/home/custom' });
+    expect(paths.homeConfigCandidates()[0]).toBe(join('/home/custom', 'config.json'));
   });
 
   it('returns homeConfigCandidates from homeAgentDir', () => {
@@ -208,27 +207,6 @@ describe('createDefaultAgentPaths', () => {
     expect(candidates).toContain(join('/test', 'config.json'));
     expect(candidates).toContain(join('/test', 'config.yaml'));
     expect(candidates).toContain(join('/test', 'config.yml'));
-  });
-
-  it('returns workspaceConfigCandidates for a given workspace', () => {
-    const paths = createDefaultAgentPaths();
-    const candidates = paths.workspaceConfigCandidates('/ws');
-    expect(candidates).toContain(join('/ws', 'rem-agent.config.json'));
-    expect(candidates).toContain(join('/ws', '.rem-agent', 'config.json'));
-  });
-
-  it('configCandidates merges workspace and home', () => {
-    const paths = createDefaultAgentPaths({ homeAgentDir: '/test' });
-    const candidates = paths.configCandidates('/ws');
-    // workspace candidates come first
-    expect(candidates[0]).toBe(join('/ws', 'rem-agent.config.json'));
-    // home candidates follow
-    expect(candidates[candidates.length - 1]).toBe(join('/test', 'config.yml'));
-  });
-
-  it('workspaceSkillsDir returns .agents/skills under workspace', () => {
-    const paths = createDefaultAgentPaths();
-    expect(paths.workspaceSkillsDir('/ws')).toBe(join('/ws', '.agents', 'skills'));
   });
 
   it('debugLogFile resolves from REM_AGENT_DEBUG_FILE', () => {

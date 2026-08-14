@@ -1,129 +1,105 @@
 # Rem Agent — Core 模块参考
 
-> 状态：Core-first 多 Agent 执行内核已落地（2026-08-02）
+> 状态：Runtime 单栈（2026-08-14）
 
-活动 workspace 只有 `packages/core`。旧模块可在 `archive/` 中查阅，但不属于当前代码边界。
+活动源码位于 `packages/core/src`；`archive/` 仅供历史查阅。Core 根入口只导出 Runtime
+接口和领域模型，Service、Client、Web 不拥有执行状态机。
 
 ## 顶层入口
 
 | 文件 | 职责 |
 |---|---|
-| `src/index.ts` | Core 公共 barrel 导出 |
-| `src/assembly/agent-factory.ts` | 从 Core 配置环境装配 Agent |
-| `src/assembly/agent-assembly.ts` | 同步构造 AgentDI 与 runtime config |
-| `src/assembly/agent-runtime-assembly.ts` | 装配持久化 AgentRuntime（`createAgentRuntime` / `createAgentRuntimeFromEnv`） |
+| `src/index.ts` | Runtime 公共 barrel |
+| `src/assembly/agent-runtime-assembly.ts` | `createAgentRuntime` / `createAgentRuntimeFromEnv` |
+| `src/application/runtime/agent-runtime.ts` | 生命周期、租户 scoped facade |
+| `src/application/runtime/scoped-agent-runtime.ts` | agents/sessions/runs/artifacts 操作 |
 
-## 新执行模型目录
+## 活动目录
 
 ### `domain/`
 
-新 Runtime 的纯领域类型与状态机，不含 I/O：`agent-definition/`、`run/`（Run/WorkItem/ToolInvocation 与 run-state）、`session/`、`context/`（ContextSet/Patch 与 apply）、`event/`、`artifact/`、`identity/`（RuntimeRequestContext）。
+纯领域类型和状态机：`agent-definition/`（Definition、ExecutionPlan）、`run/`（Run、WorkItem、
+ToolInvocation、Execution Graph）、`session/`、`context/`、`event/`、`artifact/`、`identity/` 和
+`json/`。不读取环境变量或执行 I/O。
 
 ### `application/`
 
-用例层。`runs/` 是 start-run 用例（输入校验、Context 校验、幂等哈希、单事务写入）与 Run 查询；`contexts/` 是 ContextResolver 与 canonical JSON；`runtime/` 是 `AgentRuntime` 门面、scoped 查询、事件订阅与 `waitForCompletion`。
+用例层。`runs/` 负责 start、查询、输入/Schema 校验、幂等、工具处置和执行计划；`contexts/`
+负责 Context Resolver、插件工具定义和 canonical JSON；`runtime/` 提供生命周期、访问控制、
+SSE/Signal 订阅和完成等待；`sessions/` 提供 Context 乐观并发 patch。
 
 ### `execution/`
 
-`LocalRunWorker`（轮询、lease、恢复、取消）与 `REMAgentRunExecutor`（持久化 Run 到 REMAgent loop 的 legacy adapter）。`RecordingToolProvider` 记录 ToolInvocation 与 tool.* 事件；`run-output-validation.ts` 校验执行器输出，`run-outcome-persistence.ts` 与 `run-completion.ts` 负责事务式收尾。
+`LocalRunWorker` 负责 claim、lease、heartbeat、取消、超时和恢复；`SingleAgentRunExecutor`
+负责无状态 Agent Loop，`TeamRunExecutor` 负责 root Run 内的 organizer/member 节点，child
+delegation 复用同一执行器。`RecordingToolProvider` 持久化工具生命周期，`run-execution-journal`
+和 `run-outcome-persistence` 负责事实写入，`run-live-signal-projector` 负责实时投影。
 
 ### `runtime-events/`
 
-`RunSignalHub`：进程内 Run 信号发布，只是可丢失的提示，事实以持久化事件为准。
-
-### `plugins/agent-definition/`
-
-AgentDefinitionProvider 内置实现。当前只有 `static/`：静态定义集，revision 省略时取 numeric 最大版本。
-
-## 当前目录（旧 AgentSystem 路径）
-
-### `agent/`
-
-单 Agent执行域。`rem-agent.ts` 持有 transcript、消息队列和 abort，直接调用 pi-agent-core 无状态 loop；`agent-run-state.ts` 归并一次 run；`agent-event.ts`、`bus-events.ts` 和 `broadcast-bus.ts` 定义事件。
-
-### `assembly/`
-
-装配边界。包含 `AgentDI`、runtime config、Agent context assembler，以及 `createAgentAssembly` / `createAgentFromEnv`。同步装配会执行已配置的 `AgentPlugin`，并将最终 `SystemPromptAssembler` 注入 `AgentDI`。
-
-### `capabilities/`
-
-可选业务能力。当前包含 session Todo 服务与 `delegate_task` 定义、执行器和结果格式化。
-
-### `infrastructure/`
-
-技术基础设施：配置路径、pi-ai Models、context window、MCP 连接与工具适配、debug log。
-
-### `plugins/`
-
-SDK 默认实现：budget、compressor、config、error、memory、session、skill、storage、title 和 tool。SQLite schema、SessionStore、archive、todo、workspace 存储位于 `plugins/storage/sqlite/`；新 Runtime 的 `SqliteRuntimeStore`（sessions/runs/events/work items/tool invocations/artifacts/idempotency）与 `SqliteStorageProvider` 也在该目录。AgentDefinitionProvider 内置实现位于 `plugins/agent-definition/`。
-
-### `plugin-system/`
-
-Agent 装配期插件机制。`plugin-host.ts` 校验插件身份并按配置顺序执行注册；`errors.ts` 定义插件和 prompt section 装配错误。该目录不保存 SDK Provider 的默认实现。
-
-### `runtime/`
-
-REMAgent 运行辅助模块。`agent-tools.ts` 组合工具，`compression-transform.ts` 连接上下文压缩与归档，`pending-queue.ts` 管理 steering/follow-up 消息。
+`RunSignalHub` 是进程内可丢失 Signal 总线，具备订阅背压；持久化 RunEvent、SessionEntry、
+ExecutionEntry、ToolInvocation 和 Artifact 才是最终事实。
 
 ### `sdk/`
 
-稳定抽象接口。当前包括 Agent role、budget、compressor、config、error、session、skill、storage、system prompt、title、tool policy 和 tool provider。插件相关稳定接口包括 `AgentPlugin`、`PromptSectionRegistry` 和 `SystemPromptAssembler`。新 Runtime 的稳定接口为 `runtime-plugin.ts`（RuntimePlugin 与 ContextTypeContribution）、`runtime-storage.ts`（RuntimeStorage/UnitOfWork）和 `agent-definition-provider.ts`。
+窄化端口：`RuntimeConfigProvider`、`RuntimeStorageProvider`、`RuntimePlugin`、
+`AgentDefinitionProvider`、`ToolProvider`、Runtime Storage repositories 和 Tool Policy。API Key
+只停留在配置/模型调用边界，不写入 Run 或日志。
 
-### `security/`
+### `plugins/`
 
-安全策略：approval、permissions、rules、tool policy 和 workspace 根目录守卫。
+`agent-definition/static/` 提供静态 Definition；`config/default/` 读取 Runtime 模型和行为配置；
+`storage/sqlite/` 提供 Runtime-only SQLite DDL、Store 和 repositories；`tool/static/` 提供进程内
+工具集合。
 
-### `session/`
+### `plugin-system/`
 
-持久化 Session 领域。`model.ts` 定义 schema v2 Session；`tree/` 定义 message entry 与 conversation 构建；`messages/` 负责中心消息信封、Session keyed 写入协调和聊天/Thread 投影；`agent-thread/` 保存配置 `agentId`；`agent-thread-runtime.ts` 为每个长期 Agent 提供 REMAgent FIFO 执行权。
+`RuntimePluginHost` 校验插件 manifest、版本依赖和 Context materialize 边界。插件贡献的是
+Context snapshot、config layers、prompt sections 和 Runtime tools，不直接访问未授权 Session/Run。
 
-### `orchestration/`
+### `infrastructure/`
 
-Session 运行时协调域。`agent-coordinator-types.ts` 定义 `AgentCoordinator` 接口（createRuntime / send / interrupt / recoverProcessing）与共享 deps（Agent 创建统一走 `createRootAgent` 工厂）；`coordinator-resolver.ts` 按 `Session.metadata.mode` / `runtime.mode` 分发到对应实现。`single-agent-coordinator.ts` 驱动单 Agent 路径（一个 REMAgent 一次 run 到底）。多 Agent 侧：`delivery-*` 定义持久投递与状态机；`scheduler.ts` 负责连续调度（按 thread 空闲放行、完成即重扫）、并发限制与 resume 唤醒；`multi-agent-coordinator.ts` 实现 Team Session 的 `AgentCoordinator`；`multi-agent-actions.ts` 实现 `send_message` / `finish_discussion` 的当前 Delivery 语义；`discussion-runtime.ts` 与 `discussion-budget.ts` 管理单次讨论、中止和五类预算。
+LLM Models、模型兼容层、Context window、日志和 Runtime 路径。`executionRoot` 在 Runtime 创建时
+固定，Context snapshot 只能通过显式授权的快照覆盖。
 
-### `system/`
+### `security/tool-policy/`
 
-传输无关的 Core 门面。`create-agent-system.ts` 完成用例、Runtime、Delegation 和各 mode Coordinator 的装配与注册；`agent-system.ts` 是纯门面——Session CRUD、Thread/聊天/上下文查询与事件流，运行时操作经 `AgentCoordinatorResolver` 按 mode 分发，自身不持有 mode 分支。
-
-### `delegation/`
-
-一次性 child Agent 执行。每次委派创建独立 child Session 与 one-shot AgentThread，临时 REMAgent 完成后释放；启动恢复只收敛遗留运行状态。
+仅负责工具 allow/deny、profile、provider 和 sender 规则的筛选；审批与文件根目录安全不属于
+当前 Runtime 单栈切片。
 
 ### `shared/`
 
-无业务依赖的共享工具。当前提供 ID 生成。
+无业务依赖的共享工具，目前提供稳定 ID 生成。
 
-### `system-prompt/`
-
-system prompt 模板选择和装配，包含默认 section 构造、事务式 section registry、sections、templates 与 loaders。普通 section 可由插件按名称替换和重排；`runtime` 内容可替换但位置固定在最后。
-
-### `tools/`
-
-Tool provider 组合、overlay、registry 和 prompt tool summary。
-
-## 当前重要类型流
+## 重要类型流
 
 ```text
-SessionProvider / StorageProvider
+RuntimeRequestContext
         ↓
-Session tree entries（唯一消息事实）
+ScopedAgentRuntime.runs.start(agentId, trigger)
         ↓
-SessionRuntime
+StartRunUsecase → ContextResolver → ExecutionPlanSnapshot
         ↓
-AgentThreadRuntime → REMAgent
+RuntimeStorage: Run + Event + WorkItem（同一事务）
         ↓
-runAgentLoop / runAgentLoopContinue
+LocalRunWorker → SingleAgentRunExecutor / TeamRunExecutor
         ↓
-REMAgentEvent → Message / Delivery / AgentSystemEvent
+Agent Loop → ToolInvocation / Execution Journal / Live Signal
+        ↓
+RunOutcomePersistence → SessionEntry + Artifact + terminal Run
 ```
 
-## AgentSystem 主要查询
+## 公开 Runtime 操作
 
-| API | 含义 |
-|---|---|
-| `createSession({ workspace, teamId? })` | 没有 teamId 为单 Agent；显式 teamId 为多 Agent |
-| `send({ sessionId, content })` | 用户只面向 Session；多 Agent由 Organizer 首先处理 |
-| `getSessionThreads(sessionId)` | 查询该 Session 的 AgentThread |
-| `getSessionChat(sessionId)` | 投影中心公开聊天 |
-| `getAgentThreadContext(sessionId, agentThreadId)` | 投影指定 Agent 的模型输入视角 |
-| `interrupt(sessionId)` | 中止 Session 中全部运行 Agent，并收敛 Delivery |
+```text
+agents.list/get
+sessions.list/create/get/listEntries/patchContexts
+runs.start/get/list/cancel/subscribe/waitForCompletion
+runs.listExecutionNodes/listExecutionEntries/listDeliveries/listToolInvocations
+runs.resolveToolInvocation
+artifacts.listByRun/get
+```
+
+Team、child 和 waiting 都是 root Run 内部节点；不会创建独立外部 Run 或 Session。未知工具结果
+只能通过幂等的 confirm-succeeded、受控 retry 或人工 fail 处置。完整接口和 HTTP 映射见
+`docs/service-client.md` 与 `docs/architecture.md`。

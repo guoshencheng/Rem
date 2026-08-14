@@ -1,19 +1,17 @@
 import { stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { createAgentFromEnv, createAgentSystem } from 'rem-agent-core';
+import { createAgentRuntimeFromEnv, type AgentRuntime } from 'rem-agent-core';
 import { createWebApp } from './app.js';
+import { createWebAgentDefinitions } from './runtime-agent-definitions.js';
 
-function parseArgs(argv: string[]): { workspace: string; port?: number; portFile?: string } {
-  const args: { workspace: string; port?: number; portFile?: string } = {
-    workspace: process.env.REM_WORKSPACE || process.cwd(),
-  };
+function parseArgs(argv: string[]): { port?: number } {
+  const args: { port?: number } = {};
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--workspace') args.workspace = path.resolve(argv[++i]);
-    else if (argv[i] === '--port') args.port = Number(argv[++i]);
-    else if (argv[i] === '--port-file') args.portFile = argv[++i];
+    if (argv[i] === '--port') args.port = Number(argv[++i]);
   }
   return args;
 }
@@ -42,18 +40,38 @@ const MIME: Record<string, string> = {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const wsStat = await stat(args.workspace).catch(() => null);
-  if (!wsStat?.isDirectory()) {
-    console.error(`Workspace 目录不存在: ${args.workspace}`);
-    process.exit(1);
-  }
 
-  const assembly = await createAgentFromEnv().catch((err: unknown) => {
-    console.error(`Core 装配失败: ${err instanceof Error ? err.message : String(err)}`);
+  if (process.env.NODE_ENV === 'development') {
+    const debugLogFile = process.env.REM_AGENT_DEBUG_FILE
+      ?? (process.env.REM_AGENT_DEBUG === '1' ? '/tmp/rem-agent-debug.log' : path.join(process.env.REM_AGENT_HOME ?? path.join(homedir(), '.rem-agent'), 'debug.log'));
+    console.log(`Rem Web debug log: ${debugLogFile ?? 'disabled'}`);
+  }
+  let runtime: AgentRuntime;
+  try {
+    runtime = await createAgentRuntimeFromEnv({
+      agentDefinitions: createWebAgentDefinitions(),
+      executionRoot: process.env.REM_EXECUTION_ROOT || process.cwd(),
+      worker: { pollMs: 250 },
+    });
+  } catch (err: unknown) {
+    console.error(`Core Runtime 初始化失败: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
-  });
-  const system = createAgentSystem(assembly!);
-  const app = createWebApp({ system, workspace: args.workspace });
+    return;
+  }
+  const app = createWebApp({ runtime });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`Rem Web received ${signal}, shutting down Runtime`);
+    await runtime.shutdown().catch((error: unknown) => {
+      console.error(`Core Runtime 关闭失败: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    process.exit(0);
+  };
+  process.once('SIGINT', () => { void shutdown('SIGINT'); });
+  process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 
   const isProduction = process.env.NODE_ENV === 'production';
   const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -85,7 +103,7 @@ async function main(): Promise<void> {
     await writeFile(path.resolve(dir, '.dev-port'), String(port), 'utf-8');
   }
   serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`Rem Web listening at http://localhost:${info.port} (workspace: ${args.workspace})`);
+    console.log(`Rem Web listening at http://localhost:${info.port}`);
   });
 }
 

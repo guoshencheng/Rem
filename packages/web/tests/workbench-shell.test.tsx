@@ -22,6 +22,7 @@ describe('WorkbenchShell', () => {
     render(<WorkbenchShell {...content} />);
 
     expect(screen.getByTestId('workbench-body').getAttribute('data-layout')).toBe('desktop');
+    expect(screen.getByRole('main').className).toContain('min-h-0');
     expect(screen.getByText('sessions')).toBeTruthy();
     expect(screen.getByText('chat')).toBeTruthy();
     expect(screen.getByText('threads')).toBeTruthy();

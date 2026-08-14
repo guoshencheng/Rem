@@ -66,7 +66,7 @@ describe('StartRunUsecase', () => {
     expect(new Set(ids)).toHaveLength(4);
     expect(await store.getSession('session-1')).toEqual({
       sessionId: 'session-1', tenantId: 'tenant-1',
-      contexts: { bindings: [binding('customer', 'c-1', { level: 2 })] }, createdAt: instant, updatedAt: instant,
+      contexts: { bindings: [binding('customer', 'c-1', { level: 2 })] }, version: 0, createdAt: instant, updatedAt: instant,
     });
     expect(await store.getRun('run-1')).toEqual(run);
     expect(await store.listEvents('run-1')).toEqual([{

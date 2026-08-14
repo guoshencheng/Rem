@@ -12,6 +12,9 @@ import { recoverInterruptedRuns } from './recover-runtime.js';
 import { RunOutcomePersistence } from './run-outcome-persistence.js';
 import { releaseWorkClaimAfterFailure } from './work-claim-release.js';
 import { WorkerPollLoop } from './worker-poll-loop.js';
+import { createRunLiveSignalEmitter } from './run-live-signal-emitter.js';
+import { observeRunEvent } from './run-event-observation.js';
+import { stableWorkerError } from './local-worker-errors.js';
 
 interface ActiveExecution { control: RunExecutionControl; lease: RunLease }
 export interface LocalRunWorkerHealth { lastPollError?: RuntimeError }
@@ -38,6 +41,11 @@ export class LocalRunWorker {
     if (!executor || typeof executor.execute !== 'function') {
       throw new TypeError('A RunExecutor is required');
     }
+    const committed = this.options.onEventCommitted;
+    this.options.onEventCommitted = (event) => {
+      committed?.(event);
+      observeRunEvent(this.options.onObservation, event);
+    };
     this.completion = new RunCompletion(storage, this.options);
     this.outcomePersistence = new RunOutcomePersistence(this.completion);
     this.cancellation = new RunCancellation(storage, this.options);
@@ -64,6 +72,8 @@ export class LocalRunWorker {
     return this.pollLoop.health;
   }
 
+  get isRunning(): boolean { return this.pollLoop.running; }
+
   resetHealth(): void { this.pollLoop.resetHealth(); }
 
   start(): void { this.pollLoop.start(); }
@@ -76,7 +86,11 @@ export class LocalRunWorker {
         generateId: this.options.generateId,
         onEventCommitted: this.options.onEventCommitted,
       });
-    } catch (error) { throw storageFailure(error); }
+    } catch (error) {
+      const stable = storageFailure(error);
+      this.options.onObservation?.({ type: 'worker.recovery.failed', occurredAt: new Date(), errorCode: stable.code, retryable: stable.retryable });
+      throw stable;
+    }
   }
 
   async stop(): Promise<void> {
@@ -102,7 +116,14 @@ export class LocalRunWorker {
     if (!claimed) return false;
 
     let control: RunExecutionControl;
-    try { control = new RunExecutionControl(this.options.scheduler, this.options.runTimeoutMs); }
+    try {
+      const run = await this.storage.getRun(claimed.runId);
+      const planTimeout = run?.executionPlanSnapshot?.limits.timeoutMs;
+      const timeoutMs = planTimeout === undefined
+        ? this.options.runTimeoutMs
+        : Math.min(this.options.runTimeoutMs, planTimeout);
+      control = new RunExecutionControl(this.options.scheduler, timeoutMs);
+    }
     catch (error) {
       return releaseWorkClaimAfterFailure(
         this.storage, claimed, this.options.owner, claimAt, stableWorkerError(error),
@@ -111,6 +132,7 @@ export class LocalRunWorker {
     let leaseError: RuntimeError | undefined;
     const lease = new RunLease(this.storage, claimed, this.options, (error) => {
       leaseError = error; control.interruptLeaseLost(); this.pollLoop.recordError(error);
+      this.options.onObservation?.({ type: 'worker.lease.failed', occurredAt: new Date(), errorCode: error.code, retryable: error.retryable });
     });
     const active = { control, lease };
     this.active.set(claimed.runId, active);
@@ -131,6 +153,8 @@ export class LocalRunWorker {
       else {
         const execution = Promise.resolve().then(() => this.executor.execute({
           run: structuredClone(start.run), session: structuredClone(start.session), signal: control.controller.signal,
+          emitSignal: createRunLiveSignalEmitter(start.run.runId, this.options),
+          observe: this.options.onObservation,
         }));
         const settlement = execution.then(() => {}, () => {});
         this.executorSettlements.add(settlement);
@@ -170,9 +194,3 @@ export class LocalRunWorker {
 }
 
 export type { LocalRunWorkerOptions, WorkerScheduler } from './local-worker-options.js';
-
-function stableWorkerError(error: unknown): RuntimeError {
-  return error instanceof RuntimeError
-    ? error
-    : new RuntimeError('INTERNAL_ERROR', 'Local worker operation failed', false, undefined, { cause: error });
-}

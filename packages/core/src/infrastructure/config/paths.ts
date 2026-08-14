@@ -7,20 +7,8 @@ export interface AgentPaths {
   /** Agent 数据根目录 */
   readonly agentDir: string;
 
-  /** 用户级技能目录，默认 ~/.agents/skills */
-  readonly homeSkillsDir: string;
-
-  /** 项目级技能目录，默认 <workspaceRoot>/.agents/skills */
-  workspaceSkillsDir(workspaceRoot: string): string;
-
-  /** 配置文件候选列表（优先级从高到低） */
-  configCandidates(workspace: string): string[];
-
   /** home 级配置候选列表（~/.rem-agent/config.*），优先级从高到低 */
   homeConfigCandidates(): string[];
-
-  /** workspace 级配置候选列表（workspace/rem-agent.config.* 与 workspace/.rem-agent/config.*），优先级从高到低 */
-  workspaceConfigCandidates(workspace: string): string[];
 
   /** 调试日志路径，null 表示禁用 */
   readonly debugLogFile: string | null;
@@ -29,7 +17,6 @@ export interface AgentPaths {
 export interface CreateAgentPathsOptions {
   agentDir?: string;
   homeAgentDir?: string;
-  homeSkillsDir?: string;
   env?: Partial<NodeJS.ProcessEnv>;
 }
 
@@ -40,37 +27,16 @@ export function createDefaultAgentPaths(opts: CreateAgentPathsOptions = {}): Age
 
   const agentDir = opts.agentDir ?? resolveAgentDir(env);
   const homeAgentDir = opts.homeAgentDir ?? join(homedir(), '.rem-agent');
-  const homeSkillsDir = opts.homeSkillsDir ?? join(homedir(), '.agents', 'skills');
   const debugLogFile = resolveDebugLogFile(env, agentDir);
 
   return {
     agentDir,
-    homeSkillsDir,
-
-    workspaceSkillsDir(workspaceRoot: string) {
-      return join(workspaceRoot, '.agents', 'skills');
-    },
-
-    configCandidates(workspace: string) {
-      return [...this.workspaceConfigCandidates(workspace), ...this.homeConfigCandidates()];
-    },
 
     homeConfigCandidates() {
       return [
         join(homeAgentDir, 'config.json'),
         join(homeAgentDir, 'config.yaml'),
         join(homeAgentDir, 'config.yml'),
-      ];
-    },
-
-    workspaceConfigCandidates(workspace: string) {
-      return [
-        join(workspace, 'rem-agent.config.json'),
-        join(workspace, 'rem-agent.config.yaml'),
-        join(workspace, 'rem-agent.config.yml'),
-        join(workspace, '.rem-agent', 'config.json'),
-        join(workspace, '.rem-agent', 'config.yaml'),
-        join(workspace, '.rem-agent', 'config.yml'),
       ];
     },
 

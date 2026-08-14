@@ -65,6 +65,7 @@ describe('StartRun SQLite 组合边界', () => {
       expect(await store.listEvents('run-1')).toHaveLength(1);
       await store.transaction((uow) => {
         expect(uow.workItems.getByRun('run-1')).toMatchObject({ workItemId: 'work-1' });
+        expect(uow.executionBudgets.get('run-1')).toMatchObject({ tenantId: 'tenant-1', agentRuns: 1, messages: 0, tokens: 0 });
         expect(uow.idempotency.get('tenant-1', 'start-run', 'key-1')).toMatchObject({ resourceId: 'run-1' });
       });
       await expect(usecase.execute(request, input('changed'))).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
